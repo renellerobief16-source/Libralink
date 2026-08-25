@@ -48,14 +48,14 @@ router.post('/login', async (req, res) => {
     console.error('Login error:', error);
     console.error('Login error details:', error.message);
     
-    if (error.message && error.message.includes('database')) {
+    if (error.message && error.message.toLowerCase().includes('database')) {
       return res.status(500).json({
         success: false,
         message: 'Unable to connect to database. Please try again later.'
       });
     }
     
-    if (error.message && error.message.includes('network')) {
+    if (error.message && error.message.toLowerCase().includes('network')) {
       return res.status(500).json({
         success: false,
         message: 'Network error. Please check your connection.'

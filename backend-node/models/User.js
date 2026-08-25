@@ -150,7 +150,7 @@ class User {
 
       if (error) {
         console.error('Supabase login error:', error);
-        return null;
+        throw new Error(`Database login query failed: ${error.message}`);
       }
 
       if (!users) {
