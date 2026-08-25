@@ -14,7 +14,7 @@ import { useNotifications } from "../../../context/NotificationContext";
 
 
 
-import api from "../../../utils/api";
+import api, { API_ORIGIN } from "../../../utils/api";
 
 
 
@@ -1518,11 +1518,11 @@ export function StudentHeader({ userInfo, onLogout }) {
 
 
 
-    if (picture.startsWith('/')) return `http://localhost:5000${picture}`;
+    if (picture.startsWith('/')) return `${API_ORIGIN}${picture}`;
 
 
 
-    return `http://localhost:5000/${picture}`;
+    return `${API_ORIGIN}/${picture}`;
 
 
 
@@ -3420,7 +3420,7 @@ export function WelcomeSection({ displayName, schoolInfo, profileImage }) {
 
 
 
-    const apiOrigin = 'http://localhost:5000';
+    const apiOrigin = API_ORIGIN;
 
 
 
@@ -3496,7 +3496,7 @@ export function WelcomeSection({ displayName, schoolInfo, profileImage }) {
 
 
 
-    const apiOrigin = 'http://localhost:5000';
+    const apiOrigin = API_ORIGIN;
 
 
 

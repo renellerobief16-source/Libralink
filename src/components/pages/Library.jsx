@@ -3,8 +3,7 @@ import { FiBook, FiSearch, FiMapPin, FiStar } from "react-icons/fi";
 import { Link, useNavigate } from "react-router-dom";
 import Navigation from "./Navigation";
 import axios from "axios";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_BASE_URL } from "../../utils/api";
 
 function Library() {
   const navigate = useNavigate();

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Cropper from 'react-easy-crop';
 import { User, Mail, Phone, Calendar, Book, Edit, Camera, Lock, X } from 'lucide-react';
-import { updateProfilePicture, changePassword } from '../../../utils/api';
+import { updateProfilePicture, changePassword, API_ORIGIN } from '../../../utils/api';
 import { ProfileSkeleton } from '../../ui/Skeleton';
 
 function StudentProfile() {
@@ -38,7 +38,7 @@ function StudentProfile() {
   // Construct profile picture URL using same logic as school logo
   const getProfilePictureUrl = (picture) => {
     if (!picture) return '';
-    const apiOrigin = 'http://localhost:5000';
+    const apiOrigin = API_ORIGIN;
     if (
       picture.startsWith('http://') ||
       picture.startsWith('https://') ||
