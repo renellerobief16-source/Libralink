@@ -1,0 +1,3 @@
+Title,Author,Publisher,ISBN,Call Number,Category,Copies,Edition,Copyright Year,Physical Description,Series Title,General Note,Shelf Location,Accession Number,Barcode,Subtitle,Place of Publication,Condition,Acquisition Method,Supplier,Purchase Price,Language
+Test Book 1,John Doe,Test Publisher,978-0-123456-78-9,123.45 TEST 2024,Fiction,2,1st,2024,xii, 300 p. ; 23 cm.,Test Series,Test note,A-101,TEST-00000001,BC-000001,Test Subtitle,New York,Good,Purchase,Test Supplier,25.99,English
+Test Book 2,Jane Smith,Another Publisher,978-0-987654-32-1,456.78 ANO 2024,Science,3,2nd,2023,x, 250 p. ; 21 cm.,,Another note,B-201,TEST-00000002,BC-000002,,London,Fair,Donation,,0,English
