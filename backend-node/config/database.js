@@ -2,28 +2,33 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const { createClient } = require('@supabase/supabase-js');
 
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+const supabaseUrl = process.env.SUPABASE_URL?.trim();
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+
+if (!supabaseUrl || !serviceRoleKey) {
   throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in backend-node/.env');
+}
+
+if (!/^https?:\/\/[^\s]+$/i.test(supabaseUrl)) {
+  throw new Error('SUPABASE_URL must be a valid URL starting with https://');
 }
 
 // Print environment variables for debugging (excluding secrets)
 console.log('=== Database Configuration ===');
-console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
-console.log('SUPABASE_SERVICE_ROLE_KEY exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
-console.log('SUPABASE_SERVICE_ROLE_KEY first 10 chars:', process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.substring(0, 10) : 'N/A');
-console.log('SUPABASE_SERVICE_ROLE_KEY length:', process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.length : 0);
-console.log('SUPABASE_SERVICE_ROLE_KEY has quotes:', process.env.SUPABASE_SERVICE_ROLE_KEY ? (process.env.SUPABASE_SERVICE_ROLE_KEY.startsWith('"') || process.env.SUPABASE_SERVICE_ROLE_KEY.startsWith("'")) : false);
+console.log('SUPABASE_URL:', supabaseUrl);
+console.log('SUPABASE_SERVICE_ROLE_KEY exists:', !!serviceRoleKey);
+console.log('SUPABASE_SERVICE_ROLE_KEY length:', serviceRoleKey.length);
 console.log('SUPABASE_ANON_KEY exists:', !!process.env.SUPABASE_ANON_KEY);
 console.log('===============================');
 
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  supabaseUrl,
+  serviceRoleKey,
   {
     global: {
       headers: {
-        'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY,
-        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`
       }
     },
     db: {
