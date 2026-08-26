@@ -87,21 +87,23 @@ const LibrarianPermissionLetter = ({ darkMode }) => {
         // Initialize editable content with default letter body
         setEditableContent({
           letterTitle: 'LIBRARY PERMISSION LETTER',
-          letterSubtitle: 'Official Authorization for Library Access',
-          letterBody: `This letter serves as official authorization for the student identified below to borrow books from partner school libraries through the inter-library borrowing program.
+          letterSubtitle: 'Official Authorization for Home Library Borrowing',
+          letterBody: `This letter serves as official authorization for the student identified below to borrow books through the home library and partner school library arrangement under the inter-school borrowing program.
 
-This permission is granted based on the approved borrow request ${data.data.request_id} and authorizes the student to access library resources at partner schools, including but not limited to:
+This permission is granted based on the approved borrow request ${data.data.request_id}. The student is authorized to access library resources through their home library and present this approval to the partner school library when picking up or borrowing materials.
 
-- Borrowing books from partner school libraries
-- Accessing reference materials and digital resources
-- Utilizing study areas and research facilities at partner schools
-- Participating in inter-library programs and workshops
+This letter confirms that:
 
-The student agrees to adhere to all library policies and regulations of both their home school and the partner schools, including proper care of borrowed materials, timely return of items, and respectful conduct within library premises.
+- The student is officially approved for inter-school library use
+- The request ID is ${data.data.request_id}
+- The permission letter is issued through the home library for verification
+- The student must comply with all library policies and return procedures at both schools
+
+The student agrees to follow the rules of the home library and the partner school library, including the proper return of borrowed books and the respectful use of library facilities.
 
 This permission letter is valid from ${getCurrentDate()} until ${getExpiryDate()}, unless otherwise revoked or renewed.
 
-Should you have any questions or require further verification, please contact the library administration using the information provided above.`,
+Should you have any questions or require further verification, please contact the home library administration using the information provided above.`,
           customInstructions: ''
         });
 
@@ -190,7 +192,7 @@ Should you have any questions or require further verification, please contact th
             </h1>
           </div>
           <p className="text-[#64748B] text-lg ml-15">
-            Generate permission letters for inter-library book borrowing
+            Generate permission letters for home-library approval requests and inter-school borrowing
           </p>
         </div>
 

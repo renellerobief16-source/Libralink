@@ -180,12 +180,12 @@ function RequestDetails({ requestDetails }) {
                   <Book className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-800 truncate">
-                      {item.book_title || "Unknown Book"}
+                      {item.book?.title || item.book_title || item.title || "Unknown Book"}
                     </p>
-                    {item.partner_school_name && (
+                    {(item.owner_school?.school_name || item.owner_school_name || item.partner_school?.school_name || item.partner_school_name) && (
                       <p className="text-xs text-slate-500 flex items-center gap-1">
                         <MapPin className="w-3 h-3" />
-                        {item.partner_school_name}
+                        {item.owner_school?.school_name || item.owner_school_name || item.partner_school?.school_name || item.partner_school_name}
                       </p>
                     )}
                   </div>

@@ -201,22 +201,6 @@ router.get('/student/:student_id', auth, async (req, res) => {
   }
 });
 
-// @route   GET /api/borrow/:id
-// @desc    Get borrow transaction by ID
-// @access  Private
-router.get('/:id', auth, async (req, res) => {
-  try {
-    const borrow = await BorrowTransaction.getById(req.params.id);
-    if (!borrow) {
-      return res.status(404).json({ success: false, message: 'Borrow transaction not found' });
-    }
-    res.json({ success: true, data: borrow });
-  } catch (error) {
-    console.error('Error getting borrow transaction:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
 // @route   POST /api/borrow
 // @desc    Create borrow request
 // @access  Private (Student)
@@ -517,6 +501,22 @@ router.get('/history/school', auth, async (req, res) => {
     res.json({ success: true, data: filteredData });
   } catch (error) {
     console.error('Error getting school borrow history:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// @route   GET /api/borrow/:id
+// @desc    Get borrow transaction by ID
+// @access  Private
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const borrow = await BorrowTransaction.getById(req.params.id);
+    if (!borrow) {
+      return res.status(404).json({ success: false, message: 'Borrow transaction not found' });
+    }
+    res.json({ success: true, data: borrow });
+  } catch (error) {
+    console.error('Error getting borrow transaction:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });

@@ -82,7 +82,7 @@ router.get('/:id', auth, async (req, res) => {
 
     if (isLibrarian && request.home_school_id !== req.user.school_id) {
       // Check if librarian is from partner school
-      const hasPartnerItems = request.items?.some(item => item.partner_school_id === req.user.school_id);
+      const hasPartnerItems = request.items?.some(item => String(item.partner_school_id) === String(req.user.school_id));
       if (!hasPartnerItems) {
         return res.status(403).json({ success: false, message: 'Unauthorized' });
       }
@@ -129,7 +129,7 @@ router.get('/partner/:school_id', auth, requireRole(['Librarian', 'Librarian Adm
 router.get('/inter-school-status', auth, async (req, res) => {
   try {
     console.log('[BORROW REQUESTS] Fetching inter-school status');
-    const requests = await BorrowRequest.getAllInterSchoolRequests();
+    const requests = await BorrowRequest.getInterSchoolStatusesByStudent(req.user.user_id);
     console.log('[BORROW REQUESTS] Inter-school status fetched:', requests);
     res.json({ success: true, data: requests });
   } catch (error) {
@@ -156,18 +156,18 @@ router.put('/:id/approve', auth, requireRole(['Librarian', 'Librarian Admin']), 
     console.log('[APPROVE] Request school_id:', request.home_school_id);
     console.log('[APPROVE] User school_id:', req.user.school_id);
 
-    // Check if librarian is from home school OR owner school (for inter-school requests)
-    const isHomeSchool = request.home_school_id === req.user.school_id;
-    
     // Check if this is an inter-school request and if librarian is from owner school
     const { data: requestItems } = await supabase
       .from('borrow_request_items')
       .select('owner_school_id')
       .eq('request_id', req.params.id);
-    
-    const isOwnerSchool = requestItems?.some(item => item.owner_school_id === req.user.school_id);
-    
-    if (!isHomeSchool && !isOwnerSchool) {
+
+    const isInterSchool = request.request_type === 'INTER_SCHOOL' ||
+      requestItems?.some(item => item.owner_school_id !== request.home_school_id);
+    const isHomeSchool = String(request.home_school_id) === String(req.user.school_id);
+    const isOwnerSchool = requestItems?.some(item => String(item.owner_school_id) === String(req.user.school_id));
+
+    if ((isInterSchool && !isOwnerSchool) || (!isInterSchool && !isHomeSchool)) {
       return res.status(403).json({ success: false, message: 'Unauthorized - Not your school' });
     }
 
@@ -196,18 +196,18 @@ router.put('/:id/reject', auth, requireRole(['Librarian', 'Librarian Admin']), a
     console.log('[REJECT] Request school_id:', request.home_school_id);
     console.log('[REJECT] User school_id:', req.user.school_id);
 
-    // Check if librarian is from home school OR owner school (for inter-school requests)
-    const isHomeSchool = request.home_school_id === req.user.school_id;
-    
     // Check if this is an inter-school request and if librarian is from owner school
     const { data: requestItems } = await supabase
       .from('borrow_request_items')
       .select('owner_school_id')
       .eq('request_id', req.params.id);
-    
-    const isOwnerSchool = requestItems?.some(item => item.owner_school_id === req.user.school_id);
-    
-    if (!isHomeSchool && !isOwnerSchool) {
+
+    const isInterSchool = request.request_type === 'INTER_SCHOOL' ||
+      requestItems?.some(item => item.owner_school_id !== request.home_school_id);
+    const isHomeSchool = String(request.home_school_id) === String(req.user.school_id);
+    const isOwnerSchool = requestItems?.some(item => String(item.owner_school_id) === String(req.user.school_id));
+
+    if ((isInterSchool && !isOwnerSchool) || (!isInterSchool && !isHomeSchool)) {
       return res.status(403).json({ success: false, message: 'Unauthorized - Not your school' });
     }
 
@@ -254,27 +254,55 @@ router.post('/:id/permission-letter', auth, requireRole(['Librarian', 'Librarian
 router.post('/scan', auth, requireRole(['Librarian', 'Librarian Admin']), async (req, res) => {
   try {
     const { qr_token } = req.body;
-    console.log('[SCAN QR] QR Token:', qr_token);
+    let qrToken = typeof qr_token === 'string' ? qr_token.trim() : '';
     console.log('[SCAN QR] User:', req.user);
     
-    if (!qr_token) {
+    if (!qrToken) {
       return res.status(400).json({ success: false, message: 'QR token is required' });
     }
 
-    const request = await BorrowRequest.getByQRToken(qr_token);
+    // QRCodeDisplay stores a JSON payload, while manual/device scanners may
+    // provide only the token. Accept both formats for the same QR code.
+    try {
+      const qrPayload = JSON.parse(qrToken);
+      const payloadToken = qrPayload?.token || qrPayload?.qr_token || qrPayload?.data?.token || qrPayload?.data?.qr_token;
+      if (typeof payloadToken === 'string') qrToken = payloadToken.trim();
+    } catch {
+      // The input is already a raw token.
+    }
+
+    console.log('[SCAN QR] QR Token:', qrToken);
+    let request;
+    try {
+      request = await BorrowRequest.getByQRToken(qrToken);
+    } catch (error) {
+      // A missing token is a client scan error, not a server failure.
+      if (error.code === 'PGRST116' || error.status === 406) {
+        return res.status(404).json({ success: false, message: 'Invalid QR token or request not found' });
+      }
+      throw error;
+    }
     if (!request) {
       return res.status(404).json({ success: false, message: 'Invalid QR token or request not found' });
     }
 
     console.log('[SCAN QR] Request found:', request.request_id);
 
-    // Check if librarian is authorized (home school or partner school)
-    const isHomeSchool = request.home_school_id === req.user.school_id;
-    const isPartnerSchool = request.items?.some(item => item.partner_school_id === req.user.school_id);
+    // Check if librarian is authorized for either side of an inter-school request.
+    // The owning library (book owner) and the requesting school (student home school)
+    // are both involved in the request, so the scan should work for either side.
+    const involvedSchoolIds = new Set([
+      String(request.home_school_id),
+      ...(request.items || []).map(item => item.owner_school_id).filter(Boolean),
+      ...(request.items || []).map(item => item.partner_school_id).filter(Boolean)
+    ].map(String));
 
-    console.log('[SCAN QR] Home school check:', isHomeSchool, 'Partner school check:', isPartnerSchool);
+    const isAuthorizedSchool = involvedSchoolIds.has(String(req.user.school_id));
 
-    if (!isHomeSchool && !isPartnerSchool) {
+    console.log('[SCAN QR] Involved schools:', [...involvedSchoolIds]);
+    console.log('[SCAN QR] Authorized school check:', isAuthorizedSchool);
+
+    if (!isAuthorizedSchool) {
       return res.status(403).json({ success: false, message: 'Unauthorized - Not involved in this request' });
     }
 

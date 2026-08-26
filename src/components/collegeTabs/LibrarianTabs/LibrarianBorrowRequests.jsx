@@ -97,7 +97,8 @@ function AdminBorrowRequests() {
       console.log('[LIBRARIAN] Home school borrow requests response:', data, error);
       if (error) throw error;
       
-      setBorrowRequests(data || []);
+      // Keep the home queue limited to requests owned by this library.
+      setBorrowRequests((data || []).filter(request => request.request_type !== 'INTER_SCHOOL'));
       
       // Fetch all book details at once (more efficient)
       if (data && data.length > 0) {
@@ -248,6 +249,39 @@ function AdminBorrowRequests() {
     }
   }, [activeRequestTab]);
 
+  const getCurrentStaffIdentity = () => {
+    try {
+      const rawUser = localStorage.getItem('currentUser');
+      if (!rawUser) return { name: 'Library Staff', profilePicture: '' };
+      const currentUser = JSON.parse(rawUser);
+      const name = currentUser?.full_name ||
+        [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(' ') ||
+        currentUser?.name ||
+        currentUser?.username ||
+        'Library Staff';
+      const profilePicture = currentUser?.profile_picture || currentUser?.profile_image || '';
+      return { name, profilePicture };
+    } catch {
+      return { name: 'Library Staff', profilePicture: '' };
+    }
+  };
+
+  const getRequestStudentIdentity = (request) => {
+    const student = request?.student || request?.borrow_request?.student || request?.borrower || null;
+    if (!student) {
+      return { name: 'Student', profilePicture: '' };
+    }
+
+    const name = student.full_name ||
+      [student.first_name || student.firstname, student.last_name || student.lastname].filter(Boolean).join(' ') ||
+      student.name ||
+      [student.firstname, student.lastname].filter(Boolean).join(' ') ||
+      'Student';
+
+    const profilePicture = student.profile_picture || student.profile_image || student.avatar || student.photo_url || '';
+    return { name, profilePicture };
+  };
+
   const handleApproveRequest = async (requestId) => {
     try {
       setProcessingRequest(requestId);
@@ -264,6 +298,7 @@ function AdminBorrowRequests() {
                      interSchoolRequests.find(r => r.borrow_request?.request_id === requestId || r.request_id === requestId);
       
       if (request) {
+        const studentIdentity = getRequestStudentIdentity(request);
         // Check if request has items from other schools
         const hasOtherSchoolItems = request.items?.some(item => item.owner_school_id !== request.home_school_id) ||
                                    request.borrow_request?.items?.some(item => item.owner_school_id !== request.borrow_request?.home_school_id);
@@ -279,7 +314,11 @@ function AdminBorrowRequests() {
             type: 'BORROW_REQUEST_APPROVED',
             title: 'Borrow Request Approved - Partner School',
             message: `Your borrow request ${requestId} has been approved! To borrow books from ${partnerSchools.join(', ')}, you need: School ID, Permission Letter, and follow the step-by-step instructions. The system will provide a QR CODE to navigate your book borrowing. Check your inbox for details.`,
-            related_request_id: requestId
+            related_request_id: requestId,
+            senderName: studentIdentity.name,
+            senderProfilePicture: studentIdentity.profilePicture,
+            student_name: studentIdentity.name,
+            student_profile_picture: studentIdentity.profilePicture,
           });
         } else {
           // Home school request
@@ -287,7 +326,11 @@ function AdminBorrowRequests() {
             type: 'BORROW_REQUEST_APPROVED',
             title: 'Borrow Request Approved',
             message: `Your borrow request ${requestId} has been approved! Please bring your School ID to the library to pick up your books. The system will provide a QR CODE to navigate your book borrowing.`,
-            related_request_id: requestId
+            related_request_id: requestId,
+            senderName: studentIdentity.name,
+            senderProfilePicture: studentIdentity.profilePicture,
+            student_name: studentIdentity.name,
+            student_profile_picture: studentIdentity.profilePicture,
           });
         }
       }
@@ -328,6 +371,7 @@ function AdminBorrowRequests() {
                      interSchoolRequests.find(r => r.borrow_request?.request_id === requestId || r.request_id === requestId);
       
       if (request) {
+        const studentIdentity = getRequestStudentIdentity(request);
         // Check if request has items from other schools
         const hasOtherSchoolItems = request.items?.some(item => item.owner_school_id !== request.home_school_id) ||
                                    request.borrow_request?.items?.some(item => item.owner_school_id !== request.borrow_request?.home_school_id);
@@ -343,7 +387,11 @@ function AdminBorrowRequests() {
             type: 'BORROW_REQUEST_REJECTED',
             title: 'Borrow Request Rejected - Partner School',
             message: `Your borrow request ${requestId} for books from ${partnerSchools.join(', ')} has been rejected. Please contact the library for more information.`,
-            related_request_id: requestId
+            related_request_id: requestId,
+            senderName: studentIdentity.name,
+            senderProfilePicture: studentIdentity.profilePicture,
+            student_name: studentIdentity.name,
+            student_profile_picture: studentIdentity.profilePicture,
           });
         } else {
           // Home school request
@@ -351,7 +399,11 @@ function AdminBorrowRequests() {
             type: 'BORROW_REQUEST_REJECTED',
             title: 'Borrow Request Rejected',
             message: `Your borrow request ${requestId} has been rejected. Please contact the library for more information.`,
-            related_request_id: requestId
+            related_request_id: requestId,
+            senderName: studentIdentity.name,
+            senderProfilePicture: studentIdentity.profilePicture,
+            student_name: studentIdentity.name,
+            student_profile_picture: studentIdentity.profilePicture,
           });
         }
       }

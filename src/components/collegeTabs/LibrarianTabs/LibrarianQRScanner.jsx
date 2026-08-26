@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { QrCode, Camera, X, CheckCircle, AlertCircle, Book, User, MapPin, Loader2, Phone, Mail, IdCard, RefreshCw, Scan } from 'lucide-react';
+import QrScanner from 'qr-scanner';
 import { scanQRToken, releaseBookItem, returnBookItem } from '../../../utils/api';
 import { getBackendAssetUrl } from '../../../utils/api';
 
@@ -13,32 +14,55 @@ function LibrarianQRScanner({ darkMode }) {
   const [itemToRelease, setItemToRelease] = useState(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const qrScannerRef = useRef(null);
 
-  const handleManualScan = async () => {
-    if (!manualToken.trim()) {
-      setError('Please enter a QR token');
-      return;
-    }
+  useEffect(() => {
+    if (!scanning || !videoRef.current) return undefined;
 
+    const scanner = new QrScanner(
+      videoRef.current,
+      (result) => {
+        const decodedText = typeof result === 'string' ? result : result.data;
+        if (!decodedText) return;
+        setManualToken(decodedText);
+        setScanning(false);
+        handleScan(decodedText);
+      },
+      { highlightScanRegion: true, highlightCodeOutline: true }
+    );
+
+    qrScannerRef.current = scanner;
+    scanner.start().catch(() => {
+      setScanning(false);
+      setError('Unable to access the camera. Please allow camera access or enter the token manually.');
+    });
+
+    return () => {
+      scanner.stop();
+      scanner.destroy();
+      qrScannerRef.current = null;
+    };
+  }, [scanning]);
+
+  const handleScan = async (token) => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await scanQRToken(manualToken.trim());
+      const response = await scanQRToken(token.trim());
       if (response.error) {
         setError(response.error.message || 'Invalid QR token');
         setRequest(null);
       } else {
-        // Only show requests that are approved or in releaseable state
-        const request = response.data;
-        if (request.status === 'pending') {
+        const scannedRequest = response.data;
+        if (scannedRequest.status === 'pending') {
           setError('This request is still pending approval. Please approve it first in Borrow Requests.');
           setRequest(null);
-        } else if (request.status === 'rejected') {
+        } else if (scannedRequest.status === 'rejected') {
           setError('This request has been rejected.');
           setRequest(null);
         } else {
-          setRequest(request);
+          setRequest(scannedRequest);
           setError(null);
         }
       }
@@ -48,6 +72,15 @@ function LibrarianQRScanner({ darkMode }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleManualScan = async () => {
+    if (!manualToken.trim()) {
+      setError('Please enter a QR token');
+      return;
+    }
+
+    await handleScan(manualToken.trim());
   };
 
   const handleReleaseBook = async (itemId) => {
@@ -185,6 +218,22 @@ function LibrarianQRScanner({ darkMode }) {
             <>
               {/* Manual Token Input */}
               <div className="bg-[#F8FAFC] rounded-xl p-6 mb-6 border border-[#E2E8F0]">
+                <video
+                  ref={videoRef}
+                  className={`${scanning ? 'block' : 'hidden'} w-full max-w-md mx-auto rounded-lg mb-4 bg-black aspect-video object-cover`}
+                  muted
+                  playsInline
+                />
+                <div className="flex justify-center mb-4">
+                  <button
+                    onClick={() => setScanning(value => !value)}
+                    disabled={loading}
+                    className="px-4 py-2 rounded-lg border border-[#2563EB] text-[#2563EB] font-semibold hover:bg-blue-50 transition-all disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {scanning ? <X className="w-4 h-4" /> : <Camera className="w-4 h-4" />}
+                    {scanning ? 'Stop Camera' : 'Use Camera'}
+                  </button>
+                </div>
                 <div className="flex gap-3">
                   <div className="flex-1 relative">
                     <QrCode className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#64748B]" />

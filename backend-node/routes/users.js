@@ -99,6 +99,24 @@ router.get('/student/:student_id', auth, requireRole(['Librarian', 'Librarian Ad
   }
 });
 
+// @route   GET /api/users/school?school_id=1
+// @desc    Get users by school using a query parameter
+// @access  Private
+router.get('/school', auth, async (req, res) => {
+  try {
+    const schoolId = req.query.school_id || req.query.schoolId;
+    if (!schoolId) {
+      return res.status(400).json({ success: false, message: 'school_id is required' });
+    }
+
+    const users = await User.getBySchool(schoolId, req.query.role_id);
+    res.json({ success: true, data: users });
+  } catch (error) {
+    console.error('Error getting users by school:', error);
+    res.status(500).json({ success: false, message: 'Unable to retrieve school users. Please try again.' });
+  }
+});
+
 // @route   GET /api/users/:id
 // @desc    Get user by ID
 // @access  Private

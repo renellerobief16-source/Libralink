@@ -2,6 +2,19 @@ import { createContext, useContext, useState, useEffect } from 'react';
 
 const NotificationContext = createContext();
 
+function getNotificationStorageKey() {
+  const storedUserId = localStorage.getItem('currentUserId');
+  if (storedUserId) return `libralink_notifications_${storedUserId}`;
+
+  try {
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+    const userId = currentUser?.user_id || currentUser?.id || currentUser?.sub;
+    return userId ? `libralink_notifications_${userId}` : null;
+  } catch {
+    return null;
+  }
+}
+
 export const useNotifications = () => {
   const context = useContext(NotificationContext);
   if (!context) {
@@ -13,10 +26,24 @@ export const useNotifications = () => {
 export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [storageKey, setStorageKey] = useState(getNotificationStorageKey);
+
+  useEffect(() => {
+    const syncUserNotifications = () => {
+      setNotifications([]);
+      setUnreadCount(0);
+      setStorageKey(getNotificationStorageKey());
+    };
+
+    window.addEventListener('libralink-user-changed', syncUserNotifications);
+    return () => window.removeEventListener('libralink-user-changed', syncUserNotifications);
+  }, []);
 
   // Load notifications from localStorage on mount
   useEffect(() => {
-    const stored = localStorage.getItem('libralink_notifications');
+    if (!storageKey) return;
+
+    const stored = localStorage.getItem(storageKey);
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
@@ -25,15 +52,18 @@ export const NotificationProvider = ({ children }) => {
       } catch (e) {
         console.error('Error loading notifications:', e);
       }
+    } else {
+      setNotifications([]);
+      setUnreadCount(0);
     }
-  }, []);
+  }, [storageKey]);
 
   // Save notifications to localStorage whenever they change
   useEffect(() => {
-    if (notifications.length > 0) {
-      localStorage.setItem('libralink_notifications', JSON.stringify(notifications));
+    if (storageKey && notifications.length > 0) {
+      localStorage.setItem(storageKey, JSON.stringify(notifications));
     }
-  }, [notifications]);
+  }, [notifications, storageKey]);
 
   const addNotification = (notification) => {
     const newNotification = {
@@ -66,7 +96,7 @@ export const NotificationProvider = ({ children }) => {
   const clearNotifications = () => {
     setNotifications([]);
     setUnreadCount(0);
-    localStorage.removeItem('libralink_notifications');
+    if (storageKey) localStorage.removeItem(storageKey);
   };
 
   const deleteNotification = (notificationId) => {

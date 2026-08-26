@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FiBell, FiUser, FiChevronDown, FiSettings, FiLogOut, FiCheck, FiX, FiTrash2 } from 'react-icons/fi';
+import { getBackendAssetUrl } from '../../utils/api';
 
 function GlobalHeader({
   userName,
@@ -175,7 +176,7 @@ function GlobalHeader({
                           <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
                             {notification.profile_picture || notification.sender_profile_picture ? (
                               <img 
-                                src={notification.profile_picture || notification.sender_profile_picture} 
+                                src={getBackendAssetUrl(notification.profile_picture || notification.sender_profile_picture)} 
                                 alt="Profile" 
                                 className="w-full h-full rounded-full object-cover"
                               />

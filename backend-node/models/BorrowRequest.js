@@ -41,6 +41,8 @@ class BorrowRequest {
         }
       }
 
+      await this.notifyOwnerSchoolStaff(request_id, data, result);
+
       console.log('[BORROW REQUEST] Created successfully:', request_id);
       return { request_id, ...result }; // Don't return qr_token
     } catch (error) {
@@ -80,11 +82,80 @@ class BorrowRequest {
     }
   }
 
+  static async notifyOwnerSchoolStaff(request_id, requestData, request) {
+    try {
+      const ownerSchoolIds = [...new Set((requestData.items || [])
+        .map(item => Number(item.owner_school_id))
+        .filter(Number.isInteger))];
+
+      if (ownerSchoolIds.length === 0) return;
+
+      const { data: student, error: studentError } = await supabase
+        .from('users')
+        .select('firstname, lastname, student_number')
+        .eq('user_id', request.student_id)
+        .single();
+
+      if (studentError) throw studentError;
+
+      const { data: staff, error: staffError } = await supabase
+        .from('users')
+        .select('user_id, school_id')
+        .in('school_id', ownerSchoolIds)
+        .in('role_id', [2, 3])
+        .eq('status', 'active');
+
+      if (staffError) throw staffError;
+      if (!staff || staff.length === 0) return;
+
+      const studentName = [student?.firstname, student?.lastname].filter(Boolean).join(' ') || 'A student';
+      const bookCount = requestData.items?.length || 0;
+      const bookTitles = (requestData.items || [])
+        .map(item => item.title)
+        .filter(Boolean);
+      const bookSummary = bookTitles.length > 0
+        ? bookTitles.join(', ')
+        : `${bookCount} ${bookCount === 1 ? 'book' : 'books'}`;
+      const notifications = staff.map(member => ({
+        user_id: member.user_id,
+        school_id: member.school_id,
+        type: 'request_submitted',
+        title: requestData.request_type === 'INTER_SCHOOL'
+          ? 'New Inter-School Borrow Request'
+          : 'New Borrow Request',
+        message: `${studentName} submitted request ${request_id} for: ${bookSummary}. Please review the request.`,
+        // related_id is an integer in the existing database; the request ID is kept in the message.
+        related_id: null,
+        is_read: false,
+        is_admin_notification: false,
+      }));
+
+      const { error: notificationError } = await supabase
+        .from('notifications')
+        .insert(notifications);
+
+      if (notificationError) throw notificationError;
+      console.log('[BORROW REQUEST] Staff notifications created:', notifications.length);
+    } catch (error) {
+      // A notification failure must not invalidate a successfully created request.
+      console.error('[BORROW REQUEST] Error creating staff notifications:', error);
+    }
+  }
+
   static async getById(request_id) {
     try {
       const { data, error } = await supabase
         .from('borrow_requests')
-        .select('*')
+        .select(`
+          *,
+          home_school:home_school_id(school_name, school_code),
+          items:borrow_request_items(
+            *,
+            book:book_id(title, author),
+            owner_school:owner_school_id(school_name, school_code),
+            partner_school:partner_school_id(school_name, school_code)
+          )
+        `)
         .eq('request_id', request_id)
         .single();
 
@@ -105,7 +176,9 @@ class BorrowRequest {
           home_school:home_school_id(school_name, school_code),
           items:borrow_request_items(
             *,
-            book:book_id(title, author)
+            book:book_id(title, author),
+            owner_school:owner_school_id(school_name, school_code),
+            partner_school:partner_school_id(school_name, school_code)
           )
         `)
         .eq('student_id', student_id)
@@ -127,7 +200,7 @@ class BorrowRequest {
         .from('borrow_requests')
         .select(`
           *,
-          student:student_id(firstname, lastname, student_number, email),
+          student:student_id(firstname, lastname, student_number, email, profile_image),
           home_school:home_school_id(school_name, school_code),
           items:borrow_request_items(
             *,
@@ -135,7 +208,8 @@ class BorrowRequest {
             owner_school:owner_school_id(school_name, school_code)
           )
         `)
-        .eq('home_school_id', school_id);
+        .eq('home_school_id', school_id)
+        .eq('request_type', 'HOME');
 
       if (status) {
         query = query.eq('status', status);
@@ -178,6 +252,26 @@ class BorrowRequest {
     }
   }
 
+  static async getInterSchoolStatusesByStudent(student_id) {
+    const { data: requests, error: requestError } = await supabase
+      .from('borrow_requests')
+      .select('request_id')
+      .eq('student_id', student_id);
+
+    if (requestError) throw requestError;
+    const requestIds = (requests || []).map(request => request.request_id).filter(Boolean);
+    if (requestIds.length === 0) return [];
+
+    const { data, error } = await supabase
+      .from('borrow_request_items')
+      .select('item_id, request_id, book_id, owner_school_id, status, borrow_type')
+      .in('request_id', requestIds)
+      .eq('borrow_type', 'INTER_SCHOOL_LIBRARY_USE');
+
+    if (error) throw error;
+    return data || [];
+  }
+
   static async getByPartnerSchool(school_id, status = null) {
     try {
       console.log('[BORROW REQUEST] Fetching partner school requests for school_id:', school_id);
@@ -186,16 +280,6 @@ class BorrowRequest {
         .from('borrow_request_items')
         .select(`
           *,
-          borrow_request:borrow_request_id(
-            *,
-            student:student_id(firstname, lastname, student_number, email, contact_number),
-            home_school:home_school_id(school_name, school_code),
-            items:borrow_request_items(
-              *,
-              book:book_id(title, author),
-              owner_school:owner_school_id(school_name, school_code)
-            )
-          ),
           book:book_id(title, author, isbn),
           owner_school:owner_school_id(school_name, school_code),
           partner_school:partner_school_id(school_name, school_code)
@@ -211,7 +295,31 @@ class BorrowRequest {
       console.log('[BORROW REQUEST] Filtered requests for owner_school_id:', school_id, ':', data);
       console.log('[BORROW REQUEST] Filtered requests error:', error);
       if (error) throw error;
-      return data;
+
+      const requestIds = [...new Set((data || []).map(item => item.request_id).filter(Boolean))];
+      if (requestIds.length === 0) return [];
+
+      const { data: requests, error: requestsError } = await supabase
+        .from('borrow_requests')
+        .select(`
+          *,
+            student:student_id(firstname, lastname, student_number, email, contact_number, profile_image),
+          home_school:home_school_id(school_name, school_code),
+          items:borrow_request_items(
+            *,
+            book:book_id(title, author),
+            owner_school:owner_school_id(school_name, school_code)
+          )
+        `)
+        .in('request_id', requestIds);
+
+      if (requestsError) throw requestsError;
+
+      const requestsById = new Map((requests || []).map(request => [request.request_id, request]));
+      return (data || []).map(item => ({
+        ...item,
+        borrow_request: requestsById.get(item.request_id) || null,
+      }));
     } catch (error) {
       console.error('[BORROW REQUEST] Error getting partner school requests:', error);
       throw error;
@@ -220,24 +328,66 @@ class BorrowRequest {
 
   static async getByQRToken(qr_token) {
     try {
-      const { data, error } = await supabase
+      // Look up the request first without nested relations. This keeps QR
+      // scanning reliable even when an optional school/book relation is absent.
+      const { data: request, error: requestError } = await supabase
         .from('borrow_requests')
-        .select(`
-          *,
-          student:student_id(firstname, lastname, student_number, email, contact_number),
-          home_school:home_school_id(school_name, school_code, address),
-          items:borrow_request_items(
-            *,
-            book:book_id(title, author, isbn, call_number),
-            owner_school:owner_school_id(school_name, school_code),
-            partner_school:partner_school_id(school_name, school_code, address)
-          )
-        `)
+        .select('*')
         .eq('qr_token', qr_token)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
-      return data;
+      if (requestError) throw requestError;
+      if (!request) return null;
+
+      const { data: student, error: studentError } = await supabase
+        .from('users')
+        .select('firstname, lastname, student_number, email, contact_number')
+        .eq('user_id', request.student_id)
+        .maybeSingle();
+      if (studentError) throw studentError;
+
+      const { data: homeSchool, error: homeSchoolError } = await supabase
+        .from('schools')
+        .select('school_id, school_name, school_code, address')
+        .eq('school_id', request.home_school_id)
+        .maybeSingle();
+      if (homeSchoolError) throw homeSchoolError;
+
+      const { data: items, error: itemsError } = await supabase
+        .from('borrow_request_items')
+        .select('*')
+        .eq('request_id', request.request_id);
+      if (itemsError) throw itemsError;
+
+      const bookIds = [...new Set((items || []).map(item => item.book_id).filter(Boolean))];
+      const schoolIds = [...new Set((items || [])
+        .flatMap(item => [item.owner_school_id, item.partner_school_id])
+        .filter(Boolean))];
+
+      const [{ data: books, error: booksError }, { data: schools, error: schoolsError }] = await Promise.all([
+        bookIds.length > 0
+          ? supabase.from('books').select('book_id, title, author, isbn, call_number').in('book_id', bookIds)
+          : Promise.resolve({ data: [], error: null }),
+        schoolIds.length > 0
+          ? supabase.from('schools').select('school_id, school_name, school_code, address').in('school_id', schoolIds)
+          : Promise.resolve({ data: [], error: null })
+      ]);
+      if (booksError) throw booksError;
+      if (schoolsError) throw schoolsError;
+
+      const booksById = new Map((books || []).map(book => [String(book.book_id), book]));
+      const schoolsById = new Map((schools || []).map(school => [String(school.school_id), school]));
+      return {
+        ...request,
+        student,
+        home_school: homeSchool,
+        items: (items || []).map(item => ({
+          ...item,
+          book: booksById.get(String(item.book_id)) || null,
+          owner_school: schoolsById.get(String(item.owner_school_id)) || null,
+          partner_school: schoolsById.get(String(item.partner_school_id)) || null,
+        }))
+      };
     } catch (error) {
       console.error('[BORROW REQUEST] Error getting request by QR token:', error);
       throw error;

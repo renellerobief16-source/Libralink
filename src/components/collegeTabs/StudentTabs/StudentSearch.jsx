@@ -66,6 +66,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
   const [otherSchoolsWithBook, setOtherSchoolsWithBook] = useState([]);
   const [searchingOtherSchools, setSearchingOtherSchools] = useState(false);
   const [bookForOtherSchoolSearch, setBookForOtherSchoolSearch] = useState(null);
+  const [interSchoolRequestStatuses, setInterSchoolRequestStatuses] = useState({});
   const [showBookDetailModal, setShowBookDetailModal] = useState(false);
   const [searchHistory, setSearchHistory] = useState(() => {
     try {
@@ -109,8 +110,57 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
     }
   };
 
+  const fetchInterSchoolRequestStatuses = async () => {
+    try {
+      const response = await api.get("/borrow-requests/inter-school-status");
+      const items = Array.isArray(response?.data) ? response.data : [];
+      const statusMap = {};
+
+      items.forEach((item) => {
+        if (!item || !item.status) return;
+
+        const bookId = item.book_id ?? item.book?.id ?? item.book_id;
+        const ownerSchoolId = item.owner_school_id ?? item.owner_school?.school_id ?? item.school_id;
+
+        if (bookId !== undefined && ownerSchoolId !== undefined) {
+          statusMap[`${bookId}_${ownerSchoolId}`] = item.status;
+        }
+      });
+
+      setInterSchoolRequestStatuses(statusMap);
+    } catch (error) {
+      console.error("Unable to load inter-school request statuses:", error);
+      setInterSchoolRequestStatuses({});
+    }
+  };
+
+  useEffect(() => {
+    fetchInterSchoolRequestStatuses();
+  }, []);
+
+  const getBookDisplayStatus = (book, ownerSchoolId = book?.school_id) => {
+    if (!book) return "available";
+
+    const requestStatus = interSchoolRequestStatuses[`${book.id ?? book.book_id}_${ownerSchoolId}`];
+    if (requestStatus === "pending") return "requested";
+    if (requestStatus === "approved") return "waiting_pickup";
+    if (requestStatus === "released" || requestStatus === "borrowed") return "borrowed";
+    if (requestStatus === "returned" || requestStatus === "cancelled") return "available";
+
+    const rawStatus = book.real_time_status || "available";
+    if (rawStatus === "pending_approval") return "requested";
+    if (rawStatus === "approved") return "waiting_pickup";
+    if (rawStatus === "released") return "borrowed";
+    return rawStatus;
+  };
+
+  const isBookAvailableForBorrow = (book, ownerSchoolId = book?.school_id) => {
+    return getBookDisplayStatus(book, ownerSchoolId) === "available";
+  };
+
   // Search for book in other schools
   const searchBookInOtherSchools = async (book) => {
+    setBookForOtherSchoolSearch(book);
     setSearchingOtherSchools(true);
     try {
       const currentSchoolId = localStorage.getItem("schoolId");
@@ -292,6 +342,11 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
   const handleBorrow = () => {
     if (selectedBook) {
+      if (!isBookAvailableForBorrow(selectedBook)) {
+        alert("This book is not currently available to borrow.");
+        return;
+      }
+
       const currentSchoolId = parseInt(localStorage.getItem("schoolId"));
       const isInterSchool = selectedBook.school_id && selectedBook.school_id !== currentSchoolId;
       setBorrowingFormList([
@@ -312,6 +367,10 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
   };
 
   const handleAddToBorrowingList = (book) => {
+    if (!book || !isBookAvailableForBorrow(book)) {
+      return;
+    }
+
     const schoolId = localStorage.getItem("schoolId");
     const currentSchoolId = parseInt(schoolId);
 
@@ -877,7 +936,9 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
             {/* Book Grid */}
             {filteredBooks.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1.5 sm:gap-2">
-                {filteredBooks.map((book) => (
+                {filteredBooks.map((book) => {
+                  const displayStatus = getBookDisplayStatus(book);
+                  return (
                   <div
                     key={book.id}
                     onClick={() => handleBookClick(book)}
@@ -914,14 +975,14 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                       {/* Availability Status */}
                       <div className="flex items-center justify-between pt-0.5">
                         <span className={`text-xs font-semibold ${
-                          book.real_time_status === 'available' 
+                          displayStatus === 'available' 
                             ? 'text-green-600' 
                             : 'text-red-600'
                         }`}>
-                          {book.real_time_status === 'available' ? 'Available' : 'Unavailable'}
+                          {displayStatus === 'available' ? 'Available' : displayStatus === 'requested' ? 'Requested' : displayStatus === 'waiting_pickup' ? 'Waiting for Pickup' : 'Borrowed'}
                         </span>
                         <div className="flex items-center gap-1">
-                          {book.real_time_status !== "available" ? (
+                          {displayStatus !== "available" ? (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -941,10 +1002,10 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                               }}
                               className="p-1 hover:bg-[#0077B6]/10 rounded transition-colors"
                               aria-label="Add to borrowing list"
-                              disabled={book.real_time_status !== "available"}
+                              disabled={displayStatus !== "available"}
                             >
                               <Plus
-                                className={`w-3.5 h-3.5 ${book.real_time_status === "available" ? "text-[#0077B6] hover:text-[#005f8f]" : "text-gray-300 cursor-not-allowed"}`}
+                                className={`w-3.5 h-3.5 ${displayStatus === "available" ? "text-[#0077B6] hover:text-[#005f8f]" : "text-gray-300 cursor-not-allowed"}`}
                               />
                             </button>
                           )}
@@ -965,7 +1026,8 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </>
@@ -1247,7 +1309,11 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
       )}
 
       {/* Book Detail Overlay */}
-      {selectedBook && (
+      {selectedBook && (() => {
+        const selectedBookDisplayStatus = getBookDisplayStatus(selectedBook);
+        const selectedBookAvailable = selectedBookDisplayStatus === "available";
+
+        return (
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 p-0 sm:p-4 overflow-y-auto"
           onClick={handleCloseOverlay}
@@ -1336,22 +1402,22 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-sm font-medium text-[#64748B]">Availability Status</span>
                   {(() => {
-                    const status = selectedBook.real_time_status || "available";
+                    const status = selectedBookDisplayStatus;
                     const statusColors = {
                       available: "text-green-600",
-                      pending_approval: "text-yellow-600",
+                      requested: "text-yellow-600",
                       waiting_pickup: "text-blue-600",
                       borrowed: "text-red-600",
                     };
                     const statusLabels = {
                       available: "Available",
-                      pending_approval: "Pending Approval",
+                      requested: "Requested",
                       waiting_pickup: "Waiting for Pickup",
                       borrowed: "Borrowed",
                     };
                     return (
-                      <span className={`text-sm font-medium ${statusColors[status]}`}>
-                        {statusLabels[status]}
+                      <span className={`text-sm font-medium ${statusColors[status] || "text-red-600"}`}>
+                        {statusLabels[status] || "Unavailable"}
                       </span>
                     );
                   })()}
@@ -1376,15 +1442,15 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                   <button
                     type="button"
                     onClick={handleBorrow}
-                    disabled={selectedBook.real_time_status !== "available"}
+                    disabled={!selectedBookAvailable}
                     className={`flex-1 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
-                      selectedBook.real_time_status === "available"
+                      selectedBookAvailable
                         ? "bg-[#0077B6] hover:bg-[#005f8f] text-white shadow-sm"
                         : "bg-gray-200 text-gray-500 cursor-not-allowed"
                     }`}
                   >
                     <Book className="w-5 h-5" />
-                    {selectedBook.real_time_status === "available" ? "Borrow Now" : "Not Available"}
+                    {selectedBookAvailable ? "Borrow Now" : "Not Available"}
                   </button>
                   <button
                     type="button"
@@ -1397,9 +1463,9 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                   <button
                     type="button"
                     onClick={() => handleAddToBorrowingList(selectedBook)}
-                    disabled={selectedBook.real_time_status !== "available"}
+                    disabled={!selectedBookAvailable}
                     className={`flex-1 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
-                      selectedBook.real_time_status === "available"
+                      selectedBookAvailable
                         ? "bg-white border-2 border-[#0077B6] text-[#0077B6] hover:bg-[#F7FAFC]"
                         : "bg-gray-100 border-2 border-gray-300 text-gray-400 cursor-not-allowed"
                     }`}
@@ -1412,7 +1478,8 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Added to Borrowing List Overlay */}
       {showAddedOverlay && (
@@ -1654,19 +1721,19 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                       <span className="bg-blue-200 text-blue-900 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 text-xs font-bold">
                         1
                       </span>
-                      <span>Wait for librarian to approve your request</span>
+                      <span>Wait for the partner library to approve your request</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="bg-blue-200 text-blue-900 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 text-xs font-bold">
                         2
                       </span>
-                      <span>You will receive a notification once approved</span>
+                      <span>Once approved, you will receive a notification and your QR code</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="bg-blue-200 text-blue-900 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 text-xs font-bold">
                         3
                       </span>
-                      <span>Visit the library with your QR code after approval</span>
+                      <span>Bring the QR code and request ID to your home library for the permission letter</span>
                     </li>
                   </ol>
                 </div>
@@ -1761,19 +1828,19 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                       <span className="bg-blue-200 text-blue-900 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 text-xs font-bold">
                         1
                       </span>
-                      <span>Wait for librarian to approve your request</span>
+                      <span>Present your QR code and request ID at your home library</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="bg-blue-200 text-blue-900 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 text-xs font-bold">
                         2
                       </span>
-                      <span>Visit the library with this QR code</span>
+                      <span>Get your permission letter from the home library using the request ID</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="bg-blue-200 text-blue-900 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 text-xs font-bold">
                         3
                       </span>
-                      <span>Show QR code to librarian for book release</span>
+                      <span>Show the QR code and permission letter to the partner school librarian for release</span>
                     </li>
                   </ol>
                 </div>

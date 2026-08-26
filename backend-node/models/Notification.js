@@ -7,11 +7,13 @@ class Notification {
         .from('notifications')
         .insert({
           user_id: notificationData.user_id,
+          school_id: notificationData.school_id || null,
           type: notificationData.type,
           title: notificationData.title,
           message: notificationData.message,
-          related_request_id: notificationData.related_request_id || null,
-          read: false,
+          related_id: Number.isInteger(notificationData.related_id) ? notificationData.related_id : null,
+          is_read: false,
+          is_admin_notification: notificationData.is_admin_notification || false,
           created_at: new Date().toISOString()
         })
         .select()
@@ -45,8 +47,8 @@ class Notification {
     try {
       const { data, error } = await supabase
         .from('notifications')
-        .update({ read: true })
-        .eq('id', notification_id)
+        .update({ is_read: true })
+        .eq('notification_id', notification_id)
         .select()
         .single();
 
@@ -64,7 +66,7 @@ class Notification {
         .from('notifications')
         .update({ read: true })
         .eq('user_id', user_id)
-        .eq('read', false);
+        .eq('is_read', false);
 
       if (error) throw error;
       return data;
@@ -78,9 +80,9 @@ class Notification {
     try {
       const { data, error } = await supabase
         .from('notifications')
-        .select('id')
+        .select('notification_id')
         .eq('user_id', user_id)
-        .eq('read', false);
+        .eq('is_read', false);
 
       if (error) throw error;
       return data.length;

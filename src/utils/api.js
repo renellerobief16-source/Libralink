@@ -99,6 +99,7 @@ export async function signIn(email, password) {
       localStorage.setItem('userRole', normalizedRole);
       localStorage.setItem('userRoleName', user.role_name || '');
       localStorage.setItem('userCollege', user.school_code || '');
+      window.dispatchEvent(new Event('libralink-user-changed'));
       
       return {
         data: { user },
@@ -140,9 +141,11 @@ export function clearAuthStorage() {
 export async function signOut() {
   try {
     clearAuthStorage();
+    window.dispatchEvent(new Event('libralink-user-changed'));
     return { data: null, error: null };
   } catch (error) {
     clearAuthStorage();
+    window.dispatchEvent(new Event('libralink-user-changed'));
     return { data: null, error };
   }
 }

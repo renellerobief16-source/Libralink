@@ -24,6 +24,39 @@ function StudentInbox() {
   const [borrowRequests, setBorrowRequests] = useState([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
 
+  const getRequestBooks = (request) => {
+    const titles = (request.items || [])
+      .map((item) => item.book?.title || item.book_title || item.title)
+      .filter(Boolean);
+    return titles.length > 0 ? [...new Set(titles)] : ['Book'];
+  };
+
+  const getRequestSchools = (request) => {
+    const schools = (request.items || [])
+      .map((item) => item.owner_school?.school_name || item.owner_school_name || item.partner_school?.school_name || item.partner_school_name)
+      .filter(Boolean);
+    return [...new Set(schools)];
+  };
+
+  const formatList = (items) => {
+    if (items.length === 1) return items[0];
+    if (items.length === 2) return `${items[0]} and ${items[1]}`;
+    return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+  };
+
+  const getApprovalMessage = (request, status) => {
+    const books = getRequestBooks(request);
+    const schools = getRequestSchools(request);
+    const schoolText = schools.length > 0 ? formatList(schools) : 'the library';
+    const bookText = formatList(books);
+
+    if (status === 'rejected') {
+      return `Request ${request.request_id} for ${bookText} was rejected by ${schoolText}. Please contact the library for more information.`;
+    }
+
+    return `Request ${request.request_id} for ${bookText} was approved by ${schoolText}. Please check the borrowing instructions and bring your QR code and required ID.`;
+  };
+
   const filteredNotifications = notifications.filter((notification) => {
     if (selectedFilter === "all") return true;
     if (selectedFilter === "unread") return !notification.read;
@@ -97,7 +130,7 @@ function StudentInbox() {
             addNotification({
               type: "BORROW_REQUEST_APPROVED",
               title: "Borrow Request Approved - Partner School",
-              message: `Your borrow request ${request.request_id} has been approved! To borrow books from ${partnerSchools.join(", ")}, you need: School ID, Permission Letter, and follow the step-by-step instructions. The system will provide a QR CODE to navigate your book borrowing. Check your inbox for details.`,
+              message: getApprovalMessage(request, 'approved'),
               related_request_id: request.request_id,
             });
           } else {
@@ -105,7 +138,7 @@ function StudentInbox() {
             addNotification({
               type: "BORROW_REQUEST_APPROVED",
               title: "Borrow Request Approved",
-              message: `Your borrow request ${request.request_id} has been approved! Please bring your School ID to the library to pick up your books. The system will provide a QR CODE to navigate your book borrowing.`,
+              message: getApprovalMessage(request, 'approved'),
               related_request_id: request.request_id,
             });
           }
@@ -114,7 +147,7 @@ function StudentInbox() {
           addNotification({
             type: "BORROW_REQUEST_REJECTED",
             title: "Borrow Request Rejected",
-            message: `Your borrow request ${request.request_id} has been rejected by the librarian. Please contact the library for more information.`,
+            message: getApprovalMessage(request, 'rejected'),
             related_request_id: request.request_id,
           });
         }

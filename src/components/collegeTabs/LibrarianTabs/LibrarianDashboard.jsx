@@ -5,6 +5,7 @@ import api from "../../../utils/api";
 
 function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, onOpenInbox, darkMode, onNavigateToBooks, onNavigateToRequests, onNavigateToOverdue, onNavigateToPartners, onNavigateToProfile, onNavigateToSettings, onLogout }) {
   const [pendingCount, setPendingCount] = useState(0);
+  const [interlibraryPendingCount, setInterlibraryPendingCount] = useState(0);
   const [borrowedCount, setBorrowedCount] = useState(0);
   const [availableCount, setAvailableCount] = useState(0);
   const [overdueCount, setOverdueCount] = useState(0);
@@ -51,14 +52,19 @@ function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, on
           setUserProfile(userRes.data);
         }
 
-        const [requests, activeBorrows, overdueRes] = await Promise.all([
+        const [requests, activeBorrows, overdueRes, interlibraryRes] = await Promise.all([
           getBorrowRequests(schoolId),
           getAllActiveBorrows(schoolId),
-          api.get(`/borrow/overdue?school_id=${schoolId}`)
+          api.get(`/borrow/overdue?school_id=${schoolId}`),
+          api.get(`/borrow-requests/partner/${schoolId}`)
         ]);
         
         if (!requests.error && requests.data) {
           setPendingCount(requests.data.filter(r => r.status === 'pending').length);
+        }
+        if (!interlibraryRes.error && interlibraryRes.data) {
+          const pendingInterlibrary = (interlibraryRes.data || []).filter(item => item.status === 'pending').length;
+          setInterlibraryPendingCount(pendingInterlibrary);
         }
         if (!activeBorrows.error && activeBorrows.data) {
           setBorrowedCount(activeBorrows.length);
@@ -383,6 +389,18 @@ function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, on
                 <div className="flex-1 text-left">
                   <p className="text-sm font-medium text-[#0F172A]">{overdueCount} overdue books</p>
                   <p className="text-xs text-[#64748B]">Require immediate attention</p>
+                </div>
+                <FiArrowRight className="w-4 h-4 text-[#64748B]" />
+              </button>
+            )}
+            {interlibraryPendingCount > 0 && (
+              <button onClick={onNavigateToRequests} className="w-full p-3 rounded-xl border border-[#FEF3C7] bg-yellow-50 hover:bg-yellow-100 transition-all flex items-center gap-3">
+                <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <FiBell className="w-4 h-4 text-[#F59E0B]" />
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-medium text-[#0F172A]">{interlibraryPendingCount} interlibrary requests</p>
+                  <p className="text-xs text-[#64748B]">Awaiting approval</p>
                 </div>
                 <FiArrowRight className="w-4 h-4 text-[#64748B]" />
               </button>
