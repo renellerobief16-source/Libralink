@@ -31,8 +31,12 @@ function StudentHistory() {
   }, []);
 
   return (
-    <div className="animate-slide-up">
-      <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-4 sm:mb-6 text-[#0f172a]">My History</h1>
+    <div className="animate-slide-up mx-auto w-full max-w-4xl min-w-0 overflow-x-hidden text-sm">
+      <div className="mb-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0077B6]">Reading activity</p>
+        <h1 className="mt-1 text-xl font-bold text-[#0f172a] sm:text-2xl">Borrow History</h1>
+        <p className="mt-1 text-sm text-slate-500">Review the books you have borrowed and returned.</p>
+      </div>
       <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200">
         {loading ? (
           <div className="space-y-3">

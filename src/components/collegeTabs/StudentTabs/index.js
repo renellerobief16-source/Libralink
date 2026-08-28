@@ -5,4 +5,5 @@ export { default as StudentInbox } from './StudentInbox';
 export { default as StudentHistory } from './StudentHistory';
 export { default as StudentSettings } from './StudentSettings';
 export { default as StudentProfile } from './StudentProfile';
+export { default as StudentChangePassword } from './StudentChangePassword';
 export { StudentLayout } from './StudentDashboardComponents';

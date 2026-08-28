@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Book, User, MapPin, Phone, FileText, AlertCircle, X, CheckCircle, Clock } from "lucide-react";
 import { useNotifications } from "../../../context/NotificationContext";
 import api from "../../../utils/api";
 
-function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData }) {
+function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, compact = false }) {
   const { addNotification } = useNotifications();
   const [formData, setFormData] = useState({
     first_name: userData?.first_name || userData?.firstname || userData?.name || '',
@@ -218,52 +218,66 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData }) {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Borrowing Information</h2>
-        <p className="text-gray-600 text-sm">Please complete the required information for your borrowing request</p>
+    <div className={`${compact ? "min-w-0 rounded-xl border border-gray-200 bg-white p-3 text-sm shadow-sm" : "bg-white rounded-2xl shadow-sm border border-gray-200 p-6"}`}>
+      <div className={compact ? "mb-2 min-w-0" : "mb-6"}>
+        <h2 className={`${compact ? "text-base" : "text-2xl"} mb-1 font-bold text-gray-900`}>
+          Borrowing Information
+        </h2>
+        <p className={`${compact ? "text-xs leading-5" : "text-sm"} text-gray-600`}>
+          Please complete the required information for your borrowing request
+        </p>
       </div>
 
       {/* Summary */}
-      <div className="bg-blue-50 rounded-xl p-4 mb-6 border border-blue-200">
-        <div className="flex items-center gap-2 mb-2">
-          <Book className="w-5 h-5 text-blue-600" />
-          <span className="font-semibold text-blue-900">Request Summary</span>
+      <div className={`${compact ? "mb-3 rounded-lg p-2.5" : "mb-6 rounded-xl bg-blue-50 p-4"} border border-blue-200 bg-blue-50`}>
+        <div className="mb-2 flex items-center gap-2">
+          <Book className={`${compact ? "h-4 w-4" : "h-5 w-5"} shrink-0 text-blue-600`} />
+          <span className={`${compact ? "text-xs" : ""} font-semibold text-blue-900`}>
+            Request Summary
+          </span>
         </div>
-        <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-          <div>
+        <div className={`${compact ? "mb-2 text-[11px]" : "mb-3 text-xs"} grid grid-cols-2 gap-2`}>
+          <div className="min-w-0">
             <span className="text-blue-700">Total Books:</span>
-            <span className="ml-2 font-semibold text-blue-900">{borrowingList.length}</span>
+            <span className={`${compact ? "ml-1" : "ml-2"} font-semibold text-blue-900`}>
+              {borrowingList.length}
+            </span>
           </div>
-          <div>
+          <div className="min-w-0">
             <span className="text-blue-700">Borrow Type:</span>
-            <span className="ml-2 font-semibold text-blue-900">{getBorrowTypeSummary()}</span>
+            <span className={`${compact ? "ml-1" : "ml-2"} font-semibold text-blue-900`}>
+              {getBorrowTypeSummary()}
+            </span>
           </div>
         </div>
         
         {/* School Library Availability */}
-        <div className="border-t border-blue-200 pt-4 mt-4">
-          <div className="flex items-center gap-2 mb-3">
-            <MapPin className="w-4 h-4 text-blue-600" />
-            <span className="font-semibold text-blue-900 text-sm">School Library Availability</span>
+        <div className={`${compact ? "mt-2 border-t border-blue-200 pt-2" : "mt-3 border-t border-blue-200 pt-3"}`}>
+          <div className={`${compact ? "mb-2 text-xs" : "mb-3 text-sm"} flex items-center gap-2`}>
+            <MapPin className="h-4 w-4 shrink-0 text-blue-600" />
+            <span className="font-semibold text-blue-900">School Library Availability</span>
           </div>
-          <div className="space-y-2">
+          <div className={compact ? "space-y-1.5" : "space-y-2"}>
             {borrowingList.map((item, index) => {
               const isInterSchool = item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE';
               return (
-                <div key={item.book_id || index} className="flex items-center justify-between bg-white rounded-lg p-2 border border-blue-100">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-900 truncate">{item.title}</p>
-                    <div className="flex items-center gap-1">
-                      <p className="text-xs text-blue-700">{item.owner_school_name}</p>
+                <div key={item.book_id || index} className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-blue-100 bg-white p-2">
+                  <div className="min-w-0 flex-1">
+                    <p className={`${compact ? "text-[11px]" : "text-xs"} truncate font-medium text-gray-900`}>
+                      {item.title}
+                    </p>
+                    <div className="flex min-w-0 items-center gap-1">
+                      <p className={`${compact ? "text-[10px]" : "text-xs"} min-w-0 truncate text-blue-700`}>
+                        {item.owner_school_name}
+                      </p>
                       {isInterSchool && (
-                        <span className="text-xs px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded font-medium">
+                        <span className={`${compact ? "text-[10px]" : "text-xs"} shrink-0 rounded bg-orange-100 px-1.5 py-0.5 font-medium text-orange-700`}>
                           Partner School
                         </span>
                       )}
                     </div>
                   </div>
-                  <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium">
+                  <span className={`${compact ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-1 text-xs"} shrink-0 rounded-full bg-green-100 font-medium text-green-700`}>
                     Available
                   </span>
                 </div>
@@ -271,8 +285,8 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData }) {
             })}
           </div>
           {borrowingList.some(item => item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE') && (
-            <div className="mt-3 p-2 bg-orange-50 rounded-lg border border-orange-200">
-              <p className="text-xs text-orange-800">
+            <div className={`${compact ? "mt-2 text-[10px] leading-4" : "mt-3 text-xs"} rounded-lg border border-orange-200 bg-orange-50 p-2`}>
+              <p className="text-orange-800">
                 <span className="font-semibold">Note:</span> Partner school books are for library use only.
               </p>
             </div>
@@ -280,60 +294,76 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData }) {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className={compact ? "space-y-2.5" : "space-y-6"}>
         {/* Name Fields */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+        <div className={compact ? "grid grid-cols-3 gap-2" : "grid grid-cols-1 gap-3 md:grid-cols-3"}>
+          <div className="min-w-0">
+            <label
+              htmlFor="borrow-first-name"
+              className={`${compact ? "mb-1 text-xs leading-4" : "mb-2 text-sm"} block font-medium text-gray-700`}
+            >
               First Name <span className="text-red-500">*</span>
             </label>
             <input
+              id="borrow-first-name"
               type="text"
               name="first_name"
               value={formData.first_name}
               onChange={handleChange}
-              className={`w-full px-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all bg-white ${
+              aria-invalid={Boolean(errors.first_name)}
+              aria-describedby={errors.first_name ? "borrow-first-name-error" : undefined}
+              className={`w-full ${compact ? "min-h-10 rounded-lg border px-2.5 py-2 text-sm" : "rounded-xl border-2 px-4 py-3"} bg-white transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 errors.first_name ? 'border-red-300' : 'border-gray-200'
               }`}
               placeholder="Juan"
             />
             {errors.first_name && (
-              <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
+              <p id="borrow-first-name-error" role="alert" className={`${compact ? "mt-0.5 text-[10px] leading-4" : "mt-1 text-xs"} flex items-center gap-1 text-red-500`}>
+                <AlertCircle className="h-3 w-3 shrink-0" />
                 {errors.first_name}
               </p>
             )}
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="min-w-0">
+            <label
+              htmlFor="borrow-middle-name"
+              className={`${compact ? "mb-1 text-xs leading-4" : "mb-2 text-sm"} block font-medium text-gray-700`}
+            >
               Middle Name
             </label>
             <input
+              id="borrow-middle-name"
               type="text"
               name="middle_name"
               value={formData.middle_name}
               onChange={handleChange}
-              className="w-full px-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all bg-white border-gray-200"
+              className={`w-full ${compact ? "min-h-10 rounded-lg border px-2.5 py-2 text-sm" : "rounded-xl border-2 px-4 py-3"} border-gray-200 bg-white transition-all focus:outline-none focus:ring-2 focus:ring-blue-500`}
               placeholder="Dela"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="min-w-0">
+            <label
+              htmlFor="borrow-last-name"
+              className={`${compact ? "mb-1 text-xs leading-4" : "mb-2 text-sm"} block font-medium text-gray-700`}
+            >
               Last Name <span className="text-red-500">*</span>
             </label>
             <input
+              id="borrow-last-name"
               type="text"
               name="last_name"
               value={formData.last_name}
               onChange={handleChange}
-              className={`w-full px-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all bg-white ${
+              aria-invalid={Boolean(errors.last_name)}
+              aria-describedby={errors.last_name ? "borrow-last-name-error" : undefined}
+              className={`w-full ${compact ? "min-h-10 rounded-lg border px-2.5 py-2 text-sm" : "rounded-xl border-2 px-4 py-3"} bg-white transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 errors.last_name ? 'border-red-300' : 'border-gray-200'
               }`}
               placeholder="Cruz"
             />
             {errors.last_name && (
-              <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
+              <p id="borrow-last-name-error" role="alert" className={`${compact ? "mt-0.5 text-[10px] leading-4" : "mt-1 text-xs"} flex items-center gap-1 text-red-500`}>
+                <AlertCircle className="h-3 w-3 shrink-0" />
                 {errors.last_name}
               </p>
             )}
@@ -341,89 +371,110 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData }) {
         </div>
 
         {/* Address */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+        <div className="min-w-0">
+          <label
+            htmlFor="borrow-address"
+            className={`${compact ? "mb-1 text-xs leading-4" : "mb-2 text-sm"} block font-medium text-gray-700`}
+          >
             Address <span className="text-red-500">*</span>
           </label>
           <div className="relative">
-            <MapPin className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <MapPin className={`absolute top-1/2 -translate-y-1/2 text-gray-400 ${compact ? "left-3 h-4 w-4" : "left-4 h-5 w-5"}`} />
             <input
+              id="borrow-address"
               type="text"
               name="address"
               value={formData.address}
               onChange={handleChange}
-              className={`w-full pl-12 pr-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all bg-white ${
+              aria-invalid={Boolean(errors.address)}
+              aria-describedby={errors.address ? "borrow-address-error" : undefined}
+              className={`w-full ${compact ? "min-h-10 rounded-lg border py-2 pl-9 pr-3 text-sm" : "rounded-xl border-2 py-3 pl-12 pr-4"} bg-white transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400 ${
                 errors.address ? 'border-red-300' : 'border-gray-200'
               }`}
               placeholder="123 Main Street, City"
             />
           </div>
           {errors.address && (
-            <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" />
+            <p id="borrow-address-error" role="alert" className={`${compact ? "mt-0.5 text-[10px] leading-4" : "mt-1 text-xs"} flex items-center gap-1 text-red-500`}>
+              <AlertCircle className="h-3 w-3 shrink-0" />
               {errors.address}
             </p>
           )}
         </div>
 
         {/* Contact Number */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+        <div className="min-w-0">
+          <label
+            htmlFor="borrow-contact-number"
+            className={`${compact ? "mb-1 text-xs leading-4" : "mb-2 text-sm"} block font-medium text-gray-700`}
+          >
             Contact Number <span className="text-red-500">*</span>
           </label>
           <div className="relative">
-            <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Phone className={`absolute top-1/2 -translate-y-1/2 text-gray-400 ${compact ? "left-3 h-4 w-4" : "left-4 h-5 w-5"}`} />
             <input
+              id="borrow-contact-number"
               type="tel"
               name="contact_number"
               value={formData.contact_number}
               onChange={handleChange}
-              className={`w-full pl-12 pr-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all bg-white ${
+              aria-invalid={Boolean(errors.contact_number)}
+              aria-describedby={errors.contact_number ? "borrow-contact-number-error" : undefined}
+              className={`w-full ${compact ? "min-h-10 rounded-lg border py-2 pl-9 pr-3 text-sm" : "rounded-xl border-2 py-3 pl-12 pr-4"} bg-white transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400 ${
                 errors.contact_number ? 'border-red-300' : 'border-gray-200'
               }`}
               placeholder="+63 912 345 6789"
             />
           </div>
           {errors.contact_number && (
-            <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" />
+            <p id="borrow-contact-number-error" role="alert" className={`${compact ? "mt-0.5 text-[10px] leading-4" : "mt-1 text-xs"} flex items-center gap-1 text-red-500`}>
+              <AlertCircle className="h-3 w-3 shrink-0" />
               {errors.contact_number}
             </p>
           )}
         </div>
 
         {/* Purpose */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+        <div className="min-w-0">
+          <label
+            htmlFor="borrow-purpose"
+            className={`${compact ? "mb-1 text-xs leading-4" : "mb-2 text-sm"} block font-medium text-gray-700`}
+          >
             Purpose of Borrowing <span className="text-red-500">*</span>
           </label>
           <div className="relative">
-            <FileText className="absolute left-4 top-4 text-gray-400 w-5 h-5" />
+            <FileText className={`absolute text-gray-400 ${compact ? "left-3 top-3 h-4 w-4" : "left-4 top-4 h-5 w-5"}`} />
             <textarea
+              id="borrow-purpose"
               name="purpose"
               value={formData.purpose}
               onChange={handleChange}
-              rows={4}
-              className={`w-full pl-12 pr-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all bg-white resize-none ${
+              rows={compact ? 2 : 4}
+              aria-invalid={Boolean(errors.purpose)}
+              aria-describedby={errors.purpose ? "borrow-purpose-error" : undefined}
+              className={`w-full ${compact ? "rounded-lg border py-2 pl-9 pr-3 text-sm" : "rounded-xl border-2 py-3 pl-12 pr-4"} resize-none bg-white transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400 ${
                 errors.purpose ? 'border-red-300' : 'border-gray-200'
               }`}
               placeholder="Please describe the purpose of borrowing these books..."
             />
           </div>
           {errors.purpose && (
-            <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" />
+            <p id="borrow-purpose-error" role="alert" className={`${compact ? "mt-0.5 text-[10px] leading-4" : "mt-1 text-xs"} flex items-center gap-1 text-red-500`}>
+              <AlertCircle className="h-3 w-3 shrink-0" />
               {errors.purpose}
             </p>
           )}
         </div>
 
         {/* ID Picture */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+        <div className="min-w-0">
+          <label
+            htmlFor="borrow-id-picture"
+            className={`${compact ? "mb-1 text-xs leading-4" : "mb-2 text-sm"} block font-medium text-gray-700`}
+          >
             ID Picture <span className="text-red-500">*</span>
           </label>
-          <div className={`relative border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
+          <div className={`${compact ? "rounded-lg border p-3" : "rounded-xl border-2 p-6"} relative border-dashed text-center transition-colors ${
             errors.id_picture ? 'border-red-300' : 'border-gray-300 hover:border-blue-400'
           }`}>
             {previewImage ? (
@@ -431,7 +482,7 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData }) {
                 <img
                   src={previewImage}
                   alt="ID Preview"
-                  className="max-h-48 mx-auto rounded-lg"
+                  className={`${compact ? "max-h-36" : "max-h-48"} mx-auto rounded-lg object-contain`}
                 />
                 <button
                   type="button"
@@ -440,34 +491,38 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData }) {
                     setFormData(prev => ({ ...prev, id_picture: null }));
                     setPreviewImage(null);
                   }}
-                  className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                  className="absolute right-1 top-1 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
+                  aria-label="Remove ID picture"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
               </div>
             ) : (
               <div>
-                <User className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-sm text-gray-600 mb-2">
+                <User className={`${compact ? "mb-2 h-8 w-8" : "mb-3 h-12 w-12"} mx-auto text-gray-400`} />
+                <p className={`${compact ? "mb-1 text-[11px]" : "mb-2 text-sm"} text-gray-600`}>
                   Click to upload or drag and drop
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className={`${compact ? "text-[10px]" : "text-xs"} text-gray-400`}>
                   PNG, JPG up to 5MB (Required)
                 </p>
               </div>
             )}
             <input
+              id="borrow-id-picture"
               type="file"
               name="id_picture"
               onChange={handleImageChange}
               accept="image/*"
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              aria-invalid={Boolean(errors.id_picture)}
+              aria-describedby={errors.id_picture ? "borrow-id-picture-error" : undefined}
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
               onClick={(e) => e.stopPropagation()}
             />
           </div>
           {errors.id_picture && (
-            <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" />
+            <p id="borrow-id-picture-error" role="alert" className={`${compact ? "mt-0.5 text-[10px] leading-4" : "mt-1 text-xs"} flex items-center gap-1 text-red-500`}>
+              <AlertCircle className="h-3 w-3 shrink-0" />
               {errors.id_picture}
             </p>
           )}
@@ -475,37 +530,37 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData }) {
 
         {/* Submit Error */}
         {errors.submit && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-            <p className="text-red-700 text-sm flex items-center gap-2">
-              <AlertCircle className="w-4 h-4" />
+          <div className={`${compact ? "rounded-lg p-2" : "rounded-xl p-4"} border border-red-200 bg-red-50`}>
+            <p className={`${compact ? "text-xs" : "text-sm"} flex items-center gap-2 text-red-700`} role="alert">
+              <AlertCircle className={`${compact ? "h-3.5 w-3.5" : "h-4 w-4"} shrink-0`} />
               {errors.submit}
             </p>
           </div>
         )}
 
         {/* Action Buttons */}
-        <div className="flex gap-4 pt-4">
+        <div className={`${compact ? "gap-2 pt-2" : "gap-4 pt-4"} flex`}>
           <button
             type="button"
             onClick={onCancel}
             disabled={isSubmitting}
-            className="flex-1 px-6 py-3 rounded-xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`${compact ? "min-h-10 rounded-lg border px-3 py-2 text-xs" : "rounded-xl border-2 px-6 py-3"} flex-1 border-gray-300 font-semibold text-gray-700 transition-all hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50`}
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`${compact ? "min-h-10 rounded-lg px-3 py-2 text-xs" : "px-6 py-3 rounded-xl"} flex flex-1 items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 font-semibold text-white shadow-md transition-all hover:from-blue-700 hover:to-cyan-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50`}
           >
             {isSubmitting ? (
               <>
-                <Clock className="w-5 h-5 animate-spin" />
+                <Clock className={`${compact ? "h-4 w-4" : "h-5 w-5"} animate-spin`} />
                 Submitting...
               </>
             ) : (
               <>
-                <CheckCircle className="w-5 h-5" />
+                <CheckCircle className={`${compact ? "h-4 w-4" : "h-5 w-5"}`} />
                 Submit Request
               </>
             )}

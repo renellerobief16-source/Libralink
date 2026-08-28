@@ -185,14 +185,14 @@ function StudentInbox() {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
-    <div className="animate-slide-up">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-[#0f172a]">Inbox</h1>
+    <div className="animate-slide-up mx-auto w-full max-w-4xl min-w-0 overflow-x-hidden text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <h1 className="text-lg font-bold text-[#0f172a]">Inbox</h1>
         <div className="flex gap-2 sm:gap-3">
           {unreadCount > 0 && (
             <button
               onClick={markAllAsRead}
-              className="px-3 sm:px-4 py-2 sm:py-2.5 min-h-[40px] sm:min-h-[44px] text-xs sm:text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+              className="px-2 py-1.5 min-h-8 text-[11px] font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
               aria-label="Mark all notifications as read"
             >
               Mark all as read
@@ -201,7 +201,7 @@ function StudentInbox() {
           {notifications.length > 0 && (
             <button
               onClick={clearNotifications}
-              className="px-3 sm:px-4 py-2 sm:py-2.5 min-h-[40px] sm:min-h-[44px] text-xs sm:text-sm font-medium text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+              className="px-2 py-1.5 min-h-8 text-[11px] font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
               aria-label="Delete all notifications"
             >
               Delete All
@@ -209,9 +209,11 @@ function StudentInbox() {
           )}
         </div>
       </div>
-      <NotificationFilters selectedFilter={selectedFilter} onFilterChange={setSelectedFilter} />
+      <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
+        <NotificationFilters selectedFilter={selectedFilter} onFilterChange={setSelectedFilter} />
+      </div>
 
-      <div className="space-y-3">
+      <div className="mt-2.5 space-y-2">
         {filteredNotifications.length === 0 ? (
           <NotificationEmptyState />
         ) : (
