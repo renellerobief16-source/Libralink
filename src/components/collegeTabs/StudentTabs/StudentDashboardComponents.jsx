@@ -3,225 +3,31 @@ import React, { useState, useEffect } from "react";
 
 
 import { NavLink, useNavigate } from "react-router-dom";
+import { useNotifications } from "../../../context/NotificationContext";
+import { API_ORIGIN } from "../../../utils/api";
 
 
 
 import { Book, ChevronRight, Clock, User, ChevronDown, Home, Search, Heart, Mail, History as ClockIcon, Settings, LogOut, Plus, X, Menu, Bell, CheckCircle, MapPin } from "lucide-react";
 
-
-
-import { useNotifications } from "../../../context/NotificationContext";
-
-
-
-import api, { API_ORIGIN } from "../../../utils/api";
-
-
-
-
-
-
-
 const navigation = [
-
-
-
-  {
-
-
-
-    name: "Home",
-
-
-
-    path: "/studentpage",
-
-
-
-    icon: "/home-button.png",
-
-
-
-    mobileIcon: Home,
-
-
-
-    primary: true,
-
-
-
-  },
-
-
-
-  {
-
-
-
-    name: "Search",
-
-
-
-    path: "/studentpage/search",
-
-
-
-    icon: "/search.png",
-
-
-
-    mobileIcon: Search,
-
-
-
-    primary: true,
-
-
-
-  },
-
-
-
-  {
-
-
-
-    name: "Favorites",
-
-
-
-    path: "/studentpage/favorites",
-
-
-
-    icon: "/heart.png",
-
-
-
-    mobileIcon: Heart,
-
-
-
-    primary: false,
-
-
-
-  },
-
-
-
-  {
-
-
-
-    name: "Inbox",
-
-
-
-    path: "/studentpage/inbox",
-
-
-
-    icon: "/email.png",
-
-
-
-    mobileIcon: Mail,
-
-
-
-    primary: true,
-
-
-
-  },
-
-
-
-  {
-
-
-
-    name: "History",
-
-
-
-    path: "/studentpage/history",
-
-
-
-    icon: "/history.png",
-
-
-
-    mobileIcon: ClockIcon,
-
-
-
-    primary: true,
-
-
-
-  },
-
-
-
-  {
-
-
-
-    name: "Profile",
-
-
-
-    path: "/studentpage/profile",
-
-
-
-    icon: "/user.png",
-
-
-
-    mobileIcon: User,
-
-
-
-    primary: false,
-
-
-
-  },
-
-
-
-  {
-
-
-
-    name: "Settings",
-
-
-
-    path: "/studentpage/settings",
-
-
-
-    icon: "/settings.png",
-
-
-
-    mobileIcon: Settings,
-
-
-
-    primary: false,
-
-
-
-  },
-
-
-
+  { name: "Home", path: "/studentpage", icon: "/home-button.png", mobileIcon: Home, primary: true },
+  { name: "Search", path: "/studentpage/search", icon: "/search.png", mobileIcon: Search, primary: true },
+  { name: "Favorites", path: "/studentpage/favorites", icon: "/heart.png", mobileIcon: Heart, primary: false },
+  { name: "Inbox", path: "/studentpage/inbox", icon: "/email.png", mobileIcon: Mail, primary: true },
+  { name: "History", path: "/studentpage/history", icon: "/history.png", mobileIcon: ClockIcon, primary: true },
+  { name: "Profile", path: "/studentpage/profile", icon: "/user.png", mobileIcon: User, primary: false },
+  { name: "Settings", path: "/studentpage/settings", icon: "/settings.png", mobileIcon: Settings, primary: false },
+];
+
+
+const studentSearchFeatures = [
+  { label: 'Search books', description: 'Find books by title, author, or subject', path: '/studentpage/search', icon: Search },
+  { label: 'Favorites', description: 'View your saved books', path: '/studentpage/favorites', icon: Heart },
+  { label: 'Inbox', description: 'View notifications and updates', path: '/studentpage/inbox', icon: Mail },
+  { label: 'History', description: 'View your borrowing history', path: '/studentpage/history', icon: ClockIcon },
+  { label: 'Profile', description: 'Manage your personal information', path: '/studentpage/profile', icon: User },
+  { label: 'Settings', description: 'Manage your account settings', path: '/studentpage/settings', icon: Settings },
 ];
 
 
@@ -1258,14 +1064,6 @@ export function StudentHeader({ userInfo, onLogout }) {
 
 
 
-  const [books, setBooks] = useState([]);
-
-
-
-  const [filteredBooks, setFilteredBooks] = useState([]);
-
-
-
   const { unreadCount, notifications, markAsRead } = useNotifications();
 
 
@@ -1283,6 +1081,8 @@ export function StudentHeader({ userInfo, onLogout }) {
 
 
   useEffect(() => {
+
+    return undefined;
 
 
 
@@ -1416,6 +1216,8 @@ export function StudentHeader({ userInfo, onLogout }) {
 
   useEffect(() => {
 
+    return undefined;
+
 
 
     if (searchQuery.length > 0) {
@@ -1458,7 +1260,7 @@ export function StudentHeader({ userInfo, onLogout }) {
 
 
 
-  }, [searchQuery, books]);
+  }, [searchQuery]);
 
 
 
@@ -1651,6 +1453,7 @@ export function StudentHeader({ userInfo, onLogout }) {
 
 
       navigate('/studentpage/search', { state: { query: searchQuery.trim() } });
+      setShowSearchSuggestions(false);
 
 
 
@@ -1675,6 +1478,7 @@ export function StudentHeader({ userInfo, onLogout }) {
 
 
       navigate('/studentpage/search', { state: { query: searchQuery.trim() } });
+      setShowSearchSuggestions(false);
 
 
 
@@ -1774,23 +1578,11 @@ export function StudentHeader({ userInfo, onLogout }) {
 
 
 
-  const handleBookClick = (book) => {
-
-
-
-    setSearchQuery(book.title);
-
-
-
-    setShowSearchSuggestions(false);
-
-
-
-    navigate(`/book/${book.id}`);
-
-
-
-  };
+  const matchingFeatures = studentSearchFeatures.filter((feature) => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return `${feature.label} ${feature.description}`.toLowerCase().includes(query);
+  });
 
 
 
@@ -2130,118 +1922,44 @@ export function StudentHeader({ userInfo, onLogout }) {
 
 
 
-            {/* Search Suggestions Dropdown */}
-
-
-
+            {/* Global student feature suggestions */}
             {showSearchSuggestions && (
-
-
-
               <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl border border-[#E5E7EB] shadow-lg z-50 overflow-hidden">
-
-
-
-                {filteredBooks.length > 0 ? (
-
-
-
-                  <div className="p-2">
-
-
-
-                    {filteredBooks.map((book) => (
-
-
-
+                <div className="px-4 py-2 border-b border-[#EEF2F6]">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">Student page</p>
+                </div>
+                <div className="p-2">
+                  {matchingFeatures.map((feature) => {
+                    const FeatureIcon = feature.icon;
+                    return (
                       <button
-
-
-
-                        key={book.id}
-
-
-
-                        onClick={() => handleBookClick(book)}
-
-
-
-                        className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#F8FAFC] transition-colors text-left"
-
-
-
+                        key={feature.path}
+                        onClick={() => {
+                          setShowSearchSuggestions(false);
+                          navigate(feature.path, feature.path === '/studentpage/search' ? { state: { query: searchQuery.trim() } } : undefined);
+                        }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#F8FAFC] transition-colors text-left"
                       >
-
-
-
-                        <Book className="w-4 h-4 text-[#64748B]" />
-
-
-
-                        <div className="flex-1 min-w-0">
-
-
-
-                          <p className="text-sm font-medium text-[#0F172A] truncate">{book.title}</p>
-
-
-
-                          <p className="text-xs text-[#64748B] truncate">{book.author}</p>
-
-
-
-                        </div>
-
-
-
-                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${book.available ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-
-
-
-                          {book.available ? 'Available' : 'Unavailable'}
-
-
-
+                        <span className="flex items-center justify-center w-8 h-8 rounded-lg border border-[#DDE6EF] text-[#2563EB] shrink-0">
+                          <FeatureIcon className="w-4 h-4" />
                         </span>
-
-
-
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-sm font-medium text-[#0F172A] truncate">{feature.label}</span>
+                          <span className="block text-xs text-[#64748B] truncate">{feature.description}</span>
+                        </span>
+                        <ChevronRight className="w-4 h-4 text-[#94A3B8] shrink-0" />
                       </button>
-
-
-
-                    ))}
-
-
-
-                  </div>
-
-
-
-                ) : (
-
-
-
-                  <div className="p-4">
-
-
-
-                    <p className="text-sm text-[#64748B] text-center">No matching books found</p>
-
-
-
-                  </div>
-
-
-
-                )}
-
-
-
+                    );
+                  })}
+                  <button
+                    onClick={handleSearchButtonClick}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 mt-1 rounded-lg border-t border-[#EEF2F6] text-left text-sm font-medium text-[#2563EB] hover:bg-[#F8FAFC]"
+                  >
+                    <Search className="w-4 h-4" />
+                    Search for “{searchQuery}” in books
+                  </button>
+                </div>
               </div>
-
-
-
             )}
 
 
@@ -2786,7 +2504,7 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
 
 
 
-    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#F7FAFC] flex">
+    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-[#F7FAFC] flex">
 
 
 
@@ -3310,7 +3028,7 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
 
 
 
-      <div className="flex-1 lg:ml-[80px]">
+      <div className="flex-1 min-w-0 lg:ml-[80px]">
 
 
 
@@ -3330,11 +3048,11 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
 
 
 
-        <main className="w-full pt-[64px] md:pt-[76px]">
+        <main className="w-full min-w-0 overflow-x-clip pt-[64px] md:pt-[76px]">
 
 
 
-          <div className="max-w-[1400px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 pt-4 md:pt-6 w-full pb-20 md:pb-6">
+          <div className="box-border max-w-[1400px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 pt-4 md:pt-6 w-full min-w-0 pb-20 md:pb-6">
 
 
 

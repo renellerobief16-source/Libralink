@@ -1,8 +1,26 @@
 import { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Search,
   Book,
+  BookOpen,
+  BriefcaseBusiness,
+  Calculator,
+  Church,
+  Cpu,
+  FlaskConical,
+  GraduationCap,
+  History as HistoryIcon,
+  Languages,
+  Landmark,
+  Leaf,
+  Palette,
+  PenLine,
+  Scale,
+  Stethoscope,
+  Users,
   MapPin,
+  Navigation,
   Heart,
   ExternalLink,
   Filter,
@@ -23,8 +41,47 @@ import StudentBorrowingForm from "./StudentBorrowingForm";
 import QRCodeDisplay from "./QRCodeDisplay";
 import { BookGridSkeleton } from "../../ui/Skeleton";
 
+function BookStatusBadge({ status }) {
+  const statusConfig = {
+    available: {
+      label: "Available",
+      icon: CheckCircle,
+      className: "text-emerald-700 border-emerald-200 bg-emerald-50",
+    },
+    requested: {
+      label: "Requested",
+      icon: Clock,
+      className: "text-amber-700 border-amber-200 bg-amber-50",
+      animated: true,
+    },
+    waiting_pickup: {
+      label: "Waiting for Pickup",
+      icon: CheckCircle,
+      className: "text-blue-700 border-blue-200 bg-blue-50",
+      animated: true,
+    },
+    borrowed: {
+      label: "Borrowed",
+      icon: BookOpen,
+      className: "text-rose-700 border-rose-200 bg-rose-50",
+    },
+  };
+
+  const config = statusConfig[status] || statusConfig.borrowed;
+  const StatusIcon = config.icon;
+
+  return (
+    <span className={`inline-flex min-w-0 items-center gap-1 rounded-md border px-1.5 py-1 text-[10px] font-semibold leading-none ${config.className} ${config.animated ? "animate-pulse" : ""}`}>
+      <StatusIcon className="h-3 w-3 shrink-0" aria-hidden="true" />
+      <span className="truncate">{config.label}</span>
+    </span>
+  );
+}
+
 function StudentSearch({ onBookClick, onBorrowClick }) {
-  const [searchQuery, setSearchQuery] = useState("");
+  const location = useLocation();
+  const initialSearchQuery = location.state?.query || "";
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [favorites, setFavorites] = useState(() => {
     const saved = localStorage.getItem("favorites");
@@ -32,6 +89,8 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
   });
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const filterPanelRef = useRef(null);
+  const filterRailRef = useRef(null);
+  const otherSchoolsSectionRef = useRef(null);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const [buttonPosition, setButtonPosition] = useState({ x: 0, y: 0 });
@@ -60,7 +119,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
   const [schools, setSchools] = useState([]);
   const [schoolSearchQuery, setSchoolSearchQuery] = useState("");
   const [selectedSchool, setSelectedSchool] = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [selectedCategory, setSelectedCategory] = useState("All Books");
   const [notificationFilter, setNotificationFilter] = useState("all");
   const [showOtherSchoolsModal, setShowOtherSchoolsModal] = useState(false);
   const [otherSchoolsWithBook, setOtherSchoolsWithBook] = useState([]);
@@ -78,9 +137,28 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
   });
   const [showSearchHistory, setShowSearchHistory] = useState(false);
 
+  useEffect(() => {
+    if (!showOtherSchoolsModal) return;
+
+    requestAnimationFrame(() => {
+      otherSchoolsSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }, [showOtherSchoolsModal]);
+
+  useEffect(() => {
+    const incomingQuery = location.state?.query;
+    if (typeof incomingQuery === "string") {
+      setSearchQuery(incomingQuery);
+      setShowSearchHistory(false);
+    }
+  }, [location.state?.query]);
+
   // Load user data from localStorage
   useEffect(() => {
-    const userStr = localStorage.getItem("currentUser");
+    const userStr = localStorage.getItem("currentUser")
     if (userStr) {
       try {
         const currentUser = JSON.parse(userStr);
@@ -310,14 +388,109 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
     };
   }, [autoRefresh]);
 
+  const subjectKeywords = {
+    "Arts & Culture": ["art", "culture", "music", "dance", "painting", "design"],
+    Biography: ["biography", "autobiography", "memoir", "life of"],
+    Business: ["business", "accounting", "finance", "marketing", "management", "entrepreneur"],
+    "Computer & Technology": ["computer", "technology", "programming", "software", "database", "information technology", "coding"],
+    Education: ["education", "teaching", "teacher", "pedagogy", "school", "learning"],
+    Engineering: ["engineering", "civil", "mechanical", "electrical", "electronics", "chemical engineering"],
+    "English & Languages": ["english", "language", "grammar", "literature", "linguistics", "dictionary"],
+    Environment: ["environment", "ecology", "climate", "nature", "conservation", "agriculture"],
+    "Fiction & Stories": ["fiction", "novel", "story", "stories", "poetry", "poem", "short story", "fantasy", "romance", "mystery"],
+    "Government & Community": ["government", "barangay", "community", "civic", "public administration", "local government", "politics"],
+    "Health & Medicine": ["medical", "medicine", "health", "nursing", "doctor", "pharmacy", "anatomy", "disease"],
+    History: ["history", "historical", "heritage", "archaeology", "war"],
+    "Law & Politics": ["law", "legal", "politics", "constitution", "justice", "rights", "government"],
+    Mathematics: ["math", "mathematics", "algebra", "geometry", "calculus", "statistics", "trigonometry"],
+    "Philosophy & Religion": ["philosophy", "religion", "christian", "bible", "islam", "ethics", "theology"],
+    Science: ["science", "biology", "chemistry", "physics", "astronomy", "geology", "zoology"],
+    "Social Science": ["social science", "sociology", "psychology", "economics", "anthropology", "society", "humanities"],
+  };
+
   const filteredBooks = books.filter((book) => {
+    const searchableBookText = [
+      book.title,
+      book.author,
+      book.isbn,
+      book.category?.category_name,
+      book.category_name,
+      book.category,
+      book.subject,
+      book.description,
+      book.keywords,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
     const matchesSearch =
       debouncedQuery === "" ||
-      book.title.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-      book.author.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-      book.isbn.includes(debouncedQuery);
-    return matchesSearch;
+      searchableBookText.includes(debouncedQuery.toLowerCase());
+    const selectedKeywords = subjectKeywords[selectedCategory] || [selectedCategory.toLowerCase()];
+    const matchesCategory = selectedCategory === "All Books" || selectedKeywords.some((keyword) => searchableBookText.includes(keyword));
+    return matchesSearch && matchesCategory;
   });
+
+  const filterCategories = [
+    "All Books",
+    "Arts & Culture",
+    "Biography",
+    "Business",
+    "Computer & Technology",
+    "Education",
+    "Engineering",
+    "English & Languages",
+    "Environment",
+    "Fiction & Stories",
+    "Government & Community",
+    "Health & Medicine",
+    "History",
+    "Law & Politics",
+    "Mathematics",
+    "Philosophy & Religion",
+    "Science",
+    "Social Science",
+  ];
+
+  const subjectIcons = {
+    "All Books": BookOpen,
+    "Arts & Culture": Palette,
+    Biography: User,
+    Business: BriefcaseBusiness,
+    "Computer & Technology": Cpu,
+    Education: GraduationCap,
+    Engineering: Calculator,
+    "English & Languages": Languages,
+    Environment: Leaf,
+    "Fiction & Stories": Book,
+    "Government & Community": Landmark,
+    "Health & Medicine": Stethoscope,
+    History: HistoryIcon,
+    "Law & Politics": Scale,
+    Mathematics: Calculator,
+    "Philosophy & Religion": Church,
+    Science: FlaskConical,
+    "Social Science": Users,
+  };
+
+  const popularAuthors = [
+    "Jose Rizal",
+    "William Shakespeare",
+    "Jane Austen",
+    "George Orwell",
+    "J.K. Rowling",
+    "Maya Angelou",
+  ];
+
+
+  const handleCategoryChange = (category) => {
+    setSelectedCategory(category);
+    requestAnimationFrame(() => {
+      filterRailRef.current
+        ?.querySelector(`[data-category="${category}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    });
+  };
 
   const toggleFavorite = (bookId) => {
     setFavorites((prev) => {
@@ -543,16 +716,17 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
   }, [showFilterPanel]);
 
   return (
-    <div className="animate-slide-up w-full max-w-[1600px] mx-auto px-3 sm:px-5 lg:px-8 pb-20 sm:pb-8">
+    <div className={`animate-slide-up box-border w-full min-w-0 max-w-[1600px] mx-auto px-3 sm:px-5 lg:px-8 pb-20 sm:pb-8 transition-[padding] duration-300 ${selectedBook ? "lg:pr-[368px]" : ""}`}>
       {/* Welcome Message */}
       <div className="mb-4">
         <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A]">Search your books</h1>
         <p className="text-sm sm:text-base text-[#64748B] mt-1">Find and explore books from your library</p>
       </div>
 
-      {/* Search Section - Sticky Card */}
-      <div className="mb-3 sm:mb-4 sticky top-0 z-40 bg-white pb-2">
-        <div className="relative w-full bg-white border border-[#E2E8F0] rounded-xl shadow-sm">
+      {/* Search and filter card */}
+      <div className="mb-4 sm:mb-6 sticky top-[64px] md:top-[76px] z-40 bg-[#F8FAFC] pb-2">
+        <div className="w-full min-w-0 overflow-hidden bg-white border border-[#DDE6EF] rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.06)] p-2 sm:p-3">
+          <div className="relative w-full min-w-0 overflow-hidden border border-[#E2E8F0] rounded-xl bg-[#FBFDFF]">
           <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-[#94A3B8] w-4 h-4 sm:w-5 sm:h-5" />
           <input
             type="text"
@@ -560,7 +734,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onFocus={() => setShowSearchHistory(true)}
-            className="w-full pl-10 sm:pl-12 pr-12 py-2.5 sm:py-3 bg-transparent focus:outline-none focus:border-[#0077B6] focus:ring-0 text-[#0F172A] placeholder-[#94A3B8] text-sm transition-all"
+            className="w-full pl-10 sm:pl-12 pr-12 py-2.5 sm:py-3 bg-transparent focus:outline-none focus:border-[#0077B6] focus:ring-0 text-[#0F172A] placeholder-[#94A3B8] text-base sm:text-sm touch-manipulation transition-all"
           />
           <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
             {searchQuery && (
@@ -620,7 +794,163 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
             </div>
           )}
         </div>
+
+          <div className="relative mt-3 pt-3 border-t border-[#EEF2F6]">
+            <div className="flex items-center justify-between gap-3 mb-2 px-1">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">Browse by subject</p>
+                <span className="flex items-center gap-0.5 text-[10px] font-medium normal-case tracking-normal text-[#94A3B8] sm:hidden" aria-hidden="true">
+                  Swipe <ChevronRight className="w-3 h-3" />
+                </span>
+              </div>
+              <span className="text-xs text-[#64748B] whitespace-nowrap">
+                {filteredBooks.length} {filteredBooks.length === 1 ? "result" : "results"}
+              </span>
+            </div>
+            <div className="relative min-w-0">
+              <div ref={filterRailRef} className="flex min-w-0 max-w-full gap-2 overflow-x-auto scroll-smooth overscroll-x-contain touch-pan-x pb-1 scrollbar-hide snap-x snap-mandatory animate-filter-rail" role="tablist" aria-label="Swipe book subjects horizontally">
+                {filterCategories.map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => handleCategoryChange(category)}
+                    data-category={category}
+                    role="tab"
+                    aria-selected={selectedCategory === category}
+                    className={`snap-center shrink-0 min-h-10 px-3 sm:px-3.5 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-all duration-200 border active:scale-95 touch-manipulation inline-flex items-center justify-start gap-2 ${
+                      selectedCategory === category
+                        ? "bg-transparent text-[#0077B6] border-[#0077B6] ring-2 ring-[#0077B6]/15"
+                        : "bg-transparent text-[#334155] border-[#E2E8F0] hover:border-[#0077B6] hover:text-[#0077B6]"
+                    }`}
+                  >
+                    {(() => {
+                      const SubjectIcon = subjectIcons[category] || BookOpen;
+                      return (
+                        <span className="flex shrink-0 items-center justify-center w-5 h-5 rounded-md border border-current/25" aria-hidden="true">
+                          <SubjectIcon className="w-3.5 h-3.5" />
+                        </span>
+                      );
+                    })()}
+                    <span>{category}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#FBFDFF] to-transparent sm:hidden" aria-hidden="true" />
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-[#EEF2F6]">
+              <div className="flex items-center justify-between gap-2 mb-2 px-1">
+                <div className="flex items-center gap-2 min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">Popular authors</p>
+                <span className="text-[10px] text-[#94A3B8]">Tap to search</span>
+                </div>
+                <span className="flex items-center gap-0.5 text-[10px] font-medium text-[#94A3B8] sm:hidden" aria-hidden="true">
+                  Swipe <ChevronRight className="w-3 h-3" />
+                </span>
+              </div>
+              <div className="relative">
+              <div className="flex gap-2 overflow-x-auto overscroll-x-contain touch-pan-x pb-1 px-1 scrollbar-hide snap-x snap-mandatory" role="list" aria-label="Popular authors">
+                {popularAuthors.map((author) => (
+                  <button
+                    key={author}
+                    onClick={() => {
+                      setSearchQuery(author);
+                      setShowSearchHistory(false);
+                    }}
+                    className="snap-start shrink-0 inline-flex items-center gap-2 min-h-10 px-3 rounded-xl border border-[#DDE6EF] bg-transparent text-xs font-medium text-[#475569] hover:border-[#0077B6] hover:text-[#0077B6] transition-colors active:scale-95 touch-manipulation"
+                  >
+                    <span className="flex items-center justify-center w-6 h-6 rounded-md border border-[#DDE6EF] text-[#64748B]" aria-hidden="true">
+                      <PenLine className="w-3.5 h-3.5" />
+                    </span>
+                    {author}
+                  </button>
+                ))}
+              </div>
+              <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#FBFDFF] to-transparent sm:hidden" aria-hidden="true" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Other school results */}
+      {showOtherSchoolsModal && (
+        <section ref={otherSchoolsSectionRef} className="mb-6 w-full scroll-mt-[80px] rounded-2xl border border-[#DDE6EF] bg-white p-4 shadow-sm sm:p-5">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold text-[#0F172A]">Available in other schools</h2>
+              <p className="mt-1 truncate text-xs text-[#64748B]">
+                {bookForOtherSchoolSearch?.title || "Matching book"} and its library locations
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowOtherSchoolsModal(false)}
+              className="shrink-0 rounded-lg p-2 text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#0F172A]"
+              aria-label="Close other school results"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {searchingOtherSchools ? (
+            <div className="flex items-center gap-2 rounded-xl border border-[#E2E8F0] p-4 text-sm text-[#64748B]">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#0077B6] border-t-transparent" />
+              Searching partner school libraries...
+            </div>
+          ) : otherSchoolsWithBook.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[#CBD5E1] p-5 text-center">
+              <Search className="mx-auto mb-2 h-6 w-6 text-[#94A3B8]" />
+              <p className="text-sm font-medium text-[#334155]">No available copy found</p>
+              <p className="mt-1 text-xs text-[#64748B]">Try another book or subject.</p>
+            </div>
+          ) : (
+            <>
+              <div className="mb-2 flex items-center justify-between sm:hidden">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-[#94A3B8]">Swipe to browse</span>
+                <ChevronRight className="h-3.5 w-3.5 text-[#94A3B8]" aria-hidden="true" />
+              </div>
+              <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 touch-pan-x scrollbar-hide sm:grid sm:grid-cols-2 lg:grid-cols-3 sm:overflow-visible">
+                {otherSchoolsWithBook.map((schoolData) => (
+                  <button
+                    type="button"
+                    key={schoolData.school_id}
+                    onClick={() => {
+                      setSelectedSchool({
+                        school_id: schoolData.school_id,
+                        school_name: schoolData.school_name,
+                        address: schoolData.address,
+                        school_code: schoolData.school_code,
+                      });
+                      setBookForOtherSchoolSearch({
+                        book_id: schoolData.book_id,
+                        title: schoolData.title,
+                        author: schoolData.author,
+                        isbn: schoolData.isbn,
+                        available_copies: schoolData.available_copies,
+                        total_copies: schoolData.total_copies,
+                      });
+                      setShowOtherSchoolsModal(false);
+                    }}
+                    className="flex min-w-[82%] snap-start items-center gap-3 rounded-xl border border-[#E2E8F0] p-3 text-left transition hover:border-[#0077B6] hover:bg-[#F8FCFE] sm:min-w-0"
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#BFE3F1] text-[#0077B6]">
+                      <Building2 className="h-5 w-5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-[#0F172A]">{schoolData.school_name}</span>
+                      <span className="mt-1 block truncate text-xs text-[#64748B]">{schoolData.address || "Address unavailable"}</span>
+                      <span className="mt-1 block text-xs font-medium text-emerald-700">
+                        {schoolData.available_copies || 0} available {schoolData.available_copies === 1 ? "copy" : "copies"}
+                      </span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-[#94A3B8]" />
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
       {/* Filter Panel - Google-style slide-out */}
       {showFilterPanel && (
@@ -675,6 +1005,43 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                     </button>
                   </div>
                 </div>
+
+                {searchHistory.length > 0 && (
+                  <div className="border-t border-[#EEF2F6] pt-5">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <h3 className="text-sm font-semibold text-[#64748B]">Recent searches</h3>
+                      <button
+                        onClick={clearSearchHistory}
+                        className="text-xs font-medium text-[#0077B6] hover:text-[#005f8f]"
+                      >
+                        Clear all
+                      </button>
+                    </div>
+                    <div className="space-y-1.5">
+                      {searchHistory.slice(0, 8).map((item, index) => (
+                        <div key={`${item}-${index}`} className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-3 py-2.5">
+                          <button
+                            onClick={() => {
+                              handleHistoryClick(item);
+                              setShowFilterPanel(false);
+                            }}
+                            className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm text-[#334155] hover:text-[#0077B6]"
+                          >
+                            <Clock className="w-4 h-4 shrink-0 text-[#94A3B8]" />
+                            <span className="truncate">{item}</span>
+                          </button>
+                          <button
+                            onClick={() => deleteFromHistory(item)}
+                            className="shrink-0 rounded-md p-1 text-[#94A3B8] hover:bg-red-50 hover:text-red-500"
+                            aria-label={`Delete recent search ${item}`}
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Footer - Swipe hint */}
@@ -688,23 +1055,6 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
           </div>
         </>
       )}
-
-      {/* Desktop Quick Filters - Always visible on desktop */}
-      <div className="hidden sm:block mb-4 sm:mb-6">
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-3 px-3 sm:-mx-4 sm:px-4">
-          <button
-            onClick={() => setNotificationFilter("all")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
-              notificationFilter === "all"
-                ? "bg-[#0077B6] text-white shadow-md"
-                : "hover:bg-[#F7FAFC] text-[#0F172A] border border-[#E2E8F0]"
-            }`}
-          >
-            <Book className="w-4 h-4" />
-            <span>All Books</span>
-          </button>
-        </div>
-      </div>
 
       {/* School View */}
       {showSchoolView && (
@@ -872,42 +1222,6 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
         </div>
       )}
 
-      {/* Search History */}
-      {!showSearchHistory && searchHistory.length > 0 && searchQuery === "" && (
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-[#64748B]">Recent Searches</h3>
-            <button
-              onClick={clearSearchHistory}
-              className="text-xs text-red-600 hover:text-red-700 font-medium"
-            >
-              Clear
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {searchHistory.slice(0, 8).map((item, index) => (
-              <button
-                key={index}
-                onClick={() => handleHistoryClick(item)}
-                className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-[#E2E8F0] rounded-lg hover:border-[#0077B6] hover:bg-[#F7FAFC] transition-all group"
-              >
-                <Clock className="w-3.5 h-3.5 text-[#94A3B8]" />
-                <span className="text-sm text-[#0F172A]">{item}</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteFromHistory(item);
-                  }}
-                  className="ml-1 p-0.5 text-[#94A3B8] hover:text-red-500 rounded transition-colors opacity-0 group-hover:opacity-100"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Results Count */}
       <div className="mb-4 sm:mb-6">
         <p className="text-[#64748B] text-xs sm:text-sm font-medium">
@@ -935,14 +1249,14 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
             {/* Book Grid */}
             {filteredBooks.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1.5 sm:gap-2">
+              <div className={`grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 ${selectedBook ? "lg:grid-cols-4" : "lg:grid-cols-4 xl:grid-cols-5"}`}>
                 {filteredBooks.map((book) => {
                   const displayStatus = getBookDisplayStatus(book);
                   return (
                   <div
                     key={book.id}
                     onClick={() => handleBookClick(book)}
-                    className="bg-white rounded-md p-1.5 border border-[#E2E8F0] shadow-sm hover:shadow-md hover:border-[#0077B6] transition-all duration-300 cursor-pointer group active:scale-[0.98]"
+                    className="min-w-0 bg-white rounded-lg p-2 border border-[#E2E8F0] shadow-sm hover:shadow-md hover:border-[#0077B6] transition-all duration-300 cursor-pointer group active:scale-[0.98]"
                     role="button"
                     tabIndex={0}
                     onKeyPress={(e) => {
@@ -953,14 +1267,14 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                     }}
                   >
                     {/* Book Cover */}
-                    <div className="aspect-[9/16] w-full bg-gradient-to-br from-[#0077B6] to-[#005f8f] rounded-md flex items-center justify-center mb-1.5">
-                      <Book className="w-6 h-6 text-white/90" />
+                    <div className="h-44 sm:h-52 lg:h-56 w-full bg-gradient-to-br from-[#0077B6] to-[#005f8f] rounded-md flex items-center justify-center mb-2">
+                      <Book className="w-7 h-7 text-white/90" />
                     </div>
 
                     {/* Book Info */}
-                    <div className="space-y-0.5">
+                    <div className="space-y-1 min-w-0">
                       {/* Title */}
-                      <h3 className="font-semibold text-[#0F172A] text-xs line-clamp-2 leading-tight">
+                      <h3 className="font-semibold text-[#0F172A] text-xs line-clamp-2 leading-tight min-h-[2rem]">
                         {book.title}
                       </h3>
 
@@ -973,14 +1287,8 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                       </span>
 
                       {/* Availability Status */}
-                      <div className="flex items-center justify-between pt-0.5">
-                        <span className={`text-xs font-semibold ${
-                          displayStatus === 'available' 
-                            ? 'text-green-600' 
-                            : 'text-red-600'
-                        }`}>
-                          {displayStatus === 'available' ? 'Available' : displayStatus === 'requested' ? 'Requested' : displayStatus === 'waiting_pickup' ? 'Waiting for Pickup' : 'Borrowed'}
-                        </span>
+                      <div className="flex items-center justify-between gap-1 pt-0.5">
+                        <BookStatusBadge status={displayStatus} />
                         <div className="flex items-center gap-1">
                           {displayStatus !== "available" ? (
                             <button
@@ -1314,19 +1622,15 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
         const selectedBookAvailable = selectedBookDisplayStatus === "available";
 
         return (
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 p-0 sm:p-4 overflow-y-auto"
-          onClick={handleCloseOverlay}
-        >
+        <div className="fixed top-[64px] md:top-[76px] bottom-0 right-0 z-40 w-full sm:w-[340px] lg:w-[360px] bg-white shadow-2xl border-l border-[#E2E8F0] overflow-y-auto animate-slide-up">
           <div
-            className="bg-white rounded-t-3xl sm:rounded-2xl shadow-xl max-w-2xl w-full max-h-[92vh] overflow-y-auto mx-auto sm:my-8"
-            onClick={(e) => e.stopPropagation()}
+            className="min-h-full w-full"
           >
             {/* Modal Header */}
-            <div className="p-6 border-b border-[#E2E8F0]">
+            <div className="p-4 sm:p-5 border-b border-[#E2E8F0]">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
-                  <h2 className="text-2xl font-bold text-[#0F172A] mb-1">{selectedBook.title}</h2>
+                  <h2 className="text-xl sm:text-2xl font-bold text-[#0F172A] mb-1 line-clamp-2 pr-2">{selectedBook.title}</h2>
                   <p className="text-[#64748B] text-sm">{selectedBook.author}</p>
                 </div>
                 <button
@@ -1339,23 +1643,23 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
               </div>
             </div>
 
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div className="flex gap-4">
-                  <div className="w-32 h-44 bg-gradient-to-br from-[#0077B6] to-[#005f8f] rounded-lg flex-shrink-0 flex items-center justify-center shadow-sm">
+            <div className="p-4 sm:p-5">
+              <div className="grid grid-cols-1 gap-4 mb-5">
+                <div className="flex gap-3 min-w-0">
+                  <div className="w-24 h-36 bg-gradient-to-br from-[#0077B6] to-[#005f8f] rounded-lg flex-shrink-0 flex items-center justify-center shadow-sm">
                     <div className="text-center p-3">
-                      <Book className="w-12 h-12 text-white/90 mx-auto mb-2" />
+                      <Book className="w-10 h-10 text-white/90 mx-auto mb-2" />
                       <p className="text-white/80 text-xs font-medium line-clamp-2">
                         {selectedBook.title}
                       </p>
                     </div>
                   </div>
                   <div className="flex-1">
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      <span className="px-2.5 py-1 bg-[#F7FAFC] text-[#64748B] text-xs rounded-md font-medium">
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      <span className="px-2 py-1 border border-[#E2E8F0] text-[#64748B] text-xs rounded-md font-medium">
                         {selectedBook.category}
                       </span>
-                      <span className="px-2.5 py-1 bg-[#F7FAFC] text-[#64748B] text-xs rounded-md font-medium">
+                      <span className="px-2 py-1 border border-[#E2E8F0] text-[#64748B] text-xs rounded-md font-medium">
                         {selectedBook.year}
                       </span>
                     </div>
@@ -1371,56 +1675,66 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                 </div>
 
                 <div className="space-y-3">
-                  <div className="flex items-center gap-3 text-sm p-3 rounded-xl bg-[#F7FAFC] border border-[#E2E8F0]">
+                  <div className="flex items-center gap-3 text-sm p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
                     <div className="w-8 h-8 bg-[#0077B6]/10 rounded-lg flex items-center justify-center flex-shrink-0">
                       <MapPin className="w-4 h-4 text-[#0077B6]" />
                     </div>
-                    <span className="text-[#0F172A]">
+                    <span className="min-w-0 break-words text-[#0F172A]">
                       <span className="font-semibold">Location:</span> {selectedBook.location}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 text-sm p-3 rounded-xl bg-[#F7FAFC] border border-[#E2E8F0]">
+                  <div className="flex items-center gap-3 text-sm p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
                     <div className="w-8 h-8 bg-[#0077B6]/10 rounded-lg flex items-center justify-center flex-shrink-0">
                       <Calendar className="w-4 h-4 text-[#0077B6]" />
                     </div>
-                    <span className="text-[#0F172A]">
+                    <span className="min-w-0 break-words text-[#0F172A]">
                       <span className="font-semibold">Shelf:</span> {selectedBook.shelf}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 text-sm p-3 rounded-xl bg-[#F7FAFC] border border-[#E2E8F0]">
+                  <div className="flex items-center gap-3 text-sm p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
                     <div className="w-8 h-8 bg-[#0077B6]/10 rounded-lg flex items-center justify-center flex-shrink-0">
                       <User className="w-4 h-4 text-[#0077B6]" />
                     </div>
-                    <span className="text-[#0F172A]">
+                    <span className="min-w-0 break-words text-[#0F172A]">
                       <span className="font-semibold">Library:</span> {selectedBook.library}
                     </span>
                   </div>
                 </div>
               </div>
 
+              <div className="mb-5 overflow-hidden rounded-xl border border-[#E2E8F0] bg-[#F8FAFC]">
+                <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-[#0077B6]" />
+                    <span className="text-sm font-semibold text-[#0F172A]">Library location</span>
+                  </div>
+                  {selectedBook.latitude && selectedBook.longitude && (
+                    <button
+                      type="button"
+                      onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${selectedBook.latitude},${selectedBook.longitude}`, "_blank", "noopener,noreferrer")}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#0077B6] px-2.5 py-1.5 text-xs font-semibold text-[#0077B6] hover:bg-[#EAF6FB]"
+                    >
+                      <Navigation className="w-3.5 h-3.5" />
+                      Directions
+                    </button>
+                  )}
+                </div>
+                <div className="h-44 sm:h-52 bg-white">
+                  <MinimalSchoolMap
+                    school={{
+                      latitude: selectedBook.latitude,
+                      longitude: selectedBook.longitude,
+                      school_name: selectedBook.library,
+                      address: selectedBook.location,
+                    }}
+                  />
+                </div>
+              </div>
+
               <div className="border-t border-[#E2E8F0] pt-6">
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-sm font-medium text-[#64748B]">Availability Status</span>
-                  {(() => {
-                    const status = selectedBookDisplayStatus;
-                    const statusColors = {
-                      available: "text-green-600",
-                      requested: "text-yellow-600",
-                      waiting_pickup: "text-blue-600",
-                      borrowed: "text-red-600",
-                    };
-                    const statusLabels = {
-                      available: "Available",
-                      requested: "Requested",
-                      waiting_pickup: "Waiting for Pickup",
-                      borrowed: "Borrowed",
-                    };
-                    return (
-                      <span className={`text-sm font-medium ${statusColors[status] || "text-red-600"}`}>
-                        {statusLabels[status] || "Unavailable"}
-                      </span>
-                    );
-                  })()}
+                  <BookStatusBadge status={selectedBookDisplayStatus} />
                 </div>
 
                 {selectedBook.status_details && (
@@ -1438,12 +1752,12 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                   </div>
                 )}
 
-                <div className="flex flex-col sm:flex-row gap-3">
+                <div className="grid grid-cols-1 gap-2.5">
                   <button
                     type="button"
                     onClick={handleBorrow}
                     disabled={!selectedBookAvailable}
-                    className={`flex-1 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
+                    className={`w-full min-w-0 py-3 px-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 text-sm ${
                       selectedBookAvailable
                         ? "bg-[#0077B6] hover:bg-[#005f8f] text-white shadow-sm"
                         : "bg-gray-200 text-gray-500 cursor-not-allowed"
@@ -1455,7 +1769,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                   <button
                     type="button"
                     onClick={() => searchBookInOtherSchools(selectedBook)}
-                    className="flex-1 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 bg-white border-2 border-[#0077B6] text-[#0077B6] hover:bg-[#F7FAFC]"
+                    className="w-full min-w-0 py-3 px-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 text-sm bg-white border-2 border-[#0077B6] text-[#0077B6] hover:bg-[#F7FAFC]"
                   >
                     <Globe className="w-5 h-5" />
                     Find in Other Schools
@@ -1464,7 +1778,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                     type="button"
                     onClick={() => handleAddToBorrowingList(selectedBook)}
                     disabled={!selectedBookAvailable}
-                    className={`flex-1 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
+                    className={`w-full min-w-0 py-3 px-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 text-sm ${
                       selectedBookAvailable
                         ? "bg-white border-2 border-[#0077B6] text-[#0077B6] hover:bg-[#F7FAFC]"
                         : "bg-gray-100 border-2 border-gray-300 text-gray-400 cursor-not-allowed"
@@ -1858,14 +2172,15 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
       )}
 
       {/* Other Schools Availability Modal */}
-      {showOtherSchoolsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+      {false && showOtherSchoolsModal && (
+        <div className="relative z-30 w-full mb-6 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl">
+          <div className="w-full p-3 sm:p-5 lg:p-6">
+            <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm flex flex-col">
             {/* Modal Header */}
-            <div className="p-6 border-b border-[#E2E8F0] flex items-center justify-between">
+            <div className="p-4 sm:p-5 border-b border-[#E2E8F0] flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold text-[#0F172A]">Available in Other Schools</h2>
-                <p className="text-sm text-[#64748B] mt-1">
+                <h2 className="text-lg sm:text-xl font-semibold text-[#0F172A]">Available in Other Schools</h2>
+                <p className="text-xs sm:text-sm text-[#64748B] mt-1">
                   "{bookForOtherSchoolSearch?.title}" is available at these partner schools
                 </p>
               </div>
@@ -1878,7 +2193,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 overflow-y-auto max-h-[70vh]">
+            <div className="p-4 sm:p-5">
               {searchingOtherSchools ? (
                 <div className="text-center py-12">
                   <div className="w-12 h-12 border-4 border-[#0077B6] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
@@ -1998,12 +2313,13 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                 </div>
               )}
             </div>
+            </div>
           </div>
         </div>
       )}
 
       {/* Book Detail - Inline */}
-      {showBookDetailModal && selectedBook && (
+      {false && showBookDetailModal && selectedBook && (
         <div className="bg-white rounded-2xl p-6 border border-[#E2E8F0] shadow-sm mb-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">

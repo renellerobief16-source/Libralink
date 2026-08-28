@@ -15,14 +15,25 @@ function ConfirmationOverlay({
   const [isAnimating, setIsAnimating] = useState(false);
 
   useEffect(() => {
+    let hideTimer;
     if (show) {
       setIsVisible(true);
       setTimeout(() => setIsAnimating(true), 10);
     } else {
       setIsAnimating(false);
-      setTimeout(() => setIsVisible(false), 300);
+      hideTimer = setTimeout(() => setIsVisible(false), 300);
     }
+    return () => clearTimeout(hideTimer);
   }, [show]);
+
+  useEffect(() => {
+    if (!show) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onCancel?.();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [show, onCancel]);
 
   const getConfirmConfig = () => {
     switch (type) {
@@ -71,18 +82,24 @@ function ConfirmationOverlay({
   if (!isVisible) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
       <div className="fixed inset-0 bg-slate-900/35 backdrop-blur-[1px] transition-opacity duration-200 ease-out" onClick={() => {
         setIsVisible(false);
         if (onCancel) onCancel();
       }} />
-      <div className={`relative w-full max-w-md ${config.borderColor} border rounded-2xl shadow-[0_18px_45px_rgba(15,23,42,0.18)] p-6 bg-white transition-all duration-200 ease-out transform ${isAnimating ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-2 scale-[0.98] opacity-0'}`}>
+      <div
+        className={`relative w-full max-w-md ${config.borderColor} border rounded-2xl shadow-[0_18px_45px_rgba(15,23,42,0.18)] p-5 sm:p-6 bg-white transition-all duration-200 ease-out transform ${isAnimating ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-2 scale-[0.98] opacity-0'}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirmation-title"
+      >
         <button
           onClick={() => {
             setIsVisible(false);
             if (onCancel) onCancel();
           }}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+          className="absolute top-4 right-4 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          aria-label="Close confirmation"
         >
           <FiX className="w-5 h-5" />
         </button>
@@ -92,12 +109,12 @@ function ConfirmationOverlay({
             <config.icon className={`w-5 h-5 ${config.iconColor}`} />
           </div>
           <div className="flex-1">
-            <h3 className="text-xl font-bold text-gray-900 mb-1.5">{title}</h3>
+            <h3 id="confirmation-title" className="text-lg sm:text-xl font-bold text-gray-900 mb-1.5 pr-8">{title}</h3>
             <p className="text-sm text-gray-600 leading-relaxed">{message}</p>
           </div>
         </div>
         
-        <div className="flex gap-3">
+        <div className="flex flex-col-reverse sm:flex-row gap-3">
           <button
             onClick={() => {
               setIsVisible(false);

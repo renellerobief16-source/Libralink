@@ -56,6 +56,21 @@ body {
 
 }
 
+@keyframes filter-rail-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-filter-rail {
+  animation: filter-rail-in 0.35s ease-out both;
+}
+
 
 
 @keyframes scale-in {
