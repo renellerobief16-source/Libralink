@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Book, Clock, Users, AlertTriangle, Search, Calendar, Bell } from "lucide-react";
+import { Book, Clock, Users, AlertTriangle, Search, Bell, ArrowUpRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   WelcomeSection,
@@ -8,21 +8,37 @@ import {
   CalendarWidget,
   AnnouncementsWidget,
 } from "./StudentDashboardComponents";
-import api from "../../../utils/api";
+import api, { API_ORIGIN } from "../../../utils/api";
 import { StatsCardSkeleton } from "../../ui/Skeleton";
 
-function StudentHome({ bookCount = 0, studentCount = 0, schoolInfo }) {
+function SchoolAvatar({ schoolName, logo }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const initials = schoolName.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join('').toUpperCase();
+
+  return (
+    <span className="flex h-[62px] w-[62px] items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-500 via-violet-500 to-fuchsia-500 p-[2px] shadow-sm">
+      <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-white p-1">
+        {logo && !imageFailed ? (
+          <img src={logo} alt={`${schoolName} logo`} className="h-full w-full rounded-full object-contain" onError={() => setImageFailed(true)} />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-slate-600">{initials}</span>
+        )}
+      </span>
+    </span>
+  );
+}
+
+function StudentHome({ bookCount = 0, schoolInfo }) {
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState('Student');
-  const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
   const [borrowedBooks, setBorrowedBooks] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [dueSoonCount, setDueSoonCount] = useState(0);
   const [overdueCount, setOverdueCount] = useState(0);
-  const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [profileImage, setProfileImage] = useState('');
+  const [partnerSchools, setPartnerSchools] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -93,17 +109,23 @@ function StudentHome({ bookCount = 0, studentCount = 0, schoolInfo }) {
           try {
             const notifRes = await api.get(`/notifications/user/${currentUserId}`);
             if (notifRes.data) {
-              setNotifications(notifRes.data);
               setUnreadCount(notifRes.data.filter(n => !n.read).length);
             }
           } catch (notifError) {
             console.error('Error fetching notifications:', notifError);
           }
+
+          // All schools registered in Libralink, shown in the dashboard school carousel.
+          try {
+            const partnersRes = await api.get('/schools');
+            setPartnerSchools(partnersRes.data?.data || partnersRes.data || []);
+          } catch (partnersError) {
+            console.error('Error fetching registered schools:', partnersError);
+          }
         }
       } catch (err) {
         console.error('Error loading user info:', err);
       } finally {
-        setLoading(false);
         setStatsLoading(false);
       }
     };
@@ -121,10 +143,6 @@ function StudentHome({ bookCount = 0, studentCount = 0, schoolInfo }) {
 
   const handleDueSoonClick = () => {
     navigate('/studentpage/history');
-  };
-
-  const handleStudentsClick = () => {
-    alert('Student directory feature coming soon!');
   };
 
   const handleSearchClick = () => {
@@ -176,34 +194,69 @@ function StudentHome({ bookCount = 0, studentCount = 0, schoolInfo }) {
   };
 
   return (
-    <div className="animate-slide-up space-y-6">
-      <WelcomeSection displayName={displayName} schoolInfo={schoolInfo} profileImage={profileImage} />
+    <div className="animate-slide-up space-y-5 sm:space-y-6">
+      {partnerSchools.length > 0 && (
+        <section aria-labelledby="partner-schools-title" className="-mx-3 overflow-hidden border-y border-slate-100 bg-white py-4 sm:mx-0 sm:rounded-2xl sm:border sm:px-4">
+          <div className="mb-3 flex items-center justify-between px-3 sm:px-0">
+            <div>
+              <h2 id="partner-schools-title" className="text-sm font-bold text-slate-900">Schools on Libralink</h2>
+              <p className="text-xs text-slate-500">Explore all registered school libraries</p>
+            </div>
+            <button onClick={handleSearchClick} className="text-xs font-semibold text-blue-600 active:text-blue-800">Explore</button>
+          </div>
+          <div className="flex gap-3 overflow-x-auto px-3 pb-1 [scrollbar-width:none] sm:px-0">
+            {partnerSchools.map((school) => {
+              const logo = school.logo && (school.logo.startsWith('http') || school.logo.startsWith('data:') ? school.logo : `${API_ORIGIN}${school.logo.startsWith('/') ? '' : '/'}${school.logo}`);
+              const schoolName = school.school_name || school.name || 'School';
+              return (
+                <button key={school.school_id} onClick={handleSearchClick} className="flex w-[74px] shrink-0 flex-col items-center gap-1.5 text-center active:scale-95" aria-label={`Browse books from ${schoolName}`}>
+                  <SchoolAvatar schoolName={schoolName} logo={logo} />
+                  <span className="w-full truncate text-[11px] font-medium text-slate-700">{schoolName}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <WelcomeSection displayName={displayName} schoolInfo={schoolInfo} profileImage={profileImage} onBrowse={handleSearchClick} />
 
       {/* Quick Actions */}
+      <section aria-label="Quick actions">
+        <div className="mb-3 flex items-end justify-between">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600">Library tools</p>
+            <h2 className="mt-0.5 text-lg font-bold text-slate-900">What would you like to do?</h2>
+          </div>
+          <span className="hidden text-xs font-medium text-slate-500 sm:block">One tap to continue</span>
+        </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <button
           onClick={handleSearchClick}
-          className="flex flex-col items-center gap-2 p-4 sm:p-5 min-h-[100px] bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all active:scale-[0.98]"
+          className="relative flex min-h-[112px] flex-col items-start gap-2 overflow-hidden rounded-2xl border border-blue-100 bg-blue-50 p-4 text-left shadow-sm transition-all active:scale-[0.98] sm:items-center sm:p-5 sm:text-center"
           aria-label="Search books"
         >
           <Search className="w-6 h-6 text-blue-600" />
-          <span className="text-sm font-medium text-gray-700">Search Books</span>
+          <span className="text-sm font-semibold text-slate-800">Find a book</span>
+          <ArrowUpRight className="absolute bottom-3 right-3 h-4 w-4 text-blue-500" aria-hidden="true" />
         </button>
         <button
           onClick={handleBorrowedClick}
-          className="flex flex-col items-center gap-2 p-4 sm:p-5 min-h-[100px] bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all active:scale-[0.98]"
+          className="relative flex min-h-[112px] flex-col items-start gap-2 overflow-hidden rounded-2xl border border-violet-100 bg-violet-50 p-4 text-left shadow-sm transition-all active:scale-[0.98] sm:items-center sm:p-5 sm:text-center"
           aria-label="View my books"
         >
-          <Clock className="w-6 h-6 text-blue-600" />
-          <span className="text-sm font-medium text-gray-700">My Books</span>
+          <Clock className="w-6 h-6 text-violet-600" />
+          <span className="text-sm font-semibold text-slate-800">My books</span>
+          <ArrowUpRight className="absolute bottom-3 right-3 h-4 w-4 text-violet-500" aria-hidden="true" />
         </button>
         <button
           onClick={handleNotificationsClick}
-          className="flex flex-col items-center gap-2 p-4 sm:p-5 min-h-[100px] bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all relative active:scale-[0.98]"
+          className="relative flex min-h-[112px] flex-col items-start gap-2 overflow-hidden rounded-2xl border border-amber-100 bg-amber-50 p-4 text-left shadow-sm transition-all active:scale-[0.98] sm:items-center sm:p-5 sm:text-center"
           aria-label="View notifications"
         >
-          <Bell className="w-6 h-6 text-blue-600" />
-          <span className="text-sm font-medium text-gray-700">Notifications</span>
+          <Bell className="w-6 h-6 text-amber-600" />
+          <span className="text-sm font-semibold text-slate-800">Updates</span>
+          <ArrowUpRight className="absolute bottom-3 right-3 h-4 w-4 text-amber-500" aria-hidden="true" />
           {unreadCount > 0 && (
             <span className="absolute top-2 right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center" aria-label={`${unreadCount} unread notifications`}>
               {unreadCount > 9 ? '9+' : unreadCount}
@@ -212,13 +265,24 @@ function StudentHome({ bookCount = 0, studentCount = 0, schoolInfo }) {
         </button>
         <button
           onClick={() => navigate('/studentpage/profile')}
-          className="flex flex-col items-center gap-2 p-4 sm:p-5 min-h-[100px] bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all active:scale-[0.98]"
+          className="relative flex min-h-[112px] flex-col items-start gap-2 overflow-hidden rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-left shadow-sm transition-all active:scale-[0.98] sm:items-center sm:p-5 sm:text-center"
           aria-label="View profile"
         >
-          <Users className="w-6 h-6 text-blue-600" />
-          <span className="text-sm font-medium text-gray-700">Profile</span>
+          <Users className="w-6 h-6 text-emerald-600" />
+          <span className="text-sm font-semibold text-slate-800">My profile</span>
+          <ArrowUpRight className="absolute bottom-3 right-3 h-4 w-4 text-emerald-500" aria-hidden="true" />
         </button>
       </div>
+      </section>
+
+      <section aria-labelledby="library-status-title">
+        <div className="mb-3 flex items-end justify-between"><div><p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600">My activity</p><h2 id="library-status-title" className="mt-0.5 text-lg font-bold text-slate-900">Library at a glance</h2></div><button onClick={handleBorrowedClick} className="text-xs font-semibold text-blue-600">View history</button></div>
+        <div className="grid grid-cols-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+          <button onClick={handleBorrowedClick} className="min-w-0 border-r border-slate-100 px-3 py-4 text-left active:bg-slate-50"><div className="mb-2 flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50"><Book className="h-4 w-4 text-blue-600" /></div><p className="text-2xl font-bold text-slate-900">{borrowedBooks.length}</p><p className="mt-1 text-[11px] font-medium text-slate-500">On loan</p></button>
+          <button onClick={handleDueSoonClick} className="min-w-0 border-r border-slate-100 px-3 py-4 text-left active:bg-slate-50"><div className="mb-2 flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50"><Clock className="h-4 w-4 text-amber-600" /></div><p className="text-2xl font-bold text-amber-600">{dueSoonCount}</p><p className="mt-1 text-[11px] font-medium text-slate-500">Due soon</p></button>
+          <button onClick={handleBorrowedClick} className="min-w-0 px-3 py-4 text-left active:bg-slate-50"><div className={`mb-2 flex h-7 w-7 items-center justify-center rounded-lg ${overdueCount ? 'bg-rose-50' : 'bg-emerald-50'}`}><AlertTriangle className={`h-4 w-4 ${overdueCount ? 'text-rose-600' : 'text-emerald-600'}`} /></div><p className={`text-2xl font-bold ${overdueCount ? 'text-rose-600' : 'text-emerald-600'}`}>{overdueCount}</p><p className="mt-1 text-[11px] font-medium text-slate-500">Overdue</p></button>
+        </div>
+      </section>
 
       {/* Overdue Alert */}
       {overdueCount > 0 && (
@@ -240,7 +304,7 @@ function StudentHome({ bookCount = 0, studentCount = 0, schoolInfo }) {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,1fr)]">
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="hidden grid-cols-2 gap-3 sm:gap-4 md:grid xl:grid-cols-4">
             {statsLoading ? (
               <>
                 <StatsCardSkeleton />
@@ -251,14 +315,14 @@ function StudentHome({ bookCount = 0, studentCount = 0, schoolInfo }) {
             ) : (
               <>
                 <StatsCard icon={Book} title="Books" value={bookCount || 0} subtitle="Total Books" color="blue" onClick={handleBooksClick} />
-                <StatsCard icon={Users} title="Students" value={studentCount || 0} subtitle="Total Students" color="blue" onClick={handleStudentsClick} />
+                <StatsCard icon={Clock} title="Due soon" value={dueSoonCount} subtitle="Return date approaching" color="orange" onClick={handleDueSoonClick} />
                 <StatsCard icon={Clock} title="Borrowed" value={borrowedBooks.length} subtitle="Currently Borrowed" color="blue" onClick={handleBorrowedClick} />
                 <StatsCard icon={AlertTriangle} title="Overdue" value={overdueCount} subtitle="Overdue Books" color="red" onClick={handleBorrowedClick} />
               </>
             )}
           </div>
 
-          <BorrowedBooks books={borrowedBooks} onRenew={handleRenewBook} />
+          <BorrowedBooks books={borrowedBooks} onRenew={handleRenewBook} onViewAll={handleBorrowedClick} />
         </div>
 
         <div className="space-y-6">

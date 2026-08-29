@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { Book, Heart } from "lucide-react";
+import { Book, Heart, Search, ArrowUpRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import api from "../../../utils/api";
 import { CardSkeleton } from "../../ui/Skeleton";
 
 function StudentFavorite() {
+  const navigate = useNavigate();
   const [allBooks, setAllBooks] = useState([]);
   const [favorites, setFavorites] = useState(() => {
     const saved = localStorage.getItem('favorites');
@@ -121,42 +123,48 @@ function StudentFavorite() {
   }
 
   return (
-    <div className="animate-slide-up w-full max-w-[1600px] mx-auto px-3 sm:px-5 lg:px-8">
-      <div className="mb-4 sm:mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A]">My Favorites</h1>
-        <p className="text-sm sm:text-base text-[#64748B] mt-1">{favoriteBooks.length} {favoriteBooks.length === 1 ? 'book' : 'books'} saved</p>
-      </div>
+    <div className="animate-slide-up mx-auto w-full max-w-[1600px] px-0 sm:px-5 lg:px-8">
+      <header className="mb-4 flex items-end justify-between gap-3 sm:mb-6">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-rose-500">Your reading list</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Favorites</h1>
+          <p className="mt-1 text-sm text-slate-500">{favoriteBooks.length} {favoriteBooks.length === 1 ? 'book' : 'books'} saved for later</p>
+        </div>
+        <button onClick={() => navigate('/studentpage/search')} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-blue-600 shadow-sm transition active:scale-[0.98] hover:border-blue-200 hover:bg-blue-50">
+          Browse <Search className="h-3.5 w-3.5" />
+        </button>
+      </header>
       
       {favoriteBooks.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 sm:py-24">
-          <div className="w-20 h-20 bg-[#F7FAFC] rounded-full flex items-center justify-center mb-4">
-            <Heart className="w-10 h-10 text-[#64748B]" />
+        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white px-5 py-16 text-center sm:py-24">
+          <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-rose-50">
+            <Heart className="h-10 w-10 text-rose-400" />
           </div>
           <h3 className="text-lg sm:text-xl font-semibold text-[#0F172A] mb-2">No favorites yet</h3>
-          <p className="text-sm text-[#64748B] text-center max-w-xs">Start adding books to your favorites by clicking the heart icon on any book</p>
+          <p className="max-w-xs text-sm leading-6 text-slate-500">Save books you want to read later by tapping the heart icon in the collection.</p>
+          <button onClick={() => navigate('/studentpage/search')} className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition active:scale-[0.98] hover:bg-blue-700">Discover books <ArrowUpRight className="h-4 w-4" /></button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1.5 sm:gap-2">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
           {favoriteBooks.map((book) => (
-            <div key={book.id} className="bg-white rounded-md p-1.5 border border-[#E2E8F0] shadow-sm hover:shadow-md hover:border-[#0077B6] transition-all duration-300 relative group">
+            <article key={book.id} className="group relative min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-[0_5px_16px_rgba(15,23,42,0.06)] transition-all hover:border-rose-200 hover:shadow-md">
               <button
                 onClick={() => removeFavorite(book.id)}
-                className="absolute top-1.5 right-1.5 p-1 rounded-full bg-white/90 hover:bg-red-50 transition-colors z-10 opacity-0 group-hover:opacity-100 shadow-sm"
+                className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-rose-500 shadow-sm transition hover:bg-rose-50"
                 aria-label="Remove from favorites"
               >
-                <Heart className="w-3.5 h-3.5 text-red-500 fill-current" />
+                <Heart className="h-4 w-4 fill-current" />
               </button>
-              <div className="aspect-[9/16] w-full bg-gradient-to-br from-[#0077B6] to-[#005f8f] rounded-md flex items-center justify-center mb-1.5">
-                <Book className="w-6 h-6 text-white/90" />
+              <div className="relative mb-2.5 flex aspect-[3/4] min-h-[150px] w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700">
+                <div className="absolute -right-7 -top-7 h-20 w-20 rounded-full bg-white/10" />
+                <Book className="h-7 w-7 text-white/90" />
+                <span className="absolute bottom-2 left-2 max-w-[calc(100%-1rem)] truncate rounded-md bg-slate-950/35 px-1.5 py-1 text-[9px] font-semibold text-white backdrop-blur-sm">{book.category || "General"}</span>
               </div>
-              <div className="space-y-0.5">
-                <h3 className="font-semibold text-[#0F172A] text-xs line-clamp-2 leading-tight">
+              <div className="min-w-0 space-y-1.5">
+                <h3 className="min-h-[2rem] text-xs font-bold leading-tight text-slate-900 line-clamp-2">
                   {book.title}
                 </h3>
-                <p className="text-[#64748B] text-xs line-clamp-1">{book.author}</p>
-                <span className="inline-block text-xs px-1.5 py-0.5 bg-[#F7FAFC] text-[#64748B] rounded-sm font-medium">
-                  {book.category || "General"}
-                </span>
+                <p className="truncate text-xs text-slate-500">{book.author}</p>
                 <div className="flex items-center justify-between pt-0.5">
                   {(() => {
                     const status = book.real_time_status || "available";
@@ -173,14 +181,14 @@ function StudentFavorite() {
                       borrowed: "Borrowed",
                     };
                     return (
-                      <span className={`text-xs font-semibold ${statusColors[status]}`}>
+                      <span className={`text-[10px] font-bold ${statusColors[status]}`}>
                         {statusLabels[status]}
                       </span>
                     );
                   })()}
                 </div>
               </div>
-            </div>
+            </article>
           ))}
         </div>
       )}

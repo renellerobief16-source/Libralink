@@ -95,17 +95,17 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, com
       if (formData.id_picture instanceof File) {
         console.log('Uploading ID picture...');
         const formDataUpload = new FormData();
-        formDataUpload.append('profile_picture', formData.id_picture);
+        formDataUpload.append('id_picture', formData.id_picture);
         
         try {
-          const uploadResponse = await api.post('/users/profile-picture', formDataUpload, {
+          const uploadResponse = await api.post('/users/borrowing-id', formDataUpload, {
             headers: { 'Content-Type': 'multipart/form-data' },
           });
           console.log('Upload response:', uploadResponse);
-          idPictureUrl = uploadResponse.profile_picture || uploadResponse.profile_image || uploadResponse.data?.profile_picture || '';
+          idPictureUrl = uploadResponse.id_picture_url || uploadResponse.data?.id_picture_url || '';
         } catch (uploadError) {
           console.error('Error uploading ID picture:', uploadError);
-          throw new Error('Failed to upload ID picture. Please try again.');
+          throw new Error(uploadError.message || 'Failed to upload ID picture. Please try again.');
         }
       } else {
         throw new Error('ID picture is required');

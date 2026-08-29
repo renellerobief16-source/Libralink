@@ -408,7 +408,7 @@ function StudentPortal() {
           <Route path="/history" element={<StudentHistory />} />
           <Route path="/profile" element={<StudentProfile />} />
           <Route path="/change-password" element={<StudentChangePassword />} />
-          <Route path="/settings" element={<StudentSettings />} />
+          <Route path="/settings" element={<StudentSettings onLogout={handleLogout} />} />
           <Route path="/about" element={<StudentAbout />} />
           <Route path="/help" element={<StudentHelp />} />
           <Route path="/terms" element={<StudentTermsOfService />} />

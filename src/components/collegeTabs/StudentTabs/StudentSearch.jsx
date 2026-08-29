@@ -48,7 +48,7 @@ import QRCodeDisplay from "./QRCodeDisplay";
 
 import { BookGridSkeleton } from "../../ui/Skeleton";
 
-function BookStatusBadge({ status }) {
+function BookStatusBadge({ status, compact = false }) {
   const statusConfig = {
     available: {
       label: "Available",
@@ -97,7 +97,7 @@ function BookStatusBadge({ status }) {
     >
       <StatusIcon className="h-3 w-3 shrink-0" aria-hidden="true" />
 
-      <span className="truncate">{config.label}</span>
+      {!compact && <span className="truncate">{config.label}</span>}
     </span>
   );
 }
@@ -166,6 +166,18 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
   });
 
   const [showBorrowingList, setShowBorrowingList] = useState(false);
+
+  useEffect(() => {
+    const openBorrowingList = () => setShowBorrowingList(true);
+    window.addEventListener('open-borrowing-list', openBorrowingList);
+
+    if (sessionStorage.getItem('openBorrowingList') === 'true') {
+      sessionStorage.removeItem('openBorrowingList');
+      setShowBorrowingList(true);
+    }
+
+    return () => window.removeEventListener('open-borrowing-list', openBorrowingList);
+  }, []);
 
   const [showBorrowingForm, setShowBorrowingForm] = useState(false);
 
@@ -1034,6 +1046,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
       const updatedList = [...prev, newItem];
 
       localStorage.setItem("borrowingList", JSON.stringify(updatedList));
+      window.dispatchEvent(new Event('borrowing-list-changed'));
 
       // Show overlay
 
@@ -1051,12 +1064,25 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
     setBorrowingList(newList);
 
     localStorage.setItem("borrowingList", JSON.stringify(newList));
+    window.dispatchEvent(new Event('borrowing-list-changed'));
   };
 
   const clearBorrowingList = () => {
     setBorrowingList([]);
 
     localStorage.removeItem("borrowingList");
+    window.dispatchEvent(new Event('borrowing-list-changed'));
+  };
+
+  const handleContinueToRequest = () => {
+    if (borrowingList.length === 0) {
+      setShowBorrowingList(false);
+      return;
+    }
+
+    setBorrowingFormList([...borrowingList]);
+    setShowBorrowingList(false);
+    setShowBorrowingForm(true);
   };
 
   const handleBorrowingSubmit = async (response) => {
@@ -1105,6 +1131,8 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
       // Clear borrowing list
 
       localStorage.removeItem("borrowingList");
+
+      window.dispatchEvent(new Event('borrowing-list-changed'));
 
       setBorrowingList([]);
 
@@ -1237,7 +1265,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
   return (
     <div
-      className={`animate-slide-up box-border w-full min-w-0 max-w-none mx-0 px-4 sm:px-6 lg:px-0 pb-0 lg:-mt-[76px] ${selectedBook ? "lg:grid lg:h-screen lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_var(--book-details-width)] lg:gap-0" : ""}`}
+      className={`animate-slide-up box-border -mx-3 w-[calc(100%+1.5rem)] min-w-0 max-w-none px-0 pb-0 sm:mx-0 sm:w-full sm:px-6 lg:px-0 lg:-mt-[76px] ${selectedBook ? "lg:grid lg:h-screen lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_var(--book-details-width)] lg:gap-0" : ""}`}
       style={{ "--book-details-width": `${bookDetailsWidth}px` }}
     >
       <div
@@ -1375,10 +1403,11 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
         {/* Search and filter card */}
 
-        <div className="mb-2 shrink-0 sm:mb-3 md:-mt-6 sticky top-[64px] md:top-[76px] z-30 bg-[#F8FAFC] pb-1">
-          <div className="w-full min-w-0 overflow-visible bg-white border border-[#DDE6EF] rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.06)] p-2">
-            <div className="shrink-0 px-2 pb-3 pt-0">
-              <h1 className="text-xl font-bold text-[#0F172A] sm:text-2xl">
+        <div className="sticky top-0 z-30 mb-4 shrink-0 bg-[#F8FAFC]/95 pb-2 backdrop-blur-sm sm:mb-5 md:-mt-6 md:top-[76px]">
+          <div className="w-full min-w-0 overflow-visible border-y border-slate-200 bg-white p-3 shadow-[0_12px_30px_rgba(15,23,42,0.08)] sm:rounded-3xl sm:border sm:p-4">
+            <div className="shrink-0 px-1 pb-3 pt-0">
+              <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600">Discover your library</p>
+              <h1 className="text-2xl font-bold tracking-tight text-[#0F172A] sm:text-3xl">
                 Search your books
               </h1>
 
@@ -1387,7 +1416,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
               </p>
             </div>
 
-            <div className="relative min-h-11 w-full min-w-0 overflow-hidden rounded-xl border border-[#E2E8F0] bg-[#FBFDFF]">
+            <div className="relative min-h-12 w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 transition focus-within:border-blue-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-100">
               <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-[#94A3B8] w-4 h-4 sm:w-5 sm:h-5" />
 
               <input
@@ -1401,7 +1430,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
                 onFocus={() => setShowSearchHistory(true)}
 
-                className="w-full pl-10 sm:pl-12 pr-12 py-1 bg-transparent focus:outline-none focus:border-[#0077B6] focus:ring-0 text-[#0F172A] placeholder-[#94A3B8] text-sm touch-manipulation transition-all"
+                className="w-full py-3 pl-10 pr-12 text-sm text-[#0F172A] placeholder-[#94A3B8] touch-manipulation transition-all focus:outline-none sm:pl-12"
               />
 
               <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
@@ -1488,7 +1517,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
               inert={!showQuickFilters}
               className={`relative overflow-hidden transition-[max-height,opacity,transform,margin,padding] duration-75 ease-out will-change-[max-height,opacity,transform] ${
                 showQuickFilters
-                  ? "visible mt-2 max-h-[500px] translate-y-0 border-t border-[#EEF2F6] pt-2 opacity-100"
+                  ? "visible mt-3 max-h-[500px] translate-y-0 border-t border-[#EEF2F6] pt-3 opacity-100"
                   : "pointer-events-none invisible !mt-0 max-h-0 -translate-y-2 border-t-0 pt-0 opacity-0"
               }`}
             >
@@ -1531,10 +1560,10 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
                       aria-selected={selectedCategory === category}
 
-                      className={`snap-center shrink-0 min-h-8 px-2 sm:px-2.5 rounded-lg text-[10px] sm:text-xs font-medium whitespace-nowrap transition-all duration-200 border active:scale-95 touch-manipulation inline-flex items-center justify-start gap-1.5 ${
+                      className={`snap-center shrink-0 inline-flex min-h-9 items-center justify-start gap-1.5 rounded-xl border px-2.5 text-[10px] font-semibold whitespace-nowrap transition-all duration-200 active:scale-95 touch-manipulation sm:px-3 sm:text-xs ${
                         selectedCategory === category
-                          ? "bg-transparent text-[#0077B6] border-[#0077B6] ring-2 ring-[#0077B6]/15"
-                          : "bg-transparent text-[#334155] border-[#E2E8F0] hover:border-[#0077B6] hover:text-[#0077B6]"
+                          ? "border-blue-600 bg-blue-600 text-white shadow-sm shadow-blue-600/25"
+                          : "border-[#E2E8F0] bg-white text-[#334155] hover:border-[#0077B6] hover:text-[#0077B6]"
                       }`}
                     >
                       {(() => {
@@ -1597,7 +1626,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                           setShowSearchHistory(false);
                         }}
 
-                        className="snap-start shrink-0 inline-flex items-center gap-1.5 min-h-8 px-2 rounded-xl border border-[#DDE6EF] bg-transparent text-[10px] font-medium text-[#475569] hover:border-[#0077B6] hover:text-[#0077B6] transition-colors active:scale-95 touch-manipulation"
+                        className="snap-start shrink-0 inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-[#DDE6EF] bg-white px-2.5 text-[10px] font-semibold text-[#475569] transition-colors active:scale-95 touch-manipulation hover:border-[#0077B6] hover:text-[#0077B6]"
                       >
                         <span
                           className="flex items-center justify-center w-5 h-5 rounded-md border border-[#DDE6EF] text-[#64748B]"
@@ -2131,8 +2160,9 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
         {/* Results Count */}
 
-        <div className="mb-4 sm:mb-6">
-          <p className="text-[#64748B] text-xs sm:text-sm font-medium">
+        <div className="mb-3 px-3 sm:mb-4 sm:px-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-600">Collection</p>
+          <p className="mt-0.5 text-sm font-semibold text-slate-800">
             {filteredBooks.length}{" "}
             {filteredBooks.length === 1 ? "book" : "books"} found
           </p>
@@ -2140,7 +2170,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
         {/* Book Results Grid */}
 
-        <div className="max-w-7xl">
+        <div className="max-w-7xl px-3 sm:px-0">
           {!showSchoolView && (
             <>
               {/* Empty State */}
@@ -2167,7 +2197,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
               {filteredBooks.length > 0 && (
                 <div
-                  className={`grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 ${selectedBook ? "lg:grid-cols-4" : "lg:grid-cols-4 xl:grid-cols-5"}`}
+                  className={`grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-4 ${selectedBook ? "lg:grid-cols-4" : "lg:grid-cols-4 xl:grid-cols-5"}`}
                 >
                   {filteredBooks.map((book) => {
                     const displayStatus = getBookDisplayStatus(book);
@@ -2178,7 +2208,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
                         onClick={() => handleBookClick(book)}
 
-                        className="min-w-0 bg-white rounded-lg p-2 border border-[#E2E8F0] shadow-sm hover:shadow-md hover:border-[#0077B6] transition-all duration-300 cursor-pointer group active:scale-[0.98]"
+                        className="group min-w-0 cursor-pointer rounded-2xl border border-slate-200 bg-white p-2.5 shadow-[0_5px_16px_rgba(15,23,42,0.06)] transition-all duration-300 active:scale-[0.98] hover:border-blue-300 hover:shadow-md"
 
                         role="button"
 
@@ -2194,16 +2224,18 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                       >
                         {/* Book Cover */}
 
-                        <div className="h-44 sm:h-52 lg:h-56 w-full bg-gradient-to-br from-[#0077B6] to-[#005f8f] rounded-md flex items-center justify-center mb-2">
-                          <Book className="w-7 h-7 text-white/90" />
+                        <div className="relative mb-2.5 flex aspect-[3/4] min-h-[150px] w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700">
+                          <div className="absolute -right-7 -top-7 h-20 w-20 rounded-full bg-white/10" />
+                          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/25 bg-white/15 shadow-lg backdrop-blur-sm"><Book className="h-6 w-6 text-white" /></div>
+                          <span className="absolute bottom-2 left-2 max-w-[calc(100%-1rem)] truncate rounded-md bg-slate-950/35 px-1.5 py-1 text-[9px] font-semibold text-white backdrop-blur-sm">{book.category || "General"}</span>
                         </div>
 
                         {/* Book Info */}
 
-                        <div className="space-y-1 min-w-0">
+                        <div className="min-w-0 space-y-1.5">
                           {/* Title */}
 
-                          <h3 className="font-semibold text-[#0F172A] text-xs line-clamp-2 leading-tight min-h-[2rem]">
+                          <h3 className="min-h-[2rem] text-xs font-bold leading-tight text-[#0F172A] line-clamp-2">
                             {book.title}
                           </h3>
 
@@ -2213,16 +2245,10 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                             {book.author}
                           </p>
 
-                          {/* Category Badge */}
-
-                          <span className="inline-block text-xs px-1.5 py-0.5 bg-[#F7FAFC] text-[#64748B] rounded-sm font-medium">
-                            {book.category || "General"}
-                          </span>
-
                           {/* Availability Status */}
 
                           <div className="flex items-center justify-between gap-1 pt-0.5">
-                            <BookStatusBadge status={displayStatus} />
+                            <BookStatusBadge status={displayStatus} compact />
 
                             <div className="flex items-center gap-1">
                               {displayStatus !== "available" ? (
@@ -2233,7 +2259,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                                     searchBookInOtherSchools(book);
                                   }}
 
-                                  className="p-1 hover:bg-[#0077B6]/10 rounded transition-colors"
+                                  className="rounded-lg p-1.5 transition-colors hover:bg-[#0077B6]/10"
 
                                   aria-label="Find in other schools"
 
@@ -2249,7 +2275,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                                     handleAddToBorrowingList(book);
                                   }}
 
-                                  className="p-1 hover:bg-[#0077B6]/10 rounded transition-colors"
+                                  className="rounded-lg p-1.5 transition-colors hover:bg-[#0077B6]/10"
 
                                   aria-label="Add to borrowing list"
 
@@ -2268,7 +2294,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                                   toggleFavorite(book.id);
                                 }}
 
-                                className="p-1 hover:bg-red-50 rounded transition-colors"
+                                className="rounded-lg p-1.5 transition-colors hover:bg-red-50"
 
                                 aria-label={
                                   favorites.includes(book.id)
@@ -2700,7 +2726,10 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
           return (
             <div
               ref={bookDetailsPanelRef}
-              className="relative w-full min-w-0 max-w-none lg:w-full lg:self-start lg:mt-[76px] lg:h-[calc(100vh-76px)] lg:min-h-0 lg:max-h-[calc(100vh-76px)] lg:overflow-y-scroll lg:overscroll-contain bg-white shadow-lg border border-[#E2E8F0] rounded-xl animate-slide-up"
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Book details for ${selectedBook.title}`}
+              className="fixed inset-0 z-[70] w-full min-w-0 max-w-none overflow-y-auto overscroll-contain bg-white shadow-2xl animate-slide-up lg:relative lg:z-auto lg:w-full lg:self-start lg:mt-[76px] lg:h-[calc(100vh-76px)] lg:min-h-0 lg:max-h-[calc(100vh-76px)] lg:overflow-y-scroll lg:border lg:border-[#E2E8F0] lg:rounded-xl lg:shadow-lg"
             >
               <button
                 type="button"
@@ -2715,7 +2744,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
               <div className="w-full">
                 {/* Modal Header */}
 
-                <div className="px-4 sm:px-5 pt-4 sm:pt-5 pb-3 sm:pb-4 border-b border-[#E2E8F0]">
+                <div className="sticky top-0 z-10 border-b border-[#E2E8F0] bg-white px-4 pb-3 pt-4 sm:px-5 sm:pb-4 sm:pt-5">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <p className="text-xs font-semibold uppercase tracking-wide text-[#0077B6] mb-1">
@@ -3002,83 +3031,32 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
         </div>
       )}
 
-      {/* Borrowing List Button - Mobile Only */}
-
-      <button
-        ref={buttonRef}
-
-        onClick={(e) => {
-          if (!isDragging) {
-            setShowBorrowingList(true);
-          }
-        }}
-
-        onTouchStart={handleDragStart}
-
-        onTouchMove={handleDragMove}
-
-        onTouchEnd={handleDragEnd}
-
-        style={{
-          position: "fixed",
-
-          bottom: buttonPosition.y || 24,
-
-          right: buttonPosition.x || 24,
-
-          zIndex: 9999,
-
-          display: "flex",
-
-          alignItems: "center",
-
-          justifyContent: "center",
-
-          border: "none",
-
-          cursor: "pointer",
-
-          transform: isDragging ? "scale(1.1)" : "scale(1)",
-
-          transition: "transform 0.15s ease, opacity 0.3s ease",
-
-          opacity: isDragging ? 0.5 : 1,
-        }}
-
-        className="sm:hidden w-14 h-14 bg-[#0077B6] text-white shadow-lg rounded-full"
-      >
-        <ShoppingCart className="w-6 h-6" />
-
-        {borrowingList.length > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold border-2 border-white">
-            {borrowingList.length}
-          </span>
-        )}
-      </button>
-
       {/* Borrowing List Modal */}
 
       {showBorrowingList && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 p-0 sm:p-4 flex items-end sm:items-center justify-center"
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-4"
 
           onClick={() => setShowBorrowingList(false)}
         >
           <div
-            className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden mx-auto my-8"
+            className="mx-auto flex max-h-[88dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] bg-white shadow-2xl sm:my-8 sm:max-h-[82vh] sm:rounded-3xl"
 
             onClick={(e) => e.stopPropagation()}
           >
+            <div className="mx-auto mt-2 h-1.5 w-11 rounded-full bg-slate-200 sm:hidden" aria-hidden="true" />
+
             {/* Modal Header */}
 
-            <div className="p-6 border-b border-[#E2E8F0]">
-              <div className="flex justify-between items-center">
+            <div className="border-b border-slate-100 px-5 pb-4 pt-5 sm:px-6">
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-[#0F172A] mb-1">
+                  <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600">Ready to borrow</p>
+                  <h2 className="text-2xl font-bold tracking-tight text-slate-900">
                     Borrowing List
                   </h2>
 
-                  <p className="text-[#64748B] text-sm">
+                  <p className="mt-1 text-sm text-slate-500">
                     {borrowingList.length}{" "}
                     {borrowingList.length === 1 ? "book" : "books"} selected
                   </p>
@@ -3087,7 +3065,9 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                 <button
                   onClick={() => setShowBorrowingList(false)}
 
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+
+                  aria-label="Close borrowing list"
                 >
                   <X className="w-6 h-6 text-[#64748B]" />
                 </button>
@@ -3096,60 +3076,62 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
             {/* Modal Content */}
 
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
               {borrowingList.length === 0 ? (
-                <div className="text-center py-12">
-                  <Book className="w-16 h-16 text-[#64748B] mx-auto mb-4" />
+                <div className="py-10 text-center sm:py-14">
+                  <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-blue-50 to-indigo-100 shadow-inner">
+                    <Book className="h-10 w-10 text-blue-600" />
+                  </div>
 
-                  <h3 className="text-lg font-semibold text-[#0F172A] mb-2">
+                  <h3 className="mb-2 text-xl font-bold text-slate-900">
                     Your borrowing list is empty
                   </h3>
 
-                  <p className="text-sm text-[#64748B] mb-6">
+                  <p className="mx-auto mb-7 max-w-[280px] text-sm leading-6 text-slate-500">
                     Add books from the search results to start borrowing
                   </p>
 
                   <button
                     onClick={() => setShowBorrowingList(false)}
 
-                    className="bg-[#0077B6] hover:bg-[#005f8f] text-white px-6 py-3 rounded-xl font-semibold transition-all"
+                    className="inline-flex min-h-12 items-center rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition active:scale-[0.98] hover:bg-blue-700"
                   >
                     Browse Books
                   </button>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {borrowingList.map((item) => (
                     <div
                       key={item.book_id}
 
-                      className="bg-[#F7FAFC] rounded-xl p-4 border border-[#E2E8F0] hover:border-[#0077B6] transition-colors"
+                      className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-colors hover:border-blue-200"
                     >
-                      <div className="flex gap-4">
-                        <div className="w-20 h-28 bg-gradient-to-br from-[#0077B6] to-[#005f8f] rounded-lg flex-shrink-0 flex items-center justify-center">
-                          <Book className="w-10 h-10 text-white/90" />
+                      <div className="flex gap-3">
+                        <div className="flex h-[82px] w-[60px] shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700 shadow-sm">
+                          <Book className="h-7 w-7 text-white/90" />
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-[#0F172A] mb-1 line-clamp-2">
+                          <h4 className="mb-1 line-clamp-2 text-sm font-bold leading-5 text-slate-900">
                             {item.title}
                           </h4>
 
-                          <p className="text-sm text-[#64748B] mb-2">
+                          <p className="mb-2 truncate text-xs text-slate-500">
                             {item.author}
                           </p>
 
-                          <div className="flex items-center gap-2 mb-2">
-                            <MapPin className="w-4 h-4 text-[#64748B]" />
+                          <div className="mb-2 flex items-center gap-1.5">
+                            <MapPin className="h-3.5 w-3.5 text-slate-400" />
 
-                            <span className="text-xs text-[#64748B]">
+                            <span className="truncate text-[11px] text-slate-500">
                               {item.owner_school_name}
                             </span>
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <span className="text-xs px-2 py-1 rounded-md font-medium bg-[#0077B6]/10 text-[#0077B6]">
-                              Home Library
+                            <span className={`rounded-md px-2 py-1 text-[10px] font-bold ${item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}`}>
+                              {item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE' ? 'Partner library' : 'Home library'}
                             </span>
                           </div>
                         </div>
@@ -3157,7 +3139,9 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                         <button
                           onClick={() => removeFromBorrowingList(item.book_id)}
 
-                          className="p-2 text-[#64748B] hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+
+                          aria-label={`Remove ${item.title} from borrowing list`}
                         >
                           <X className="w-5 h-5" />
                         </button>
@@ -3171,29 +3155,24 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
             {/* Modal Footer */}
 
             {borrowingList.length > 0 && (
-              <div className="border-t border-[#E2E8F0] p-6 bg-[#F7FAFC]">
-                <div className="flex flex-col sm:flex-row gap-3">
+              <div className="border-t border-slate-100 bg-slate-50 px-5 py-4 sm:px-6">
+                <p className="mb-3 text-center text-[11px] text-slate-500">Review your selected books before submitting a request.</p>
+                <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
                   <button
                     onClick={clearBorrowingList}
 
-                    className="flex-1 px-6 py-3 rounded-xl border-2 border-[#E2E8F0] text-[#0F172A] font-semibold hover:bg-gray-100 transition-all"
+                    className="min-h-11 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-100"
                   >
                     Clear All
                   </button>
 
                   <button
-                    onClick={() => {
-                      setBorrowingFormList(borrowingList);
+                    onClick={handleContinueToRequest}
 
-                      setShowBorrowingForm(true);
-
-                      setShowBorrowingList(false);
-                    }}
-
-                    className="flex-1 bg-[#0077B6] hover:bg-[#005f8f] text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-2"
+                    className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition active:scale-[0.98] hover:bg-blue-700"
                   >
                     <CheckCircle className="w-5 h-5" />
-                    Borrow All
+                    Continue to request
                   </button>
                 </div>
               </div>
@@ -3202,110 +3181,85 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
         </div>
       )}
 
+      {/* Request form opened from the floating borrowing list. */}
+      {showBorrowingForm && !selectedBook && (
+        <div className="fixed inset-0 z-[85] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+          <section className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] bg-slate-50 shadow-2xl sm:max-h-[86vh] sm:rounded-3xl" aria-label="Borrowing request form">
+            <div className="mx-auto mt-2 h-1.5 w-11 rounded-full bg-slate-300 sm:hidden" aria-hidden="true" />
+            <header className="flex items-start justify-between border-b border-slate-200 bg-white px-5 pb-4 pt-5 sm:px-6">
+              <div>
+                <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600">Final step</p>
+                <h2 className="text-2xl font-bold tracking-tight text-slate-900">Submit borrowing request</h2>
+                <p className="mt-1 text-sm text-slate-500">Complete your details to send this to the library.</p>
+              </div>
+              <button type="button" onClick={() => { setShowBorrowingForm(false); setShowBorrowingList(true); }} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900" aria-label="Back to borrowing list">
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+              <StudentBorrowingForm
+                borrowingList={borrowingFormList}
+                userData={userData}
+                compact
+                onSubmit={handleBorrowingSubmit}
+                onCancel={() => { setShowBorrowingForm(false); setShowBorrowingList(true); }}
+              />
+            </div>
+          </section>
+        </div>
+      )}
+
       {/* Success Overlay */}
 
       {showSuccessOverlay && submittedRequest && (
-        <div className="fixed inset-0 bg-gradient-to-br from-blue-600/90 to-cyan-600/90 backdrop-blur-sm z-50 p-4 overflow-y-auto">
-          <div className="min-h-screen flex items-center justify-center py-8">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-auto">
-              <div className="bg-gradient-to-r from-blue-600 to-cyan-600 p-6 rounded-t-2xl">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-white/20 rounded-full p-2">
-                      <CheckCircle className="w-6 h-6 text-white" />
-                    </div>
+        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/40 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+          <section className="relative w-full max-w-md overflow-hidden rounded-t-[30px] bg-white px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-5 shadow-2xl animate-success-sheet sm:rounded-3xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="request-success-title">
+            <span className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-blue-50" />
+            <span className="pointer-events-none absolute right-12 top-9 h-2.5 w-2.5 rounded-full bg-amber-300 animate-success-sparkle" />
+            <span className="pointer-events-none absolute right-20 top-16 h-1.5 w-1.5 rounded-full bg-rose-300 animate-success-sparkle-delayed" />
+            <button onClick={() => setShowSuccessOverlay(false)} className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-800" aria-label="Close confirmation">
+              <X className="h-5 w-5" />
+            </button>
 
-                    <h2 className="text-xl font-bold text-white">
-                      Request Submitted!
-                    </h2>
-                  </div>
-
-                  <button
-                    onClick={() => setShowSuccessOverlay(false)}
-
-                    className="p-2 bg-white/20 hover:bg-white/30 rounded-full transition-colors backdrop-blur-sm"
-                  >
-                    <X className="w-6 h-6 text-white" />
-                  </button>
-                </div>
+            <div className="relative text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-blue-600 text-white shadow-[0_12px_24px_rgba(37,99,235,0.28)] animate-success-pop">
+                <CheckCircle className="h-8 w-8" aria-hidden="true" />
               </div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-600">Request sent</p>
+              <h2 id="request-success-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-900">You’re all set!</h2>
+              <p className="mx-auto mt-2 max-w-[300px] text-sm leading-6 text-slate-500">Your library will review your borrowing request and notify you of the result.</p>
+            </div>
 
-              <div className="p-6">
-                <div className="bg-green-50 rounded-xl p-4 mb-6 border border-green-200">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-
-                    <div>
-                      <p className="text-sm font-semibold text-green-900">
-                        Request ID:{" "}
-                        {submittedRequest?.request_id || "LL-2026-000001"}
-                      </p>
-
-                      <p className="text-xs text-green-700">
-                        Status: <span className="font-semibold">Pending</span>
-                      </p>
-                    </div>
-                  </div>
+            <div className="relative mt-6 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3.5">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm"><CheckCircle className="h-5 w-5" /></span>
+                <div className="min-w-0 text-left">
+                  <p className="truncate text-sm font-bold text-emerald-900">{submittedRequest?.request_id || "LL-2026-000001"}</p>
+                  <p className="mt-0.5 text-xs font-semibold text-emerald-700">Pending library review</p>
                 </div>
-
-                <div className="bg-blue-50 rounded-xl p-4 mb-6">
-                  <h4 className="font-semibold text-blue-900 mb-2">
-                    Next Steps:
-                  </h4>
-
-                  <ol className="text-sm text-blue-800 space-y-2">
-                    <li className="flex items-start gap-2">
-                      <span className="bg-blue-200 text-blue-900 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 text-xs font-bold">
-                        1
-                      </span>
-
-                      <span>
-                        Wait for the partner library to approve your request
-                      </span>
-                    </li>
-
-                    <li className="flex items-start gap-2">
-                      <span className="bg-blue-200 text-blue-900 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 text-xs font-bold">
-                        2
-                      </span>
-
-                      <span>
-                        Once approved, you will receive a notification and your
-                        QR code
-                      </span>
-                    </li>
-
-                    <li className="flex items-start gap-2">
-                      <span className="bg-blue-200 text-blue-900 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 text-xs font-bold">
-                        3
-                      </span>
-
-                      <span>
-                        Bring the QR code and request ID to your home library
-                        for the permission letter
-                      </span>
-                    </li>
-                  </ol>
-                </div>
-
-                <div className="text-center text-sm text-gray-600 mb-6">
-                  <p>
-                    Your borrowing request has been submitted successfully.
-                    Please wait for the librarian to review and approve your
-                    request.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => setShowSuccessOverlay(false)}
-
-                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-md hover:shadow-lg"
-                >
-                  Done
-                </button>
               </div>
             </div>
-          </div>
+
+            <div className="relative mt-5">
+              <p className="mb-3 text-left text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">What happens next</p>
+              <ol className="space-y-3">
+                {[
+                  'The library reviews your request.',
+                  'You receive an update in your Inbox.',
+                  'When approved, use your QR code to continue.',
+                ].map((step, index) => (
+                  <li key={step} className="flex items-center gap-3 text-left">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-700">{index + 1}</span>
+                    <span className="text-sm leading-5 text-slate-600">{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            <button onClick={() => setShowSuccessOverlay(false)} className="relative mt-7 flex min-h-12 w-full items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition active:scale-[0.98] hover:bg-blue-700">
+              Done
+            </button>
+          </section>
         </div>
       )}
 

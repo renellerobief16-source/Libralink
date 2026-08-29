@@ -134,7 +134,7 @@ router.get('/:id/partners', auth, async (req, res) => {
     // Get all schools except current school
     const { data: schools, error: schoolsError } = await supabase
       .from('schools')
-      .select('school_id, school_name, school_code, address')
+      .select('school_id, school_name, school_code, address, logo')
       .neq('school_id', currentSchoolId);
 
     if (schoolsError) throw schoolsError;
@@ -176,6 +176,8 @@ router.get('/:id/partners', auth, async (req, res) => {
         return {
           school_id: school.school_id,
           name: school.school_name,
+          school_code: school.school_code,
+          logo: school.logo,
           available: availableCount,
           status: availableCount > 0 ? 'Available' : 'No copies available'
         };

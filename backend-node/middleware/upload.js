@@ -5,6 +5,7 @@ const fs = require('fs');
 // Ensure upload directories exist
 const uploadDir = path.join(__dirname, '../uploads/logos');
 const uploadDirProfile = path.join(__dirname, '../uploads/profiles');
+const uploadDirBorrowingIds = path.join(__dirname, '../uploads/borrowing-ids');
 
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -12,6 +13,10 @@ if (!fs.existsSync(uploadDir)) {
 
 if (!fs.existsSync(uploadDirProfile)) {
   fs.mkdirSync(uploadDirProfile, { recursive: true });
+}
+
+if (!fs.existsSync(uploadDirBorrowingIds)) {
+  fs.mkdirSync(uploadDirBorrowingIds, { recursive: true });
 }
 
 // Storage configuration for school logos
@@ -33,6 +38,17 @@ const profileStorage = multer.diskStorage({
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+// Borrowing IDs are request documents, never user profile photos.
+const borrowingIdStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDirBorrowingIds);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'borrowing-id-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
 
@@ -62,4 +78,10 @@ const uploadProfile = multer({
   fileFilter: fileFilter
 });
 
-module.exports = { uploadLogo, uploadProfile };
+const uploadBorrowingId = multer({
+  storage: borrowingIdStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: fileFilter
+});
+
+module.exports = { uploadLogo, uploadProfile, uploadBorrowingId };

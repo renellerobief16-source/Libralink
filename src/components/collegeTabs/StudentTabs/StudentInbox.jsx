@@ -186,13 +186,17 @@ function StudentInbox() {
 
   return (
     <div className="animate-slide-up mx-auto w-full max-w-4xl min-w-0 overflow-x-hidden text-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <h1 className="text-lg font-bold text-[#0f172a]">Inbox</h1>
+      <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600">Library updates</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Inbox</h1>
+          <p className="mt-1 text-sm text-slate-500">{unreadCount ? `${unreadCount} unread update${unreadCount === 1 ? '' : 's'}` : 'You are all caught up.'}</p>
+        </div>
         <div className="flex gap-2 sm:gap-3">
           {unreadCount > 0 && (
             <button
               onClick={markAllAsRead}
-              className="px-2 py-1.5 min-h-8 text-[11px] font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              className="min-h-10 rounded-xl border border-blue-100 bg-blue-50 px-3 text-[11px] font-bold text-blue-700 transition hover:bg-blue-100"
               aria-label="Mark all notifications as read"
             >
               Mark all as read
@@ -201,19 +205,19 @@ function StudentInbox() {
           {notifications.length > 0 && (
             <button
               onClick={clearNotifications}
-              className="px-2 py-1.5 min-h-8 text-[11px] font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              className="min-h-10 rounded-xl border border-rose-100 bg-rose-50 px-3 text-[11px] font-bold text-rose-600 transition hover:bg-rose-100"
               aria-label="Delete all notifications"
             >
               Delete All
             </button>
           )}
         </div>
-      </div>
-      <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
+      </header>
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
         <NotificationFilters selectedFilter={selectedFilter} onFilterChange={setSelectedFilter} />
       </div>
 
-      <div className="mt-2.5 space-y-2">
+      <div className="mt-3 space-y-2.5">
         {filteredNotifications.length === 0 ? (
           <NotificationEmptyState />
         ) : (

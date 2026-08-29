@@ -24,6 +24,7 @@ import {
   X,
   Menu,
   Bell,
+  ShoppingCart,
   CheckCircle,
   MapPin,
 } from "lucide-react";
@@ -48,7 +49,7 @@ const navigation = [
     path: "/studentpage/favorites",
     icon: "/heart.png",
     mobileIcon: Heart,
-    primary: false,
+    primary: true,
   },
   {
     name: "Inbox",
@@ -62,14 +63,15 @@ const navigation = [
     path: "/studentpage/history",
     icon: "/history.png",
     mobileIcon: ClockIcon,
-    primary: true,
+    primary: false,
   },
   {
     name: "Profile",
     path: "/studentpage/profile",
     icon: "/user.png",
     mobileIcon: User,
-    primary: false,
+    primary: true,
+    isProfilePicture: true,
   },
   {
     name: "Settings",
@@ -120,15 +122,33 @@ const studentSearchFeatures = [
 ];
 
 export function StudentBottomNav() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { unreadCount = 0 } = useNotifications();
 
-  const primaryNav = navigation.filter((item) => item.primary);
+  const currentUser = JSON.parse(localStorage.getItem("currentUser") || "null");
+  const profileImage =
+    currentUser?.profile_picture ||
+    currentUser?.profile_image ||
+    "";
 
-  const secondaryNav = navigation.filter((item) => !item.primary);
+  const getProfilePictureUrl = (picture) => {
+    if (!picture) return "";
+    if (
+      picture.startsWith("http://") ||
+      picture.startsWith("https://") ||
+      picture.startsWith("data:") ||
+      picture.startsWith("blob:")
+    ) {
+      return picture;
+    }
+    if (picture.startsWith("/")) return `${API_ORIGIN}${picture}`;
+    return `${API_ORIGIN}/${picture}`;
+  };
+
+  const profileImageUrl = getProfilePictureUrl(profileImage);
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[#E5E7EB] z-50">
-      <div className="flex items-center justify-around h-16 px-2">
+    <nav className="lg:hidden fixed inset-x-0 bottom-0 z-50 border-t border-slate-200/90 bg-white/95 px-2 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-8px_26px_rgba(15,23,42,0.08)] backdrop-blur-xl" aria-label="Student navigation">
+      <div className="mx-auto grid h-[62px] max-w-md grid-cols-5 gap-0.5">
         {/* Home */}
 
         <NavLink
@@ -138,15 +158,14 @@ export function StudentBottomNav() {
 
           className={({ isActive }) => `
 
-            flex flex-col items-center gap-1 py-2 px-3 transition-all
+            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold transition-colors
 
-            ${isActive ? "text-[#2563EB]" : "text-gray-400"}
+            ${isActive ? "border-blue-600 text-blue-700" : "text-slate-500 active:text-blue-600"}
 
           `}
         >
-          <Home className="w-6 h-6" />
-
-          <span className="text-[10px] font-medium">Home</span>
+          <Home className="h-[22px] w-[22px]" />
+          <span>Home</span>
         </NavLink>
 
         {/* Search */}
@@ -156,26 +175,32 @@ export function StudentBottomNav() {
 
           className={({ isActive }) => `
 
-            flex flex-col items-center gap-1 py-2 px-3 transition-all
+            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold transition-colors
 
-            ${isActive ? "text-[#2563EB]" : "text-gray-400"}
+            ${isActive ? "border-blue-600 text-blue-700" : "text-slate-500 active:text-blue-600"}
 
           `}
         >
-          <Search className="w-6 h-6" />
-
-          <span className="text-[10px] font-medium">Search</span>
+          <Search className="h-[22px] w-[22px]" />
+          <span>Discover</span>
         </NavLink>
 
-        {/* Add - Center button */}
+        {/* Favorites */}
 
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        <NavLink
+          to="/studentpage/favorites"
 
-          className="flex items-center justify-center w-14 h-14 -mt-6 rounded-full bg-[#2563EB] shadow-[0_4px_20px_rgba(37,99,235,0.4)] border-4 border-white transition-transform hover:scale-105 active:scale-95"
+          className={({ isActive }) => `
+
+            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold transition-colors
+
+            ${isActive ? "border-blue-600 text-blue-700" : "text-slate-500 active:text-blue-600"}
+
+          `}
         >
-          <Plus className="w-7 h-7 text-white" />
-        </button>
+          <Heart className="h-[22px] w-[22px]" />
+          <span>Favorites</span>
+        </NavLink>
 
         {/* Inbox */}
 
@@ -184,64 +209,122 @@ export function StudentBottomNav() {
 
           className={({ isActive }) => `
 
-            flex flex-col items-center gap-1 py-2 px-3 transition-all
+            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold transition-colors
 
-            ${isActive ? "text-[#2563EB]" : "text-gray-400"}
+            ${isActive ? "border-blue-600 text-blue-700" : "text-slate-500 active:text-blue-600"}
 
           `}
         >
-          <Mail className="w-6 h-6" />
-
-          <span className="text-[10px] font-medium">Inbox</span>
+          <span className="relative"><Mail className="h-[22px] w-[22px]" />{unreadCount > 0 && <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-white bg-rose-500 px-0.5 text-[9px] font-bold leading-none text-white">{unreadCount > 9 ? "9+" : unreadCount}</span>}</span>
+          <span>Inbox</span>
         </NavLink>
 
-        {/* History */}
+        {/* Profile Picture */}
 
         <NavLink
-          to="/studentpage/history"
+          to="/studentpage/profile"
 
           className={({ isActive }) => `
 
-            flex flex-col items-center gap-1 py-2 px-3 transition-all
+            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold transition-colors
 
-            ${isActive ? "text-[#2563EB]" : "text-gray-400"}
+            ${isActive ? "border-blue-600 text-blue-700" : "text-slate-500 active:text-blue-600"}
 
           `}
         >
-          <ClockIcon className="w-6 h-6" />
-
-          <span className="text-[10px] font-medium">History</span>
+          {profileImageUrl ? (
+            <img
+              src={profileImageUrl}
+              alt="Profile"
+              className="h-[22px] w-[22px] rounded-full object-cover ring-1 ring-current"
+            />
+          ) : (
+            <User className="h-[22px] w-[22px]" />
+          )}
+          <span>Profile</span>
         </NavLink>
-
-        {/* Plus Menu Dropdown */}
-
-        {mobileMenuOpen && (
-          <div className="fixed bottom-20 left-4 right-4 bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden z-50 animate-in slide-in-from-bottom-4 fade-in duration-200">
-            <div className="bg-gradient-to-r from-[#2563EB] to-[#1D4ED8] px-4 py-3">
-              <p className="text-white font-semibold text-sm">More Options</p>
-            </div>
-
-            {secondaryNav.map((item) => (
-              <NavLink
-                key={item.name}
-
-                to={item.path}
-
-                onClick={() => setMobileMenuOpen(false)}
-
-                className="flex items-center gap-3 px-4 py-3.5 text-sm text-slate-700 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
-              >
-                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <item.mobileIcon className="w-4 h-4 text-blue-600" />
-                </div>
-
-                <span className="font-medium">{item.name}</span>
-              </NavLink>
-            ))}
-          </div>
-        )}
       </div>
     </nav>
+  );
+}
+
+function StudentFloatingCart() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const dragRef = React.useRef(null);
+  const movedRef = React.useRef(false);
+  const positionRef = React.useRef(null);
+  const idleTimerRef = React.useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isIdle, setIsIdle] = useState(false);
+  const [position, setPosition] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('studentCartPosition') || 'null');
+      return saved && Number.isFinite(saved.x) && Number.isFinite(saved.y) ? saved : { x: Math.max(12, window.innerWidth - 68), y: Math.max(12, window.innerHeight - 146) };
+    } catch {
+      return { x: Math.max(12, window.innerWidth - 68), y: Math.max(12, window.innerHeight - 146) };
+    }
+  });
+
+  useEffect(() => {
+    positionRef.current = position;
+  }, [position]);
+
+  const resetIdleTimer = React.useCallback(() => {
+    setIsIdle(false);
+    window.clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = window.setTimeout(() => setIsIdle(true), 3000);
+  }, []);
+
+  useEffect(() => {
+    resetIdleTimer();
+    return () => window.clearTimeout(idleTimerRef.current);
+  }, [resetIdleTimer]);
+
+  const keepOnScreen = (x, y) => ({ x: Math.max(8, Math.min(x, window.innerWidth - 64)), y: Math.max(8, Math.min(y, window.innerHeight - 142)) });
+
+  const handlePointerDown = (event) => {
+    event.preventDefault();
+    dragRef.current = { pointerId: event.pointerId, offsetX: event.clientX - position.x, offsetY: event.clientY - position.y };
+    movedRef.current = false;
+    setIsDragging(true);
+    resetIdleTimer();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const handlePointerMove = (event) => {
+    if (!dragRef.current || dragRef.current.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    const next = keepOnScreen(event.clientX - dragRef.current.offsetX, event.clientY - dragRef.current.offsetY);
+    if (Math.abs(next.x - position.x) > 3 || Math.abs(next.y - position.y) > 3) movedRef.current = true;
+    positionRef.current = next;
+    setPosition(next);
+  };
+
+  const handlePointerUp = () => {
+    if (!dragRef.current) return;
+    localStorage.setItem('studentCartPosition', JSON.stringify(positionRef.current || position));
+    dragRef.current = null;
+    setIsDragging(false);
+    resetIdleTimer();
+    if (movedRef.current) window.setTimeout(() => { movedRef.current = false; }, 0);
+  };
+
+  const openCart = () => {
+    if (movedRef.current) return;
+    resetIdleTimer();
+    if (location.pathname.startsWith('/studentpage/search')) {
+      window.dispatchEvent(new Event('open-borrowing-list'));
+      return;
+    }
+    sessionStorage.setItem('openBorrowingList', 'true');
+    navigate('/studentpage/search');
+  };
+
+  return (
+    <button type="button" onClick={openCart} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onContextMenu={(event) => event.preventDefault()} style={{ left: position.x, top: position.y, touchAction: 'none' }} className={`fixed z-[60] flex h-14 w-14 touch-none select-none items-center justify-center rounded-full border-2 border-white bg-blue-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.38)] transition-[opacity,box-shadow,transform] duration-300 active:scale-95 md:hidden ${isDragging || !isIdle ? 'opacity-100' : 'opacity-45'}`} aria-label="Open borrowing list">
+      <ShoppingCart className="h-6 w-6" aria-hidden="true" />
+    </button>
   );
 }
 
@@ -251,6 +334,28 @@ export function StudentBottomDock() {
   const primaryNav = navigation.filter((item) => item.primary);
 
   const secondaryNav = navigation.filter((item) => !item.primary);
+
+  const currentUser = JSON.parse(localStorage.getItem("currentUser") || "null");
+  const profileImage =
+    currentUser?.profile_picture ||
+    currentUser?.profile_image ||
+    "";
+
+  const getProfilePictureUrl = (picture) => {
+    if (!picture) return "";
+    if (
+      picture.startsWith("http://") ||
+      picture.startsWith("https://") ||
+      picture.startsWith("data:") ||
+      picture.startsWith("blob:")
+    ) {
+      return picture;
+    }
+    if (picture.startsWith("/")) return `${API_ORIGIN}${picture}`;
+    return `${API_ORIGIN}/${picture}`;
+  };
+
+  const profileImageUrl = getProfilePictureUrl(profileImage);
 
   return (
     <nav
@@ -529,16 +634,16 @@ export function StudentBottomDock() {
           <span className="text-[10px] font-medium">Inbox</span>
         </NavLink>
 
-        {/* History */}
+        {/* Profile Picture */}
 
         <NavLink
-          to="/studentpage/history"
+          to="/studentpage/profile"
 
           className={({ isActive }) => `
 
 
 
-            flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition-all
+            flex items-center justify-center py-2 px-3 rounded-xl transition-all
 
 
 
@@ -548,9 +653,15 @@ export function StudentBottomDock() {
 
           `}
         >
-          <ClockIcon className="w-5 h-5" />
-
-          <span className="text-[10px] font-medium">History</span>
+          {profileImageUrl ? (
+            <img
+              src={profileImageUrl}
+              alt="Profile"
+              className="w-5 h-5 rounded-full object-cover"
+            />
+          ) : (
+            <User className="w-5 h-5" />
+          )}
         </NavLink>
 
         {/* Plus Menu - Improved Dropdown */}
@@ -965,7 +1076,7 @@ export function StudentHeader({ userInfo, onLogout }) {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-[#E5E7EB] h-[64px] md:h-[76px]">
+    <header className="hidden md:block fixed top-0 left-0 right-0 z-50 bg-white border-b border-[#E5E7EB] h-[76px]">
       <div className="h-full flex items-center px-3 md:px-6">
         {/* Left: Logo */}
 
@@ -1280,6 +1391,7 @@ export function StudentHeader({ userInfo, onLogout }) {
 export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
   const location = useLocation();
   const isSearchRoute = location.pathname.startsWith("/studentpage/search");
+  const isHomeRoute = location.pathname === "/studentpage" || location.pathname === "/studentpage/";
   const [activePanel, setActivePanel] = useState(null);
   const panelContent = {
     inbox: <StudentInbox />,
@@ -1532,10 +1644,10 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
         {/* MAIN CONTENT */}
 
         <main
-          className={`w-full min-w-0 overflow-x-clip pt-[64px] md:pt-[76px] transition-[padding] duration-200 ${activePanel ? "lg:pl-[360px]" : ""}`}
+          className={`w-full min-w-0 overflow-x-clip pt-0 md:pt-[76px] transition-[padding] duration-200 ${activePanel ? "lg:pl-[360px]" : ""}`}
         >
           <div
-            className={`box-border mx-auto min-w-0 w-full px-3 pb-20 pt-4 sm:px-4 md:px-6 md:pb-6 md:pt-6 lg:px-0 lg:pb-0 lg:pt-0 ${isSearchRoute ? "max-w-none lg:pr-0" : "max-w-[1280px] lg:pr-8"}`}
+            className={`box-border mx-auto min-w-0 w-full px-3 pb-20 ${isSearchRoute || isHomeRoute ? "pt-0" : "pt-3"} sm:px-4 md:px-6 md:pb-6 md:pt-6 lg:px-0 lg:pb-0 lg:pt-0 ${isSearchRoute ? "max-w-none lg:pr-0" : "max-w-[1280px] lg:pr-8"}`}
           >
             {children}
           </div>
@@ -1544,12 +1656,13 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
 
       {/* MOBILE BOTTOM NAVIGATION */}
 
+      <StudentFloatingCart />
       <StudentBottomNav />
     </div>
   );
 }
 
-export function WelcomeSection({ displayName, schoolInfo, profileImage }) {
+export function WelcomeSection({ displayName, schoolInfo, profileImage, onBrowse }) {
   const safeSchoolInfo = schoolInfo?.data || schoolInfo || {};
 
   const schoolName = safeSchoolInfo?.school_name || "School";
@@ -1609,11 +1722,13 @@ export function WelcomeSection({ displayName, schoolInfo, profileImage }) {
   const profileImageUrl = getProfileImageUrl(profileImage);
 
   return (
-    <div className="bg-[#F8FAFC] rounded-2xl p-8 md:p-10">
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_0.8fr] items-center gap-8 lg:gap-12 min-h-[280px]">
+    <section className="relative overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700 p-5 text-white shadow-[0_14px_35px_rgba(37,99,235,0.20)] sm:p-7">
+      <div className="absolute -right-20 -top-20 h-52 w-52 rounded-full bg-white/10" />
+      <div className="absolute -bottom-24 right-16 h-44 w-44 rounded-full border-[22px] border-white/10" />
+      <div className="relative grid grid-cols-1 items-center gap-6 lg:grid-cols-[1fr_0.65fr]">
         {/* Left Side: School Logo & Greeting */}
 
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+        <div className="flex items-start gap-4 sm:gap-5">
           {/* School Logo */}
 
           <div className="flex-shrink-0">
@@ -1622,7 +1737,7 @@ export function WelcomeSection({ displayName, schoolInfo, profileImage }) {
 
               alt={`${schoolName} logo`}
 
-              className="h-20 w-20 object-contain"
+              className="h-14 w-14 rounded-full bg-white p-1.5 object-contain shadow-lg ring-4 ring-white/15 sm:h-16 sm:w-16"
 
               onError={(e) => {
                 e.target.src = "/L.png";
@@ -1635,37 +1750,37 @@ export function WelcomeSection({ displayName, schoolInfo, profileImage }) {
           <div className="flex-1 min-w-0">
             {/* School Name */}
 
-            <div className="flex items-center gap-2 mb-3">
-              <h3 className="text-base font-semibold text-[#2563EB] font-['Poppins']">
-                {schoolName}
-              </h3>
-
-              {schoolCode && (
-                <span className="text-sm text-[#64748B]">({schoolCode})</span>
-              )}
+            <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <h3 className="text-sm font-semibold text-white sm:text-base">{schoolName}</h3>
+              {schoolCode && <span className="text-xs text-blue-200">({schoolCode})</span>}
             </div>
 
             {/* Dashboard Label */}
 
-            <p className="text-xs uppercase tracking-[0.2em] text-[#64748B] font-medium mb-3 font-['Poppins']">
-              Dashboard
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">
+              Your library
             </p>
 
             {/* Welcome Message */}
 
-            <h2 className="text-3xl md:text-4xl font-bold text-[#0F172A] mb-2 font-['Poppins'] leading-tight">
-              Welcome back, {displayName}!
+            <h2 className="mb-2 text-3xl font-bold leading-tight sm:text-4xl">
+              Hi, {displayName}!
             </h2>
 
             {/* Description */}
 
-            <p className="text-base text-[#64748B] font-['Poppins']">
-              Here's what's happening in your library today.
+            <p className="max-w-md text-sm leading-6 text-blue-100 sm:text-base">
+              Find your next read, keep an eye on your loans, and stay updated with your library.
             </p>
+
+            <button onClick={onBrowse} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-blue-700 shadow-lg shadow-blue-950/15 transition-transform active:scale-[0.98]">
+              Browse the collection
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </button>
 
             {/* Libralink Info */}
 
-            <div className="mt-4 pt-4 border-t border-[#E5E7EB]">
+            <div className="hidden">
               <p className="text-sm text-[#64748B] leading-relaxed">
                 <span className="font-semibold text-[#2563EB]">Libralink</span>{" "}
                 — Your digital library management system that connects students,
@@ -1679,13 +1794,13 @@ export function WelcomeSection({ displayName, schoolInfo, profileImage }) {
 
         {/* Right侧: Large Library Illustration */}
 
-        <div className="flex justify-center lg:justify-end">
+        <div className="hidden justify-center lg:flex lg:justify-end">
           <img
             src="/student.png"
 
             alt="Library Illustration"
 
-            className="w-full max-w-[400px] h-auto object-contain"
+            className="w-full max-w-[280px] h-auto object-contain drop-shadow-2xl"
 
             onError={(e) => {
               e.target.style.display = "none";
@@ -1693,7 +1808,7 @@ export function WelcomeSection({ displayName, schoolInfo, profileImage }) {
           />
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -1782,7 +1897,7 @@ export function StatsCard({
   );
 }
 
-export function BorrowedBooks({ books, onRenew }) {
+export function BorrowedBooks({ books, onRenew, onViewAll }) {
   return (
     <div className="bg-white rounded-2xl border border-[#E5E7EB] shadow-sm p-6">
       <div className="flex items-center justify-between mb-6">
@@ -1794,7 +1909,7 @@ export function BorrowedBooks({ books, onRenew }) {
           <p className="text-sm text-[#64748B]">Books checked out by you</p>
         </div>
 
-        <button className="text-sm font-medium text-[#2563EB] hover:text-[#1D4ED8] transition-colors">
+        <button onClick={onViewAll} className="min-h-11 px-2 text-sm font-semibold text-[#2563EB] transition-colors active:text-[#1D4ED8]">
           View All
         </button>
       </div>

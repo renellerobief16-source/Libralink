@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const { auth, requireRole } = require('../middleware/auth');
-const { uploadProfile } = require('../middleware/upload');
+const { uploadProfile, uploadBorrowingId } = require('../middleware/upload');
 
 // @route   GET /api/users
 // @desc    Get all users
@@ -70,6 +70,26 @@ router.post('/profile-picture', auth, uploadProfile.single('profile_picture'), a
     }
     
     res.status(500).json({ success: false, message: 'Unable to upload profile picture. Please try again.' });
+  }
+});
+
+// @route   POST /api/users/borrowing-id
+// @desc    Upload an ID image for one borrowing request without changing the user's profile image
+// @access  Private
+router.post('/borrowing-id', auth, uploadBorrowingId.single('id_picture'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No ID image uploaded' });
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: 'Borrowing ID uploaded successfully',
+      id_picture_url: `/uploads/borrowing-ids/${req.file.filename}`,
+    });
+  } catch (error) {
+    console.error('[BORROWING ID] Upload error:', error);
+    return res.status(500).json({ success: false, message: 'Unable to upload borrowing ID. Please try again.' });
   }
 });
 
