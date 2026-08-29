@@ -283,9 +283,27 @@ function StudentFloatingCart() {
 
   const keepOnScreen = (x, y) => ({ x: Math.max(8, Math.min(x, window.innerWidth - 64)), y: Math.max(8, Math.min(y, window.innerHeight - 142)) });
 
+  const snapToNearestSide = (currentPosition) => {
+    const safePosition = keepOnScreen(currentPosition.x, currentPosition.y);
+    const cartCenter = safePosition.x + 28;
+    const screenCenter = window.innerWidth / 2;
+
+    return {
+      ...safePosition,
+      x: cartCenter < screenCenter ? 8 : window.innerWidth - 64,
+    };
+  };
+
   const handlePointerDown = (event) => {
     event.preventDefault();
-    dragRef.current = { pointerId: event.pointerId, offsetX: event.clientX - position.x, offsetY: event.clientY - position.y };
+    dragRef.current = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - position.x,
+      offsetY: event.clientY - position.y,
+      startX: event.clientX,
+      startY: event.clientY,
+      hasMoved: false,
+    };
     movedRef.current = false;
     setIsDragging(true);
     resetIdleTimer();
@@ -294,16 +312,23 @@ function StudentFloatingCart() {
 
   const handlePointerMove = (event) => {
     if (!dragRef.current || dragRef.current.pointerId !== event.pointerId) return;
+    const movement = Math.hypot(event.clientX - dragRef.current.startX, event.clientY - dragRef.current.startY);
+    if (!dragRef.current.hasMoved && movement < 4) return;
+
+    dragRef.current.hasMoved = true;
     event.preventDefault();
     const next = keepOnScreen(event.clientX - dragRef.current.offsetX, event.clientY - dragRef.current.offsetY);
-    if (Math.abs(next.x - position.x) > 3 || Math.abs(next.y - position.y) > 3) movedRef.current = true;
+    movedRef.current = true;
     positionRef.current = next;
     setPosition(next);
   };
 
   const handlePointerUp = () => {
     if (!dragRef.current) return;
-    localStorage.setItem('studentCartPosition', JSON.stringify(positionRef.current || position));
+    const finalPosition = snapToNearestSide(positionRef.current || position);
+    positionRef.current = finalPosition;
+    setPosition(finalPosition);
+    localStorage.setItem('studentCartPosition', JSON.stringify(finalPosition));
     dragRef.current = null;
     setIsDragging(false);
     resetIdleTimer();
@@ -322,7 +347,7 @@ function StudentFloatingCart() {
   };
 
   return (
-    <button type="button" onClick={openCart} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onContextMenu={(event) => event.preventDefault()} style={{ left: position.x, top: position.y, touchAction: 'none' }} className={`fixed z-[60] flex h-14 w-14 touch-none select-none items-center justify-center rounded-full border-2 border-white bg-blue-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.38)] transition-[opacity,box-shadow,transform] duration-300 active:scale-95 md:hidden ${isDragging || !isIdle ? 'opacity-100' : 'opacity-45'}`} aria-label="Open borrowing list">
+    <button type="button" onClick={openCart} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onContextMenu={(event) => event.preventDefault()} style={{ left: position.x, top: position.y, touchAction: 'none' }} className={`fixed z-[60] flex h-14 w-14 touch-none select-none items-center justify-center rounded-full border-2 border-white bg-blue-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.38)] transition-[left,top,opacity,box-shadow,transform] ${isDragging ? 'duration-0' : 'duration-150'} active:scale-95 md:hidden ${isDragging || !isIdle ? 'opacity-100' : 'opacity-45'}`} aria-label="Open borrowing list">
       <ShoppingCart className="h-6 w-6" aria-hidden="true" />
     </button>
   );
@@ -635,36 +660,6 @@ export function StudentBottomDock() {
         </NavLink>
 
         {/* Profile Picture */}
-
-        <NavLink
-          to="/studentpage/profile"
-
-          className={({ isActive }) => `
-
-
-
-            flex items-center justify-center py-2 px-3 rounded-xl transition-all
-
-
-
-            ${isActive ? "text-[#2563EB]" : "text-gray-400"}
-
-
-
-          `}
-        >
-          {profileImageUrl ? (
-            <img
-              src={profileImageUrl}
-              alt="Profile"
-              className="w-5 h-5 rounded-full object-cover"
-            />
-          ) : (
-            <User className="w-5 h-5" />
-          )}
-        </NavLink>
-
-        {/* Plus Menu - Improved Dropdown */}
 
         {mobileMenuOpen && (
           <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-56 rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden z-50 animate-in slide-in-from-bottom-4 fade-in duration-200">

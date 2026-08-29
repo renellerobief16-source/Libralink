@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Cropper from 'react-easy-crop';
-import { User, Mail, Phone, Book, Camera, X, History, LockKeyhole } from 'lucide-react';
+import { User, Mail, Phone, Book, Camera, X, History, LockKeyhole, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { updateProfilePicture, API_ORIGIN } from '../../../utils/api';
 import { ProfileSkeleton } from '../../ui/Skeleton';
@@ -317,11 +317,20 @@ function StudentProfile() {
         </div>
       )}
 
-      <header className="mb-5">
-        <h1 className="text-2xl font-bold tracking-[-0.02em] text-slate-900 sm:text-3xl">Profile</h1>
-        <p className="mt-1 max-w-[55ch] text-sm leading-6 text-slate-500">
-          Your account information and library identity.
-        </p>
+      <header className="mb-5 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-[-0.02em] text-slate-900 sm:text-3xl">Profile</h1>
+          <p className="mt-1 max-w-[55ch] text-sm leading-6 text-slate-500">
+            Your account information and library identity.
+          </p>
+        </div>
+        <button
+          onClick={() => navigate('/studentpage/settings')}
+          className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
+          title="Settings"
+        >
+          <Settings className="w-5 h-5 text-slate-600" />
+        </button>
       </header>
 
       <section aria-labelledby="profile-heading" className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_18px_42px_-28px_rgba(15,23,42,0.34)] sm:p-6">

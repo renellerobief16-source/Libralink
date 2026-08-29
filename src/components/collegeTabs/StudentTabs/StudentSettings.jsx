@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ChevronRight, Edit3, Lock, LogOut, ShieldCheck, User, Monitor, Bell, Eye, HelpCircle, Info, Trash2, FileText } from "lucide-react";
+import { ChevronRight, Edit3, Lock, LogOut, ShieldCheck, User, Monitor, Bell, Eye, HelpCircle, Info, Trash2, FileText, Clock } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 function SettingsActionRow({ icon: Icon, title, description, active = false, onClick }) {
@@ -204,6 +204,7 @@ function StudentSettings({ onLogout }) {
   const user = JSON.parse(localStorage.getItem("currentUser") || "{}");
   const isProfileActive = location.pathname.endsWith("/profile");
   const isPasswordActive = location.pathname.endsWith("/change-password");
+  const isHistoryActive = location.pathname.endsWith("/history");
 
   const [appearanceSettings, setAppearanceSettings] = useState(() => {
     const saved = localStorage.getItem("appearanceSettings");
@@ -366,6 +367,13 @@ function StudentSettings({ onLogout }) {
             description="Change your personal information and photo."
             active={isProfileActive}
             onClick={() => navigate("/studentpage/profile")}
+          />
+          <SettingsActionRow
+            icon={Clock}
+            title="Borrow history"
+            description="View your borrowing history."
+            active={isHistoryActive}
+            onClick={() => navigate("/studentpage/history")}
           />
           <SettingsActionRow
             icon={Lock}
