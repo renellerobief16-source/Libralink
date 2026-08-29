@@ -13,6 +13,10 @@ import {
   StudentSettings,
   StudentProfile,
   StudentChangePassword,
+  StudentAbout,
+  StudentHelp,
+  StudentTermsOfService,
+  StudentPrivacyPolicy,
   StudentLayout,
 } from '../../collegeTabs/StudentTabs';
 
@@ -405,6 +409,10 @@ function StudentPortal() {
           <Route path="/profile" element={<StudentProfile />} />
           <Route path="/change-password" element={<StudentChangePassword />} />
           <Route path="/settings" element={<StudentSettings />} />
+          <Route path="/about" element={<StudentAbout />} />
+          <Route path="/help" element={<StudentHelp />} />
+          <Route path="/terms" element={<StudentTermsOfService />} />
+          <Route path="/privacy" element={<StudentPrivacyPolicy />} />
         </Routes>
       </StudentLayout>
 

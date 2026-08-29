@@ -6,4 +6,8 @@ export { default as StudentHistory } from './StudentHistory';
 export { default as StudentSettings } from './StudentSettings';
 export { default as StudentProfile } from './StudentProfile';
 export { default as StudentChangePassword } from './StudentChangePassword';
+export { default as StudentAbout } from './StudentAbout';
+export { default as StudentHelp } from './StudentHelp';
+export { default as StudentTermsOfService } from './StudentTermsOfService';
+export { default as StudentPrivacyPolicy } from './StudentPrivacyPolicy';
 export { StudentLayout } from './StudentDashboardComponents';

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useNotifications } from "../../../context/NotificationContext";
 import { API_ORIGIN } from "../../../utils/api";
 import StudentInbox from "./StudentInbox";
@@ -1278,6 +1278,8 @@ export function StudentHeader({ userInfo, onLogout }) {
 }
 
 export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
+  const location = useLocation();
+  const isSearchRoute = location.pathname.startsWith("/studentpage/search");
   const [activePanel, setActivePanel] = useState(null);
   const panelContent = {
     inbox: <StudentInbox />,
@@ -1533,7 +1535,7 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
           className={`w-full min-w-0 overflow-x-clip pt-[64px] md:pt-[76px] transition-[padding] duration-200 ${activePanel ? "lg:pl-[360px]" : ""}`}
         >
           <div
-            className="box-border mx-auto min-w-0 w-full max-w-[1280px] px-3 pb-20 pt-4 sm:px-4 md:px-6 md:pb-6 md:pt-6 lg:px-0 lg:pb-0 lg:pt-0 lg:pr-8"
+            className={`box-border mx-auto min-w-0 w-full px-3 pb-20 pt-4 sm:px-4 md:px-6 md:pb-6 md:pt-6 lg:px-0 lg:pb-0 lg:pt-0 ${isSearchRoute ? "max-w-none lg:pr-0" : "max-w-[1280px] lg:pr-8"}`}
           >
             {children}
           </div>

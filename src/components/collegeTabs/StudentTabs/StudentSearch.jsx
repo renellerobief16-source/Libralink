@@ -145,6 +145,10 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
   const bookDetailsPanelRef = useRef(null);
 
+  const searchScrollContainerRef = useRef(null);
+
+  const lastSearchScrollTopRef = useRef(0);
+
   const [books, setBooks] = useState([]);
 
   const [loading, setLoading] = useState(true);
@@ -215,6 +219,34 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
   });
 
   const [showSearchHistory, setShowSearchHistory] = useState(false);
+
+  const [showQuickFilters, setShowQuickFilters] = useState(true);
+
+  // Reset filters to visible when component mounts or tab changes
+  useEffect(() => {
+    setShowQuickFilters(true);
+  }, []);
+
+  useEffect(() => {
+    const scrollContainer = searchScrollContainerRef.current;
+    const hasInnerScroll = scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight;
+    const scrollTarget = hasInnerScroll ? scrollContainer : window;
+    const getScrollTop = () => (scrollTarget === window ? window.scrollY : scrollContainer.scrollTop);
+
+    lastSearchScrollTopRef.current = getScrollTop();
+
+    const handleScroll = () => {
+      const currentTop = getScrollTop();
+      setShowQuickFilters(currentTop <= 10);
+      lastSearchScrollTopRef.current = currentTop;
+    };
+
+    scrollTarget.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      scrollTarget.removeEventListener("scroll", handleScroll);
+    };
+  }, [selectedBook]);
 
   useEffect(() => {
     if (!isResizingBookDetails) return undefined;
@@ -1205,10 +1237,11 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
   return (
     <div
-      className={`animate-slide-up box-border w-full min-w-0 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-0 pb-8 sm:pb-6 lg:pb-0 lg:-mt-[76px] ${selectedBook ? "lg:grid lg:h-screen lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_var(--book-details-width)] lg:gap-0" : ""}`}
+      className={`animate-slide-up box-border w-full min-w-0 max-w-none mx-0 px-4 sm:px-6 lg:px-0 pb-0 lg:-mt-[76px] ${selectedBook ? "lg:grid lg:h-screen lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_var(--book-details-width)] lg:gap-0" : ""}`}
       style={{ "--book-details-width": `${bookDetailsWidth}px` }}
     >
       <div
+        ref={searchScrollContainerRef}
         className={`min-w-0 lg:px-0 ${selectedBook ? "lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain" : ""}`}
       >
         {/* Other school results - 4th panel - Sticky */}
@@ -1342,19 +1375,19 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
         {/* Search and filter card */}
 
-        <div className="mb-4 sm:mb-6 md:-mt-6 sticky top-[64px] md:top-[76px] z-30 bg-[#F8FAFC] pb-2">
-          <div className="w-full min-w-0 overflow-hidden bg-white border border-[#DDE6EF] rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.06)] p-2">
-            <div className="px-2 pt-0 pb-3">
-              <h1 className="text-xl sm:text-2xl font-bold text-[#0F172A]">
+        <div className="mb-2 shrink-0 sm:mb-3 md:-mt-6 sticky top-[64px] md:top-[76px] z-30 bg-[#F8FAFC] pb-1">
+          <div className="w-full min-w-0 overflow-visible bg-white border border-[#DDE6EF] rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.06)] p-2">
+            <div className="shrink-0 px-2 pb-3 pt-0">
+              <h1 className="text-xl font-bold text-[#0F172A] sm:text-2xl">
                 Search your books
               </h1>
 
-              <p className="text-sm sm:text-base text-[#64748B] mt-1">
+              <p className="mt-1 text-sm text-[#64748B] sm:text-base">
                 Find and explore books from your library
               </p>
             </div>
 
-            <div className="relative w-full min-w-0 overflow-hidden border border-[#E2E8F0] rounded-xl bg-[#FBFDFF]">
+            <div className="relative min-h-11 w-full min-w-0 overflow-hidden rounded-xl border border-[#E2E8F0] bg-[#FBFDFF]">
               <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-[#94A3B8] w-4 h-4 sm:w-5 sm:h-5" />
 
               <input
@@ -1450,7 +1483,15 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
               )}
             </div>
 
-            <div className="relative mt-2 pt-2 border-t border-[#EEF2F6]">
+            <div
+              aria-hidden={!showQuickFilters}
+              inert={!showQuickFilters}
+              className={`relative overflow-hidden transition-[max-height,opacity,transform,margin,padding] duration-75 ease-out will-change-[max-height,opacity,transform] ${
+                showQuickFilters
+                  ? "visible mt-2 max-h-[500px] translate-y-0 border-t border-[#EEF2F6] pt-2 opacity-100"
+                  : "pointer-events-none invisible !mt-0 max-h-0 -translate-y-2 border-t-0 pt-0 opacity-0"
+              }`}
+            >
               <div className="flex items-center justify-between gap-3 mb-1.5 px-0.5">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-[#64748B]">
@@ -2659,7 +2700,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
           return (
             <div
               ref={bookDetailsPanelRef}
-              className="relative w-full sm:w-[340px] lg:w-full lg:-mr-8 lg:self-start lg:mt-[76px] lg:h-[calc(100vh-76px)] lg:min-h-0 lg:max-h-[calc(100vh-76px)] lg:overflow-y-scroll lg:overscroll-contain bg-white shadow-lg border border-[#E2E8F0] rounded-xl animate-slide-up"
+              className="relative w-full min-w-0 max-w-none lg:w-full lg:self-start lg:mt-[76px] lg:h-[calc(100vh-76px)] lg:min-h-0 lg:max-h-[calc(100vh-76px)] lg:overflow-y-scroll lg:overscroll-contain bg-white shadow-lg border border-[#E2E8F0] rounded-xl animate-slide-up"
             >
               <button
                 type="button"
