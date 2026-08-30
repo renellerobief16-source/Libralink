@@ -155,28 +155,28 @@ function Library() {
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
       <Navigation />
-      <div className="bg-white px-4 pb-12 pt-28 sm:px-6 lg:px-8 lg:pb-16">
+      <div className="bg-white px-4 pb-8 pt-20 sm:px-6 sm:pb-12 sm:pt-28 lg:px-8 lg:pb-16">
         <div className="max-w-7xl mx-auto">
-          <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0077B6]">Public catalog</p>
-          <h1 className="mt-3 text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-[-.04em] text-[#0F172A]">Find your next book.</h1>
-          <p className="mt-4 text-base leading-7 text-[#64748B] max-w-2xl">Search titles across participating libraries and see where a copy is available.</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[#0077B6] sm:text-xs">Public catalog</p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-[-.04em] text-[#0F172A] sm:mt-3 sm:text-3xl lg:text-5xl">Find your next book.</h1>
+          <p className="mt-2 text-sm leading-6 text-[#64748B] max-w-2xl sm:mt-4 sm:text-base sm:leading-7">Search titles across participating libraries and see where a copy is available.</p>
         </div>
       </div>
 
-      <section className="py-10 sm:py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto mb-6 sm:mb-8">
-          <div className="border-b border-[#E2E8F0] pb-5 sm:pb-6">
-            <div className="flex flex-col gap-4">
+      <section className="py-8 sm:py-10 sm:py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto mb-4 sm:mb-6 sm:mb-8">
+          <div className="border-b border-[#E2E8F0] pb-4 sm:pb-5 sm:pb-6">
+            <div className="flex flex-col gap-3 sm:gap-4">
               <div className="relative">
-                <FiSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#64748B] w-5 h-5" />
+                <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#64748B] w-4 h-4 sm:left-4 sm:w-5 sm:h-5" />
                 <input
                   type="text"
                   placeholder="Search by title, author, or ISBN..."
                   value={searchQuery}
                   onChange={handleSearch}
-                  className="min-h-12 w-full border-b border-[#CBD5E1] bg-transparent pl-11 pr-10 text-base text-[#0F172A] placeholder-[#64748B] outline-none transition focus:border-[#0077B6] sm:text-sm"
+                  className="min-h-11 w-full border-b border-[#CBD5E1] bg-transparent pl-10 pr-9 text-sm text-[#0F172A] placeholder-[#64748B] outline-none transition focus:border-[#0077B6] sm:min-h-12 sm:pl-11 sm:pr-10 sm:text-base"
                 />
-                {searchQuery && <button onClick={() => { setSearchQuery(""); setSelectedFilter("All"); loadBooks(); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-slate-700" aria-label="Clear search"><FiX /></button>}
+                {searchQuery && <button onClick={() => { setSearchQuery(""); setSelectedFilter("All"); loadBooks(); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-700 sm:right-3 sm:p-2" aria-label="Clear search"><FiX /></button>}
               </div>
               
               <div className="flex flex-wrap gap-x-2 gap-y-1 pt-1">
@@ -184,7 +184,7 @@ function Library() {
                   <button
                     key={filter}
                     onClick={() => handleFilterClick(filter)}
-                    className={`border-b-2 px-3 py-2 text-sm font-semibold whitespace-nowrap transition-colors ${
+                    className={`border-b-2 px-2 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors sm:px-3 sm:py-2 sm:text-sm ${
                       selectedFilter === filter
                         ? "border-[#0077B6] text-[#0077B6]"
                         : "border-transparent text-[#64748B] hover:border-slate-300 hover:text-[#0077B6]"
@@ -200,69 +200,69 @@ function Library() {
 
         <div className="max-w-7xl mx-auto">
           {loading ? (
-            <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-[#0077B6] border-t-transparent"></div>
-              <p className="mt-4 text-[#64748B]">Loading books...</p>
+            <div className="text-center py-10 sm:py-12">
+              <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-[#0077B6] border-t-transparent sm:h-12 sm:w-12"></div>
+              <p className="mt-3 text-sm text-[#64748B] sm:mt-4">Loading books...</p>
             </div>
           ) : error ? (
-            <div className="border border-red-100 bg-white px-5 py-12 text-center">
-              <FiBook className="mx-auto h-12 w-12 text-red-300" />
-              <h2 className="mt-4 text-lg font-semibold text-[#0F172A]">Catalog unavailable</h2>
+            <div className="border border-red-100 bg-white px-4 py-10 text-center sm:px-5 sm:py-12">
+              <FiBook className="mx-auto h-10 w-10 text-red-300 sm:h-12 sm:w-12" />
+              <h2 className="mt-3 text-base font-semibold text-[#0F172A] sm:mt-4 sm:text-lg">Catalog unavailable</h2>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#64748B]">{error}</p>
-              <button type="button" onClick={loadBooks} className="mt-5 inline-flex min-h-11 items-center justify-center bg-[#0077B6] px-4 text-sm font-semibold text-white transition hover:bg-[#00669d]">Try again</button>
+              <button type="button" onClick={loadBooks} className="mt-4 inline-flex min-h-10 items-center justify-center bg-[#0077B6] px-4 text-xs font-semibold text-white transition hover:bg-[#00669d] sm:min-h-11 sm:text-sm">Try again</button>
             </div>
           ) : filteredBooks.length === 0 ? (
-            <div className="text-center py-12">
-              <FiBook className="w-16 h-16 text-[#64748B] mx-auto mb-4" />
-              <p className="text-[#64748B]">No books found matching your search.</p>
+            <div className="text-center py-10 sm:py-12">
+              <FiBook className="w-12 h-12 text-[#64748B] mx-auto mb-3 sm:w-16 sm:h-16 sm:mb-4" />
+              <p className="text-sm text-[#64748B]">No books found matching your search.</p>
             </div>
           ) : (
             <>
-            <p className="mb-5 text-sm text-[#64748B]">{pagination.total.toLocaleString()} {pagination.total === 1 ? "book" : "books"} found</p>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+            <p className="mb-4 text-xs text-[#64748B] sm:mb-5 sm:text-sm">{pagination.total.toLocaleString()} {pagination.total === 1 ? "book" : "books"} found</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 sm:gap-5">
               {filteredBooks.map((book) => (
                 <div
                   key={book.id}
-                  className="group border border-[#E2E8F0] bg-white p-4 transition hover:-translate-y-0.5 hover:border-[#BDE3F6] hover:shadow-md sm:p-5"
+                  className="group border border-[#E2E8F0] bg-white p-3 transition hover:-translate-y-0.5 hover:border-[#BDE3F6] hover:shadow-md sm:p-4 lg:p-5"
                 >
-                  <div className="flex items-start justify-between mb-3 sm:mb-4">
-                    <div className="flex h-11 w-9 items-center justify-center bg-[#0077B6] text-white shadow-sm transition-transform duration-200 group-hover:-rotate-2 group-hover:translate-y-[-2px]">
-                      <FiBook className="text-lg text-white sm:text-xl" />
+                  <div className="flex items-start justify-between mb-2 sm:mb-3 lg:mb-4">
+                    <div className="flex h-10 w-8 items-center justify-center bg-[#0077B6] text-white shadow-sm transition-transform duration-200 group-hover:-rotate-2 group-hover:translate-y-[-2px] sm:h-11 sm:w-9">
+                      <FiBook className="text-base text-white sm:text-lg lg:text-xl" />
                     </div>
                     {book.status === "Available" && (
-                      <span className={`px-2 py-1 text-xs font-semibold border ${getStatusColor(book.status)}`}>
+                      <span className={`px-2 py-0.5 text-[10px] font-semibold border sm:px-2 sm:py-1 sm:text-xs ${getStatusColor(book.status)}`}>
                         {book.status}
                       </span>
                     )}
                   </div>
-                  <h3 className="text-base sm:text-lg lg:text-xl font-semibold text-[#0F172A] mb-1.5 sm:mb-2 line-clamp-2">{book.title}</h3>
-                  <p className="text-[#64748B] mb-2 sm:mb-3 text-sm sm:text-base">by {book.author}</p>
-                  <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
-                    <div className="flex items-center gap-1.5 sm:gap-2 text-[#64748B]">
-                      <FiMapPin className="text-[#0077B6] w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <h3 className="text-sm font-semibold text-[#0F172A] mb-1 sm:text-base lg:text-xl sm:mb-1.5 lg:mb-2 line-clamp-2">by {book.author}</h3>
+                  <p className="text-[#64748B] mb-2 text-xs sm:text-sm sm:mb-3 sm:text-base">{book.title}</p>
+                  <div className="space-y-1 sm:space-y-1.5 lg:space-y-2 text-[10px] sm:text-xs lg:text-sm">
+                    <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2 text-[#64748B]">
+                      <FiMapPin className="text-[#0077B6] w-3 h-3 sm:w-3.5 sm:h-3.5 lg:w-4 lg:h-4" />
                       <span>{book.location}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 sm:gap-2 text-[#64748B]">
-                      <FiStar className="text-[#0077B6] w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2 text-[#64748B]">
+                      <FiStar className="text-[#0077B6] w-3 h-3 sm:w-3.5 sm:h-3.5 lg:w-4 lg:h-4" />
                       <span>{book.category}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 sm:gap-2 text-[#64748B]">
+                    <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2 text-[#64748B]">
                       <span className="text-[#94A3B8]">ISBN:</span>
-                      <span className="font-mono text-xs">{book.isbn}</span>
+                      <span className="font-mono text-[9px] sm:text-xs">{book.isbn}</span>
                     </div>
                   </div>
                   <button 
                     onClick={() => handleBorrow(book)}
-                    className="mt-4 inline-flex min-h-10 w-full items-center justify-center bg-[#0077B6] px-3 text-sm font-semibold text-white transition hover:bg-[#00669d]"
+                    className="mt-3 inline-flex min-h-9 w-full items-center justify-center bg-[#0077B6] px-3 text-xs font-semibold text-white transition hover:bg-[#00669d] sm:mt-4 sm:min-h-10 sm:text-sm"
                   >
-                    {isAuthenticated ? 'View book details' : 'Login to borrow'}
+                    {isAuthenticated ? 'View details' : 'Login to borrow'}
                   </button>
                 </div>
               ))}
             </div>
             {pagination.hasMore && selectedFilter === "All" && (
-              <div className="mt-8 text-center">
-                <button type="button" disabled={loadingMore} onClick={() => loadBooks({ query: searchQuery, offset: pagination.offset + books.length, append: true })} className="min-h-11 border border-[#0077B6] px-5 text-sm font-semibold text-[#0077B6] transition hover:bg-[#E0F2FE] disabled:cursor-wait disabled:opacity-60">
+              <div className="mt-6 text-center sm:mt-8">
+                <button type="button" disabled={loadingMore} onClick={() => loadBooks({ query: searchQuery, offset: pagination.offset + books.length, append: true })} className="min-h-10 border border-[#0077B6] px-4 text-xs font-semibold text-[#0077B6] transition hover:bg-[#E0F2FE] disabled:cursor-wait disabled:opacity-60 sm:min-h-11 sm:px-5 sm:text-sm">
                   {loadingMore ? 'Loading more books…' : 'Load more books'}
                 </button>
               </div>

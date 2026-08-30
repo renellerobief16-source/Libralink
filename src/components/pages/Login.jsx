@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { signIn } from "../../utils/api";
-import { FiMail, FiLock, FiArrowLeft, FiCheck, FiBook } from "react-icons/fi";
+import { FiMail, FiLock, FiArrowLeft, FiCheck, FiBook, FiEye, FiEyeOff, FiShield } from "react-icons/fi";
 
 function normalizeCampusKey(college) {
   const normalizedValue = String(college || "").trim().toLowerCase();
@@ -69,6 +69,7 @@ function Login() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -188,101 +189,94 @@ function Login() {
             <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
               <FiCheck className="w-4 h-4" />
             </div>
-            Search the full catalog across every branch
+            Discover books from connected libraries
           </li>
           <li className="flex items-start gap-3 text-white/90 text-base">
             <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
               <FiCheck className="w-4 h-4" />
             </div>
-            Get notified before a hold or due date slips by
+            Manage your borrowing requests in one place
           </li>
         </ul>
       </div>
 
       {/* RIGHT — form panel */}
-      <div className="flex min-h-[100dvh] items-center justify-center px-4 py-7 sm:p-8 lg:p-12">
-        <div className="w-full max-w-md">
-          <Link to="/" className="mb-6 inline-flex min-h-11 items-center gap-2 text-[#64748B] hover:text-[#0077B6] transition-colors text-sm font-medium sm:mb-8">
-            <FiArrowLeft className="w-4 h-4" />
-            Back to Home
-          </Link>
-          
-          <div className="border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-8">
-            <div className="flex items-center gap-3 mb-7 sm:mb-8">
-              <img src="/L.png" alt="Libralink Logo" className="w-12 h-12 object-cover" />
-              <div>
-                <span className="text-xl font-bold text-[#0F172A]">Libralink</span>
-                <p className="text-xs text-[#64748B]">Library Management System</p>
-              </div>
+      <div className="flex items-center justify-center px-4 py-8 sm:py-12 sm:px-6 lg:px-8">
+          <div className="w-full max-w-md">
+            <div className="mb-6 flex items-center gap-3 lg:hidden sm:mb-8">
+              <img src="/L.png" alt="Libralink Logo" className="h-9 w-9 object-contain sm:h-10 sm:w-10" />
+              <span className="text-base font-semibold text-[#0F172A] sm:text-lg">Libralink</span>
             </div>
-            
-            <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A] mb-2">Sign in</h2>
-            <p className="text-sm text-[#64748B] mb-6">Enter your details to access your account.</p>
-            
-            {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
-                <p className="text-red-600 text-sm">{error}</p>
-              </div>
-            )}
-            
-            <form onSubmit={handleSubmit} noValidate className="space-y-5">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-[#0F172A] mb-2">Email address</label>
-                <div className="flex min-h-12 items-center gap-3 border border-[#E2E8F0] px-3 focus-within:border-[#0077B6] focus-within:ring-2 focus-within:ring-[#0077B6]/20 transition-all bg-[#F8FAFC]">
-                  <FiMail className="w-5 h-5 text-[#64748B]" />
+
+            <div className="border border-slate-200 bg-white p-4 shadow-sm sm:p-6 lg:p-8">
+              <h2 className="text-xl font-semibold tracking-[-.02em] text-[#0F172A] sm:text-2xl">Sign in to your account</h2>
+              <p className="mt-1.5 text-sm text-[#64748B] sm:mt-2">Enter your credentials to access the library system.</p>
+
+              <form onSubmit={handleSubmit} className="mt-6 space-y-4 sm:mt-8 sm:space-y-5">
+                <div>
+                  <label htmlFor="email" className="mb-2 block text-sm font-medium">Email address</label>
                   <input
                     id="email"
                     name="email"
                     type="email"
-                    placeholder="you@libralink.com"
+                    placeholder="you@example.com"
                     value={form.email}
                     onChange={handleChange}
-                    autoComplete="email"
+                    className="min-h-11 w-full border border-slate-200 bg-[#F8FAFC] px-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:min-h-12 sm:text-base"
                     required
-                    className="min-w-0 flex-1 outline-none text-[#0F172A] placeholder-[#94A3B8] text-base sm:text-sm bg-transparent"
                   />
                 </div>
-              </div>
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-[#0F172A] mb-2">Password</label>
-                <div className="flex min-h-12 items-center gap-3 border border-[#E2E8F0] px-3 focus-within:border-[#0077B6] focus-within:ring-2 focus-within:ring-[#0077B6]/20 transition-all bg-[#F8FAFC]">
-                  <FiLock className="w-5 h-5 text-[#64748B]" />
-                  <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={form.password}
-                    onChange={handleChange}
-                    autoComplete="current-password"
-                    required
-                    className="min-w-0 flex-1 outline-none text-[#0F172A] placeholder-[#94A3B8] text-base sm:text-sm bg-transparent"
-                  />
+                <div>
+                  <label htmlFor="password" className="mb-2 block text-sm font-medium">Password</label>
+                  <div className="relative">
+                    <input
+                      id="password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={form.password}
+                      onChange={handleChange}
+                      className="min-h-11 w-full border border-slate-200 bg-[#F8FAFC] px-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:min-h-12 sm:text-base"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-700 sm:right-3 sm:p-2"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <FiEyeOff /> : <FiEye />}
+                    </button>
+                  </div>
                 </div>
+
+                {error && (
+                  <div className="border-l-4 border-red-500 bg-red-50 p-3 sm:p-4">
+                    <p className="text-sm font-medium text-red-800">{error}</p>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="min-h-11 w-full bg-[#0077B6] px-4 text-xs font-semibold text-white transition hover:bg-[#00669d] disabled:cursor-wait disabled:opacity-60 sm:min-h-12 sm:text-sm"
+                >
+                  {loading ? "Signing in..." : "Sign in"}
+                </button>
+              </form>
+
+              <div className="mt-5 text-center text-sm text-[#64748B] sm:mt-6">
+                Don't have an account?{" "}
+                <a href="#" className="font-semibold text-[#0077B6] hover:underline">
+                  Contact your library
+                </a>
               </div>
-              <div className="flex items-center justify-between">
-                <a href="#forgot" className="text-sm text-[#0077B6] hover:text-[#005f8f] font-medium">Forgot password?</a>
-              </div>
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="min-h-12 w-full bg-[#0077B6] hover:bg-[#005f8f] disabled:bg-[#94A3B8] text-white py-3 font-semibold transition-all shadow-sm hover:shadow-md text-sm"
-              >
-                {loading ? 'Signing in...' : 'Sign in'}
-              </button>
-            </form>
-            
-            <div className="flex items-center gap-4 my-6">
-              <div className="flex-1 h-px bg-[#E2E8F0]"></div>
-              <span className="text-[#94A3B8] text-sm">or</span>
-              <div className="flex-1 h-px bg-[#E2E8F0]"></div>
             </div>
-            
-            <p className="text-center text-[#64748B] text-sm">
-              Contact your college administrator to register for an account.
-            </p>
+
+            <div className="mt-5 text-center text-xs text-[#64748B] sm:mt-6">
+              By signing in, you agree to our Terms of Service and Privacy Policy.
+            </div>
           </div>
-        </div>
       </div>
     </div>
   );
