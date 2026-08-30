@@ -16,8 +16,8 @@ function SchoolAvatar({ schoolName, logo }) {
   const initials = schoolName.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join('').toUpperCase();
 
   return (
-    <span className="flex h-[62px] w-[62px] items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-500 via-violet-500 to-fuchsia-500 p-[2px] shadow-sm">
-      <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-white p-1">
+    <span className="flex h-[58px] w-[58px] items-center justify-center overflow-hidden rounded-full border-2 border-slate-200 bg-white p-1">
+      <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-slate-50 p-0.5">
         {logo && !imageFailed ? (
           <img src={logo} alt={`${schoolName} logo`} className="h-full w-full rounded-full object-contain" onError={() => setImageFailed(true)} />
         ) : (
@@ -196,7 +196,7 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
   return (
     <div className="animate-slide-up space-y-5 sm:space-y-6">
       {partnerSchools.length > 0 && (
-        <section aria-labelledby="partner-schools-title" className="-mx-3 overflow-hidden border-y border-slate-100 bg-white py-4 sm:mx-0 sm:rounded-2xl sm:border sm:px-4">
+        <section aria-labelledby="partner-schools-title" className="-mx-3 overflow-hidden border-y border-slate-100 bg-white py-3.5 sm:mx-0 sm:rounded-2xl sm:border sm:px-4">
           <div className="mb-3 flex items-center justify-between px-3 sm:px-0">
             <div>
               <h2 id="partner-schools-title" className="text-sm font-bold text-slate-900">Schools on Libralink</h2>
@@ -204,12 +204,12 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
             </div>
             <button onClick={handleSearchClick} className="text-xs font-semibold text-blue-600 active:text-blue-800">Explore</button>
           </div>
-          <div className="flex gap-3 overflow-x-auto px-3 pb-1 [scrollbar-width:none] sm:px-0">
+          <div className="flex gap-3 overflow-x-auto px-3 pb-0.5 [scrollbar-width:none] sm:px-0">
             {partnerSchools.map((school) => {
               const logo = school.logo && (school.logo.startsWith('http') || school.logo.startsWith('data:') ? school.logo : `${API_ORIGIN}${school.logo.startsWith('/') ? '' : '/'}${school.logo}`);
               const schoolName = school.school_name || school.name || 'School';
               return (
-                <button key={school.school_id} onClick={handleSearchClick} className="flex w-[74px] shrink-0 flex-col items-center gap-1.5 text-center active:scale-95" aria-label={`Browse books from ${schoolName}`}>
+                <button key={school.school_id} onClick={handleSearchClick} className="flex w-[70px] shrink-0 flex-col items-center gap-1.5 text-center active:scale-95" aria-label={`Browse books from ${schoolName}`}>
                   <SchoolAvatar schoolName={schoolName} logo={logo} />
                   <span className="w-full truncate text-[11px] font-medium text-slate-700">{schoolName}</span>
                 </button>
@@ -233,7 +233,7 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <button
           onClick={handleSearchClick}
-          className="relative flex min-h-[112px] flex-col items-start gap-2 overflow-hidden rounded-2xl border border-blue-100 bg-blue-50 p-4 text-left shadow-sm transition-all active:scale-[0.98] sm:items-center sm:p-5 sm:text-center"
+          className="relative flex min-h-[104px] flex-col items-start gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all active:scale-[0.98] sm:items-center sm:p-5 sm:text-center"
           aria-label="Search books"
         >
           <Search className="w-6 h-6 text-blue-600" />
@@ -242,7 +242,7 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
         </button>
         <button
           onClick={handleBorrowedClick}
-          className="relative flex min-h-[112px] flex-col items-start gap-2 overflow-hidden rounded-2xl border border-violet-100 bg-violet-50 p-4 text-left shadow-sm transition-all active:scale-[0.98] sm:items-center sm:p-5 sm:text-center"
+          className="relative flex min-h-[104px] flex-col items-start gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all active:scale-[0.98] sm:items-center sm:p-5 sm:text-center"
           aria-label="View my books"
         >
           <Clock className="w-6 h-6 text-violet-600" />
@@ -251,7 +251,7 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
         </button>
         <button
           onClick={handleNotificationsClick}
-          className="relative flex min-h-[112px] flex-col items-start gap-2 overflow-hidden rounded-2xl border border-amber-100 bg-amber-50 p-4 text-left shadow-sm transition-all active:scale-[0.98] sm:items-center sm:p-5 sm:text-center"
+          className="relative flex min-h-[104px] flex-col items-start gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all active:scale-[0.98] sm:items-center sm:p-5 sm:text-center"
           aria-label="View notifications"
         >
           <Bell className="w-6 h-6 text-amber-600" />
@@ -265,7 +265,7 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
         </button>
         <button
           onClick={() => navigate('/studentpage/profile')}
-          className="relative flex min-h-[112px] flex-col items-start gap-2 overflow-hidden rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-left shadow-sm transition-all active:scale-[0.98] sm:items-center sm:p-5 sm:text-center"
+          className="relative flex min-h-[104px] flex-col items-start gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all active:scale-[0.98] sm:items-center sm:p-5 sm:text-center"
           aria-label="View profile"
         >
           <Users className="w-6 h-6 text-emerald-600" />

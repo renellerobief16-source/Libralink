@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FiArrowRight, FiCamera, FiCheckCircle } from 'react-icons/fi';
 import api, { updateProfilePicture, updateUserProfile, getBackendAssetUrl } from '../../../utils/api';
 
 function isOnboardingComplete(user) {
@@ -47,7 +48,7 @@ function StudentOnboarding() {
     { key: 'policy', label: 'Policy' },
   ];
 
-  const stepLabels = ['Username', 'Cellphone Number', 'Gmail Account', 'Profile Picture', 'Policy'];
+  const stepLabels = ['Welcome', 'Username', 'Cellphone', 'Recovery email', 'Photo', 'Policy'];
 
   const reminders = {
     welcome: 'Welcome to Libralink. Please complete these details to personalize your account and access the library system.',
@@ -220,11 +221,12 @@ function StudentOnboarding() {
             <img src="/L.png" alt="Libralink Logo" className="h-full w-full rounded-full object-cover" />
           </div>
           <div className="space-y-3">
-            <h1 className="text-3xl font-bold text-slate-900">Welcome</h1>
+            <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0077B6]">Student setup</p>
+            <h1 className="text-3xl font-semibold tracking-[-.03em] text-slate-900">Welcome to Libralink</h1>
             <p className="text-sm leading-6 text-slate-600">
               Welcome to Libralink. Before you can access your library account, we need a few details to complete your profile and keep your account secure.
             </p>
-            <p className="rounded-xl bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            <p className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
               This quick setup helps you log in smoothly and recover your account if needed.
             </p>
           </div>
@@ -235,7 +237,7 @@ function StudentOnboarding() {
     if (currentStep === 1) {
       return (
         <div className="space-y-4">
-          <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
             {reminders.username}
           </div>
           <div>
@@ -245,7 +247,7 @@ function StudentOnboarding() {
               value={form.username}
               onChange={(e) => setForm({ ...form, username: e.target.value })}
               placeholder="Enter username"
-              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              className="min-h-12 w-full border border-slate-300 bg-slate-50 px-3 text-base outline-none transition focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
             />
           </div>
         </div>
@@ -255,7 +257,7 @@ function StudentOnboarding() {
     if (currentStep === 2) {
       return (
         <div className="space-y-4">
-          <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
             {reminders.cellphone}
           </div>
           <div>
@@ -265,7 +267,7 @@ function StudentOnboarding() {
               value={form.cellphone}
               onChange={(e) => setForm({ ...form, cellphone: e.target.value })}
               placeholder="09xxxxxxxxx"
-              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              className="min-h-12 w-full border border-slate-300 bg-slate-50 px-3 text-base outline-none transition focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
             />
           </div>
         </div>
@@ -275,7 +277,7 @@ function StudentOnboarding() {
     if (currentStep === 3) {
       return (
         <div className="space-y-4">
-          <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
             {reminders.email}
           </div>
           <div>
@@ -285,7 +287,7 @@ function StudentOnboarding() {
               value={form.recoveryEmail}
               onChange={(e) => setForm({ ...form, recoveryEmail: e.target.value })}
               placeholder="you@gmail.com"
-              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              className="min-h-12 w-full border border-slate-300 bg-slate-50 px-3 text-base outline-none transition focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
             />
           </div>
         </div>
@@ -295,12 +297,12 @@ function StudentOnboarding() {
     if (currentStep === 4) {
       return (
         <div className="space-y-4">
-          <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
             {reminders.photo}
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">Profile Picture</label>
-            <div className="flex items-center gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
+            <div className="flex items-center gap-4 border border-dashed border-slate-300 bg-slate-50 p-4">
               <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white">
                 {preview ? (
                   <img src={preview} alt="Profile preview" className="h-full w-full object-cover" />
@@ -309,8 +311,8 @@ function StudentOnboarding() {
                 )}
               </div>
 
-              <label className="cursor-pointer rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100">
-                Upload Photo
+              <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-[#0077B6] px-4 text-sm font-semibold text-[#0077B6] transition hover:bg-[#E0F2FE]">
+                <FiCamera /> Upload photo
                 <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
               </label>
             </div>
@@ -321,11 +323,11 @@ function StudentOnboarding() {
 
     return (
       <div className="space-y-4">
-        <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+        <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
           {reminders.policy}
         </div>
         <p className="text-sm font-semibold text-slate-800">Policy</p>
-        <div className="max-h-36 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs leading-6 text-slate-600">
+        <div className="max-h-36 overflow-y-auto border border-slate-200 bg-slate-50 p-4 text-xs leading-6 text-slate-600">
           By using this system, you agree to keep your account information accurate, use the platform responsibly, protect your login credentials, and avoid unauthorized or harmful activity. The library administration may monitor account usage for security and compliance purposes. Misuse of the system may result in restricted access or disciplinary action.
         </div>
         <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
@@ -345,68 +347,48 @@ function StudentOnboarding() {
   const schoolName = schoolInfo?.school_name || 'School';
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-100 px-4 py-10 sm:px-6 lg:px-8">
+    <div className="relative min-h-[100dvh] overflow-hidden bg-slate-100 px-0 py-0 sm:px-6 sm:py-8 lg:px-8">
       <div
         className="absolute inset-0 bg-cover bg-center"
         style={{
-          backgroundImage: "linear-gradient(rgba(15, 23, 42, 0.56), rgba(15, 23, 42, 0.5)), url('https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=1600&q=80')",
+          backgroundImage: "linear-gradient(rgba(2, 62, 138, 0.82), rgba(15, 23, 42, 0.72)), url('/p1.jpg')",
         }}
       />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.35),transparent_35%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(125,211,252,0.22),transparent_35%)]" />
 
-      <div className="relative mx-auto max-w-xl rounded-[28px] border border-white/20 bg-white/80 p-6 shadow-[0_30px_80px_rgba(15,23,42,0.28)] backdrop-blur-xl ring-1 ring-slate-200/70 sm:p-8 lg:p-10">
-        <div className="mb-8 flex flex-col items-center justify-center gap-3 text-center">
-          <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-blue-200 bg-white shadow-md">
+      <div className="relative mx-auto flex min-h-[100dvh] max-w-xl flex-col bg-white px-5 py-8 shadow-2xl sm:min-h-0 sm:border sm:border-white/20 sm:px-8 sm:py-9 lg:px-10">
+        <div className="mb-7 flex items-center gap-3 border-b border-slate-100 pb-5">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white">
             <img src={schoolLogo} alt={`${schoolName} logo`} className="h-full w-full object-contain p-1" onError={(e) => { e.target.src = '/L.png'; }} />
           </div>
-          <div>
-            <h2 className="text-2xl font-semibold text-slate-700">Create Your Profile</h2>
-            <p className="text-sm text-slate-500">{schoolName}</p>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[.14em] text-[#0077B6]">Account setup</p>
+            <h2 className="truncate text-lg font-semibold tracking-[-.02em] text-slate-900">{schoolName}</h2>
           </div>
         </div>
 
-        <div className="mb-8 flex items-start justify-between gap-2">
+        <div className="mb-7">
+          <div className="mb-2 flex items-center justify-between text-xs font-medium"><span className="text-slate-500">Step {currentStep + 1} of {steps.length}</span><span className="text-[#0077B6]">{stepLabels[currentStep]}</span></div>
+          <div className="flex gap-1.5" aria-label={`Step ${currentStep + 1} of ${steps.length}`}>
           {stepLabels.map((label, index) => {
-            const isActive = index + 1 === currentStep;
-            const isCompleted = index + 1 < currentStep;
-            const isLast = index === stepLabels.length - 1;
+            const isActive = index === currentStep;
+            const isCompleted = index < currentStep;
 
             return (
-              <div key={label} className="flex flex-1 flex-col items-center gap-2 text-center">
-                <div className="flex w-full items-center justify-center">
-                  <div
-                    className={`flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold ${
-                      isCompleted || isActive
-                        ? 'border-blue-600 bg-blue-600 text-white'
-                        : 'border-slate-300 bg-white text-slate-500'
-                    }`}
-                  >
-                    {index + 1}
-                  </div>
-                  {!isLast && (
-                    <div
-                      className={`h-0.5 flex-1 ${
-                        isCompleted ? 'bg-blue-600' : 'bg-slate-200'
-                      }`}
-                    />
-                  )}
-                </div>
-                <span className={`text-[11px] ${isCompleted || isActive ? 'text-slate-700' : 'text-slate-400'}`}>
-                  {label}
-                </span>
-              </div>
+              <span key={label} className={`h-1 flex-1 ${isCompleted ? 'bg-[#0077B6]' : isActive ? 'bg-[#388697]' : 'bg-slate-200'}`} />
             );
           })}
+          </div>
         </div>
 
-        {renderStepContent()}
+        <div className="flex-1">{renderStepContent()}</div>
 
-        <div className="mt-8 flex items-center justify-between gap-3">
+        <div className="mt-8 flex items-center justify-between gap-3 border-t border-slate-100 pt-5">
           <button
             type="button"
             onClick={handleBack}
             disabled={currentStep === 0}
-            className="inline-flex items-center gap-2 rounded-lg px-0 py-2 text-sm font-medium text-slate-600 transition hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex min-h-11 items-center gap-2 px-1 text-sm font-medium text-slate-600 transition hover:text-[#0077B6] disabled:cursor-not-allowed disabled:opacity-40"
           >
             <span aria-hidden="true">←</span>
             Previous
@@ -416,9 +398,9 @@ function StudentOnboarding() {
             type="button"
             onClick={handleNext}
             disabled={loading}
-            className="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
+            className="inline-flex min-h-11 items-center gap-2 bg-[#0077B6] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#00669d] disabled:cursor-not-allowed disabled:bg-blue-400"
           >
-            {loading ? 'Saving...' : currentStep === steps.length - 1 ? 'IN' : 'Next'}
+            {loading ? 'Saving...' : currentStep === steps.length - 1 ? <>Complete setup <FiCheckCircle /></> : <>Continue <FiArrowRight /></>}
           </button>
         </div>
       </div>

@@ -109,9 +109,9 @@ function BookDetail() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-28 sm:pb-24">
       {/* Header */}
-      <div className="bg-white border-b border-[#E2E8F0] sticky top-0 z-10">
+      <div className="sticky top-0 z-10 border-b border-[#E2E8F0] bg-white/95 backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex h-16 items-center justify-between">
             <button
               onClick={() => navigate(-1)}
               className="flex items-center gap-2 text-[#64748B] hover:text-[#0077B6] transition-colors"
@@ -125,19 +125,20 @@ function BookDetail() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Book Info Section */}
           <div className="lg:col-span-2 space-y-8">
             {/* Book Card */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-[#E2E8F0]">
+            <div className="border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-7">
               {/* Book Cover */}
-              <div className="w-full h-64 bg-gradient-to-br from-[#0077B6]/10 to-[#0096C7]/10 rounded-xl flex items-center justify-center mb-6 shadow-sm">
-                <FiBook className="w-24 h-24 text-[#0077B6]" />
+              <div className="relative mb-7 flex h-64 w-full items-center justify-center overflow-hidden bg-[#E0F2FE] sm:h-72">
+                <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-[#0077B6]/10" />
+                <div className="book-cover-float flex h-40 w-28 items-center justify-center bg-[#0077B6] shadow-xl shadow-sky-900/20 sm:h-44 sm:w-32"><FiBook className="h-14 w-14 text-white" /></div>
               </div>
 
               {/* Title */}
-              <h2 className="text-2xl font-bold text-[#0F172A] mb-2">{book.title}</h2>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[.16em] text-[#0077B6]">Book details</p><h2 className="text-2xl font-semibold tracking-[-.03em] text-[#0F172A] mb-2 sm:text-3xl">{book.title}</h2>
 
               {/* Author */}
               <div className="flex items-center gap-2 text-[#64748B] mb-4">
@@ -155,7 +156,7 @@ function BookDetail() {
 
               {/* Status */}
               <div className="flex items-center gap-2 mb-6">
-                <span className={`px-3 py-1 rounded-full text-sm font-semibold border ${
+                  <span className={`px-3 py-1 text-sm font-semibold border ${
                   book.real_time_status === 'available' 
                     ? 'bg-green-100 text-green-700 border-green-200' 
                     : 'bg-red-100 text-red-700 border-red-200'
@@ -218,9 +219,9 @@ function BookDetail() {
             </div>
 
             {/* Map Section */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-[#E2E8F0]">
+            <div className="border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-7">
               <h3 className="text-lg font-semibold text-[#0F172A] mb-4">Location Map</h3>
-              <div className="h-80 bg-[#F8FAFC] rounded-xl overflow-hidden">
+              <div className="h-80 overflow-hidden bg-[#F8FAFC]">
                 {book.schools?.latitude && book.schools?.longitude ? (
                   <MinimalSchoolMap school={book.schools} />
                 ) : (
@@ -239,11 +240,11 @@ function BookDetail() {
           <div className="space-y-6">
             {/* User Card */}
             {userData && (
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-[#E2E8F0]">
+              <div className="border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-6">
                 <h3 className="text-lg font-semibold text-[#0F172A] mb-4">Your Information</h3>
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-[#0077B6]/10 to-[#0096C7]/10 rounded-full flex items-center justify-center">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#E0F2FE]">
                       <FiUser className="w-6 h-6 text-[#0077B6]" />
                     </div>
                     <div>
@@ -278,12 +279,12 @@ function BookDetail() {
       </div>
 
       {/* Footer with Borrow Button */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E2E8F0] shadow-lg">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-[#E2E8F0] bg-white/95 shadow-lg backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <button
             onClick={handleBorrow}
             disabled={book.real_time_status !== 'available'}
-            className={`w-full py-4 px-6 rounded-xl font-semibold text-white transition-all ${
+            className={`w-full min-h-12 px-6 font-semibold text-white transition-all ${
               book.real_time_status === 'available'
                 ? 'bg-[#0077B6] hover:bg-[#005f8f] shadow-md shadow-[#0077B6]/20 hover:shadow-lg'
                 : 'bg-gray-300 cursor-not-allowed'

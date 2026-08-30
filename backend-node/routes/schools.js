@@ -17,6 +17,25 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+// @route   GET /api/schools/public
+// @desc    Get the public identity of registered schools for the landing page
+// @access  Public
+router.get('/public', async (req, res) => {
+  try {
+    const supabase = require('../config/database');
+    const { data, error } = await supabase
+      .from('schools')
+      .select('school_id, school_name, school_code, logo')
+      .order('school_name');
+
+    if (error) throw error;
+    res.json({ success: true, data: data || [] });
+  } catch (error) {
+    console.error('Error getting public schools:', error);
+    res.status(500).json({ success: false, message: 'Unable to load registered schools' });
+  }
+});
+
 // @route   GET /api/schools/:id
 // @desc    Get school by ID
 // @access  Private

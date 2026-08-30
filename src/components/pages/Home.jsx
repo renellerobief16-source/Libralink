@@ -1,296 +1,79 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FiArrowRight, FiBook, FiZap, FiRefreshCw, FiUsers, FiClock, FiShield, FiSearch, FiNavigation, FiBell, FiCheckCircle, FiStar } from "react-icons/fi";
+import { FiArrowRight, FiBookOpen, FiCheck, FiClock, FiCompass, FiMapPin, FiSearch, FiSend, FiShield, FiX } from "react-icons/fi";
 import Navigation from "./Navigation";
+import api, { getBackendAssetUrl } from "../../utils/api";
+
+const suggestions = ["Introduction to Information Systems", "Database Management Systems", "Software Engineering", "Web Development"];
+const shelfFeatures = [
+  { label: "SEARCH", title: "Smart search", description: "Search titles, authors, subjects, and ISBNs in one clear catalog.", icon: FiSearch },
+  { label: "DISCOVER", title: "Connected libraries", description: "Discover available resources beyond your home library.", icon: FiCompass },
+  { label: "BORROW", title: "Simple requests", description: "Request a title and track every step of your borrowing journey.", icon: FiBookOpen },
+  { label: "LOCATE", title: "Find the shelf", description: "See the library and shelf details before you walk in.", icon: FiMapPin },
+  { label: "UPDATE", title: "Stay informed", description: "Receive helpful updates for requests, loans, and due dates.", icon: FiClock },
+];
 
 function Home() {
-  return (
-    <div className="min-h-screen bg-white">
-      <Navigation />
-      <Hero />
-      <Stats />
-      <Features />
-      <HowItWorks />
-      <Testimonials />
-      <CTA />
-      <Footer />
-    </div>
-  );
+  return <div className="min-h-screen overflow-x-hidden bg-[#F8FAFC] text-[#0F172A]"><Navigation /><Hero /><LibraryShelf /><ConnectedLibraries /><OpenBook /><PartnerSchoolGallery /><FinalCta /><Footer /></div>;
 }
 
 function Hero() {
-  return (
-    <section className="bg-white pt-24 sm:pt-32 pb-16 sm:pb-20 px-4 sm:px-6 min-h-screen flex items-center">
-      <div className="max-w-7xl mx-auto">
-        <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
-          <div className="order-2 lg:order-1">
-            <div className="inline-block px-3 sm:px-4 py-2 bg-[#0077B6]/10 rounded-full mb-4 sm:mb-6">
-              <span className="text-[#0077B6] text-xs sm:text-sm font-semibold">✨ Smart Library Navigation</span>
-            </div>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold text-[#0F172A] mb-4 sm:mb-6 leading-tight">
-              Find Books Smarter with <span className="text-[#0077B6]">Libralink</span>
-            </h1>
-            <p className="text-base sm:text-lg text-[#64748B] mb-6 sm:mb-8 max-w-2xl">
-              Empowering students at Santa Rita College of Pampanga and Guagua National College of Pampanga with smart library navigation, real-time book search, and intelligent shelf mapping for seamless academic resource discovery.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
-              <Link
-                to="/login"
-                className="bg-[#0077B6] hover:bg-[#005f8f] text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-semibold text-base sm:text-lg transition-colors flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl"
-              >
-                <span>Get Started</span>
-                <FiArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
-              </Link>
-              <Link
-                to="/login"
-                className="border-2 border-[#0077B6] text-[#0077B6] px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-semibold text-base sm:text-lg transition-colors hover:bg-[#0077B6]/10 flex items-center justify-center"
-              >
-                <span>Student Login</span>
-              </Link>
-            </div>
-          </div>
-          <div className="order-1 lg:order-2">
-            <img 
-              src="/landing.png" 
-              alt="Libralink Library Navigation" 
-              className="w-full h-auto"
-            />
-          </div>
-        </div>
-      </div>
-    </section>
-  );
+  const [query, setQuery] = useState("");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const matchingSuggestions = suggestions.filter((title) => title.toLowerCase().includes(query.toLowerCase()));
+  return <section className="landing-hero relative isolate flex min-h-[720px] items-center overflow-hidden px-4 pb-14 pt-28 sm:px-6 sm:pb-16 sm:pt-32 lg:min-h-[780px] lg:px-8">
+    <div className="landing-hero-image absolute inset-0 -z-20" aria-hidden="true" />
+    <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(2,20,36,.90)_0%,rgba(2,20,36,.72)_45%,rgba(2,20,36,.30)_100%)]" />
+    <div className="landing-light-ray absolute -right-20 top-0 -z-10 h-full w-1/2 opacity-70" aria-hidden="true" />
+    <div className="landing-particle left-[12%] top-[22%]" /><div className="landing-particle left-[55%] top-[18%]" /><div className="landing-particle left-[83%] top-[42%]" />
+    <div className="mx-auto grid w-full max-w-7xl gap-8 sm:gap-10 lg:grid-cols-[1.05fr_.95fr] lg:items-center lg:gap-12">
+      <div className="landing-hero-content max-w-2xl text-white"><div className="mb-6 inline-flex items-center gap-2 border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium tracking-wide backdrop-blur-sm"><span className="h-1.5 w-1.5 rounded-full bg-[#7DD3FC]" />A connected library experience</div><h1 className="max-w-xl text-4xl font-semibold leading-[1.08] tracking-[-0.04em] sm:text-5xl lg:text-6xl">Your library, <span className="text-[#7DD3FC]">within reach.</span></h1><p className="mt-6 max-w-lg text-base leading-7 text-slate-200 sm:text-lg">Search, discover, and request the resources you need across your connected school libraries.</p><div className="mt-8 flex flex-col gap-3 sm:flex-row"><Link to="/login" className="inline-flex min-h-12 items-center justify-center gap-2 bg-[#0077B6] px-5 text-sm font-semibold text-white transition hover:bg-[#00669d] hover:shadow-lg hover:shadow-sky-950/30">Enter Libralink <FiArrowRight /></Link><a href="#experience" className="inline-flex min-h-12 items-center justify-center border border-white/35 px-5 text-sm font-semibold text-white transition hover:bg-white/10">Explore the experience</a></div></div>
+      <div className="landing-search-panel relative mx-auto w-full max-w-xl border border-white/20 bg-white/[.94] p-4 text-[#0F172A] shadow-2xl shadow-slate-950/30 backdrop-blur-md sm:p-5"><div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3"><div className="flex items-center gap-2 text-sm font-semibold"><FiBookOpen className="text-[#0077B6]" /> Libralink catalog</div><span className="text-xs text-slate-500">All connected libraries</span></div><label className={`flex min-h-14 items-center gap-3 border bg-white px-4 transition ${isSearchFocused ? "border-[#0077B6] ring-4 ring-[#0077B6]/10" : "border-slate-200"}`}><FiSearch className="shrink-0 text-lg text-[#0077B6]" /><input value={query} onChange={(event) => setQuery(event.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setTimeout(() => setIsSearchFocused(false), 150)} placeholder="Search books, authors, or ISBN..." className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400" aria-label="Search the catalog" />{query && <button type="button" onClick={() => setQuery("")} className="p-1 text-slate-400 hover:text-slate-700" aria-label="Clear search"><FiX /></button>}</label><div className={`overflow-hidden transition-all duration-200 ${isSearchFocused ? "mt-3 max-h-80 opacity-100" : "max-h-0 opacity-0"}`}><p className="mb-2 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-400">Suggested titles</p><div className="space-y-1">{(matchingSuggestions.length ? matchingSuggestions : suggestions).map((title, index) => <button key={title} type="button" className="flex w-full items-center gap-3 px-2 py-2.5 text-left transition hover:bg-slate-50"><span className={`flex h-8 w-6 items-center justify-center text-[10px] font-bold text-white ${index % 2 ? "bg-[#388697]" : "bg-[#0077B6]"}`}>BK</span><span className="flex-1 truncate text-sm font-medium">{title}</span><span className="text-xs text-[#16A34A]">Available</span></button>)}</div></div>{!isSearchFocused && <p className="mt-3 text-xs leading-5 text-slate-500">Start with a title, author, subject, or ISBN. We’ll help you find the best available copy.</p>}</div>
+    </div>
+  </section>;
 }
 
-function Stats() {
-  const stats = [
-    { icon: FiBook, value: '2,230+', label: 'Books Available', color: 'bg-[#0077B6]' },
-    { icon: FiUsers, value: '6,000+', label: 'Active Students', color: 'bg-[#005f8f]' },
-    { icon: FiClock, value: '24/7', label: 'Real-time Updates', color: 'bg-[#0077B6]' },
-    { icon: FiShield, value: '100%', label: 'Secure Access', color: 'bg-[#005f8f]' }
-  ];
+function LibraryShelf() { return <section id="experience" className="bg-white px-4 py-20 sm:px-6 lg:px-8 lg:py-28"><div className="mx-auto max-w-7xl"><div className="max-w-2xl"><p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0077B6]">Designed around your library day</p><h2 className="mt-3 text-3xl font-semibold tracking-[-.03em] sm:text-4xl">Everything connects in one place.</h2><p className="mt-4 leading-7 text-[#64748B]">A focused, simple system for students and library teams—without the clutter.</p></div><div className="mt-12 border-b-8 border-[#5A3A26] bg-[#E8D8C7] px-4 pt-8 sm:px-8"><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 lg:gap-4">{shelfFeatures.map((feature, index) => <FeatureBook key={feature.label} feature={feature} index={index} />)}</div></div></div></section>; }
+function FeatureBook({ feature, index }) { const Icon = feature.icon; const colors = ["bg-[#0077B6]", "bg-[#023E8A]", "bg-[#388697]", "bg-[#14532D]", "bg-[#475569]"]; return <article className={`group relative min-h-56 ${colors[index]} p-4 text-white transition duration-200 hover:-translate-y-3 hover:shadow-xl sm:min-h-64`}><div className="flex justify-between text-[10px] font-semibold tracking-[.18em] text-white/65"><span>LIBRALINK</span><span>0{index + 1}</span></div><div className="mt-8"><Icon className="text-xl text-white/80" /><p className="mt-8 text-xs font-semibold tracking-[.16em] text-white/80">{feature.label}</p><h3 className="mt-2 text-xl font-semibold">{feature.title}</h3></div><p className="absolute bottom-4 left-4 right-4 text-xs leading-5 text-white/80 opacity-0 transition duration-200 group-hover:opacity-100">{feature.description}</p></article>; }
+function ConnectedLibraries() { return <section className="bg-[#F8FAFC] px-4 py-20 sm:px-6 lg:px-8 lg:py-28"><div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-2 lg:items-center"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0077B6]">One search, wider access</p><h2 className="mt-3 text-3xl font-semibold tracking-[-.03em] sm:text-4xl">Find the book, even when it isn’t nearby.</h2><p className="mt-5 max-w-xl leading-7 text-[#64748B]">When a title is unavailable in your own library, Libralink helps you discover copies from connected participating libraries and submit a request with confidence.</p><ul className="mt-8 space-y-4">{["Search your local catalog first", "See availability from connected libraries", "Send a borrowing request and receive updates"].map((item) => <li key={item} className="flex items-center gap-3 text-sm font-medium"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#E0F2FE] text-[#0077B6]"><FiCheck /></span>{item}</li>)}</ul></div><div className="relative border border-slate-200 bg-white p-5 shadow-sm sm:p-7"><div className="flex items-center justify-between border-b border-slate-100 pb-4"><div><p className="text-xs text-slate-500">Searching for</p><p className="mt-1 font-semibold">Database Management Systems</p></div><FiSearch className="text-[#0077B6]" /></div><p className="mt-6 text-xs font-semibold uppercase tracking-[.14em] text-slate-400">Available in connected libraries</p><div className="relative mt-5 space-y-3 before:absolute before:bottom-8 before:left-5 before:top-8 before:w-px before:bg-[#BDE3F6]">{["Your home library", "Connected library", "Selected library"].map((library, index) => <div className="relative z-10 flex items-center gap-3" key={library}><span className={`flex h-10 w-10 items-center justify-center rounded-full border-4 border-white ${index === 2 ? "bg-[#0077B6] text-white" : "bg-[#E0F2FE] text-[#0077B6]"}`}><FiMapPin /></span><div className="flex-1 border border-slate-100 px-3 py-2.5"><p className="text-sm font-semibold">{library}</p><p className="text-xs text-[#16A34A]">Copy available</p></div></div>)}</div><button type="button" className="mt-6 inline-flex w-full items-center justify-center gap-2 bg-[#0077B6] py-3 text-sm font-semibold text-white">Request this book <FiSend /></button></div></div></section>; }
+function OpenBook() { return <section className="bg-white px-4 py-20 sm:px-6 lg:px-8 lg:py-28"><div className="mx-auto max-w-6xl"><div className="overflow-hidden border border-slate-200 bg-[#FEFDFB] shadow-sm lg:grid lg:grid-cols-2"><div className="border-b border-slate-200 p-8 sm:p-12 lg:border-b-0 lg:border-r"><p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0077B6]">Discover</p><h2 className="mt-4 text-3xl font-semibold tracking-[-.03em]">The resources that move your learning forward.</h2><p className="mt-5 leading-7 text-[#64748B]">Search a familiar catalog and keep the titles that matter close.</p></div><div className="p-8 sm:p-12"><p className="text-xs font-semibold uppercase tracking-[.16em] text-[#388697]">Borrow</p><h2 className="mt-4 text-3xl font-semibold tracking-[-.03em]">Requests without the guesswork.</h2><p className="mt-5 leading-7 text-[#64748B]">Know what happens next, from request submission to library approval.</p><Link to="/login" className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-[#0077B6]">Get started <FiArrowRight /></Link></div></div></div></section>; }
+function FinalCta() { return <section className="relative overflow-hidden bg-[#023E8A] px-4 py-20 text-white sm:px-6 lg:px-8 lg:py-28"><div className="absolute inset-0 opacity-20 [background:radial-gradient(circle_at_80%_25%,#7DD3FC,transparent_22%),radial-gradient(circle_at_20%_90%,#388697,transparent_28%)]" /><div className="relative mx-auto max-w-3xl text-center"><p className="text-xs font-semibold uppercase tracking-[.16em] text-[#7DD3FC]">Libralink</p><h2 className="mt-4 text-4xl font-semibold tracking-[-.04em] sm:text-5xl">Your next book is waiting.</h2><p className="mx-auto mt-5 max-w-xl leading-7 text-slate-200">Discover a smarter way to search, explore, and borrow library resources.</p><div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row"><Link to="/login" className="inline-flex min-h-12 items-center justify-center gap-2 bg-white px-5 text-sm font-semibold text-[#023E8A] transition hover:bg-sky-50">Get started <FiArrowRight /></Link><Link to="/about" className="inline-flex min-h-12 items-center justify-center border border-white/35 px-5 text-sm font-semibold text-white transition hover:bg-white/10">Explore Libralink</Link></div></div></section>; }
+function Footer() { return <footer className="bg-white px-4 py-8 text-center text-xs text-[#64748B] sm:px-6"><div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 sm:flex-row"><div className="flex items-center gap-2 font-semibold text-[#0F172A]"><img src="/L.png" className="h-7 w-7 object-contain" alt="" /> Libralink</div><p>© 2026 Libralink. A smarter library connection.</p><div className="flex items-center gap-3"><FiShield className="text-[#0077B6]" /> Secure access for connected libraries</div></div></footer>; }
+function PartnerSchoolGallery() {
+  const [schools, setSchools] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  return (
-    <section className="py-16 sm:py-20 px-4 sm:px-6 bg-white">
-      <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
-          {stats.map((stat, i) => (
-            <div key={i} className="text-center">
-              <div className={`w-16 h-16 sm:w-20 sm:h-20 ${stat.color} rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg`}>
-                <stat.icon className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
-              </div>
-              <div className="text-2xl sm:text-3xl lg:text-4xl font-bold text-[#0F172A] mb-2">{stat.value}</div>
-              <div className="text-sm sm:text-base text-[#64748B]">{stat.label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Features() {
-  const features = [
-    { icon: FiSearch, title: 'Smart Book Search', description: 'Find books instantly by title, author, subject, or ISBN with AI-powered search capabilities.' },
-    { icon: FiBook, title: 'Interactive Library Map', description: 'Locate shelves and books using a real-time digital floor map with step-by-step directions.' },
-    { icon: FiNavigation, title: 'Intelligent Navigation', description: 'Receive intelligent routing to the exact shelf location with real-time updates and notifications.' },
-    { icon: FiBell, title: 'Real-time Notifications', description: 'Get instant alerts for book availability, due dates, and request updates.' },
-    { icon: FiCheckCircle, title: 'Easy Borrowing', description: 'Streamlined borrowing process with digital requests and QR code pickup.' },
-    { icon: FiStar, title: 'Favorites & History', description: 'Save your favorite books and track your complete borrowing history.' }
-  ]
-
-  return (
-    <section className="py-16 sm:py-20 px-4 sm:px-6 bg-white">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-12 sm:mb-16">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#0F172A] mb-4">Powerful Features</h2>
-          <p className="text-base sm:text-lg text-[#64748B] max-w-2xl mx-auto">
-            Everything you need for a seamless library experience
-          </p>
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-          {features.map((f, i) => (
-            <div
-              key={i}
-              className="bg-[#F7FAFC] rounded-2xl p-6 sm:p-8 shadow-sm border border-[#E2E8F0] hover:shadow-lg hover:border-[#0077B6]/30 transition-all"
-            >
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#0077B6]/10 rounded-xl flex items-center justify-center mb-4">
-                <f.icon className="w-6 h-6 sm:w-7 sm:h-7 text-[#0077B6]" />
-              </div>
-              <h3 className="text-lg sm:text-xl font-semibold text-[#0F172A] mb-3">{f.title}</h3>
-              <p className="text-sm sm:text-base text-[#64748B] leading-relaxed">{f.description}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function HowItWorks() {
-  const steps = [
-    { icon: FiSearch, title: 'Search Books', description: 'Search for books by title, author, ISBN, or subject across both libraries.' },
-    { icon: FiBook, title: 'Locate Shelf', description: 'View the exact shelf location using our interactive library map.' },
-    { icon: FiCheckCircle, title: 'Borrow Easily', description: 'Submit a digital request and pick up your book with QR code.' }
-  ];
-
-  return (
-    <section className="py-16 sm:py-20 px-4 sm:px-6 bg-white">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-12 sm:mb-16">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#0F172A] mb-4">How It Works</h2>
-          <p className="text-base sm:text-lg text-[#64748B] max-w-2xl mx-auto">
-            Get started with Libralink in three simple steps
-          </p>
-        </div>
-        <div className="grid md:grid-cols-3 gap-8 sm:gap-12">
-          {steps.map((step, i) => (
-            <div key={i} className="text-center relative">
-              <div className="relative inline-block mb-6">
-                <div className="w-20 h-20 sm:w-24 sm:h-24 bg-[#0077B6]/10 rounded-full flex items-center justify-center mx-auto">
-                  <step.icon className="w-10 h-10 sm:w-12 sm:h-12 text-[#0077B6]" />
-                </div>
-                <div className="absolute -top-2 -right-2 w-8 h-8 bg-[#0077B6] rounded-full flex items-center justify-center text-white font-bold text-sm">
-                  {i + 1}
-                </div>
-              </div>
-              <h3 className="text-xl sm:text-2xl font-semibold text-[#0F172A] mb-3">{step.title}</h3>
-              <p className="text-sm sm:text-base text-[#64748B]">{step.description}</p>
-              {i < steps.length - 1 && (
-                <div className="hidden md:block absolute top-10 left-[60%] w-[80%] border-t-2 border-dashed border-[#E2E8F0]"></div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Testimonials() {
-  const testimonials = [
-    {
-      name: 'Maria Santos',
-      role: 'Student, Santa Rita College',
-      content: 'Libralink has completely transformed how I find books in the library. The interactive map saves me so much time!',
-      rating: 5
-    },
-    {
-      name: 'John Reyes',
-      role: 'Student, Guagua National College',
-      content: 'The real-time availability feature is amazing. I can check if a book is available before even going to the library.',
-      rating: 5
-    },
-    {
-      name: 'Ana Cruz',
-      role: 'Librarian, SRC',
-      content: 'Managing the library has never been easier. Students can find books on their own, reducing our workload significantly.',
-      rating: 5
+  const loadSchools = async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const response = await api.get('/schools/public');
+      setSchools(response?.data || []);
+    } catch (requestError) {
+      console.error('Unable to load registered school gallery:', requestError);
+      setError(true);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
-  return (
-    <section className="py-16 sm:py-20 px-4 sm:px-6 bg-white">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-12 sm:mb-16">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#0F172A] mb-4">What Users Say</h2>
-          <p className="text-base sm:text-lg text-[#64748B] max-w-2xl mx-auto">
-            Trusted by students and librarians across both institutions
-          </p>
-        </div>
-        <div className="grid md:grid-cols-3 gap-6 sm:gap-8">
-          {testimonials.map((t, i) => (
-            <div key={i} className="bg-[#F7FAFC] rounded-2xl p-6 sm:p-8 shadow-sm border border-[#E2E8F0]">
-              <div className="flex gap-1 mb-4">
-                {[...Array(t.rating)].map((_, j) => (
-                  <FiStar key={j} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-                ))}
-              </div>
-              <p className="text-sm sm:text-base text-[#64748B] mb-6 leading-relaxed">"{t.content}"</p>
-              <div>
-                <div className="font-semibold text-[#0F172A]">{t.name}</div>
-                <div className="text-sm text-[#64748B]">{t.role}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
+  useEffect(() => {
+    loadSchools();
+  }, []);
+
+  if (!loading && !error && !schools.length) return null;
+  const carouselSchools = [...schools, ...schools];
+
+  return <section className="overflow-hidden border-y border-slate-200 bg-white py-10 sm:py-12" aria-labelledby="registered-schools-title"><div className="mx-auto mb-7 max-w-7xl px-4 text-center sm:px-6"><p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0077B6]">Partner schools</p><h2 id="registered-schools-title" className="mt-2 text-xl font-semibold tracking-[-.02em] text-[#0F172A] sm:text-2xl">Libraries connected with Libralink</h2></div>{loading ? <div className="mx-auto h-20 max-w-7xl animate-pulse bg-slate-100" aria-label="Loading registered schools" /> : error ? <div className="mx-auto max-w-xl px-4 text-center"><p className="text-sm text-[#64748B]">We couldn’t load the registered schools right now.</p><button type="button" onClick={loadSchools} className="mt-3 text-sm font-semibold text-[#0077B6]">Try again</button></div> : <div className="school-logo-marquee" aria-label="Registered schools"><div className="school-logo-track">{carouselSchools.map((school, index) => <SchoolLogo key={`${school.school_id}-${index}`} school={school} />)}</div></div>}</section>;
 }
 
-function CTA() {
-  return (
-    <section className="py-16 sm:py-20 px-4 sm:px-6 bg-white">
-      <div className="max-w-4xl mx-auto text-center">
-        <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#0F172A] mb-4">
-          Ready to Transform Your Library Experience?
-        </h2>
-        <p className="text-base sm:text-lg text-[#64748B] mb-8 max-w-2xl mx-auto">
-          Join thousands of students and librarians who are already navigating smarter with Libralink.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link
-            to="/login"
-            className="bg-[#0077B6] hover:bg-[#005f8f] text-white px-8 py-4 rounded-xl font-semibold text-lg transition-colors shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
-          >
-            <span>Get Started Free</span>
-            <FiArrowRight className="w-5 h-5" />
-          </Link>
-          <Link
-            to="/about"
-            className="border-2 border-[#0077B6] text-[#0077B6] px-8 py-4 rounded-xl font-semibold text-lg transition-colors hover:bg-[#0077B6]/10 flex items-center justify-center"
-          >
-            <span>Learn More</span>
-          </Link>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Footer() {
-  return (
-    <footer className="bg-white border-t border-[#E2E8F0] py-12 sm:py-16 px-4 sm:px-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 sm:gap-12 mb-8 sm:mb-12">
-          <div>
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="w-10 h-10 bg-[#0077B6] rounded-xl flex items-center justify-center">
-                <FiBook className="text-white" />
-              </div>
-              <span className="text-xl font-bold text-[#0F172A]">Libralink</span>
-            </div>
-            <p className="text-[#64748B] text-sm leading-relaxed">Smart Library Navigation System for modern institutions. Empowering students with seamless book discovery.</p>
-          </div>
-          <div>
-            <h4 className="font-semibold text-[#0F172A] mb-4 text-sm">Product</h4>
-            <ul className="space-y-3 text-sm text-[#64748B]">
-              <li><Link to="/about" className="hover:text-[#0077B6] transition-colors">Features</Link></li>
-              <li><Link to="/library" className="hover:text-[#0077B6] transition-colors">Library</Link></li>
-              <li><Link to="/contact" className="hover:text-[#0077B6] transition-colors">Contact</Link></li>
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold text-[#0F172A] mb-4 text-sm">Institutions</h4>
-            <ul className="space-y-3 text-sm text-[#64748B]">
-              <li><span className="hover:text-[#0077B6] transition-colors cursor-pointer">Santa Rita College</span></li>
-              <li><span className="hover:text-[#0077B6] transition-colors cursor-pointer">Guagua National College</span></li>
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold text-[#0F172A] mb-4 text-sm">Contact</h4>
-            <ul className="space-y-3 text-sm text-[#64748B]">
-              <li><span className="hover:text-[#0077B6] transition-colors cursor-pointer">support@libralink.edu</span></li>
-              <li><span className="hover:text-[#0077B6] transition-colors cursor-pointer">+63 (0) 123-456-7890</span></li>
-            </ul>
-          </div>
-        </div>
-        <div className="border-t border-[#E2E8F0] pt-8 text-center text-sm text-[#64748B]">
-          <p>&copy; 2026 Libralink. All rights reserved. | Santa Rita College of Pampanga & Guagua National College of Pampanga</p>
-        </div>
-      </div>
-    </footer>
-  );
+function SchoolLogo({ school }) {
+  const [failed, setFailed] = useState(false);
+  const name = school.school_name || 'Registered school';
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+  const logo = school.logo ? getBackendAssetUrl(school.logo) : '';
+  return <div className="school-logo-item" title={name}><span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white p-1 sm:h-16 sm:w-16">{logo && !failed ? <img src={logo} alt={`${name} logo`} className="h-full w-full rounded-full object-contain" onError={() => setFailed(true)} /> : <span className="flex h-full w-full items-center justify-center rounded-full bg-[#E0F2FE] text-xs font-bold text-[#0077B6]">{initials}</span>}</span><span className="max-w-32 truncate text-sm font-medium text-slate-600">{name}</span></div>;
 }
 
 export default Home;

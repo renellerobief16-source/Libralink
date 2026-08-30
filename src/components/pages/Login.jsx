@@ -164,19 +164,20 @@ function Login() {
   };
 
   return (
-    <div className="flex min-h-screen">
+    <div className="min-h-[100dvh] bg-[#F8FAFC] lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(480px,0.9fr)]">
       {/* LEFT — brand panel */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-[#0077B6] to-[#0096C7] text-white p-8 lg:p-16 flex-col justify-center">
-        <div className="flex items-center gap-3 mb-8">
+      <div className="relative hidden overflow-hidden bg-[#023E8A] p-10 text-white lg:flex lg:flex-col lg:justify-center xl:p-16">
+        <div className="absolute inset-0 opacity-20 [background:radial-gradient(circle_at_75%_20%,#7DD3FC,transparent_28%),radial-gradient(circle_at_15%_85%,#388697,transparent_32%)]" />
+        <div className="relative flex items-center gap-3 mb-8">
           <img src="/L.png" alt="Libralink Logo" className="w-12 h-12 object-cover" />
           <span className="text-xl font-bold tracking-wide">Libralink</span>
         </div>
-        <h1 className="text-3xl lg:text-4xl font-bold mb-4">Welcome back to the library.</h1>
-        <p className="text-lg text-white/90 mb-8">Sign in to access your account and manage your books.</p>
-        <div className="mb-8">
-          <img src="/student.png" alt="Student" className="w-full max-w-md mx-auto rounded-2xl object-cover" />
+        <h1 className="relative text-3xl lg:text-4xl font-semibold tracking-[-0.03em] mb-4">Welcome back to the library.</h1>
+        <p className="relative text-base leading-7 text-white/80 mb-8">Sign in to access your account and manage your books.</p>
+        <div className="relative mb-8">
+          <img src="/student.png" alt="Student studying in the library" className="w-full max-w-md mx-auto object-cover" />
         </div>
-        <ul className="space-y-4">
+        <ul className="relative space-y-4">
           <li className="flex items-start gap-3 text-white/90 text-base">
             <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
               <FiCheck className="w-4 h-4" />
@@ -199,15 +200,15 @@ function Login() {
       </div>
 
       {/* RIGHT — form panel */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 lg:p-12 bg-[#F8FAFC]">
+      <div className="flex min-h-[100dvh] items-center justify-center px-4 py-7 sm:p-8 lg:p-12">
         <div className="w-full max-w-md">
-          <Link to="/" className="inline-flex items-center gap-2 text-[#64748B] hover:text-[#0077B6] transition-colors mb-8 text-sm font-medium">
+          <Link to="/" className="mb-6 inline-flex min-h-11 items-center gap-2 text-[#64748B] hover:text-[#0077B6] transition-colors text-sm font-medium sm:mb-8">
             <FiArrowLeft className="w-4 h-4" />
             Back to Home
           </Link>
           
-          <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-[#E2E8F0]">
-            <div className="flex items-center gap-3 mb-8">
+          <div className="border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-8">
+            <div className="flex items-center gap-3 mb-7 sm:mb-8">
               <img src="/L.png" alt="Libralink Logo" className="w-12 h-12 object-cover" />
               <div>
                 <span className="text-xl font-bold text-[#0F172A]">Libralink</span>
@@ -215,7 +216,7 @@ function Login() {
               </div>
             </div>
             
-            <h2 className="text-2xl font-bold text-[#0F172A] mb-2">Sign in</h2>
+            <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A] mb-2">Sign in</h2>
             <p className="text-sm text-[#64748B] mb-6">Enter your details to access your account.</p>
             
             {error && (
@@ -227,7 +228,7 @@ function Login() {
             <form onSubmit={handleSubmit} noValidate className="space-y-5">
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-[#0F172A] mb-2">Email address</label>
-                <div className="flex items-center gap-3 border border-[#E2E8F0] rounded-xl p-3 focus-within:border-[#0077B6] focus-within:ring-2 focus-within:ring-[#0077B6]/20 transition-all bg-[#F8FAFC]">
+                <div className="flex min-h-12 items-center gap-3 border border-[#E2E8F0] px-3 focus-within:border-[#0077B6] focus-within:ring-2 focus-within:ring-[#0077B6]/20 transition-all bg-[#F8FAFC]">
                   <FiMail className="w-5 h-5 text-[#64748B]" />
                   <input
                     id="email"
@@ -238,13 +239,13 @@ function Login() {
                     onChange={handleChange}
                     autoComplete="email"
                     required
-                    className="flex-1 outline-none text-[#0F172A] placeholder-[#94A3B8] text-sm bg-transparent"
+                    className="min-w-0 flex-1 outline-none text-[#0F172A] placeholder-[#94A3B8] text-base sm:text-sm bg-transparent"
                   />
                 </div>
               </div>
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-[#0F172A] mb-2">Password</label>
-                <div className="flex items-center gap-3 border border-[#E2E8F0] rounded-xl p-3 focus-within:border-[#0077B6] focus-within:ring-2 focus-within:ring-[#0077B6]/20 transition-all bg-[#F8FAFC]">
+                <div className="flex min-h-12 items-center gap-3 border border-[#E2E8F0] px-3 focus-within:border-[#0077B6] focus-within:ring-2 focus-within:ring-[#0077B6]/20 transition-all bg-[#F8FAFC]">
                   <FiLock className="w-5 h-5 text-[#64748B]" />
                   <input
                     id="password"
@@ -255,7 +256,7 @@ function Login() {
                     onChange={handleChange}
                     autoComplete="current-password"
                     required
-                    className="flex-1 outline-none text-[#0F172A] placeholder-[#94A3B8] text-sm bg-transparent"
+                    className="min-w-0 flex-1 outline-none text-[#0F172A] placeholder-[#94A3B8] text-base sm:text-sm bg-transparent"
                   />
                 </div>
               </div>
@@ -265,7 +266,7 @@ function Login() {
               <button 
                 type="submit" 
                 disabled={loading}
-                className="w-full bg-[#0077B6] hover:bg-[#005f8f] disabled:bg-[#94A3B8] text-white py-3 rounded-xl font-semibold transition-all shadow-md shadow-[#0077B6]/20 hover:shadow-lg text-sm"
+                className="min-h-12 w-full bg-[#0077B6] hover:bg-[#005f8f] disabled:bg-[#94A3B8] text-white py-3 font-semibold transition-all shadow-sm hover:shadow-md text-sm"
               >
                 {loading ? 'Signing in...' : 'Sign in'}
               </button>

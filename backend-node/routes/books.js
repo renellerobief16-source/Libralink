@@ -21,17 +21,20 @@ router.get('/count', auth, async (req, res) => {
 });
 
 // @route   GET /api/books
-// @desc    Get all books (limited for public access)
+// @desc    Get a paginated public catalog page. Clients can use total to load
+//          the complete catalog without relying on a hidden default limit.
 // @access  Public
 router.get('/', async (req, res) => {
   try {
     console.log('[PUBLIC BOOKS] Route hit');
-    const limit = parseInt(req.query.limit) || 100;
-    const offset = parseInt(req.query.offset) || 0;
+    const requestedLimit = parseInt(req.query.limit, 10) || 100;
+    const limit = Math.min(Math.max(requestedLimit, 1), 500);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const searchTerm = String(req.query.q || '').trim().replace(/[(),]/g, ' ');
     
     console.log('[PUBLIC BOOKS] Fetching with limit:', limit, 'offset:', offset);
     
-    const { data, error } = await supabase
+    let query = supabase
       .from('books')
       .select(`
         book_id,
@@ -39,13 +42,25 @@ router.get('/', async (req, res) => {
         author,
         isbn,
         shelf_location,
+        call_number,
         school_id,
-        genre,
         schools(school_name, school_code),
         categories(category_name)
-      `)
-      .order('title')
-      .range(offset, offset + limit - 1);
+      `, { count: 'exact' })
+      .order('title');
+
+    if (searchTerm) {
+      const searchPattern = `%${searchTerm.replace(/[%_]/g, '')}%`;
+      query = query.or([
+        `title.ilike.${searchPattern}`,
+        `author.ilike.${searchPattern}`,
+        `isbn.ilike.${searchPattern}`,
+        `call_number.ilike.${searchPattern}`,
+        `shelf_location.ilike.${searchPattern}`,
+      ].join(','));
+    }
+
+    const { data, error, count } = await query.range(offset, offset + limit - 1);
     
     if (error) {
       console.error('[PUBLIC BOOKS] Supabase error:', error);
@@ -53,7 +68,16 @@ router.get('/', async (req, res) => {
     }
     
     console.log('[PUBLIC BOOKS] Books fetched:', data?.length || 0);
-    res.json({ success: true, data: data || [] });
+    res.json({
+      success: true,
+      data: data || [],
+      pagination: {
+        total: count || 0,
+        limit,
+        offset,
+        has_more: offset + (data?.length || 0) < (count || 0),
+      },
+    });
   } catch (error) {
     console.error('[PUBLIC BOOKS] Error getting books:', error);
     console.error('[PUBLIC BOOKS] Error stack:', error.stack);

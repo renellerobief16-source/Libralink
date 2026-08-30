@@ -1,131 +1,20 @@
-import { FiBook, FiUsers, FiTarget, FiAward, FiMail, FiArrowRight } from "react-icons/fi";
+import { FiArrowRight, FiBookOpen, FiCompass, FiMail, FiUsers } from "react-icons/fi";
 import Navigation from "./Navigation";
 
+const values = [
+  { icon: FiBookOpen, title: "Access first", text: "Library resources should be simple to discover, regardless of a visitor’s technical experience." },
+  { icon: FiUsers, title: "Built together", text: "We shape Libralink around the daily needs of students, librarians, and institutions." },
+  { icon: FiCompass, title: "Purposeful technology", text: "Every feature should make finding, borrowing, and managing resources feel easier." },
+];
+
 function About() {
-  return (
-    <div className="min-h-screen bg-[#F8FAFC]">
-      <Navigation />
-      
-      {/* Header Section */}
-      <div className="pt-28 pb-12 px-4 sm:px-6 bg-white">
-        <div className="max-w-7xl mx-auto text-center">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-[#0F172A] mb-4">About Libralink</h1>
-          <p className="text-lg sm:text-xl text-[#64748B] max-w-2xl mx-auto">
-            Empowering libraries with intelligent navigation solutions since 2024
-          </p>
-        </div>
-      </div>
-
-      {/* Mission Section */}
-      <section className="py-12 px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center mb-16">
-            <div>
-              <h2 className="text-3xl font-bold text-[#0F172A] mb-6">Our Mission</h2>
-              <p className="text-base text-[#64748B] mb-4 leading-relaxed">
-                Libralink was founded with a simple yet powerful vision: to make every library book easily discoverable and accessible to everyone.
-              </p>
-              <p className="text-base text-[#64748B] mb-4 leading-relaxed">
-                We believe that knowledge should never be hidden behind complex cataloging systems or confusing shelf layouts. Our smart navigation system bridges the gap between digital catalogs and physical library spaces.
-              </p>
-              <p className="text-base text-[#64748B] leading-relaxed">
-                By combining cutting-edge technology with user-centered design, we're transforming how students, researchers, and library visitors interact with library collections.
-              </p>
-            </div>
-            <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-[#E2E8F0]">
-              <div className="space-y-6">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-[#0077B6]/10 to-[#0096C7]/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <FiTarget className="text-[#0077B6] text-xl" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-[#0F172A] mb-2">Our Vision</h3>
-                    <p className="text-sm text-[#64748B] leading-relaxed">To create a world where every library book is just a few clicks away from being found.</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-[#0077B6]/10 to-[#0096C7]/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <FiUsers className="text-[#0077B6] text-xl" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-[#0F172A] mb-2">Our Community</h3>
-                    <p className="text-sm text-[#64748B] leading-relaxed">Serving over 50 libraries and 100,000+ students across the nation.</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-[#0077B6]/10 to-[#0096C7]/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <FiAward className="text-[#0077B6] text-xl" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-[#0F172A] mb-2">Our Achievement</h3>
-                    <p className="text-sm text-[#64748B] leading-relaxed">Award-winning library technology recognized by the Library Innovation Awards 2025.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-[#0F172A] mb-4">Our Values</h2>
-            <p className="text-base text-[#64748B] max-w-2xl mx-auto">
-              The principles that guide everything we do
-            </p>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              {
-                icon: FiBook,
-                title: "Accessibility First",
-                description: "We believe library resources should be accessible to everyone, regardless of technical expertise."
-              },
-              {
-                icon: FiUsers,
-                title: "Community Driven",
-                description: "Our solutions are built with feedback from librarians, students, and researchers."
-              },
-              {
-                icon: FiTarget,
-                title: "Innovation Focused",
-                description: "We continuously push the boundaries of what's possible in library technology."
-              }
-            ].map((value, i) => (
-              <div
-                key={i}
-                className="bg-white rounded-xl p-6 border border-[#E2E8F0] shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div className="w-12 h-12 bg-gradient-to-br from-[#0077B6]/10 to-[#0096C7]/10 rounded-xl flex items-center justify-center mb-4">
-                  <value.icon className="w-6 h-6 text-[#0077B6]" />
-                </div>
-                <h3 className="text-lg font-semibold text-[#0F172A] mb-3">{value.title}</h3>
-                <p className="text-sm text-[#64748B] leading-relaxed">{value.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-12 px-4 sm:px-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-gradient-to-br from-[#0077B6] to-[#0096C7] rounded-2xl p-8 sm:p-12 shadow-lg">
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">Join Our Journey</h2>
-            <p className="text-lg text-white/90 mb-8">
-              We're always looking for libraries and institutions to partner with us in revolutionizing library navigation.
-            </p>
-            <a
-              href="mailto:contact@libralink.com"
-              className="inline-flex items-center gap-2 bg-white text-[#0077B6] px-8 py-3 rounded-xl font-semibold text-base transition-all hover:shadow-lg"
-            >
-              <FiMail className="w-5 h-5" />
-              <span>Partner With Us</span>
-              <FiArrowRight className="w-5 h-5" />
-            </a>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
+  return <div className="min-h-screen bg-[#F8FAFC]"><Navigation />
+    <main>
+      <section className="relative overflow-hidden bg-white px-4 pb-16 pt-32 sm:px-6 lg:px-8 lg:pb-24"><div className="absolute right-0 top-0 h-full w-1/2 opacity-[.06] [background:repeating-linear-gradient(90deg,#0077B6_0,#0077B6_18px,transparent_18px,transparent_28px)]" /><div className="relative mx-auto max-w-7xl"><p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0077B6]">About Libralink</p><div className="mt-4 grid gap-8 lg:grid-cols-[1.1fr_.9fr] lg:items-end"><h1 className="max-w-3xl text-4xl font-semibold tracking-[-.04em] text-[#0F172A] sm:text-5xl">A simpler connection between people and knowledge.</h1><p className="max-w-xl leading-7 text-[#64748B]">Libralink brings library discovery, borrowing, and connected-school access into one focused experience.</p></div></div></section>
+      <section className="px-4 py-16 sm:px-6 lg:px-8 lg:py-24"><div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[1fr_.85fr] lg:items-center"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0077B6]">Our purpose</p><h2 className="mt-3 text-3xl font-semibold tracking-[-.03em] sm:text-4xl">Make every shelf feel accessible.</h2><div className="mt-6 max-w-2xl space-y-4 leading-7 text-[#64748B]"><p>Knowledge should not be hidden behind difficult catalogs or unfamiliar shelf systems. Libralink bridges the gap between digital search and the resources waiting in a real library.</p><p>By helping students discover titles and giving library teams a clearer workflow, the platform makes every library visit more useful.</p></div></div><aside className="border-l-4 border-[#0077B6] bg-white p-6 shadow-sm sm:p-8"><p className="text-xs font-semibold uppercase tracking-[.14em] text-[#0077B6]">Our promise</p><p className="mt-4 text-2xl font-semibold leading-9 tracking-[-.02em] text-[#0F172A]">A calm, reliable path from “Where is this book?” to “I found it.”</p></aside></div></section>
+      <section className="bg-white px-4 py-16 sm:px-6 lg:px-8 lg:py-24"><div className="mx-auto max-w-7xl"><div className="max-w-2xl"><p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0077B6]">What guides us</p><h2 className="mt-3 text-3xl font-semibold tracking-[-.03em] sm:text-4xl">Designed for people who use libraries every day.</h2></div><div className="mt-10 grid gap-px overflow-hidden border border-slate-200 bg-slate-200 md:grid-cols-3">{values.map(({ icon: Icon, title, text }) => <article key={title} className="bg-white p-6 sm:p-8"><Icon className="text-2xl text-[#0077B6]" /><h3 className="mt-8 text-xl font-semibold">{title}</h3><p className="mt-3 text-sm leading-6 text-[#64748B]">{text}</p></article>)}</div></div></section>
+      <section className="bg-[#023E8A] px-4 py-16 text-white sm:px-6 lg:px-8"><div className="mx-auto flex max-w-7xl flex-col gap-6 md:flex-row md:items-end md:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-[#7DD3FC]">Build a better library experience</p><h2 className="mt-3 text-3xl font-semibold tracking-[-.03em]">Let’s connect your library.</h2></div><a href="mailto:contact@libralink.com" className="inline-flex min-h-12 items-center justify-center gap-2 bg-white px-5 text-sm font-semibold text-[#023E8A] transition hover:bg-sky-50"><FiMail /> Contact our team <FiArrowRight /></a></div></section>
+    </main>
+  </div>;
 }
-
 export default About;

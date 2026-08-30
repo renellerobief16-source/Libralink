@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { FiBook, FiSearch, FiMapPin, FiStar } from "react-icons/fi";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { FiBook, FiSearch, FiMapPin, FiStar, FiX } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
 import Navigation from "./Navigation";
 import axios from "axios";
 import { API_BASE_URL } from "../../utils/api";
@@ -14,6 +14,9 @@ function Library() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState("All");
+  const [pagination, setPagination] = useState({ total: 0, offset: 0, hasMore: false });
+  const [loadingMore, setLoadingMore] = useState(false);
+  const searchTimerRef = useRef(null);
 
   useEffect(() => {
     const currentUser = localStorage.getItem('currentUser');
@@ -21,48 +24,60 @@ function Library() {
     
     setIsAuthenticated(!!currentUser && !!schoolId);
     
-    // Load all books from the books table (public endpoint)
     loadBooks();
+    return () => window.clearTimeout(searchTimerRef.current);
   }, []);
 
-  const loadBooks = async () => {
+  const loadBooks = async ({ query = "", offset = 0, append = false } = {}) => {
     try {
-      setLoading(true);
-      console.log('Loading books from:', `${API_BASE_URL}/books`);
-      // Use axios without authentication for public book access
-      const response = await axios.get(`${API_BASE_URL}/books`);
-      console.log('Response:', response.data);
-      if (response.data && response.data.success) {
+      if (append) setLoadingMore(true);
+      else setLoading(true);
+      setError(null);
+      const response = await axios.get(`${API_BASE_URL}/books`, {
+        params: { limit: 48, offset, q: query || undefined },
+      });
+      if (response.data?.success) {
         const mappedBooks = (response.data.data || []).map((book) => ({
           id: book.book_id,
           title: book.title || "Untitled",
           author: book.author || "Unknown Author",
           isbn: book.isbn || "Unknown",
           location: book.shelf_location || "Library",
+          callNumber: book.call_number || "",
           status: book.real_time_status === "available" ? "Available" : null,
           category: book.categories?.category_name || "General",
           genre: book.genre || "General",
           school_name: book.schools?.school_name || "Your Library"
         }));
-        setBooks(mappedBooks);
-        setFilteredBooks(mappedBooks);
+        const nextBooks = append ? [...books, ...mappedBooks] : mappedBooks;
+        setBooks(nextBooks);
+        setFilteredBooks(nextBooks);
+        setPagination({
+          total: response.data.pagination?.total ?? nextBooks.length,
+          offset,
+          hasMore: Boolean(response.data.pagination?.has_more),
+        });
       } else {
-        console.error('Invalid response format:', response.data);
-        setError("Failed to load books. Invalid response format.");
+        setError("Unable to load the catalog.");
       }
     } catch (err) {
       console.error("Error loading books:", err);
       console.error("Error details:", err.response?.data);
-      setError(`Failed to load books: ${err.message}`);
+      setError("We couldn’t reach the catalog right now. Please check your connection and try again.");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
   const handleSearch = (e) => {
-    const query = e.target.value.toLowerCase();
+    const query = e.target.value;
     setSearchQuery(query);
-    applyFilters(query, selectedFilter);
+    window.clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = window.setTimeout(() => {
+      setSelectedFilter("All");
+      loadBooks({ query, offset: 0 });
+    }, 280);
   };
 
   const applyFilters = (query, filter) => {
@@ -90,11 +105,17 @@ function Library() {
     
     // Apply search query
     if (query !== "") {
+      const normalizedQuery = query.toLowerCase();
       filtered = filtered.filter(
         (book) =>
-          book.title.toLowerCase().includes(query) ||
-          book.author.toLowerCase().includes(query) ||
-          book.isbn.toLowerCase().includes(query)
+          book.title.toLowerCase().includes(normalizedQuery) ||
+          book.author.toLowerCase().includes(normalizedQuery) ||
+          book.isbn.toLowerCase().includes(normalizedQuery) ||
+          book.category.toLowerCase().includes(normalizedQuery) ||
+          book.genre.toLowerCase().includes(normalizedQuery) ||
+          book.school_name.toLowerCase().includes(normalizedQuery) ||
+          book.location.toLowerCase().includes(normalizedQuery) ||
+          book.callNumber.toLowerCase().includes(normalizedQuery)
       );
     }
     
@@ -111,7 +132,7 @@ function Library() {
     const schools = [...new Set(books.map(book => book.school_name))];
     const categories = [...new Set(books.map(book => book.category))];
     const genres = [...new Set(books.map(book => book.genre))];
-    return [...options, ...schools, ...categories, ...genres];
+    return [...new Set([...options, ...schools, ...categories, ...genres])];
   };
 
   const getStatusColor = (status) => {
@@ -128,25 +149,23 @@ function Library() {
       navigate('/login');
       return;
     }
-    // Navigate to book detail or borrow page
-    console.log('Borrow book:', book);
+    navigate(`/book/${book.id}`);
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#F8FAFC]">
       <Navigation />
-      <div className="pt-24 sm:pt-32 pb-16 sm:pb-20 px-4 sm:px-6 bg-white">
-        <div className="max-w-7xl mx-auto text-center">
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#0F172A] mb-4 sm:mb-6">Library Catalog</h1>
-          <p className="text-base sm:text-lg lg:text-xl text-[#64748B] max-w-3xl mx-auto">
-            Browse our extensive collection of books across all categories
-          </p>
+      <div className="bg-white px-4 pb-12 pt-28 sm:px-6 lg:px-8 lg:pb-16">
+        <div className="max-w-7xl mx-auto">
+          <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0077B6]">Public catalog</p>
+          <h1 className="mt-3 text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-[-.04em] text-[#0F172A]">Find your next book.</h1>
+          <p className="mt-4 text-base leading-7 text-[#64748B] max-w-2xl">Search titles across participating libraries and see where a copy is available.</p>
         </div>
       </div>
 
-      <section className="py-10 sm:py-12 px-4 sm:px-6 bg-[#F7FAFC]">
+      <section className="py-10 sm:py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto mb-6 sm:mb-8">
-          <div className="bg-white rounded-2xl p-4 sm:p-6 border border-[#E2E8F0] shadow-lg">
+          <div className="border-b border-[#E2E8F0] pb-5 sm:pb-6">
             <div className="flex flex-col gap-4">
               <div className="relative">
                 <FiSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#64748B] w-5 h-5" />
@@ -155,19 +174,20 @@ function Library() {
                   placeholder="Search by title, author, or ISBN..."
                   value={searchQuery}
                   onChange={handleSearch}
-                  className="w-full pl-12 pr-4 py-3 bg-gradient-to-r from-[#F7FAFC] to-white border border-[#E2E8F0] rounded-xl text-[#0F172A] placeholder-[#64748B] focus:outline-none focus:border-[#0077B6] focus:ring-2 focus:ring-[#0077B6]/20 transition-all text-sm sm:text-base"
+                  className="min-h-12 w-full border-b border-[#CBD5E1] bg-transparent pl-11 pr-10 text-base text-[#0F172A] placeholder-[#64748B] outline-none transition focus:border-[#0077B6] sm:text-sm"
                 />
+                {searchQuery && <button onClick={() => { setSearchQuery(""); setSelectedFilter("All"); loadBooks(); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-slate-700" aria-label="Clear search"><FiX /></button>}
               </div>
               
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+              <div className="flex flex-wrap gap-x-2 gap-y-1 pt-1">
                 {getFilterOptions().map((filter) => (
                   <button
                     key={filter}
                     onClick={() => handleFilterClick(filter)}
-                    className={`px-5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-300 transform hover:scale-105 ${
+                    className={`border-b-2 px-3 py-2 text-sm font-semibold whitespace-nowrap transition-colors ${
                       selectedFilter === filter
-                        ? "bg-gradient-to-r from-[#0077B6] to-[#0096C7] text-white shadow-lg shadow-[#0077B6]/30"
-                        : "bg-gradient-to-r from-gray-50 to-white text-[#64748B] border border-[#E2E8F0] hover:border-[#0077B6] hover:text-[#0077B6] hover:shadow-md"
+                        ? "border-[#0077B6] text-[#0077B6]"
+                        : "border-transparent text-[#64748B] hover:border-slate-300 hover:text-[#0077B6]"
                     }`}
                   >
                     {filter}
@@ -185,8 +205,11 @@ function Library() {
               <p className="mt-4 text-[#64748B]">Loading books...</p>
             </div>
           ) : error ? (
-            <div className="text-center py-12">
-              <p className="text-red-600">{error}</p>
+            <div className="border border-red-100 bg-white px-5 py-12 text-center">
+              <FiBook className="mx-auto h-12 w-12 text-red-300" />
+              <h2 className="mt-4 text-lg font-semibold text-[#0F172A]">Catalog unavailable</h2>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#64748B]">{error}</p>
+              <button type="button" onClick={loadBooks} className="mt-5 inline-flex min-h-11 items-center justify-center bg-[#0077B6] px-4 text-sm font-semibold text-white transition hover:bg-[#00669d]">Try again</button>
             </div>
           ) : filteredBooks.length === 0 ? (
             <div className="text-center py-12">
@@ -194,18 +217,20 @@ function Library() {
               <p className="text-[#64748B]">No books found matching your search.</p>
             </div>
           ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            <>
+            <p className="mb-5 text-sm text-[#64748B]">{pagination.total.toLocaleString()} {pagination.total === 1 ? "book" : "books"} found</p>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
               {filteredBooks.map((book) => (
                 <div
                   key={book.id}
-                  className="bg-white rounded-xl p-4 sm:p-6 border border-[#E2E8F0] shadow-sm hover:shadow-md transition-shadow"
+                  className="group border border-[#E2E8F0] bg-white p-4 transition hover:-translate-y-0.5 hover:border-[#BDE3F6] hover:shadow-md sm:p-5"
                 >
                   <div className="flex items-start justify-between mb-3 sm:mb-4">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#0077B6]/10 rounded-lg flex items-center justify-center">
-                      <FiBook className="text-[#0077B6] text-lg sm:text-xl" />
+                    <div className="flex h-11 w-9 items-center justify-center bg-[#0077B6] text-white shadow-sm transition-transform duration-200 group-hover:-rotate-2 group-hover:translate-y-[-2px]">
+                      <FiBook className="text-lg text-white sm:text-xl" />
                     </div>
                     {book.status === "Available" && (
-                      <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(book.status)}`}>
+                      <span className={`px-2 py-1 text-xs font-semibold border ${getStatusColor(book.status)}`}>
                         {book.status}
                       </span>
                     )}
@@ -228,13 +253,21 @@ function Library() {
                   </div>
                   <button 
                     onClick={() => handleBorrow(book)}
-                    className="w-full mt-3 sm:mt-4 bg-[#0077B6] hover:bg-[#005f8f] text-white py-2 sm:py-2.5 rounded-lg font-semibold transition-colors text-sm sm:text-base"
+                    className="mt-4 inline-flex min-h-10 w-full items-center justify-center bg-[#0077B6] px-3 text-sm font-semibold text-white transition hover:bg-[#00669d]"
                   >
-                    {isAuthenticated ? 'Borrow Book' : 'Login to Borrow'}
+                    {isAuthenticated ? 'View book details' : 'Login to borrow'}
                   </button>
                 </div>
               ))}
             </div>
+            {pagination.hasMore && selectedFilter === "All" && (
+              <div className="mt-8 text-center">
+                <button type="button" disabled={loadingMore} onClick={() => loadBooks({ query: searchQuery, offset: pagination.offset + books.length, append: true })} className="min-h-11 border border-[#0077B6] px-5 text-sm font-semibold text-[#0077B6] transition hover:bg-[#E0F2FE] disabled:cursor-wait disabled:opacity-60">
+                  {loadingMore ? 'Loading more books…' : 'Load more books'}
+                </button>
+              </div>
+            )}
+            </>
           )}
         </div>
       </section>

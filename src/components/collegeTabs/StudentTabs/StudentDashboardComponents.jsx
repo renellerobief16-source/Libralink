@@ -1717,10 +1717,8 @@ export function WelcomeSection({ displayName, schoolInfo, profileImage, onBrowse
   const profileImageUrl = getProfileImageUrl(profileImage);
 
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700 p-5 text-white shadow-[0_14px_35px_rgba(37,99,235,0.20)] sm:p-7">
-      <div className="absolute -right-20 -top-20 h-52 w-52 rounded-full bg-white/10" />
-      <div className="absolute -bottom-24 right-16 h-44 w-44 rounded-full border-[22px] border-white/10" />
-      <div className="relative grid grid-cols-1 items-center gap-6 lg:grid-cols-[1fr_0.65fr]">
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+      <div className="grid grid-cols-1 items-center gap-6 lg:grid-cols-[1fr_0.65fr]">
         {/* Left Side: School Logo & Greeting */}
 
         <div className="flex items-start gap-4 sm:gap-5">
@@ -1732,7 +1730,7 @@ export function WelcomeSection({ displayName, schoolInfo, profileImage, onBrowse
 
               alt={`${schoolName} logo`}
 
-              className="h-14 w-14 rounded-full bg-white p-1.5 object-contain shadow-lg ring-4 ring-white/15 sm:h-16 sm:w-16"
+              className="h-14 w-14 rounded-full border border-slate-200 bg-white p-1.5 object-contain sm:h-16 sm:w-16"
 
               onError={(e) => {
                 e.target.src = "/L.png";
@@ -1746,29 +1744,29 @@ export function WelcomeSection({ displayName, schoolInfo, profileImage, onBrowse
             {/* School Name */}
 
             <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-              <h3 className="text-sm font-semibold text-white sm:text-base">{schoolName}</h3>
-              {schoolCode && <span className="text-xs text-blue-200">({schoolCode})</span>}
+              <h3 className="text-sm font-semibold text-slate-800 sm:text-base">{schoolName}</h3>
+              {schoolCode && <span className="text-xs text-slate-400">({schoolCode})</span>}
             </div>
 
             {/* Dashboard Label */}
 
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
               Your library
             </p>
 
             {/* Welcome Message */}
 
-            <h2 className="mb-2 text-3xl font-bold leading-tight sm:text-4xl">
+            <h2 className="mb-2 text-3xl font-bold leading-tight text-slate-900 sm:text-4xl">
               Hi, {displayName}!
             </h2>
 
             {/* Description */}
 
-            <p className="max-w-md text-sm leading-6 text-blue-100 sm:text-base">
+            <p className="max-w-md text-sm leading-6 text-slate-500 sm:text-base">
               Find your next read, keep an eye on your loans, and stay updated with your library.
             </p>
 
-            <button onClick={onBrowse} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-blue-700 shadow-lg shadow-blue-950/15 transition-transform active:scale-[0.98]">
+            <button onClick={onBrowse} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition-transform active:scale-[0.98]">
               Browse the collection
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </button>

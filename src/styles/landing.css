@@ -174,3 +174,160 @@
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
+
+/* Lightweight landing-page atmosphere. All movement is decorative and disabled
+   for visitors who prefer reduced motion. */
+.landing-hero-image {
+  background-image: url('/p1.jpg');
+  background-position: center;
+  background-size: cover;
+  animation: library-enter 3.2s ease-out both;
+  transform: scale(1.06);
+}
+
+.landing-light-ray {
+  background: linear-gradient(108deg, transparent 25%, rgba(186, 230, 253, 0.28) 48%, transparent 72%);
+  animation: library-light 4s ease-out both;
+}
+
+.landing-hero-content,
+.landing-search-panel {
+  animation: library-content-in 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.landing-search-panel { animation-delay: 0.22s; }
+
+.landing-particle {
+  position: absolute;
+  z-index: -5;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 0 12px rgba(186, 230, 253, 0.9);
+  animation: library-particle 5s ease-in-out infinite;
+}
+
+.landing-particle:nth-of-type(2) { animation-delay: 1.2s; }
+.landing-particle:nth-of-type(3) { animation-delay: 2.1s; }
+
+@keyframes library-enter {
+  from { filter: blur(6px) brightness(0.68); opacity: 0.35; transform: scale(1.12); }
+  to { filter: blur(0) brightness(0.92); opacity: 1; transform: scale(1.06); }
+}
+
+@keyframes library-light {
+  from { opacity: 0; transform: translateX(15%); }
+  to { opacity: 0.7; transform: translateX(0); }
+}
+
+@keyframes library-content-in {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes library-particle {
+  0%, 100% { transform: translate3d(0, 0, 0); opacity: 0.25; }
+  50% { transform: translate3d(10px, -28px, 0); opacity: 0.9; }
+}
+
+@media (max-width: 640px) {
+  .landing-hero {
+    min-height: auto;
+    padding-top: 108px;
+    padding-bottom: 56px;
+  }
+
+  .landing-hero-image {
+    background-position: 58% center;
+    transform: scale(1.03);
+  }
+
+  .landing-hero h1 {
+    font-size: clamp(2.1rem, 10vw, 2.7rem);
+  }
+
+  .landing-hero-content > p {
+    font-size: 0.95rem;
+    line-height: 1.65;
+  }
+
+  .landing-search-panel {
+    padding: 1rem;
+    box-shadow: 0 12px 28px rgba(2, 20, 36, 0.22);
+  }
+
+  .landing-search-panel label {
+    min-height: 54px;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1023px) {
+  .landing-hero {
+    min-height: auto;
+    padding-top: 142px;
+    padding-bottom: 88px;
+  }
+
+  .landing-hero-image { background-position: center; }
+  .landing-search-panel { max-width: 640px; }
+}
+
+@media (max-width: 767px) {
+  html, body { max-width: 100%; overflow-x: hidden; }
+
+  nav > div { padding-left: 1rem; padding-right: 1rem; }
+}
+
+.book-cover-float { animation: book-rest 3.8s ease-in-out infinite; }
+
+.school-logo-marquee {
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+}
+
+.school-logo-track {
+  display: flex;
+  width: max-content;
+  gap: 1rem;
+  animation: school-marquee 28s linear infinite;
+}
+
+.school-logo-marquee:hover .school-logo-track { animation-play-state: paused; }
+
+.school-logo-item {
+  display: flex;
+  width: 220px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 0.75rem;
+}
+
+@keyframes school-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(-50% - 0.5rem)); }
+}
+
+@media (max-width: 640px) {
+  .school-logo-track { gap: 0.75rem; animation-duration: 22s; }
+  .school-logo-item { width: 188px; padding: 0.65rem; }
+}
+
+@keyframes book-rest {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-7px) rotate(1deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero-image,
+  .landing-light-ray,
+  .landing-hero-content,
+  .landing-search-panel,
+  .landing-particle,
+  .book-cover-float,
+  .school-logo-track { animation: none !important; }
+  .landing-hero-image { filter: brightness(0.92); transform: none; }
+}
