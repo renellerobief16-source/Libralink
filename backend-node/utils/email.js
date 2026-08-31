@@ -14,8 +14,25 @@ const createTransporter = () => {
 // Send verification code email
 const sendVerificationEmail = async (email, code) => {
   try {
+    console.log('[EMAIL] Starting email send process');
+    console.log('[EMAIL] EMAIL_USER configured:', !!process.env.EMAIL_USER);
+    console.log('[EMAIL] EMAIL_PASSWORD configured:', !!process.env.EMAIL_PASSWORD);
+    console.log('[EMAIL] GMAIL_USER configured:', !!process.env.GMAIL_USER);
+    console.log('[EMAIL] GMAIL_APP_PASSWORD configured:', !!process.env.GMAIL_APP_PASSWORD);
+    console.log('[EMAIL] Target email:', email);
+    console.log('[EMAIL] Code:', code);
+
     const transporter = createTransporter();
-    
+
+    // Verify transporter configuration
+    await transporter.verify((error, success) => {
+      if (error) {
+        console.error('[EMAIL] Transporter verification failed:', error);
+      } else {
+        console.log('[EMAIL] Transporter is ready to send emails');
+      }
+    });
+
     const mailOptions = {
       from: process.env.EMAIL_USER || process.env.GMAIL_USER,
       to: email,
@@ -29,11 +46,11 @@ const sendVerificationEmail = async (email, code) => {
           <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef;">
             <h2 style="color: #0F172A; margin-top: 0;">Verify Your Email</h2>
             <p style="color: #64748B; line-height: 1.6;">Thank you for using Libralink. Please use the following verification code to complete your email verification:</p>
-            
+
             <div style="background: white; border: 2px solid #0077B6; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
               <span style="font-size: 32px; font-weight: bold; color: #0077B6; letter-spacing: 5px;">${code}</span>
             </div>
-            
+
             <p style="color: #64748B; font-size: 14px; margin-bottom: 0;">This code will expire in 15 minutes. If you didn't request this code, please ignore this email.</p>
           </div>
           <div style="text-align: center; margin-top: 20px; color: #94A3B8; font-size: 12px;">
@@ -43,11 +60,19 @@ const sendVerificationEmail = async (email, code) => {
       `
     };
 
+    console.log('[EMAIL] Sending email with options:', { from: mailOptions.from, to: mailOptions.to, subject: mailOptions.subject });
+
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[EMAIL] Verification email sent to ${email}:`, info.messageId);
+    console.log(`[EMAIL] Verification email sent successfully to ${email}:`, info.messageId);
+    console.log('[EMAIL] Email response:', info.response);
     return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error('[EMAIL] Error sending verification email:', error);
+    console.error('[EMAIL] Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
     return { success: false, error: error.message };
   }
 };
