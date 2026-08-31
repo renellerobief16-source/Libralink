@@ -70,10 +70,98 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetCode, setResetCode] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [resetError, setResetError] = useState("");
+  const [resetStep, setResetStep] = useState('email'); // email, code, password, success
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm((f) => ({ ...f, [name]: type === "checkbox" ? checked : value }));
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setResetLoading(true);
+    setResetError("");
+
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000'}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setResetStep('code');
+        if (data.code) {
+          console.log('Password reset code:', data.code);
+        }
+      } else {
+        setResetError(data.message || 'Failed to send reset code. Please try again.');
+      }
+    } catch (err) {
+      setResetError('Network error. Please check your connection and try again.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleVerifyResetCode = async (e) => {
+    e.preventDefault();
+    setResetLoading(true);
+    setResetError("");
+
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000'}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: resetEmail, code: resetCode, new_password: resetPassword }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setResetStep('success');
+        setResetSuccess(true);
+      } else {
+        setResetError(data.message || 'Failed to reset password. Please try again.');
+      }
+    } catch (err) {
+      setResetError('Network error. Please check your connection and try again.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const openForgotPassword = () => {
+    setResetEmail(form.email);
+    setShowForgotPassword(true);
+    setResetStep('email');
+    setResetSuccess(false);
+    setResetError("");
+    setResetCode("");
+    setResetPassword("");
+  };
+
+  const closeForgotPassword = () => {
+    setShowForgotPassword(false);
+    setResetEmail("");
+    setResetCode("");
+    setResetPassword("");
+    setResetStep('email');
+    setResetSuccess(false);
+    setResetError("");
   };
 
   const handleSubmit = async (e) => {
@@ -250,6 +338,17 @@ function Login() {
                   </div>
                 </div>
 
+                <div className="flex items-center justify-between">
+                  <div></div>
+                  <button
+                    type="button"
+                    onClick={openForgotPassword}
+                    className="text-sm font-semibold text-[#0077B6] hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+
                 {error && (
                   <div className="border-l-4 border-red-500 bg-red-50 p-3 sm:p-4">
                     <p className="text-sm font-medium text-red-800">{error}</p>
@@ -278,6 +377,161 @@ function Login() {
             </div>
           </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgotPassword && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full sm:p-8">
+            <h3 className="text-xl font-bold text-[#0F172A] mb-2 sm:text-2xl">
+              {resetStep === 'success' ? 'Password Reset' : resetStep === 'code' ? 'Enter Verification Code' : resetStep === 'password' ? 'Set New Password' : 'Reset your password'}
+            </h3>
+            <p className="text-sm text-[#64748B] mb-6 sm:text-base">
+              {resetStep === 'success'
+                ? 'Your password has been reset successfully. You can now sign in with your new password.'
+                : resetStep === 'code'
+                ? `We've sent a 6-digit verification code to ${resetEmail}. Enter the code below to reset your password.`
+                : resetStep === 'password'
+                ? 'Enter your new password below.'
+                : 'Enter your recovery email address and we\'ll send you a verification code to reset your password.'
+              }
+            </p>
+
+            {resetStep === 'email' && (
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <div>
+                  <label htmlFor="reset-email" className="mb-2 block text-sm font-medium">Recovery email address</label>
+                  <input
+                    id="reset-email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="min-h-11 w-full border border-slate-200 bg-[#F8FAFC] px-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:min-h-12 sm:text-base"
+                    required
+                  />
+                </div>
+
+                {resetError && (
+                  <div className="border-l-4 border-red-500 bg-red-50 p-3">
+                    <p className="text-sm font-medium text-red-800">{resetError}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={closeForgotPassword}
+                    className="flex-1 min-h-11 border border-slate-200 px-4 text-sm font-semibold text-[#64748B] transition hover:bg-slate-50 sm:min-h-12"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetLoading}
+                    className="flex-1 min-h-11 bg-[#0077B6] px-4 text-sm font-semibold text-white transition hover:bg-[#00669d] disabled:cursor-wait disabled:opacity-60 sm:min-h-12"
+                  >
+                    {resetLoading ? 'Sending...' : 'Send Code'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {resetStep === 'code' && (
+              <form onSubmit={(e) => { e.preventDefault(); setResetStep('password'); }} className="space-y-4">
+                <div>
+                  <label htmlFor="reset-code" className="mb-2 block text-sm font-medium">Verification Code</label>
+                  <input
+                    id="reset-code"
+                    type="text"
+                    placeholder="123456"
+                    value={resetCode}
+                    onChange={(e) => setResetCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="min-h-11 w-full border border-slate-200 bg-[#F8FAFC] px-3 text-center text-lg font-mono tracking-widest outline-none transition placeholder:text-slate-400 focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:min-h-12"
+                    maxLength={6}
+                    required
+                  />
+                </div>
+
+                {resetError && (
+                  <div className="border-l-4 border-red-500 bg-red-50 p-3">
+                    <p className="text-sm font-medium text-red-800">{resetError}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setResetStep('email')}
+                    className="flex-1 min-h-11 border border-slate-200 px-4 text-sm font-semibold text-[#64748B] transition hover:bg-slate-50 sm:min-h-12"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetCode.length !== 6}
+                    className="flex-1 min-h-11 bg-[#0077B6] px-4 text-sm font-semibold text-white transition hover:bg-[#00669d] disabled:cursor-wait disabled:opacity-60 sm:min-h-12"
+                  >
+                    Continue
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {resetStep === 'password' && (
+              <form onSubmit={handleVerifyResetCode} className="space-y-4">
+                <div>
+                  <label htmlFor="new-password" className="mb-2 block text-sm font-medium">New Password</label>
+                  <input
+                    id="new-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={resetPassword}
+                    onChange={(e) => setResetPassword(e.target.value)}
+                    className="min-h-11 w-full border border-slate-200 bg-[#F8FAFC] px-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:min-h-12 sm:text-base"
+                    minLength={8}
+                    required
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Must be at least 8 characters long</p>
+                </div>
+
+                {resetError && (
+                  <div className="border-l-4 border-red-500 bg-red-50 p-3">
+                    <p className="text-sm font-medium text-red-800">{resetError}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setResetStep('code')}
+                    className="flex-1 min-h-11 border border-slate-200 px-4 text-sm font-semibold text-[#64748B] transition hover:bg-slate-50 sm:min-h-12"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetLoading || resetPassword.length < 8}
+                    className="flex-1 min-h-11 bg-[#0077B6] px-4 text-sm font-semibold text-white transition hover:bg-[#00669d] disabled:cursor-wait disabled:opacity-60 sm:min-h-12"
+                  >
+                    {resetLoading ? 'Resetting...' : 'Reset Password'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {resetStep === 'success' && (
+              <div className="space-y-4">
+                <button
+                  onClick={closeForgotPassword}
+                  className="w-full min-h-11 bg-[#0077B6] px-4 text-sm font-semibold text-white transition hover:bg-[#00669d] sm:min-h-12"
+                >
+                  Done
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

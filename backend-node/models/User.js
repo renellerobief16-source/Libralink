@@ -345,6 +345,90 @@ class User {
     }
   }
 
+  static async getByEmail(email) {
+    try {
+      const { data: users, error } = await supabase
+        .from('users')
+        .select(`
+          *,
+          schools(school_name, school_code),
+          roles(role_name)
+        `)
+        .eq('email', email)
+        .single();
+
+      if (error) {
+        console.error('[USER] Supabase error:', error);
+        return null;
+      }
+
+      if (!users) {
+        console.log('[USER] No user found with email:', email);
+        return null;
+      }
+
+      const user = users;
+      const transformedUser = {
+        ...user,
+        school_name: user.schools?.school_name,
+        school_code: user.schools?.school_code,
+        role_name: user.roles?.role_name
+      };
+
+      delete transformedUser.password;
+      delete transformedUser.schools;
+      delete transformedUser.roles;
+
+      console.log('[USER] User found successfully');
+      return transformedUser;
+    } catch (error) {
+      console.error('[USER] Error getting user by email:', error);
+      throw error;
+    }
+  }
+
+  static async getByRecoveryEmail(recovery_email) {
+    try {
+      const { data: users, error } = await supabase
+        .from('users')
+        .select(`
+          *,
+          schools(school_name, school_code),
+          roles(role_name)
+        `)
+        .eq('recovery_email', recovery_email)
+        .single();
+
+      if (error) {
+        console.error('[USER] Supabase error:', error);
+        return null;
+      }
+
+      if (!users) {
+        console.log('[USER] No user found with recovery_email:', recovery_email);
+        return null;
+      }
+
+      const user = users;
+      const transformedUser = {
+        ...user,
+        school_name: user.schools?.school_name,
+        school_code: user.schools?.school_code,
+        role_name: user.roles?.role_name
+      };
+
+      delete transformedUser.password;
+      delete transformedUser.schools;
+      delete transformedUser.roles;
+
+      console.log('[USER] User found successfully by recovery_email');
+      return transformedUser;
+    } catch (error) {
+      console.error('[USER] Error getting user by recovery_email:', error);
+      throw error;
+    }
+  }
+
   static async update(user_id, data) {
     const updateData = normalizeUserUpdateData(data);
     const { password, ...otherData } = updateData;

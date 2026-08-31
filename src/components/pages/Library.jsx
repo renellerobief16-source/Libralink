@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { FiBook, FiSearch, FiMapPin, FiStar, FiX } from "react-icons/fi";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Navigation from "./Navigation";
 import axios from "axios";
 import { API_BASE_URL } from "../../utils/api";
 
 function Library() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [books, setBooks] = useState([]);
   const [filteredBooks, setFilteredBooks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,12 +22,13 @@ function Library() {
   useEffect(() => {
     const currentUser = localStorage.getItem('currentUser');
     const schoolId = localStorage.getItem('schoolId');
-    
+    const initialQuery = (searchParams.get('search') || '').trim();
+
     setIsAuthenticated(!!currentUser && !!schoolId);
-    
-    loadBooks();
+    setSearchQuery(initialQuery);
+    loadBooks({ query: initialQuery, offset: 0 });
     return () => window.clearTimeout(searchTimerRef.current);
-  }, []);
+  }, [searchParams]);
 
   const loadBooks = async ({ query = "", offset = 0, append = false } = {}) => {
     try {

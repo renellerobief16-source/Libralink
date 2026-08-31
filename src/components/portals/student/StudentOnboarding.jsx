@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiArrowRight, FiCamera, FiCheckCircle } from 'react-icons/fi';
+import { FiArrowRight, FiCamera, FiCheckCircle, FiCheck } from 'react-icons/fi';
 import api, { updateProfilePicture, updateUserProfile, getBackendAssetUrl } from '../../../utils/api';
 
 function isOnboardingComplete(user) {
@@ -38,6 +38,94 @@ function StudentOnboarding() {
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [schoolInfo, setSchoolInfo] = useState(null);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [verifyingCode, setVerifyingCode] = useState(false);
+  const [verificationError, setVerificationError] = useState('');
+
+  const handleSendVerificationCode = async () => {
+    if (!form.recoveryEmail.trim()) {
+      setVerificationError('Please enter your Gmail account first.');
+      return;
+    }
+
+    setSendingCode(true);
+    setVerificationError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const normalizedEmail = form.recoveryEmail.trim().toLowerCase();
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000'}/api/auth/send-verification-code`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ recovery_email: normalizedEmail }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setCodeSent(true);
+        setVerificationError('');
+        if (data.code) {
+          console.log('Verification code:', data.code);
+        }
+      } else {
+        setVerificationError(data.message || 'Failed to send verification code');
+      }
+    } catch (err) {
+      setVerificationError('Network error. Please check your connection.');
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (verificationCode.length !== 6) {
+      setVerificationError('Please enter a valid 6-digit code.');
+      return;
+    }
+
+    setVerifyingCode(true);
+    setVerificationError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const normalizedEmail = form.recoveryEmail.trim().toLowerCase();
+      const normalizedCode = verificationCode.trim();
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000'}/api/auth/verify-code`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+          recovery_email: normalizedEmail,
+          code: normalizedCode 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setEmailVerified(true);
+        setVerificationError('');
+        setVerificationCode('');
+        setCodeSent(false);
+        setCurrentStep(4);
+      } else {
+        setVerificationError(data.message || 'Invalid verification code');
+      }
+    } catch (err) {
+      setVerificationError('Network error. Please check your connection.');
+    } finally {
+      setVerifyingCode(false);
+    }
+  };
 
   const steps = [
     { key: 'welcome', label: 'Welcome' },
@@ -191,6 +279,15 @@ function StudentOnboarding() {
       return;
     }
 
+    if (currentStep === 3 && !emailVerified) {
+      if (!codeSent) {
+        handleSendVerificationCode();
+      } else {
+        alert('Please verify your Gmail account before continuing.');
+      }
+      return;
+    }
+
     if (currentStep === 4 && !photo && !preview) {
       alert('Please upload a profile picture.');
       return;
@@ -282,13 +379,74 @@ function StudentOnboarding() {
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">Gmail Account</label>
-            <input
-              type="email"
-              value={form.recoveryEmail}
-              onChange={(e) => setForm({ ...form, recoveryEmail: e.target.value })}
-              placeholder="you@gmail.com"
-              className="min-h-12 w-full border border-slate-300 bg-slate-50 px-3 text-base outline-none transition focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
-            />
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={form.recoveryEmail}
+                onChange={(e) => {
+                  setForm({ ...form, recoveryEmail: e.target.value });
+                  setEmailVerified(false);
+                  setCodeSent(false);
+                  setVerificationCode('');
+                  setVerificationError('');
+                }}
+                placeholder="you@gmail.com"
+                className="min-h-12 flex-1 border border-slate-300 bg-slate-50 px-3 text-base outline-none transition focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
+                disabled={emailVerified}
+              />
+              {emailVerified && (
+                <div className="flex items-center justify-center px-3 text-green-600">
+                  <FiCheck className="w-5 h-5" />
+                </div>
+              )}
+            </div>
+            {form.recoveryEmail && !emailVerified && (
+              <button
+                type="button"
+                onClick={handleSendVerificationCode}
+                disabled={sendingCode}
+                className="mt-2 text-sm font-semibold text-[#0077B6] hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {sendingCode ? 'Sending...' : codeSent ? 'Resend code' : 'Send verification code'}
+              </button>
+            )}
+            {codeSent && !emailVerified && (
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Enter verification code</label>
+                  <input
+                    type="text"
+                    value={verificationCode}
+                    onChange={(e) => {
+                      setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                      setVerificationError('');
+                    }}
+                    placeholder="123456"
+                    className="min-h-12 w-full border border-slate-300 bg-slate-50 px-3 text-center text-lg font-mono tracking-widest outline-none transition placeholder:text-slate-400 focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
+                    maxLength={6}
+                    disabled={verifyingCode}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleVerifyCode}
+                  disabled={verificationCode.length !== 6 || verifyingCode}
+                  className="w-full min-h-11 bg-[#0077B6] px-4 text-sm font-semibold text-white transition hover:bg-[#00669d] disabled:cursor-wait disabled:opacity-60 sm:min-h-12"
+                >
+                  {verifyingCode ? 'Verifying...' : 'Verify code'}
+                </button>
+                {verificationError && (
+                  <div className="border-l-4 border-red-500 bg-red-50 p-3">
+                    <p className="text-sm font-medium text-red-800">{verificationError}</p>
+                  </div>
+                )}
+              </div>
+            )}
+            {emailVerified && (
+              <div className="mt-3 border-l-4 border-green-500 bg-green-50 p-3">
+                <p className="text-sm font-medium text-green-800">Your Gmail is verified and you can continue to the next step.</p>
+              </div>
+            )}
           </div>
         </div>
       );

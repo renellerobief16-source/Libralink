@@ -34,7 +34,8 @@ const exitDesktopFullscreen = () => {
     const doc = document;
     const exitFS = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
 
-    if (typeof exitFS === 'function') {
+    // Only try to exit if currently in fullscreen mode
+    if (typeof exitFS === 'function' && doc.fullscreenElement) {
       exitFS.call(doc);
     }
   } catch (error) {

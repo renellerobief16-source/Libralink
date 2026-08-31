@@ -1,0 +1,591 @@
+/**
+ * AnimatedBook.css
+ * Premium 3D animated digital book component for Libralink
+ * Features: 3D perspective, page flip animation, hover effects, floating animation
+ */
+
+/* ===== ROOT CONTAINER ===== */
+.animated-book-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  perspective: 1200px;
+  padding: 1rem 0;
+}
+
+/* ===== WRAPPER WITH FLOATING ANIMATION ===== */
+.animated-book-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  animation: book-float 4s ease-in-out infinite;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Floating animation - subtle movement when idle */
+@keyframes book-float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* Enhance floating on hover */
+.animated-book-wrapper:hover {
+  animation: book-float-hover 4s ease-in-out infinite;
+}
+
+@keyframes book-float-hover {
+  0%, 100% {
+    transform: translateY(-4px);
+  }
+  50% {
+    transform: translateY(-14px);
+  }
+}
+
+/* ===== 3D PERSPECTIVE CONTAINER ===== */
+.animated-book-3d-container {
+  position: relative;
+  width: 100%;
+  height: auto;
+  perspective: 1400px;
+  transform-style: preserve-3d;
+}
+
+/* ===== BOOK SHADOW (DEPTH EFFECT) ===== */
+.animated-book-shadow {
+  position: absolute;
+  bottom: -20px;
+  left: 10%;
+  right: 10%;
+  height: 20px;
+  background: radial-gradient(ellipse at center, rgba(0, 30, 70, 0.3) 0%, transparent 70%);
+  border-radius: 50%;
+  z-index: -1;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.animated-book-wrapper:hover .animated-book-shadow {
+  height: 28px;
+  bottom: -28px;
+  background: radial-gradient(ellipse at center, rgba(0, 30, 70, 0.5) 0%, transparent 70%);
+}
+
+/* ===== MAIN BOOK ELEMENT ===== */
+.animated-book-main {
+  position: relative;
+  width: 100%;
+  background: linear-gradient(180deg, #1a6fa0 0%, #0052a3 50%, #003d7a 100%);
+  border-radius: 16px 16px 20px 20px;
+  padding: 8px 10px 12px;
+  box-shadow:
+    0 8px 0 #003560,
+    0 14px 0 #0052a3,
+    0 22px 0 #003d7a,
+    0 32px 60px rgba(0, 30, 70, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transform-style: preserve-3d;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Hover effect - slight tilt and scale */
+.animated-book-wrapper:hover .animated-book-main {
+  transform: perspective(1200px) rotateX(4deg) scale(1.02);
+  box-shadow:
+    0 10px 0 #003560,
+    0 16px 0 #0052a3,
+    0 26px 0 #003d7a,
+    0 40px 80px rgba(0, 30, 70, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* ===== BOOK SPINE (CENTER LINE) ===== */
+.animated-book-spine {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  bottom: 12px;
+  width: 20px;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.15) 0%,
+    rgba(100, 150, 200, 0.9) 30%,
+    rgba(200, 220, 240, 0.8) 50%,
+    rgba(100, 150, 200, 0.9) 70%,
+    rgba(0, 0, 0, 0.15) 100%
+  );
+  box-shadow:
+    inset 4px 0 8px rgba(0, 20, 50, 0.3),
+    inset -4px 0 8px rgba(0, 20, 50, 0.3);
+  border-radius: 50% 50% 40% 40%;
+  z-index: 10;
+}
+
+/* ===== BOOK RIM/COVER TOP ===== */
+.animated-book-rim {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 12px;
+  background: repeating-linear-gradient(
+    90deg,
+    #004080 0px,
+    #004080 2px,
+    #0052a3 2px,
+    #0052a3 4px
+  );
+  border-radius: 16px 16px 0 0;
+  z-index: 12;
+  opacity: 0.7;
+}
+
+/* ===== PAGES CONTAINER ===== */
+.animated-book-pages {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  padding: 16px 4px 8px;
+  z-index: 1;
+  perspective: 1300px;
+}
+
+/* ===== INDIVIDUAL PAGE STYLING ===== */
+.animated-book-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 320px;
+  padding: 1.5rem 1.25rem;
+  background: linear-gradient(
+    110deg,
+    #f5f9fd 0%,
+    #f1f7fc 12%,
+    #ecf3fa 100%
+  );
+  box-shadow:
+    inset 0 2px 1px rgba(255, 255, 255, 0.95),
+    inset -12px 0 24px rgba(0, 80, 160, 0.06),
+    0 8px 16px rgba(0, 30, 70, 0.1);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Left page (current book) */
+.animated-book-page-left {
+  border-radius: 12px 2px 2px 12px;
+  transform: perspective(1100px) rotateY(2.5deg) rotate(-0.5deg);
+}
+
+/* Right page (next book preview) */
+.animated-book-page-right {
+  border-radius: 2px 12px 12px 2px;
+  background: linear-gradient(
+    260deg,
+    #f5f9fd 0%,
+    #f1f7fc 12%,
+    #ecf3fa 100%
+  );
+  box-shadow:
+    inset 12px 0 24px rgba(0, 80, 160, 0.06),
+    inset 0 2px 1px rgba(255, 255, 255, 0.95),
+    0 8px 16px rgba(0, 30, 70, 0.1);
+  transform: perspective(1100px) rotateY(-2.5deg) rotate(0.5deg);
+}
+
+/* Hover effect on pages */
+.animated-book-page:hover {
+  transform: translateY(-2px);
+}
+
+/* ===== PAGE HIGHLIGHT (LIGHTING EFFECT) ===== */
+.animated-page-highlight {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 100% 0,
+    rgba(255, 255, 255, 0.5),
+    transparent 70%
+  );
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* ===== PAGE CONTENT ===== */
+.animated-page-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* ===== PAGE HEADER ===== */
+.animated-page-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ===== PAGE BADGE ===== */
+.animated-page-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.8rem;
+  background: linear-gradient(135deg, #dbeafe 0%, #bce8fb 100%);
+  color: #0052a3;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 82, 163, 0.2);
+  box-shadow: 0 2px 4px rgba(0, 82, 163, 0.15);
+  white-space: nowrap;
+}
+
+/* ===== PAGE TITLE ===== */
+.animated-page-title {
+  font-size: clamp(1.4rem, 2.8vw, 2rem);
+  font-weight: 950;
+  line-height: 1.1;
+  letter-spacing: -0.045em;
+  color: #0052a3;
+  margin: 0;
+  text-transform: capitalize;
+}
+
+/* ===== PAGE AUTHOR ===== */
+.animated-page-author {
+  font-size: clamp(0.8rem, 1.3vw, 0.95rem);
+  color: #4a6fa8;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0.2px;
+  margin: 0;
+}
+
+/* ===== PAGE FOOTER / CTA ===== */
+.animated-page-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.animated-page-cta {
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #0052a3;
+  opacity: 0.75;
+  transition: opacity 0.3s ease;
+}
+
+.animated-book-page:hover .animated-page-cta {
+  opacity: 1;
+}
+
+/* ===== PAGE FLIP ANIMATION ===== */
+/* When flipping to next page */
+.animated-book-main.is-flipping-next .animated-book-page-right {
+  animation: page-flip-next 0.45s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animated-book-main.is-flipping-next .animated-book-page-left {
+  animation: page-settle-next 0.45s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* When flipping to previous page */
+.animated-book-main.is-flipping-prev .animated-book-page-left {
+  animation: page-flip-prev 0.45s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animated-book-main.is-flipping-prev .animated-book-page-right {
+  animation: page-settle-prev 0.45s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Page flip animation - right page turns */
+@keyframes page-flip-next {
+  0% {
+    opacity: 1;
+    transform: perspective(1100px) rotateY(0deg) rotate(0.5deg);
+  }
+  45% {
+    opacity: 0.3;
+    transform: perspective(1100px) rotateY(-92deg) rotate(0.5deg);
+  }
+  55% {
+    opacity: 0.3;
+    transform: perspective(1100px) rotateY(92deg) rotate(0.5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1100px) rotateY(0deg) rotate(0.5deg);
+  }
+}
+
+/* Left page settles during next flip */
+@keyframes page-settle-next {
+  0% {
+    opacity: 1;
+    transform: perspective(1100px) rotateY(2.5deg) rotate(-0.5deg);
+  }
+  40% {
+    opacity: 0.6;
+    transform: translateX(-8px) rotate(-0.5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1100px) rotateY(2.5deg) rotate(-0.5deg);
+  }
+}
+
+/* Page flip animation - left page turns */
+@keyframes page-flip-prev {
+  0% {
+    opacity: 1;
+    transform: perspective(1100px) rotateY(0deg) rotate(-0.5deg);
+  }
+  45% {
+    opacity: 0.3;
+    transform: perspective(1100px) rotateY(92deg) rotate(-0.5deg);
+  }
+  55% {
+    opacity: 0.3;
+    transform: perspective(1100px) rotateY(-92deg) rotate(-0.5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1100px) rotateY(0deg) rotate(-0.5deg);
+  }
+}
+
+/* Right page settles during prev flip */
+@keyframes page-settle-prev {
+  0% {
+    opacity: 1;
+    transform: perspective(1100px) rotateY(-2.5deg) rotate(0.5deg);
+  }
+  40% {
+    opacity: 0.6;
+    transform: translateX(8px) rotate(0.5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1100px) rotateY(-2.5deg) rotate(0.5deg);
+  }
+}
+
+/* ===== CONTROLS CONTAINER ===== */
+.animated-book-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  width: 100%;
+  padding: 0 1rem;
+}
+
+/* ===== NAVIGATION BUTTONS ===== */
+.animated-book-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 2px solid #0052a3;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #f0f6fb, #e8f0f8);
+  color: #0052a3;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 2px 8px rgba(0, 82, 163, 0.15);
+}
+
+.animated-book-button:hover:not(:disabled) {
+  background: #dceeff;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0, 82, 163, 0.3);
+}
+
+.animated-book-button:active:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.animated-book-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== PAGE INDICATOR ===== */
+.animated-book-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 60px;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #f0f6fb 0%, #e8f0f8 100%);
+  border: 1px solid rgba(0, 82, 163, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 82, 163, 0.08);
+}
+
+.animated-indicator-text {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0052a3;
+  letter-spacing: 0.5px;
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+
+/* Tablet (768px and up) */
+@media (max-width: 768px) {
+  .animated-book-wrapper {
+    max-width: 420px;
+    gap: 1.25rem;
+  }
+
+  .animated-book-main {
+    padding: 7px 8px 10px;
+  }
+
+  .animated-book-page {
+    min-height: 280px;
+    padding: 1.25rem 1rem;
+  }
+
+  .animated-page-title {
+    font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+  }
+
+  .animated-page-author {
+    font-size: clamp(0.75rem, 1.2vw, 0.9rem);
+  }
+
+  .animated-book-controls {
+    gap: 1.5rem;
+  }
+
+  .animated-book-button {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* Mobile (640px and down) */
+@media (max-width: 640px) {
+  .animated-book-container {
+    padding: 0.75rem 0;
+  }
+
+  .animated-book-wrapper {
+    max-width: 100%;
+    max-width: calc(100% - 2rem);
+    gap: 1rem;
+  }
+
+  .animated-book-main {
+    padding: 6px 6px 8px;
+    border-radius: 12px 12px 16px 16px;
+    box-shadow:
+      0 6px 0 #003560,
+      0 10px 0 #0052a3,
+      0 16px 0 #003d7a,
+      0 24px 40px rgba(0, 30, 70, 0.5);
+  }
+
+  .animated-book-page {
+    min-height: 240px;
+    padding: 1rem 0.85rem;
+    font-size: 0.9rem;
+  }
+
+  .animated-page-title {
+    font-size: clamp(1.1rem, 2.2vw, 1.5rem);
+  }
+
+  .animated-page-author {
+    font-size: 0.8rem;
+  }
+
+  .animated-page-badge {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.6rem;
+  }
+
+  .animated-page-cta {
+    font-size: 0.7rem;
+  }
+
+  .animated-book-controls {
+    gap: 1.25rem;
+  }
+
+  .animated-book-button {
+    width: 38px;
+    height: 38px;
+  }
+
+  .animated-book-indicator {
+    min-width: 50px;
+    padding: 0.4rem 0.8rem;
+  }
+
+  .animated-indicator-text {
+    font-size: 0.8rem;
+  }
+}
+
+/* Small Mobile (480px and down) */
+@media (max-width: 480px) {
+  .animated-book-wrapper {
+    max-width: calc(100% - 1.5rem);
+  }
+
+  .animated-book-page {
+    min-height: 220px;
+    padding: 0.9rem 0.75rem;
+  }
+
+  .animated-page-title {
+    font-size: clamp(1rem, 2vw, 1.3rem);
+  }
+
+  .animated-book-button {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+/* ===== PREFERS REDUCED MOTION ===== */
+@media (prefers-reduced-motion: reduce) {
+  .animated-book-wrapper,
+  .animated-book-main,
+  .animated-book-button,
+  .animated-page-cta {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .animated-book-main.is-flipping-next .animated-book-page-right,
+  .animated-book-main.is-flipping-next .animated-book-page-left,
+  .animated-book-main.is-flipping-prev .animated-book-page-left,
+  .animated-book-main.is-flipping-prev .animated-book-page-right {
+    animation: none !important;
+  }
+}
