@@ -45,11 +45,13 @@ const sendVerificationEmail = async (email, code) => {
     // Use SendGrid SDK if API key is configured
     if (process.env.SENDGRID_API_KEY) {
       console.log('[EMAIL] Using SendGrid SDK for email sending');
+      const senderEmail = process.env.SENDGRID_FROM_EMAIL || 'renellerobieF16@gmail.com';
+      console.log('[EMAIL] Sender email:', senderEmail);
       sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
       const msg = {
         to: email,
-        from: process.env.SENDGRID_FROM_EMAIL || 'renellerobieF16@gmail.com',
+        from: senderEmail,
         subject: 'Libralink - Email Verification Code',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
