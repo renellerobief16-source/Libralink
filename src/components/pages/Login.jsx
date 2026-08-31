@@ -524,6 +524,14 @@ function Login() {
                       <p className="text-xs text-slate-500 sm:text-sm">Account found</p>
                     </div>
                   </div>
+                  {resetRecoveryEmail && (
+                    <div className="mt-2 pt-2 border-t border-slate-200">
+                      <p className="text-xs text-slate-600 sm:text-sm">
+                        <span className="font-medium">Code will be sent to:</span>{' '}
+                        <span className="text-[#0077B6] break-all">{resetRecoveryEmail}</span>
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <button
