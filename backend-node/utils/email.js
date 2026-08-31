@@ -31,24 +31,9 @@ const createTransporter = () => {
 // Send verification code email
 const sendVerificationEmail = async (email, code) => {
   try {
-    console.log('[EMAIL] Starting email send process');
-    console.log('[EMAIL] EMAIL_USER configured:', !!process.env.EMAIL_USER);
-    console.log('[EMAIL] EMAIL_PASSWORD configured:', !!process.env.EMAIL_PASSWORD);
-    console.log('[EMAIL] GMAIL_USER configured:', !!process.env.GMAIL_USER);
-    console.log('[EMAIL] GMAIL_APP_PASSWORD configured:', !!process.env.GMAIL_APP_PASSWORD);
-    console.log('[EMAIL] Target email:', email);
-    console.log('[EMAIL] Code:', code);
+    console.log('[EMAIL] Starting email send process to:', email);
 
     const transporter = createTransporter();
-
-    // Verify transporter configuration
-    await transporter.verify((error, success) => {
-      if (error) {
-        console.error('[EMAIL] Transporter verification failed:', error);
-      } else {
-        console.log('[EMAIL] Transporter is ready to send emails');
-      }
-    });
 
     const mailOptions = {
       from: process.env.EMAIL_USER || process.env.GMAIL_USER,
@@ -77,19 +62,11 @@ const sendVerificationEmail = async (email, code) => {
       `
     };
 
-    console.log('[EMAIL] Sending email with options:', { from: mailOptions.from, to: mailOptions.to, subject: mailOptions.subject });
-
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[EMAIL] Verification email sent successfully to ${email}:`, info.messageId);
-    console.log('[EMAIL] Email response:', info.response);
+    console.log(`[EMAIL] Verification email sent successfully to ${email}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('[EMAIL] Error sending verification email:', error);
-    console.error('[EMAIL] Error details:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
+    console.error('[EMAIL] Error sending verification email:', error.message);
     return { success: false, error: error.message };
   }
 };

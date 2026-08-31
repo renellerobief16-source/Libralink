@@ -291,25 +291,14 @@ router.post('/find-account', async (req, res) => {
       // Find by username - need to add this method or use existing
       const { data: users, error } = await supabase
         .from('users')
-        .select(`
-          *,
-          schools(school_name, school_code),
-          roles(role_name)
-        `)
+        .select('*')
         .eq('username', username)
         .eq('status', 'active')
-        .single();
+        .maybeSingle();
 
       if (!error && users) {
-        user = {
-          ...users,
-          school_name: users.schools?.school_name,
-          school_code: users.schools?.school_code,
-          role_name: users.roles?.role_name
-        };
+        user = users;
         delete user.password;
-        delete user.schools;
-        delete user.roles;
       }
     }
 
@@ -386,25 +375,17 @@ router.post('/forgot-password', async (req, res) => {
 
     if (!emailResult.success) {
       console.error('[AUTH] Failed to send password reset email:', emailResult.error);
-      // Log the code for fallback
-      console.log(`[PASSWORD RESET] Code for ${user.recovery_email}: ${verification.code}`);
-
-      // Return code in response if email fails (for testing in environments where SMTP is blocked)
-      return res.json({
-        success: true,
-        message: `Password reset code generated. Email sending failed, but you can use this code: ${verification.code}`,
-        recovery_email: user.recovery_email,
-        code: verification.code, // Include code for testing when email fails
-        email_failed: true
+      // Don't log or return the code - security requirement
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send verification email. Please try again later or contact support.'
       });
     }
 
     res.json({
       success: true,
       message: `Password reset code has been sent to your recovery email (${user.recovery_email}).`,
-      recovery_email: user.recovery_email,
-      // For development only - remove in production
-      code: process.env.NODE_ENV === 'development' ? verification.code : undefined
+      recovery_email: user.recovery_email
     });
   } catch (error) {
     console.error('Forgot password error:', error);
