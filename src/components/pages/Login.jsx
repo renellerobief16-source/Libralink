@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { signIn } from "../../utils/api";
+import { signIn, API_BASE_URL } from "../../utils/api";
 import { FiMail, FiLock, FiArrowLeft, FiCheck, FiBook, FiEye, FiEyeOff, FiShield, FiUser } from "react-icons/fi";
 
 function normalizeCampusKey(college) {
@@ -93,12 +93,12 @@ function Login() {
     setResetError("");
 
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000'}/api/auth/find-account`, {
+      const response = await fetch(`${API_BASE_URL}/auth/find-account`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           email: resetEmail || null,
           username: resetUsername || null
         }),
@@ -126,7 +126,7 @@ function Login() {
     setResetError("");
 
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000'}/api/auth/forgot-password`, {
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
