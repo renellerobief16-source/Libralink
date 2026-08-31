@@ -159,6 +159,9 @@ router.post('/register', auth, requireRole(['Librarian Admin', 'Librarian']), as
 // @access  Private
 router.post('/send-verification-code', auth, async (req, res) => {
   try {
+    console.log('[AUTH] Send verification code - req.user:', req.user);
+    console.log('[AUTH] Send verification code - Authorization header:', req.header('Authorization')?.substring(0, 20) + '...');
+    
     const { recovery_email } = req.body;
     const user_id = req.user?.user_id;
     const normalizedEmail = String(recovery_email || '').trim().toLowerCase();
@@ -171,9 +174,10 @@ router.post('/send-verification-code', auth, async (req, res) => {
     }
 
     if (!user_id) {
+      console.error('[AUTH] No user_id in req.user:', req.user);
       return res.status(401).json({
         success: false,
-        message: 'User not authenticated'
+        message: 'User not authenticated - missing user_id'
       });
     }
 
@@ -184,20 +188,27 @@ router.post('/send-verification-code', auth, async (req, res) => {
       type: 'email_verification'
     });
 
+    console.log(`[AUTH] Verification code created for ${normalizedEmail}: ${verification.code}`);
+
     // Send actual email with the code
     const emailResult = await sendVerificationEmail(recovery_email, verification.code);
 
     if (!emailResult.success) {
       console.error('[AUTH] Failed to send verification email:', emailResult.error);
-      // Still return success to prevent email enumeration, but log the code for fallback
-      console.log(`[EMAIL VERIFICATION] Code for ${recovery_email}: ${verification.code}`);
+      // Return the code in response for fallback if email fails
+      return res.json({
+        success: true,
+        message: 'Verification code generated. Email delivery failed - please use the code below.',
+        code: verification.code,
+        emailError: emailResult.error
+      });
     }
 
     res.json({
       success: true,
       message: 'Verification code sent to your recovery email',
-      // For development only - remove in production
-      code: process.env.NODE_ENV === 'development' ? verification.code : undefined
+      // Always return code for development/testing
+      code: verification.code
     });
   } catch (error) {
     console.error('Send verification code error:', error);
@@ -258,8 +269,79 @@ router.post('/verify-code', auth, async (req, res) => {
   }
 });
 
+// @route   POST /api/auth/find-account
+// @desc    Find account by email or username
+// @access  Public
+router.post('/find-account', async (req, res) => {
+  try {
+    const { email, username } = req.body;
+
+    if (!email && !username) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email or username is required'
+      });
+    }
+
+    let user = null;
+
+    if (email) {
+      user = await User.getByEmail(email);
+    } else if (username) {
+      // Find by username - need to add this method or use existing
+      const { data: users, error } = await supabase
+        .from('users')
+        .select(`
+          *,
+          schools(school_name, school_code),
+          roles(role_name)
+        `)
+        .eq('username', username)
+        .eq('status', 'active')
+        .single();
+
+      if (!error && users) {
+        user = {
+          ...users,
+          school_name: users.schools?.school_name,
+          school_code: users.schools?.school_code,
+          role_name: users.roles?.role_name
+        };
+        delete user.password;
+        delete user.schools;
+        delete user.roles;
+      }
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No account found with this email or username.'
+      });
+    }
+
+    // Mask the email for security (show first 2 chars and domain)
+    const maskedEmail = user.email ? user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3') : '';
+
+    res.json({
+      success: true,
+      message: 'Account found',
+      email: user.email,
+      recovery_email: user.recovery_email,
+      masked_email: maskedEmail,
+      username: user.username
+    });
+  } catch (error) {
+    console.error('Find account error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to find account'
+    });
+  }
+});
+
 // @route   POST /api/auth/forgot-password
-// @desc    Send password reset code to recovery_email
+// @desc    Send password reset code to user's recovery_email (1-to-1 verification)
 // @access  Public
 router.post('/forgot-password', async (req, res) => {
   try {
@@ -272,35 +354,46 @@ router.post('/forgot-password', async (req, res) => {
       });
     }
 
-    // Check if user exists with this recovery_email
-    const user = await User.getByRecoveryEmail(email);
+    // First, find user by login email to get user_id
+    const user = await User.getByEmail(email);
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'No account found with this recovery email. Please contact your school administrator.'
+        message: 'No account found with this email. Please use your login email.'
       });
     }
 
-    // Create verification code for password reset
+    // Check if user has a recovery_email set
+    if (!user.recovery_email) {
+      return res.status(400).json({
+        success: false,
+        message: 'No recovery email set for this account. Please contact your school administrator.'
+      });
+    }
+
+    // Create verification code for password reset using the user's recovery_email
     const verification = await VerificationCode.create({
       user_id: user.user_id,
-      email: email,
+      email: user.recovery_email,
       type: 'password_reset'
     });
 
-    // Send actual email with the code
-    const emailResult = await sendVerificationEmail(email, verification.code);
+    console.log(`[AUTH] Password reset for user_id ${user.user_id}, sending code to recovery_email: ${user.recovery_email}`);
+
+    // Send actual email with the code to the recovery_email
+    const emailResult = await sendVerificationEmail(user.recovery_email, verification.code);
 
     if (!emailResult.success) {
       console.error('[AUTH] Failed to send password reset email:', emailResult.error);
       // Log the code for fallback
-      console.log(`[PASSWORD RESET] Code for ${email}: ${verification.code}`);
+      console.log(`[PASSWORD RESET] Code for ${user.recovery_email}: ${verification.code}`);
     }
 
     res.json({
       success: true,
-      message: 'Password reset code has been sent to your recovery email.',
+      message: `Password reset code has been sent to your recovery email (${user.recovery_email}).`,
+      recovery_email: user.recovery_email,
       // For development only - remove in production
       code: process.env.NODE_ENV === 'development' ? verification.code : undefined
     });
@@ -334,20 +427,27 @@ router.post('/reset-password', async (req, res) => {
       });
     }
 
-    // Get user by recovery_email
-    const user = await User.getByRecoveryEmail(email);
+    // Get user by login email to get user_id and recovery_email
+    const user = await User.getByEmail(email);
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found with this recovery email'
+        message: 'User not found with this email'
       });
     }
 
-    // Verify the reset code
+    if (!user.recovery_email) {
+      return res.status(400).json({
+        success: false,
+        message: 'No recovery email set for this account'
+      });
+    }
+
+    // Verify the reset code against the user's recovery_email
     const verificationResult = await VerificationCode.verify({
       user_id: user.user_id,
-      email: email,
+      email: user.recovery_email,
       code: code,
       type: 'password_reset'
     });

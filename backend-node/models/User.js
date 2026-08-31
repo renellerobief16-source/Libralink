@@ -32,10 +32,6 @@ function normalizeUserUpdateData(data = {}) {
     delete updateData.profile_image;
   }
 
-  if (Object.prototype.hasOwnProperty.call(updateData, 'recovery_email') && !Object.prototype.hasOwnProperty.call(updateData, 'email')) {
-    updateData.email = updateData.recovery_email;
-  }
-
   if (Object.prototype.hasOwnProperty.call(updateData, 'cellphone') && !Object.prototype.hasOwnProperty.call(updateData, 'contact_number')) {
     updateData.contact_number = updateData.cellphone;
   }

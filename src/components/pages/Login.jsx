@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { signIn } from "../../utils/api";
-import { FiMail, FiLock, FiArrowLeft, FiCheck, FiBook, FiEye, FiEyeOff, FiShield } from "react-icons/fi";
+import { FiMail, FiLock, FiArrowLeft, FiCheck, FiBook, FiEye, FiEyeOff, FiShield, FiUser } from "react-icons/fi";
 
 function normalizeCampusKey(college) {
   const normalizedValue = String(college || "").trim().toLowerCase();
@@ -74,14 +74,50 @@ function Login() {
   const [resetEmail, setResetEmail] = useState("");
   const [resetCode, setResetCode] = useState("");
   const [resetPassword, setResetPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+  const [resetRecoveryEmail, setResetRecoveryEmail] = useState("");
+  const [resetUsername, setResetUsername] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
   const [resetError, setResetError] = useState("");
-  const [resetStep, setResetStep] = useState('email'); // email, code, password, success
+  const [resetStep, setResetStep] = useState('find_account'); // find_account, choose_method, code, password, success
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm((f) => ({ ...f, [name]: type === "checkbox" ? checked : value }));
+  };
+
+  const handleFindAccount = async (e) => {
+    e.preventDefault();
+    setResetLoading(true);
+    setResetError("");
+
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000'}/api/auth/find-account`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          email: resetEmail || null,
+          username: resetUsername || null
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setResetEmail(data.email || resetEmail);
+        setResetRecoveryEmail(data.recovery_email || '');
+        setResetStep('choose_method');
+      } else {
+        setResetError(data.message || 'Account not found. Please try again.');
+      }
+    } catch (err) {
+      setResetError('Network error. Please check your connection and try again.');
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   const handleForgotPassword = async (e) => {
@@ -101,6 +137,7 @@ function Login() {
       const data = await response.json();
 
       if (response.ok) {
+        setResetRecoveryEmail(data.recovery_email || '');
         setResetStep('code');
         if (data.code) {
           console.log('Password reset code:', data.code);
@@ -119,6 +156,18 @@ function Login() {
     e.preventDefault();
     setResetLoading(true);
     setResetError("");
+
+    if (resetPassword !== resetConfirmPassword) {
+      setResetError('Passwords do not match. Please try again.');
+      setResetLoading(false);
+      return;
+    }
+
+    if (resetPassword.length < 8) {
+      setResetError('Password must be at least 8 characters long.');
+      setResetLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000'}/api/auth/reset-password`, {
@@ -147,19 +196,23 @@ function Login() {
   const openForgotPassword = () => {
     setResetEmail(form.email);
     setShowForgotPassword(true);
-    setResetStep('email');
+    setResetStep('find_account');
     setResetSuccess(false);
     setResetError("");
     setResetCode("");
     setResetPassword("");
+    setResetUsername("");
   };
 
   const closeForgotPassword = () => {
     setShowForgotPassword(false);
     setResetEmail("");
+    setResetUsername("");
     setResetCode("");
     setResetPassword("");
-    setResetStep('email');
+    setResetConfirmPassword("");
+    setResetRecoveryEmail("");
+    setResetStep('find_account');
     setResetSuccess(false);
     setResetError("");
   };
@@ -380,96 +433,172 @@ function Login() {
 
       {/* Forgot Password Modal */}
       {showForgotPassword && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full sm:p-8">
-            <h3 className="text-xl font-bold text-[#0F172A] mb-2 sm:text-2xl">
-              {resetStep === 'success' ? 'Password Reset' : resetStep === 'code' ? 'Enter Verification Code' : resetStep === 'password' ? 'Set New Password' : 'Reset your password'}
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-2xl p-4 max-w-md w-full sm:p-6 md:p-8">
+            <h3 className="text-lg font-bold text-[#0F172A] mb-2 sm:text-xl md:text-2xl">
+              {resetStep === 'success' ? 'Password Reset' : resetStep === 'code' ? 'Enter Verification Code' : resetStep === 'password' ? 'Set New Password' : resetStep === 'choose_method' ? 'Choose a way to log in' : 'Find your account'}
             </h3>
-            <p className="text-sm text-[#64748B] mb-6 sm:text-base">
+            <p className="text-xs text-[#64748B] mb-4 sm:text-sm md:text-base">
               {resetStep === 'success'
                 ? 'Your password has been reset successfully. You can now sign in with your new password.'
                 : resetStep === 'code'
-                ? `We've sent a 6-digit verification code to ${resetEmail}. Enter the code below to reset your password.`
+                ? `We've sent a 6-digit verification code to your recovery email. Enter the code below to reset your password.`
                 : resetStep === 'password'
                 ? 'Enter your new password below.'
-                : 'Enter your recovery email address and we\'ll send you a verification code to reset your password.'
+                : resetStep === 'choose_method'
+                ? 'Choose how you want to receive the verification code.'
+                : 'Search for your account by email or username.'
               }
             </p>
 
-            {resetStep === 'email' && (
-              <form onSubmit={handleForgotPassword} className="space-y-4">
+            {resetStep === 'find_account' && (
+              <form onSubmit={handleFindAccount} className="space-y-3 sm:space-y-4">
                 <div>
-                  <label htmlFor="reset-email" className="mb-2 block text-sm font-medium">Recovery email address</label>
+                  <label htmlFor="reset-email" className="mb-1.5 block text-xs font-medium sm:mb-2 sm:text-sm">Email address</label>
                   <input
                     id="reset-email"
                     type="email"
                     placeholder="you@example.com"
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
-                    className="min-h-11 w-full border border-slate-200 bg-[#F8FAFC] px-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:min-h-12 sm:text-base"
-                    required
+                    className="min-h-10 w-full border border-slate-200 bg-[#F8FAFC] px-3 text-xs outline-none transition placeholder:text-slate-400 focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:min-h-11 sm:text-sm sm:px-3 md:min-h-12 md:text-base"
+                  />
+                </div>
+                <div className="relative py-2 sm:py-3">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200"></div>
+                  </div>
+                  <div className="relative flex justify-center text-xs sm:text-sm">
+                    <span className="px-2 bg-white text-slate-500">OR</span>
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="reset-username" className="mb-1.5 block text-xs font-medium sm:mb-2 sm:text-sm">Username</label>
+                  <input
+                    id="reset-username"
+                    type="text"
+                    placeholder="your username"
+                    value={resetUsername}
+                    onChange={(e) => setResetUsername(e.target.value)}
+                    className="min-h-10 w-full border border-slate-200 bg-[#F8FAFC] px-3 text-xs outline-none transition placeholder:text-slate-400 focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:min-h-11 sm:text-sm sm:px-3 md:min-h-12 md:text-base"
                   />
                 </div>
 
                 {resetError && (
-                  <div className="border-l-4 border-red-500 bg-red-50 p-3">
-                    <p className="text-sm font-medium text-red-800">{resetError}</p>
+                  <div className="border-l-4 border-red-500 bg-red-50 p-2.5 sm:p-3 animate-in slide-in-from-left-2 duration-300">
+                    <div className="flex items-start gap-2">
+                      <FiShield className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5 sm:w-5 sm:h-5" />
+                      <p className="text-xs font-medium text-red-800 sm:text-sm">{resetError}</p>
+                    </div>
                   </div>
                 )}
 
-                <div className="flex gap-3">
+                <div className="flex gap-2 sm:gap-3">
                   <button
                     type="button"
                     onClick={closeForgotPassword}
-                    className="flex-1 min-h-11 border border-slate-200 px-4 text-sm font-semibold text-[#64748B] transition hover:bg-slate-50 sm:min-h-12"
+                    className="flex-1 min-h-10 border border-slate-200 px-3 text-xs font-semibold text-[#64748B] transition hover:bg-slate-50 sm:min-h-11 sm:px-4 sm:text-sm md:min-h-12"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    disabled={resetLoading}
-                    className="flex-1 min-h-11 bg-[#0077B6] px-4 text-sm font-semibold text-white transition hover:bg-[#00669d] disabled:cursor-wait disabled:opacity-60 sm:min-h-12"
+                    disabled={resetLoading || (!resetEmail && !resetUsername)}
+                    className="flex-1 min-h-10 bg-[#0077B6] px-3 text-xs font-semibold text-white transition hover:bg-[#00669d] disabled:cursor-wait disabled:opacity-60 sm:min-h-11 sm:px-4 sm:text-sm md:min-h-12"
                   >
-                    {resetLoading ? 'Sending...' : 'Send Code'}
+                    {resetLoading ? 'Searching...' : 'Find Account'}
                   </button>
                 </div>
               </form>
             )}
 
+            {resetStep === 'choose_method' && (
+              <div className="space-y-3 sm:space-y-4">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 sm:p-4">
+                  <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                    <div className="w-10 h-10 bg-[#0077B6] rounded-full flex items-center justify-center sm:w-12 sm:h-12">
+                      <FiUser className="w-5 h-5 text-white sm:w-6 sm:h-6" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-[#0F172A] text-sm truncate sm:text-base">{resetEmail}</p>
+                      <p className="text-xs text-slate-500 sm:text-sm">Account found</p>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={resetLoading}
+                  className="w-full min-h-11 border border-[#0077B6] bg-white px-3 text-xs font-semibold text-[#0077B6] transition hover:bg-[#0077B6]/5 disabled:cursor-wait disabled:opacity-60 flex items-center justify-center gap-2 sm:min-h-12 sm:px-4 sm:text-sm"
+                >
+                  <FiMail className="w-4 h-4 sm:w-5 sm:h-5" />
+                  {resetLoading ? 'Sending...' : 'Get code via Gmail account'}
+                </button>
+
+                <div className="flex gap-2 sm:gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setResetStep('find_account')}
+                    className="flex-1 min-h-10 border border-slate-200 px-3 text-xs font-semibold text-[#64748B] transition hover:bg-slate-50 sm:min-h-11 sm:px-4 sm:text-sm md:min-h-12"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeForgotPassword}
+                    className="flex-1 min-h-10 border border-slate-200 px-3 text-xs font-semibold text-[#64748B] transition hover:bg-slate-50 sm:min-h-11 sm:px-4 sm:text-sm md:min-h-12"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
             {resetStep === 'code' && (
-              <form onSubmit={(e) => { e.preventDefault(); setResetStep('password'); }} className="space-y-4">
+              <form onSubmit={(e) => { e.preventDefault(); setResetStep('password'); }} className="space-y-3 sm:space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FiMail className="w-4 h-4 text-[#0077B6] sm:w-5 sm:h-5" />
+                    <span className="text-xs font-semibold text-[#0077B6] sm:text-sm">Code sent to:</span>
+                  </div>
+                  <p className="text-xs font-medium text-[#0F172A] break-all sm:text-sm">{resetRecoveryEmail}</p>
+                </div>
                 <div>
-                  <label htmlFor="reset-code" className="mb-2 block text-sm font-medium">Verification Code</label>
+                  <label htmlFor="reset-code" className="mb-1.5 block text-xs font-medium sm:mb-2 sm:text-sm">Verification Code</label>
                   <input
                     id="reset-code"
                     type="text"
                     placeholder="123456"
                     value={resetCode}
                     onChange={(e) => setResetCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    className="min-h-11 w-full border border-slate-200 bg-[#F8FAFC] px-3 text-center text-lg font-mono tracking-widest outline-none transition placeholder:text-slate-400 focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:min-h-12"
+                    className="min-h-10 w-full border border-slate-200 bg-[#F8FAFC] px-3 text-center text-base font-mono tracking-widest outline-none transition placeholder:text-slate-400 focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:min-h-11 sm:text-lg sm:px-3 md:min-h-12"
                     maxLength={6}
                     required
                   />
                 </div>
 
                 {resetError && (
-                  <div className="border-l-4 border-red-500 bg-red-50 p-3">
-                    <p className="text-sm font-medium text-red-800">{resetError}</p>
+                  <div className="border-l-4 border-red-500 bg-red-50 p-2.5 sm:p-3 animate-in slide-in-from-left-2 duration-300">
+                    <div className="flex items-start gap-2">
+                      <FiShield className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5 sm:w-5 sm:h-5" />
+                      <p className="text-xs font-medium text-red-800 sm:text-sm">{resetError}</p>
+                    </div>
                   </div>
                 )}
 
-                <div className="flex gap-3">
+                <div className="flex gap-2 sm:gap-3">
                   <button
                     type="button"
-                    onClick={() => setResetStep('email')}
-                    className="flex-1 min-h-11 border border-slate-200 px-4 text-sm font-semibold text-[#64748B] transition hover:bg-slate-50 sm:min-h-12"
+                    onClick={() => setResetStep('find_account')}
+                    className="flex-1 min-h-10 border border-slate-200 px-3 text-xs font-semibold text-[#64748B] transition hover:bg-slate-50 sm:min-h-11 sm:px-4 sm:text-sm md:min-h-12"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
                     disabled={resetCode.length !== 6}
-                    className="flex-1 min-h-11 bg-[#0077B6] px-4 text-sm font-semibold text-white transition hover:bg-[#00669d] disabled:cursor-wait disabled:opacity-60 sm:min-h-12"
+                    className="flex-1 min-h-10 bg-[#0077B6] px-3 text-xs font-semibold text-white transition hover:bg-[#00669d] disabled:cursor-wait disabled:opacity-60 sm:min-h-11 sm:px-4 sm:text-sm md:min-h-12"
                   >
                     Continue
                   </button>
@@ -493,10 +622,26 @@ function Login() {
                   />
                   <p className="mt-1 text-xs text-slate-500">Must be at least 8 characters long</p>
                 </div>
+                <div>
+                  <label htmlFor="confirm-password" className="mb-2 block text-sm font-medium">Confirm New Password</label>
+                  <input
+                    id="confirm-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={resetConfirmPassword}
+                    onChange={(e) => setResetConfirmPassword(e.target.value)}
+                    className="min-h-11 w-full border border-slate-200 bg-[#F8FAFC] px-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:min-h-12 sm:text-base"
+                    minLength={8}
+                    required
+                  />
+                </div>
 
                 {resetError && (
-                  <div className="border-l-4 border-red-500 bg-red-50 p-3">
-                    <p className="text-sm font-medium text-red-800">{resetError}</p>
+                  <div className="border-l-4 border-red-500 bg-red-50 p-3 animate-in slide-in-from-left-2 duration-300">
+                    <div className="flex items-start gap-2">
+                      <FiShield className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm font-medium text-red-800">{resetError}</p>
+                    </div>
                   </div>
                 )}
 
@@ -510,7 +655,7 @@ function Login() {
                   </button>
                   <button
                     type="submit"
-                    disabled={resetLoading || resetPassword.length < 8}
+                    disabled={resetLoading || resetPassword.length < 8 || resetConfirmPassword.length < 8}
                     className="flex-1 min-h-11 bg-[#0077B6] px-4 text-sm font-semibold text-white transition hover:bg-[#00669d] disabled:cursor-wait disabled:opacity-60 sm:min-h-12"
                   >
                     {resetLoading ? 'Resetting...' : 'Reset Password'}
