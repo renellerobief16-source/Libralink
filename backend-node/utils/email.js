@@ -37,6 +37,7 @@ const sendVerificationEmail = async (email, code) => {
     console.log('[EMAIL] Starting email send process to:', email);
 
     const transporter = createTransporter();
+    console.log('[EMAIL] Transporter created, preparing to send...');
 
     const mailOptions = {
       from: process.env.EMAIL_USER || process.env.GMAIL_USER,
@@ -65,11 +66,13 @@ const sendVerificationEmail = async (email, code) => {
       `
     };
 
+    console.log('[EMAIL] Calling transporter.sendMail...');
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[EMAIL] Verification email sent successfully to ${email}`);
+    console.log(`[EMAIL] Verification email sent successfully to ${email}, messageId: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error('[EMAIL] Error sending verification email:', error.message);
+    console.error('[EMAIL] Full error:', error);
     return { success: false, error: error.message };
   }
 };
