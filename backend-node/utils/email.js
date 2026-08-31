@@ -1,5 +1,5 @@
 const nodemailer = require('nodemailer');
-const sgMail = require('@sendgrid/mail');
+const mailgun = require('mailgun-js');
 
 // Create transporter using Gmail SMTP with fallback to alternative
 const createTransporter = () => {
@@ -42,16 +42,20 @@ const sendVerificationEmail = async (email, code) => {
   try {
     console.log('[EMAIL] Starting email send process to:', email);
 
-    // Use SendGrid SDK if API key is configured
-    if (process.env.SENDGRID_API_KEY) {
-      console.log('[EMAIL] Using SendGrid SDK for email sending');
-      const senderEmail = process.env.SENDGRID_FROM_EMAIL || 'renellerobieF16@gmail.com';
-      console.log('[EMAIL] Sender email:', senderEmail);
-      sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+    // Use Mailgun if API key is configured
+    if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
+      console.log('[EMAIL] Using Mailgun for email sending');
+      const mg = mailgun({
+        apiKey: process.env.MAILGUN_API_KEY,
+        domain: process.env.MAILGUN_DOMAIN
+      });
 
-      const msg = {
-        to: email,
+      const senderEmail = process.env.MAILGUN_FROM_EMAIL || 'renellerobieF16@gmail.com';
+      console.log('[EMAIL] Sender email:', senderEmail);
+
+      const data = {
         from: senderEmail,
+        to: email,
         subject: 'Libralink - Email Verification Code',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -76,11 +80,10 @@ const sendVerificationEmail = async (email, code) => {
         `
       };
 
-      console.log('[EMAIL] Sending via SendGrid SDK...');
-      console.log('[EMAIL] Email details:', { to: email, from: senderEmail, subject: 'Libralink - Email Verification Code' });
-      const response = await sgMail.send(msg);
-      console.log(`[EMAIL] Verification email sent successfully to ${email} via SendGrid`);
-      return { success: true, messageId: response[0]?.headers['x-message-id'] };
+      console.log('[EMAIL] Sending via Mailgun...');
+      const body = await mg.messages().send(data);
+      console.log(`[EMAIL] Verification email sent successfully to ${email} via Mailgun`);
+      return { success: true, messageId: body.id };
     }
 
     // Fallback to nodemailer
@@ -122,9 +125,6 @@ const sendVerificationEmail = async (email, code) => {
   } catch (error) {
     console.error('[EMAIL] Error sending verification email:', error.message);
     console.error('[EMAIL] Full error:', error);
-    if (error.response && error.response.body) {
-      console.error('[EMAIL] SendGrid error body:', JSON.stringify(error.response.body, null, 2));
-    }
     return { success: false, error: error.message };
   }
 };
