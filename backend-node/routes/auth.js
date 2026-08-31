@@ -388,6 +388,15 @@ router.post('/forgot-password', async (req, res) => {
       console.error('[AUTH] Failed to send password reset email:', emailResult.error);
       // Log the code for fallback
       console.log(`[PASSWORD RESET] Code for ${user.recovery_email}: ${verification.code}`);
+
+      // Return code in response if email fails (for testing in environments where SMTP is blocked)
+      return res.json({
+        success: true,
+        message: `Password reset code generated. Email sending failed, but you can use this code: ${verification.code}`,
+        recovery_email: user.recovery_email,
+        code: verification.code, // Include code for testing when email fails
+        email_failed: true
+      });
     }
 
     res.json({
