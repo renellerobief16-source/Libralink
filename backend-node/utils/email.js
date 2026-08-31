@@ -49,7 +49,7 @@ const sendVerificationEmail = async (email, code) => {
 
       const msg = {
         to: email,
-        from: process.env.EMAIL_USER || 'libralink1620@gmail.com',
+        from: process.env.SENDGRID_FROM_EMAIL || 'renellerobieF16@gmail.com',
         subject: 'Libralink - Email Verification Code',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
