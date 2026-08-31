@@ -77,6 +77,7 @@ const sendVerificationEmail = async (email, code) => {
       };
 
       console.log('[EMAIL] Sending via SendGrid SDK...');
+      console.log('[EMAIL] Email details:', { to: email, from: senderEmail, subject: 'Libralink - Email Verification Code' });
       const response = await sgMail.send(msg);
       console.log(`[EMAIL] Verification email sent successfully to ${email} via SendGrid`);
       return { success: true, messageId: response[0]?.headers['x-message-id'] };
@@ -121,6 +122,9 @@ const sendVerificationEmail = async (email, code) => {
   } catch (error) {
     console.error('[EMAIL] Error sending verification email:', error.message);
     console.error('[EMAIL] Full error:', error);
+    if (error.response && error.response.body) {
+      console.error('[EMAIL] SendGrid error body:', JSON.stringify(error.response.body, null, 2));
+    }
     return { success: false, error: error.message };
   }
 };
