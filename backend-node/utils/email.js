@@ -1,5 +1,10 @@
 const nodemailer = require('nodemailer');
-const mailgun = require('mailgun-js');
+let mailgun = null;
+try {
+  mailgun = require('mailgun-js');
+} catch (e) {
+  console.warn('[EMAIL] mailgun-js not installed or failed to load, Mailgun fallback disabled.');
+}
 
 // Create transporter using Gmail SMTP with fallback to alternative
 const createTransporter = () => {
@@ -42,8 +47,8 @@ const sendVerificationEmail = async (email, code) => {
   try {
     console.log('[EMAIL] Starting email send process to:', email);
 
-    // Use Mailgun if API key is configured
-    if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
+    // Use Mailgun if API key is configured and library is loaded
+    if (mailgun && process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
       console.log('[EMAIL] Using Mailgun for email sending');
       const mg = mailgun({
         apiKey: process.env.MAILGUN_API_KEY,
