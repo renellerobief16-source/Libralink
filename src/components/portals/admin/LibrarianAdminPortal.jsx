@@ -131,9 +131,9 @@ function LibrarianAdminPortal() {
 
   const handleDeleteAllNotifications = async () => {
     try {
-      const schoolId = localStorage.getItem('schoolId');
-      await api.delete(`/notifications/school/${schoolId}`);
+      await api.delete('/notifications/clear-all');
       // Refresh notifications
+      const schoolId = localStorage.getItem('schoolId');
       const notificationsResponse = await getAdminNotifications(schoolId);
       if (notificationsResponse.data && Array.isArray(notificationsResponse.data)) {
         setNotifications(notificationsResponse.data);

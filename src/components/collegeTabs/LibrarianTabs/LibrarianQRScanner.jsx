@@ -13,7 +13,6 @@ function LibrarianQRScanner({ darkMode }) {
   const [showReleaseConfirm, setShowReleaseConfirm] = useState(false);
   const [itemToRelease, setItemToRelease] = useState(null);
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
   const qrScannerRef = useRef(null);
 
   useEffect(() => {
@@ -22,25 +21,36 @@ function LibrarianQRScanner({ darkMode }) {
     const scanner = new QrScanner(
       videoRef.current,
       (result) => {
+        console.log('[QR SCANNER] Scan result:', result);
         const decodedText = typeof result === 'string' ? result : result.data;
+        console.log('[QR SCANNER] Decoded text:', decodedText);
         if (!decodedText) return;
         setManualToken(decodedText);
         setScanning(false);
         handleScan(decodedText);
       },
-      { highlightScanRegion: true, highlightCodeOutline: true }
+      { 
+        highlightScanRegion: true, 
+        highlightCodeOutline: true,
+        preferredCamera: 'environment'
+      }
     );
 
     qrScannerRef.current = scanner;
-    scanner.start().catch(() => {
+    scanner.start().then(() => {
+      console.log('[QR SCANNER] Camera started successfully');
+    }).catch((err) => {
+      console.error('[QR SCANNER] Camera start error:', err);
       setScanning(false);
       setError('Unable to access the camera. Please allow camera access or enter the token manually.');
     });
 
     return () => {
-      scanner.stop();
-      scanner.destroy();
-      qrScannerRef.current = null;
+      if (qrScannerRef.current) {
+        qrScannerRef.current.stop();
+        qrScannerRef.current.destroy();
+        qrScannerRef.current = null;
+      }
     };
   }, [scanning]);
 
@@ -223,6 +233,7 @@ function LibrarianQRScanner({ darkMode }) {
                   className={`${scanning ? 'block' : 'hidden'} w-full max-w-md mx-auto rounded-lg mb-4 bg-black aspect-video object-cover`}
                   muted
                   playsInline
+                  autoPlay
                 />
                 <div className="flex justify-center mb-4">
                   <button

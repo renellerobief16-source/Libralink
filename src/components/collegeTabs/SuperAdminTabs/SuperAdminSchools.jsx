@@ -1,9 +1,19 @@
 import { useState, useEffect } from 'react';
-import { FiPlus, FiEdit, FiSearch, FiGlobe, FiBook, FiX, FiGrid, FiList } from 'react-icons/fi';
-import api, { API_BASE_URL } from '../../../utils/api';
-import { AlertOverlay, LoadingOverlay } from '../../common';
+import { FiGlobe, FiEdit, FiTrash2, FiSearch, FiPlus, FiGrid, FiList, FiBook } from 'react-icons/fi';
+import api, { API_BASE_URL, getBackendAssetUrl } from '../../../utils/api';
+import Card from '../../../components/ui/Card';
+import Button from '../../../components/ui/Button';
+import Modal from '../../../components/ui/Modal';
+import PageHeader from '../../../components/ui/PageHeader';
+import { LoadingOverlay } from '../../../components/common/Loading';
+import DataTable from '../../../components/ui/DataTable';
+import IconButton from '../../../components/ui/IconButton';
+import SearchBar from '../../../components/ui/SearchBar';
+import EmptyState from '../../../components/ui/EmptyState';
+import Input from '../../../components/ui/Input';
+import Select from '../../../components/ui/Select';
+import StatusBadge from '../../../components/ui/StatusBadge';
 import useAlert from '../../../hooks/useAlert';
-import { PageHeader, Button, Card, Input, Modal, StatusBadge, EmptyState, DataTable, SearchBar, IconButton, Select } from '../../ui';
 
 function SuperAdminSchools({ darkMode }) {
   const [schools, setSchools] = useState([]);
@@ -19,25 +29,17 @@ function SuperAdminSchools({ darkMode }) {
   const [loadingBooks, setLoadingBooks] = useState(false);
   const [bookSearchQuery, setBookSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState('card');
+  const [logoVersion, setLogoVersion] = useState(Date.now());
   const { alert, showSuccess, showError, hideAlert } = useAlert();
-
-  const apiOrigin = API_BASE_URL.replace(/\/api\/?$/, '');
 
   const getLogoUrl = (logo) => {
     if (!logo) return '';
-    // If logo is already an absolute URL or a data/blob URL, return as-is
-    if (
-      logo.startsWith('http://') ||
-      logo.startsWith('https://') ||
-      logo.startsWith('data:') ||
-      logo.startsWith('blob:')
-    ) {
-      return logo;
+    const url = getBackendAssetUrl(logo);
+    // Add version to force reload after upload
+    if (logo.startsWith('/uploads/')) {
+      return `${url}?v=${logoVersion}`;
     }
-
-    // If logo is a relative path like '/uploads/logos/..', prefix backend origin
-    if (logo.startsWith('/')) return `${apiOrigin}${logo}`;
-    return `${apiOrigin}/${logo}`;
+    return url;
   };
 
   useEffect(() => {
@@ -91,6 +93,7 @@ function SuperAdminSchools({ darkMode }) {
               headers: { 'Content-Type': 'multipart/form-data' },
             });
             console.log('Logo upload response:', uploadResp);
+            setLogoVersion(Date.now()); // Update version to force reload
           } catch (uploadErr) {
             console.error('Logo upload failed:', uploadErr);
             // don't fail the whole flow for logo upload; show a warning
@@ -161,9 +164,14 @@ function SuperAdminSchools({ darkMode }) {
               headers: { 'Content-Type': 'multipart/form-data' },
             });
             console.log('Logo upload response:', uploadResp);
+            if (!uploadResp || !uploadResp.success) {
+              throw new Error(uploadResp?.message || 'Logo upload failed');
+            }
+            setLogoVersion(Date.now()); // Update version to force reload
           } catch (uploadErr) {
             console.error('Logo upload failed:', uploadErr);
             showError('School updated but logo upload failed.');
+            return;
           }
         }
 
@@ -267,7 +275,7 @@ function SuperAdminSchools({ darkMode }) {
               <div className="flex items-start justify-between mb-4">
                 <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
                   {school.logo && school.logo.length > 0 ? (
-                    <img src={getLogoUrl(school.logo)} alt="School Logo" className="w-full h-full object-contain" onError={(e) => { console.error('Logo load error: src=', e.target.src, 'event=', e); e.target.style.display = 'none'; }} />
+                    <img src={getLogoUrl(school.logo)} alt="School Logo" className="w-full h-full object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
                   ) : (
                     <FiGlobe className="w-6 h-6 text-blue-600" />
                   )}
@@ -316,7 +324,7 @@ function SuperAdminSchools({ darkMode }) {
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
                   {row.logo && row.logo.length > 0 ? (
-                    <img src={getLogoUrl(row.logo)} alt="School Logo" className="w-full h-full object-contain" onError={(e) => { console.error('Logo load error: src=', e.target.src, 'event=', e); e.target.style.display = 'none'; }} />
+                    <img src={getLogoUrl(row.logo)} alt="School Logo" className="w-full h-full object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
                   ) : (
                     <FiGlobe className="w-5 h-5 text-blue-600" />
                   )}
@@ -539,14 +547,6 @@ function SuperAdminSchools({ darkMode }) {
           )}
         </Modal>
       )}
-
-
-      <AlertOverlay
-        show={alert.show}
-        type={alert.type}
-        message={alert.message}
-        onClose={hideAlert}
-      />
     </div>
   );
 }

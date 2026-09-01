@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FiHome, FiMail, FiLogOut, FiBook, FiUsers, FiList, FiCheckCircle, FiMoon, FiSun, FiSettings, FiGlobe, FiShield, FiDatabase, FiMonitor, FiSmartphone } from "react-icons/fi";
-import { getAdminNotifications, signOut } from "../../../utils/api";
+import api, { getAdminNotifications, signOut } from "../../../utils/api";
 import { AlertOverlay, ConfirmationOverlay, GlobalHeader } from "../../common";
 import { SuperAdminDashboard, SuperAdminSchools, SuperAdminRoles, SuperAdminSettings, SuperAdminInbox, SuperAdminUsers, SuperAdminBooks, SuperAdminAnalytics } from "../../collegeTabs/SuperAdminTabs";
 
@@ -74,6 +74,14 @@ function Admin() {
     return () => clearInterval(interval);
   }, []);
 
+  const handleNotificationsChange = async () => {
+    const { data: notificationsData, error: notificationsError } = await getAdminNotifications('admin');
+    if (!notificationsError && Array.isArray(notificationsData)) {
+      setNotifications(notificationsData);
+      setUnreadCount(notificationsData.filter((n) => !n.read).length);
+    }
+  };
+
   const handleLogout = () => {
     setShowLogoutConfirmation(true);
   };
@@ -114,7 +122,7 @@ function Admin() {
 
   const handleDeleteAllNotifications = async () => {
     try {
-      await api.delete('/notifications/all');
+      await api.delete('/notifications/clear-all');
       // Refresh notifications
       const { data: notificationsData } = await api.get('/notifications');
       if (Array.isArray(notificationsData)) {
@@ -321,20 +329,22 @@ function Admin() {
         {/* Main Content */}
         <main className={`flex-1 lg:ml-64 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
           {/* Global Header */}
-          <GlobalHeader
-            userName={userInfo?.firstname || userInfo?.name || 'Super Admin'}
-            userRole={localStorage.getItem('userRole')}
-            profileImage={userInfo?.profile_picture}
-            unreadCount={unreadCount}
-            notifications={notifications}
-            onNotificationClick={handleNotificationClick}
-            onProfileClick={handleProfileClick}
-            onSettingsClick={handleSettingsClick}
-            onLogout={handleLogout}
-            onDeleteNotification={handleDeleteNotification}
-            onDeleteAllNotifications={handleDeleteAllNotifications}
-            darkMode={darkMode}
-          />
+          <div className="sticky top-0 z-40">
+            <GlobalHeader
+              userName={userInfo?.firstname || userInfo?.name || 'Super Admin'}
+              userRole={localStorage.getItem('userRole')}
+              profileImage={userInfo?.profile_picture}
+              unreadCount={unreadCount}
+              notifications={notifications}
+              onNotificationClick={handleNotificationClick}
+              onProfileClick={handleProfileClick}
+              onSettingsClick={handleSettingsClick}
+              onLogout={handleLogout}
+              onDeleteNotification={handleDeleteNotification}
+              onDeleteAllNotifications={handleDeleteAllNotifications}
+              darkMode={darkMode}
+            />
+          </div>
 
           {/* Top Bar - Mobile */}
           <div className={`lg:hidden sticky top-0 z-40 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b p-4`}>
@@ -398,7 +408,7 @@ function Admin() {
             {activeTab === 'users' && <SuperAdminUsers darkMode={darkMode} />}
             {activeTab === 'books' && <SuperAdminBooks darkMode={darkMode} />}
             {activeTab === 'system' && <SuperAdminSettings darkMode={darkMode} initialSection={activeSystemSection} key={activeSystemSection} />}
-            {activeTab === 'inbox' && <SuperAdminInbox darkMode={darkMode} notifications={notifications} />}
+            {activeTab === 'inbox' && <SuperAdminInbox darkMode={darkMode} notifications={notifications} onNotificationsChange={handleNotificationsChange} />}
           </div>
         </main>
       </div>

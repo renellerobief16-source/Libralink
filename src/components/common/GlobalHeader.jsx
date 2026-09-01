@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FiBell, FiUser, FiChevronDown, FiSettings, FiLogOut, FiCheck, FiX, FiTrash2 } from 'react-icons/fi';
+import { FiBell, FiUser, FiChevronDown, FiSettings, FiLogOut, FiCheck, FiX, FiTrash2, FiClock, FiMoreVertical } from 'react-icons/fi';
 import { getBackendAssetUrl } from '../../utils/api';
 
 function GlobalHeader({
@@ -19,6 +19,11 @@ function GlobalHeader({
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
   const [notificationFilter, setNotificationFilter] = useState('all');
+  const [deletingId, setDeletingId] = useState(null);
+  const [deletingAll, setDeletingAll] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+  const [notificationToDelete, setNotificationToDelete] = useState(null);
 
   // Role-based notification filtering
   const getFilteredNotifications = () => {
@@ -81,14 +86,62 @@ function GlobalHeader({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const getRoleDisplay = (role) => {
+  const getRoleDisplay = (role, schoolCode) => {
     if (!role) return '';
     const roleLower = role.toLowerCase();
-    if (roleLower === 'super_admin' || roleLower === 'super admin') return 'Super Admin';
-    if (roleLower === 'admin_librarian' || roleLower === 'admin-librarian' || roleLower === 'librarian admin') return 'Administrator';
-    if (roleLower === 'librarian') return 'Librarian';
-    if (roleLower === 'admin') return 'Administrator';
-    return role;
+    let roleDisplay = '';
+    
+    if (roleLower === 'super_admin' || roleLower === 'super admin') {
+      roleDisplay = 'SUPER ADMIN';
+    } else if (roleLower === 'admin_librarian' || roleLower === 'admin-librarian' || roleLower === 'librarian admin') {
+      roleDisplay = 'ADMIN-LIBRARIAN';
+    } else if (roleLower === 'librarian') {
+      roleDisplay = 'LIBRARIAN';
+    } else if (roleLower === 'student') {
+      roleDisplay = 'STUDENT';
+    } else if (roleLower === 'admin') {
+      roleDisplay = 'ADMIN';
+    } else {
+      roleDisplay = role.toUpperCase();
+    }
+    
+    // Add school code prefix if available and not Super Admin
+    if (schoolCode && roleLower !== 'super_admin' && roleLower !== 'super admin') {
+      return `${schoolCode} ${roleDisplay}`;
+    }
+    
+    return roleDisplay;
+  };
+
+  const formatTimeAgo = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const seconds = Math.floor((now - date) / 1000);
+    
+    if (seconds < 60) return 'Just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  const handleDeleteNotification = async (notificationId) => {
+    setDeletingId(notificationId);
+    try {
+      await onDeleteNotification(notificationId);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleDeleteAllNotifications = async () => {
+    setDeletingAll(true);
+    try {
+      await onDeleteAllNotifications();
+      setShowDeleteAllConfirm(false);
+    } finally {
+      setDeletingAll(false);
+    }
   };
 
   return (
@@ -114,40 +167,45 @@ function GlobalHeader({
 
           {/* Notification Dropdown */}
           {notificationDropdownOpen && (
-            <div className="notification-dropdown absolute right-0 mt-2 w-80 bg-white rounded-xl border border-gray-200 shadow-lg z-50 max-h-96 overflow-hidden">
-              <div className="p-4 border-b border-gray-200">
+            <div className="notification-dropdown absolute right-0 mt-2 w-96 bg-white rounded-2xl border border-gray-200 shadow-2xl z-50 max-h-[500px] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-white">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-900">Notifications</h3>
-                  <span className="text-xs text-gray-500">{unreadCount} unread</span>
+                  <div className="flex items-center gap-2">
+                    <FiBell className="w-5 h-5 text-blue-600" />
+                    <h3 className="font-semibold text-gray-900">Notifications</h3>
+                  </div>
+                  <span className="text-xs font-medium px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+                    {unreadCount} unread
+                  </span>
                 </div>
                 {/* Filter Tabs */}
-                <div className="flex gap-2">
+                <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
                   <button
                     onClick={() => setNotificationFilter('all')}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                    className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                       notificationFilter === 'all'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
                     All
                   </button>
                   <button
                     onClick={() => setNotificationFilter('unread')}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                    className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                       notificationFilter === 'unread'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
                     Unread
                   </button>
                   <button
                     onClick={() => setNotificationFilter('read')}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                    className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                       notificationFilter === 'read'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
                     Read
@@ -155,7 +213,7 @@ function GlobalHeader({
                 </div>
               </div>
               
-              <div className="max-h-64 overflow-y-auto">
+              <div className="max-h-80 overflow-y-auto custom-scrollbar">
                 {(() => {
                   const roleFilteredNotifications = getFilteredNotifications();
                   const filteredNotifications = roleFilteredNotifications.filter(n => {
@@ -169,11 +227,11 @@ function GlobalHeader({
                     filteredNotifications.map((notification) => (
                       <div
                         key={notification.notification_id}
-                        className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors ${!notification.read ? 'bg-blue-50' : ''}`}
+                        className={`group relative p-4 border-b border-gray-100 hover:bg-gray-50 transition-all duration-200 ${!notification.read ? 'bg-blue-50/50' : ''} ${deletingId === notification.notification_id ? 'opacity-50 scale-95' : ''}`}
                       >
                         <div className="flex items-start gap-3">
                           {/* Profile Picture */}
-                          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center flex-shrink-0 overflow-hidden ring-2 ring-white shadow-sm">
                             {notification.profile_picture || notification.sender_profile_picture ? (
                               <img 
                                 src={getBackendAssetUrl(notification.profile_picture || notification.sender_profile_picture)} 
@@ -191,67 +249,90 @@ function GlobalHeader({
                               setNotificationDropdownOpen(false);
                             }}
                           >
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
                               <p className="text-sm font-semibold text-gray-900">
                                 {notification.sender_name || notification.firstname || notification.borrower_name || notification.student_name || 'Unknown'}
                               </p>
-                              <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                notification.sender_role === 'Super Admin' ? 'bg-purple-100 text-purple-700' :
-                                notification.sender_role === 'Admin Librarian' || notification.sender_role === 'Librarian Admin' ? 'bg-blue-100 text-blue-700' :
-                                notification.sender_role === 'Student' ? 'bg-green-100 text-green-700' :
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                notification.sender_role === 'Super Admin' || notification.sender_role === 'SUPER ADMIN' ? 'bg-purple-100 text-purple-700' :
+                                notification.sender_role?.includes('Admin') || notification.sender_role?.includes('ADMIN') ? 'bg-blue-100 text-blue-700' :
+                                notification.sender_role === 'Student' || notification.sender_role === 'STUDENT' ? 'bg-green-100 text-green-700' :
+                                notification.sender_role === 'Librarian' || notification.sender_role === 'LIBRARIAN' ? 'bg-orange-100 text-orange-700' :
                                 'bg-gray-100 text-gray-600'
                               }`}>
-                                {notification.sender_role || notification.role || 'User'}
+                                {getRoleDisplay(notification.sender_role || notification.role, notification.school_code)}
                               </span>
                             </div>
-                            <p className="text-sm text-gray-700 truncate">{notification.message || notification.title}</p>
-                            <p className="text-xs text-gray-500 mt-1">{notification.created_at ? new Date(notification.created_at).toLocaleDateString() : ''}</p>
+                            <p className="text-sm text-gray-700 line-clamp-2 leading-relaxed">{notification.message || notification.title}</p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="text-xs text-gray-400 flex items-center gap-1">
+                                <FiClock className="w-3 h-3" />
+                                {formatTimeAgo(notification.created_at)}
+                              </span>
+                              {!notification.read && (
+                                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                              )}
+                            </div>
                           </div>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (onDeleteNotification) {
-                                onDeleteNotification(notification.notification_id);
-                              }
+                              setNotificationToDelete(notification);
+                              setShowDeleteConfirm(true);
                             }}
-                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                            disabled={deletingId === notification.notification_id}
+                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all duration-200 flex-shrink-0 opacity-0 group-hover:opacity-100 disabled:opacity-50"
                             title="Delete notification"
                           >
-                            <FiTrash2 className="w-4 h-4" />
+                            {deletingId === notification.notification_id ? (
+                              <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <FiTrash2 className="w-4 h-4" />
+                            )}
                           </button>
                         </div>
                       </div>
                     ))
                   ) : (
-                    <div className="p-8 text-center">
-                      <FiBell className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-sm text-gray-500">No notifications</p>
+                    <div className="p-12 text-center">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <FiBell className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-900 mb-1">No notifications</p>
+                      <p className="text-xs text-gray-500">You're all caught up!</p>
                     </div>
                   );
                 })()}
               </div>
 
               {notifications && notifications.length > 0 && (
-                <div className="p-3 border-t border-gray-200 flex gap-2">
+                <div className="p-3 border-t border-gray-100 bg-gray-50 flex gap-2">
                   <button
                     onClick={() => {
                       onNotificationClick();
                       setNotificationDropdownOpen(false);
                     }}
-                    className="flex-1 text-center text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    className="flex-1 px-4 py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                   >
                     View All
                   </button>
                   {onDeleteAllNotifications && (
                     <button
-                      onClick={() => {
-                        onDeleteAllNotifications();
-                        setNotificationDropdownOpen(false);
-                      }}
-                      className="flex-1 text-center text-sm text-red-600 hover:text-red-700 font-medium flex items-center justify-center gap-1"
+                      onClick={() => setShowDeleteAllConfirm(true)}
+                      disabled={deletingAll}
+                      className="flex-1 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                     >
-                      <FiTrash2 className="w-4 h-4" />
-                      Delete All
+                      {deletingAll ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          <FiTrash2 className="w-4 h-4" />
+                          Delete All
+                        </>
+                      )}
                     </button>
                   )}
                 </div>
@@ -327,6 +408,75 @@ function GlobalHeader({
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && notificationToDelete && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <FiTrash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Delete Notification</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">
+              Are you sure you want to delete this notification from {notificationToDelete.sender_name || 'Unknown'}? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setNotificationToDelete(null);
+                }}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  handleDeleteNotification(notificationToDelete.notification_id);
+                  setShowDeleteConfirm(false);
+                  setNotificationToDelete(null);
+                }}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete All Confirmation Modal */}
+      {showDeleteAllConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <FiTrash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Delete All Notifications</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">
+              Are you sure you want to delete all notifications? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteAllConfirm(false)}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAllNotifications}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+              >
+                Delete All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

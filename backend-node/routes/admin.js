@@ -88,14 +88,22 @@ router.get('/analytics', auth, requireRole(['Super Admin']), async (req, res) =>
 router.get('/audit-logs', auth, requireRole(['Super Admin']), async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 50;
+    console.log('[AUDIT LOGS] Fetching audit logs with limit:', limit);
+    
     const { data, error } = await supabase
       .from('activity_logs')
       .select('log_id as id, activity as action, users(firstname, lastname, schools(school_name)), created_at')
       .order('created_at', { ascending: false })
       .limit(limit);
 
-    if (error) throw error;
+    if (error) {
+      console.error('[AUDIT LOGS] Supabase error:', error);
+      console.error('[AUDIT LOGS] Error details:', JSON.stringify(error, null, 2));
+      throw error;
+    }
 
+    console.log('[AUDIT LOGS] Successfully fetched', data?.length || 0, 'logs');
+    
     const transformedData = (data || []).map((log) => ({
       id: log.id,
       action: log.action,
@@ -106,8 +114,9 @@ router.get('/audit-logs', auth, requireRole(['Super Admin']), async (req, res) =
 
     res.json({ success: true, data: transformedData });
   } catch (error) {
-    console.error('Error getting audit logs:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('[AUDIT LOGS] Error getting audit logs:', error);
+    console.error('[AUDIT LOGS] Error stack:', error.stack);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
 

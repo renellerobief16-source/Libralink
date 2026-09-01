@@ -44,6 +44,8 @@ function StudentOnboarding() {
   const [sendingCode, setSendingCode] = useState(false);
   const [verifyingCode, setVerifyingCode] = useState(false);
   const [verificationError, setVerificationError] = useState('');
+  const [codeSuccessMessage, setCodeSuccessMessage] = useState('');
+  const [verifySuccessMessage, setVerifySuccessMessage] = useState('');
 
   const handleSendVerificationCode = async () => {
     if (!form.recoveryEmail.trim()) {
@@ -53,6 +55,7 @@ function StudentOnboarding() {
 
     setSendingCode(true);
     setVerificationError('');
+    setCodeSuccessMessage('');
 
     try {
       const token = localStorage.getItem('token');
@@ -74,6 +77,7 @@ function StudentOnboarding() {
         if (data.code) {
           console.log('Verification code:', data.code);
         }
+        setCodeSuccessMessage('Verification code sent to your email!');
       } else {
         setVerificationError(data.message || 'Failed to send verification code');
       }
@@ -92,6 +96,7 @@ function StudentOnboarding() {
 
     setVerifyingCode(true);
     setVerificationError('');
+    setVerifySuccessMessage('');
 
     try {
       const token = localStorage.getItem('token');
@@ -116,7 +121,11 @@ function StudentOnboarding() {
         setVerificationError('');
         setVerificationCode('');
         setCodeSent(false);
-        setCurrentStep(4);
+        setVerifySuccessMessage('Gmail account Verified!');
+        // Auto-advance to next step after a short delay
+        setTimeout(() => {
+          setCurrentStep(4);
+        }, 1500);
       } else {
         setVerificationError(data.message || 'Invalid verification code');
       }
@@ -253,7 +262,6 @@ function StudentOnboarding() {
       };
 
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-      requestDesktopFullscreen();
       navigate('/studentpage');
     } catch (error) {
       console.error('Student onboarding error:', error);
@@ -389,6 +397,7 @@ function StudentOnboarding() {
                   setCodeSent(false);
                   setVerificationCode('');
                   setVerificationError('');
+                  setCodeSuccessMessage('');
                 }}
                 placeholder="you@gmail.com"
                 className="min-h-12 flex-1 border border-slate-300 bg-slate-50 px-3 text-base outline-none transition focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
@@ -405,13 +414,34 @@ function StudentOnboarding() {
                 type="button"
                 onClick={handleSendVerificationCode}
                 disabled={sendingCode}
-                className="mt-2 text-sm font-semibold text-[#0077B6] hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`mt-2 flex items-center gap-2 text-sm font-semibold transition-all duration-200 ${
+                  sendingCode 
+                    ? 'text-gray-400 cursor-not-allowed' 
+                    : 'text-[#0077B6] hover:underline hover:text-[#00669d]'
+                }`}
               >
-                {sendingCode ? 'Sending...' : codeSent ? 'Resend code' : 'Send verification code'}
+                {sendingCode ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-[#0077B6] border-t-transparent rounded-full animate-spin" />
+                    Sending...
+                  </>
+                ) : codeSent ? (
+                  'Resend code'
+                ) : (
+                  'Send verification code'
+                )}
               </button>
             )}
             {codeSent && !emailVerified && (
               <div className="mt-4 space-y-3">
+                {codeSuccessMessage && (
+                  <div className="border-l-4 border-green-500 bg-green-50 p-3 animate-in slide-in-from-left-2 duration-300">
+                    <div className="flex items-center gap-2">
+                      <FiCheckCircle className="w-5 h-5 text-green-600" />
+                      <p className="text-sm font-medium text-green-800">{codeSuccessMessage}</p>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">Enter verification code</label>
                   <input
@@ -435,6 +465,14 @@ function StudentOnboarding() {
                 >
                   {verifyingCode ? 'Verifying...' : 'Verify code'}
                 </button>
+                {verifySuccessMessage && (
+                  <div className="border-l-4 border-green-500 bg-green-50 p-3 animate-in slide-in-from-left-2 duration-300">
+                    <div className="flex items-center gap-2">
+                      <FiCheckCircle className="w-5 h-5 text-green-600" />
+                      <p className="text-sm font-medium text-green-800">{verifySuccessMessage}</p>
+                    </div>
+                  </div>
+                )}
                 {verificationError && (
                   <div className="border-l-4 border-red-500 bg-red-50 p-3">
                     <p className="text-sm font-medium text-red-800">{verificationError}</p>

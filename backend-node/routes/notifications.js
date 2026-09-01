@@ -21,18 +21,29 @@ async function enrichNotifications(notifications) {
 
   const studentIds = [...new Set((requests || []).map(request => request.student_id).filter(Boolean))];
   const { data: students, error: studentError } = studentIds.length > 0
-    ? await supabase.from('users').select('user_id, firstname, lastname, profile_image').in('user_id', studentIds)
+    ? await supabase.from('users').select('user_id, firstname, lastname, profile_image, school_id').in('user_id', studentIds)
     : { data: [], error: null };
 
   if (studentError) throw studentError;
 
+  // Get school codes for students
+  const schoolIds = [...new Set((students || []).map(s => s.school_id).filter(Boolean))];
+  const { data: schools, error: schoolError } = schoolIds.length > 0
+    ? await supabase.from('schools').select('school_id, school_code').in('school_id', schoolIds)
+    : { data: [], error: null };
+
+  if (schoolError) throw schoolError;
+
   const requestsById = new Map((requests || []).map(request => [request.request_id, request]));
   const studentsById = new Map((students || []).map(student => [student.user_id, student]));
+  const schoolsById = new Map((schools || []).map(school => [school.school_id, school.school_code]));
 
   return (notifications || []).map(notification => {
     const relatedRequestId = getNotificationRequestId(notification);
     const request = requestsById.get(relatedRequestId);
     const student = request ? studentsById.get(request.student_id) : null;
+    const schoolCode = student ? schoolsById.get(student.school_id) : null;
+    
     return normalizeNotification({
       ...notification,
       related_request_id: relatedRequestId,
@@ -41,6 +52,7 @@ async function enrichNotifications(notifications) {
       profile_picture: student?.profile_image || null,
       student_name: student ? [student.firstname, student.lastname].filter(Boolean).join(' ') : null,
       student_profile_picture: student?.profile_image || null,
+      school_code: schoolCode || notification.school_code || null,
     });
   });
 }
@@ -211,23 +223,58 @@ router.put('/:id/read', auth, async (req, res) => {
   }
 });
 
+// @route   DELETE /api/notifications/clear-all
+// @desc    Delete all notifications for user
+// @access  Private
+router.delete('/clear-all', auth, async (req, res) => {
+  console.log('[NOTIFICATIONS] DELETE /clear-all called');
+  try {
+    const userId = req.user.user_id || req.user.id;
+    console.log('[NOTIFICATIONS] Deleting all notifications for user:', userId);
+    
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('[NOTIFICATIONS] Supabase error deleting all:', error);
+      throw error;
+    }
+    
+    console.log('[NOTIFICATIONS] Successfully deleted all notifications');
+    res.json({ success: true, message: 'All notifications deleted' });
+  } catch (error) {
+    console.error('[NOTIFICATIONS] Error deleting all notifications:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
 // @route   DELETE /api/notifications/:id
 // @desc    Delete notification
 // @access  Private
 router.delete('/:id', auth, async (req, res) => {
+  console.log('[NOTIFICATIONS] DELETE /:id called with id:', req.params.id);
   try {
     const userId = req.user.user_id || req.user.id;
+    console.log('[NOTIFICATIONS] User ID:', userId);
+    
     const { error } = await supabase
       .from('notifications')
       .delete()
       .eq('notification_id', req.params.id)
       .eq('user_id', userId);
 
-    if (error) throw error;
+    if (error) {
+      console.error('[NOTIFICATIONS] Supabase error deleting:', error);
+      throw error;
+    }
+    
+    console.log('[NOTIFICATIONS] Successfully deleted notification');
     res.json({ success: true, message: 'Notification deleted' });
   } catch (error) {
-    console.error('Error deleting notification:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('[NOTIFICATIONS] Error deleting notification:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
 

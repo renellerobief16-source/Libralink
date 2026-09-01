@@ -1659,24 +1659,13 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
 
 export function WelcomeSection({ displayName, schoolInfo, profileImage, onBrowse }) {
   const safeSchoolInfo = schoolInfo?.data || schoolInfo || {};
-
-  const schoolName = safeSchoolInfo?.school_name || "School";
-
+  const schoolName = safeSchoolInfo?.school_name || "School Library";
   const schoolCode = safeSchoolInfo?.school_code || "";
-
   const schoolLogo = safeSchoolInfo?.logo;
-
-  const schoolId = safeSchoolInfo?.school_id || safeSchoolInfo?.id;
-
-  // Construct logo URL using the same logic as SuperAdminSchools
 
   const getLogoUrl = (logo) => {
     if (!logo) return "";
-
     const apiOrigin = API_ORIGIN;
-
-    // If logo is already an absolute URL or a data/blob URL, return as-is
-
     if (
       logo.startsWith("http://") ||
       logo.startsWith("https://") ||
@@ -1685,120 +1674,70 @@ export function WelcomeSection({ displayName, schoolInfo, profileImage, onBrowse
     ) {
       return logo;
     }
-
-    // If logo is a relative path like '/uploads/logos/..', prefix backend origin
-
     if (logo.startsWith("/")) return `${apiOrigin}${logo}`;
-
     return `${apiOrigin}/${logo}`;
   };
 
   const logoSrc = getLogoUrl(schoolLogo) || "/L.png";
 
-  const getProfileImageUrl = (picture) => {
-    if (!picture) return "";
-
-    const apiOrigin = API_ORIGIN;
-
-    if (
-      picture.startsWith("http://") ||
-      picture.startsWith("https://") ||
-      picture.startsWith("data:") ||
-      picture.startsWith("blob:")
-    ) {
-      return picture;
-    }
-
-    if (picture.startsWith("/")) return `${apiOrigin}${picture}`;
-
-    return `${apiOrigin}/${picture}`;
-  };
-
-  const profileImageUrl = getProfileImageUrl(profileImage);
-
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-      <div className="grid grid-cols-1 items-center gap-6 lg:grid-cols-[1fr_0.65fr]">
-        {/* Left Side: School Logo & Greeting */}
+    <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white shadow-xl shadow-slate-900/10">
+      {/* Decorative gradient glow effects */}
+      <div className="pointer-events-none absolute -right-16 -top-24 h-96 w-96 rounded-full bg-blue-500/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-20 left-1/3 h-64 w-64 rounded-full bg-indigo-500/20 blur-2xl" />
 
-        <div className="flex items-start gap-4 sm:gap-5">
-          {/* School Logo */}
-
-          <div className="flex-shrink-0">
+      <div className="relative z-10 grid grid-cols-1 items-center gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_320px]">
+        {/* Left Side: Welcome Details */}
+        <div className="flex flex-col justify-center">
+          {/* School Badge Pill */}
+          <div className="inline-flex items-center gap-2.5 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md self-start mb-5 shadow-sm">
             <img
               src={logoSrc}
-
               alt={`${schoolName} logo`}
-
-              className="h-14 w-14 rounded-full border border-slate-200 bg-white p-1.5 object-contain sm:h-16 sm:w-16"
-
+              className="h-5 w-5 rounded-full object-contain bg-white/90 p-0.5"
               onError={(e) => {
                 e.target.src = "/L.png";
               }}
             />
+            <span className="text-xs font-medium tracking-wide text-slate-200">
+              {schoolName} {schoolCode && <span className="text-slate-400">({schoolCode})</span>}
+            </span>
           </div>
 
-          {/* Greeting Content */}
+          {/* Heading */}
+          <h1 className="text-2xl font-black tracking-tight text-white sm:text-4xl lg:text-[2.5rem] leading-tight">
+            Welcome back, {displayName} <span className="inline-block animate-pulse">👋</span>
+          </h1>
 
-          <div className="flex-1 min-w-0">
-            {/* School Name */}
+          <p className="mt-2.5 max-w-lg text-sm text-slate-300 sm:text-base font-normal leading-relaxed">
+            Explore thousands of books, track your active loans in real-time, and reserve titles effortlessly from your campus library.
+          </p>
 
-            <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-              <h3 className="text-sm font-semibold text-slate-800 sm:text-base">{schoolName}</h3>
-              {schoolCode && <span className="text-xs text-slate-400">({schoolCode})</span>}
-            </div>
-
-            {/* Dashboard Label */}
-
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
-              Your library
-            </p>
-
-            {/* Welcome Message */}
-
-            <h2 className="mb-2 text-3xl font-bold leading-tight text-slate-900 sm:text-4xl">
-              Hi, {displayName}!
-            </h2>
-
-            {/* Description */}
-
-            <p className="max-w-md text-sm leading-6 text-slate-500 sm:text-base">
-              Find your next read, keep an eye on your loans, and stay updated with your library.
-            </p>
-
-            <button onClick={onBrowse} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition-transform active:scale-[0.98]">
-              Browse the collection
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          {/* Action Button & Quick status */}
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <button
+              onClick={onBrowse}
+              className="group inline-flex items-center gap-2.5 rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-900 shadow-md transition-all duration-200 hover:bg-slate-100 active:scale-[0.98]"
+            >
+              Browse Library Catalog
+              <ChevronRight className="h-4 w-4 text-slate-700 transition-transform duration-200 group-hover:translate-x-0.5" />
             </button>
-
-            {/* Libralink Info */}
-
-            <div className="hidden">
-              <p className="text-sm text-[#64748B] leading-relaxed">
-                <span className="font-semibold text-[#2563EB]">Libralink</span>{" "}
-                — Your digital library management system that connects students,
-                schools, and resources. Search books, submit borrowing requests,
-                track history, and receive real-time notifications — all in one
-                seamless platform.
-              </p>
-            </div>
           </div>
         </div>
 
-        {/* Right侧: Large Library Illustration */}
-
-        <div className="hidden justify-center lg:flex lg:justify-end">
-          <img
-            src="/student.png"
-
-            alt="Library Illustration"
-
-            className="w-full max-w-[280px] h-auto object-contain drop-shadow-2xl"
-
-            onError={(e) => {
-              e.target.style.display = "none";
-            }}
-          />
+        {/* Right Side: Photo/Illustration */}
+        <div className="hidden lg:flex justify-end items-center pr-2">
+          <div className="relative">
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-slate-900/60 via-transparent to-transparent z-10 pointer-events-none" />
+            <img
+              src="/student.png"
+              alt="Students studying"
+              className="max-h-[220px] w-auto object-contain drop-shadow-2xl transition-transform duration-300 hover:scale-[1.02]"
+              onError={(e) => {
+                e.target.style.display = "none";
+              }}
+            />
+          </div>
         </div>
       </div>
     </section>

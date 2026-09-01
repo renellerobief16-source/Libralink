@@ -586,7 +586,27 @@ export async function getUnreadNotificationCount(userId) {
 
 export async function markNotificationAsRead(notificationId) {
   try {
-    const response = await api.post('/notifications/read', { notification_id: notificationId });
+    const response = await api.put(`/notifications/${notificationId}/read`);
+    
+    return { data: response.data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+export async function deleteNotification(notificationId) {
+  try {
+    const response = await api.delete(`/notifications/${notificationId}`);
+    
+    return { data: response.data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+export async function deleteAllNotifications() {
+  try {
+    const response = await api.delete('/notifications/clear-all');
     
     return { data: response.data, error: null };
   } catch (error) {
