@@ -6,13 +6,15 @@ import { API_ORIGIN } from "../../../utils/api";
 import StudentInbox from "./StudentInbox";
 import StudentHistory from "./StudentHistory";
 import StudentSettings from "./StudentSettings";
+import StudentFavorite from "./StudentFavorite";
+import StudentProfile from "./StudentProfile";
+import { StudentHeaderActions } from "./StudentHeaderActions";
+import { StudentHeaderSearch } from "./StudentHeaderSearch";
 
 import {
   Book,
   ChevronRight,
-  Clock,
   User,
-  ChevronDown,
   Home,
   Search,
   Heart,
@@ -22,11 +24,8 @@ import {
   LogOut,
   Plus,
   X,
-  Menu,
   Bell,
   ShoppingCart,
-  CheckCircle,
-  MapPin,
 } from "lucide-react";
 
 const navigation = [
@@ -121,10 +120,35 @@ const studentSearchFeatures = [
   },
 ];
 
+
 export function StudentBottomNav() {
   const { unreadCount = 0 } = useNotifications();
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("currentUser") || "null");
+    } catch {
+      return null;
+    }
+  });
 
-  const currentUser = JSON.parse(localStorage.getItem("currentUser") || "null");
+  useEffect(() => {
+    const refreshCurrentUser = () => {
+      try {
+        setCurrentUser(JSON.parse(localStorage.getItem("currentUser") || "null"));
+      } catch {
+        setCurrentUser(null);
+      }
+    };
+
+    window.addEventListener("libralink-user-changed", refreshCurrentUser);
+    window.addEventListener("storage", refreshCurrentUser);
+
+    return () => {
+      window.removeEventListener("libralink-user-changed", refreshCurrentUser);
+      window.removeEventListener("storage", refreshCurrentUser);
+    };
+  }, []);
+
   const profileImage =
     currentUser?.profile_picture ||
     currentUser?.profile_image ||
@@ -147,8 +171,8 @@ export function StudentBottomNav() {
   const profileImageUrl = getProfilePictureUrl(profileImage);
 
   return (
-    <nav className="lg:hidden fixed inset-x-0 bottom-0 z-50 border-t border-slate-200/90 bg-white/95 px-2 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-8px_26px_rgba(15,23,42,0.08)] backdrop-blur-xl" aria-label="Student navigation">
-      <div className="mx-auto grid h-[62px] max-w-md grid-cols-5 gap-0.5">
+    <nav className="fixed inset-x-0 bottom-0 z-50 px-0 pb-0 pt-1.5 lg:hidden" aria-label="Student navigation">
+      <div className="mx-auto grid h-[64px] w-full grid-cols-5 gap-0.5 rounded-none border border-slate-200/90 bg-white/95 px-1 shadow-[0_8px_28px_rgba(15,23,42,0.14)] backdrop-blur-xl">
         {/* Home */}
 
         <NavLink
@@ -158,7 +182,7 @@ export function StudentBottomNav() {
 
           className={({ isActive }) => `
 
-            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold transition-colors
+            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold
 
             ${isActive ? "border-blue-600 text-blue-700" : "text-slate-500 active:text-blue-600"}
 
@@ -175,7 +199,7 @@ export function StudentBottomNav() {
 
           className={({ isActive }) => `
 
-            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold transition-colors
+            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold
 
             ${isActive ? "border-blue-600 text-blue-700" : "text-slate-500 active:text-blue-600"}
 
@@ -192,7 +216,7 @@ export function StudentBottomNav() {
 
           className={({ isActive }) => `
 
-            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold transition-colors
+            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold
 
             ${isActive ? "border-blue-600 text-blue-700" : "text-slate-500 active:text-blue-600"}
 
@@ -209,7 +233,7 @@ export function StudentBottomNav() {
 
           className={({ isActive }) => `
 
-            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold transition-colors
+            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold
 
             ${isActive ? "border-blue-600 text-blue-700" : "text-slate-500 active:text-blue-600"}
 
@@ -226,7 +250,7 @@ export function StudentBottomNav() {
 
           className={({ isActive }) => `
 
-            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold transition-colors
+            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold
 
             ${isActive ? "border-blue-600 text-blue-700" : "text-slate-500 active:text-blue-600"}
 
@@ -260,9 +284,9 @@ function StudentFloatingCart() {
   const [position, setPosition] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('studentCartPosition') || 'null');
-      return saved && Number.isFinite(saved.x) && Number.isFinite(saved.y) ? saved : { x: Math.max(12, window.innerWidth - 68), y: Math.max(12, window.innerHeight - 146) };
+      return saved && Number.isFinite(saved.x) && Number.isFinite(saved.y) ? saved : { x: Math.max(12, window.innerWidth - 68), y: Math.max(12, window.innerHeight - (window.innerWidth >= 768 ? 96 : 146)) };
     } catch {
-      return { x: Math.max(12, window.innerWidth - 68), y: Math.max(12, window.innerHeight - 146) };
+      return { x: Math.max(12, window.innerWidth - 68), y: Math.max(12, window.innerHeight - (window.innerWidth >= 768 ? 96 : 146)) };
     }
   });
 
@@ -347,7 +371,7 @@ function StudentFloatingCart() {
   };
 
   return (
-    <button type="button" onClick={openCart} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onContextMenu={(event) => event.preventDefault()} style={{ left: position.x, top: position.y, touchAction: 'none' }} className={`fixed z-[60] flex h-14 w-14 touch-none select-none items-center justify-center rounded-full border-2 border-white bg-blue-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.38)] transition-[left,top,opacity,box-shadow,transform] ${isDragging ? 'duration-0' : 'duration-150'} active:scale-95 md:hidden ${isDragging || !isIdle ? 'opacity-100' : 'opacity-45'}`} aria-label="Open borrowing list">
+    <button type="button" onClick={openCart} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onContextMenu={(event) => event.preventDefault()} style={{ left: position.x, top: position.y, touchAction: 'none' }} className={`fixed z-[60] flex h-14 w-14 touch-none select-none items-center justify-center rounded-full border-2 border-white bg-blue-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.38)] transition-[left,top,opacity,box-shadow,transform] ${isDragging ? 'duration-0' : 'duration-150'} active:scale-95 ${isDragging || !isIdle ? 'opacity-100' : 'opacity-45'}`} aria-label="Open borrowing list">
       <ShoppingCart className="h-6 w-6" aria-hidden="true" />
     </button>
   );
@@ -831,19 +855,10 @@ function DockItem({ item }) {
   );
 }
 
-export function StudentHeader({ userInfo, onLogout }) {
-  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
-
-  const [notificationDropdownOpen, setNotificationDropdownOpen] =
-    useState(false);
-
-  const [notificationFilter, setNotificationFilter] = useState("all");
-
+export function StudentHeader({ userInfo, onLogout, panelOpen = false }) {
   const [searchQuery, setSearchQuery] = useState("");
 
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
-
-  const { unreadCount, notifications, markAsRead } = useNotifications();
 
   const navigate = useNavigate();
 
@@ -916,67 +931,6 @@ export function StudentHeader({ userInfo, onLogout }) {
     }
   }, [searchQuery]);
 
-  const displayName = userInfo?.first_name || userInfo?.name || "Student";
-
-  const currentUser = JSON.parse(localStorage.getItem("currentUser") || "null");
-
-  const profileImage =
-    userInfo?.profile_picture ||
-    userInfo?.profile_image ||
-    currentUser?.profile_picture ||
-    currentUser?.profile_image ||
-    "";
-
-  const getProfileImageUrl = (picture) => {
-    if (!picture) return "";
-
-    if (
-      picture.startsWith("http://") ||
-      picture.startsWith("https://") ||
-      picture.startsWith("data:") ||
-      picture.startsWith("blob:")
-    ) {
-      return picture;
-    }
-
-    if (picture.startsWith("/")) return `${API_ORIGIN}${picture}`;
-
-    return `${API_ORIGIN}/${picture}`;
-  };
-
-  const profileImageUrl = getProfileImageUrl(profileImage);
-
-  const handleProfileClick = () => {
-    navigate("/studentpage/profile");
-
-    setProfileDropdownOpen(false);
-  };
-
-  const handleSettingsClick = () => {
-    navigate("/studentpage/settings");
-
-    setProfileDropdownOpen(false);
-  };
-
-  const handleNotificationClick = () => {
-    setNotificationDropdownOpen(!notificationDropdownOpen);
-
-    setProfileDropdownOpen(false);
-  };
-
-  const handleViewAllNotifications = () => {
-    navigate("/studentpage/inbox");
-
-    setNotificationDropdownOpen(false);
-  };
-
-  const handleNotificationItemClick = (notification) => {
-    markAsRead(notification.id);
-
-    setNotificationDropdownOpen(false);
-
-    navigate("/studentpage/inbox");
-  };
 
   const handleSearch = (e) => {
     if (e.key === "Enter" && searchQuery.trim()) {
@@ -1024,83 +978,21 @@ export function StudentHeader({ userInfo, onLogout }) {
       .includes(query);
   });
 
-  const filteredNotifications = notifications.filter((notification) => {
-    if (notificationFilter === "all") return true;
-
-    if (notificationFilter === "unread") return !notification.read;
-
-    return notification.type === notificationFilter;
-  });
-
-  const getNotificationIcon = (type) => {
-    switch (type) {
-      case "BORROW_REQUEST_APPROVED":
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
-
-      case "BORROW_REQUEST_REJECTED":
-        return <X className="w-4 h-4 text-red-600" />;
-
-      case "BORROW_REQUEST_SUBMITTED":
-        return <Bell className="w-4 h-4 text-blue-600" />;
-
-      case "BOOK_READY_FOR_PICKUP":
-        return <Clock className="w-4 h-4 text-amber-600" />;
-
-      default:
-        return <Bell className="w-4 h-4 text-blue-600" />;
-    }
-  };
-
-  const getNotificationBgColor = (type) => {
-    switch (type) {
-      case "BORROW_REQUEST_APPROVED":
-        return "bg-green-100";
-
-      case "BORROW_REQUEST_REJECTED":
-        return "bg-red-100";
-
-      case "BORROW_REQUEST_SUBMITTED":
-        return "bg-blue-100";
-
-      case "BOOK_READY_FOR_PICKUP":
-        return "bg-amber-100";
-
-      default:
-        return "bg-gray-100";
-    }
-  };
 
   return (
-    <header className="hidden md:block fixed top-0 left-0 right-0 z-50 bg-white border-b border-[#E5E7EB] h-[76px]">
-      <div className="h-full flex items-center px-3 md:px-6">
-        {/* Left: Logo */}
+    <header className={`fixed left-0 right-0 top-0 z-50 hidden h-[64px] items-center border-b border-[#E5E7EB] bg-[#F7FAFC] px-3 md:flex md:px-5 lg:left-[72px] ${panelOpen ? "lg:left-[432px] lg:pl-0" : ""}`}>
+        {/* Search Bar */}
 
-        <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-          <div className="h-8 w-8 md:h-10 md:w-10 flex items-center justify-center">
-            <img
-              src="/L.png"
-
-              alt="Libralink"
-
-              className="h-8 w-8 md:h-10 md:w-10 object-contain"
-            />
-          </div>
-
-          <h1 className="text-base md:text-xl font-semibold text-[#0F172A] font-['Poppins'] hidden sm:block">
-            LIBRALINK
-          </h1>
-        </div>
-
-        {/* Center: Search Bar */}
-
-        <div className="flex-1 flex justify-center px-2 md:px-8">
-          <div className="relative w-full max-w-[400px] md:max-w-[600px]">
-            <Search className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-[#64748B]" />
+        <div className="flex min-w-0 flex-1 justify-start px-0 md:px-4 lg:mr-3 lg:px-0 lg:translate-y-[3px]">
+          <div className="relative min-w-0 flex-1">
+            <div className="pointer-events-none absolute left-4 top-1/2 z-10 flex items-center justify-center text-slate-600">
+              <Search className="h-5 w-5" />
+            </div>
 
             <input
               type="text"
 
-              placeholder="Search..."
+              placeholder="Search books, authors, or ISBN"
 
               value={searchQuery}
 
@@ -1116,25 +1008,27 @@ export function StudentHeader({ userInfo, onLogout }) {
 
               onBlur={handleSearchBlur}
 
-              className="w-full h-[40px] md:h-[52px] pl-10 md:pl-12 pr-20 md:pr-24 rounded-full bg-[#E9E9E5] text-[#0F172A] placeholder-[#64748B] outline-none text-sm md:text-base font-['Poppins'] font-medium focus:ring-2 focus:ring-[#2563EB] focus:ring-opacity-50 transition-all"
+              className="h-12 w-full rounded-[50px] border-0 bg-[#E7E7E4] pl-12 pr-20 text-[16px] font-medium text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-600 focus:bg-[#E7E7E4] md:h-[54px] md:pr-24 md:text-base lg:h-[54px] lg:pr-14 lg:text-base"
             />
 
             {searchQuery && (
               <button
+                type="button"
                 onClick={clearSearch}
-
-                className="absolute right-12 md:right-14 top-1/2 -translate-y-1/2 p-1 text-[#64748B] hover:text-[#0F172A] transition-colors"
+                aria-label="Clear search"
+                className="absolute right-12 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-blue-100 transition-colors hover:bg-white/10 hover:text-white md:right-14 lg:right-3"
               >
-                <X className="w-4 h-4" />
+                <X className="h-3.5 w-3.5" />
               </button>
             )}
 
             <button
+              type="button"
               onClick={handleSearchButtonClick}
-
-              className="absolute right-2 md:right-3 top-1/2 -translate-y-1/2 p-1.5 md:p-2 bg-[#2563EB] hover:bg-[#1D4ED8] rounded-full transition-colors"
+              aria-label="Search books"
+              className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-full bg-[#2563EB] p-1.5 transition-colors hover:bg-[#1D4ED8] md:right-3 md:p-2 lg:hidden"
             >
-              <Search className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
+              <Search className="h-3.5 w-3.5 text-white md:h-4 md:w-4" />
             </button>
 
             {/* Global student feature suggestions */}
@@ -1190,195 +1084,11 @@ export function StudentHeader({ userInfo, onLogout }) {
           </div>
         </div>
 
-        {/* Right: Actions */}
-
-        <div className="flex items-center gap-2 md:gap-4">
-          {/* Notification */}
-
-          <div className="relative">
-            <button
-              onClick={handleNotificationClick}
-
-              className="relative p-1.5 md:p-2 hover:bg-[#F8FAFC] rounded-full transition-colors"
-            >
-              <Bell className="w-5 h-5 md:w-6 md:h-6 text-[#0F172A]" />
-
-              {unreadCount > 0 && (
-                <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full" />
-              )}
-            </button>
-
-            {/* Notification Dropdown */}
-
-            {notificationDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-80 md:w-96 rounded-xl bg-white border border-[#E5E7EB] shadow-lg py-2 z-50">
-                {/* Header */}
-
-                <div className="px-4 py-2 border-b border-[#E5E7EB]">
-                  <p className="text-sm font-semibold text-[#0F172A]">
-                    Notifications
-                  </p>
-
-                  <p className="text-xs text-[#64748B]">{unreadCount} unread</p>
-                </div>
-
-                {/* Filter Buttons */}
-
-                <div className="flex gap-2 px-4 py-2 border-b border-[#E5E7EB]">
-                  {["all", "unread"].map((filter) => (
-                    <button
-                      key={filter}
-
-                      onClick={() => setNotificationFilter(filter)}
-
-                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                        notificationFilter === filter
-                          ? "bg-[#2563EB] text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                    >
-                      {filter.charAt(0).toUpperCase() + filter.slice(1)}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Notification List */}
-
-                <div className="max-h-80 overflow-y-auto">
-                  {filteredNotifications.length === 0 ? (
-                    <div className="px-4 py-6 text-sm text-[#64748B] text-center">
-                      No notifications
-                    </div>
-                  ) : (
-                    filteredNotifications.map((notification) => (
-                      <div
-                        key={notification.id}
-
-                        onClick={() =>
-                          handleNotificationItemClick(notification)
-                        }
-
-                        className={`px-4 py-3 border-b border-[#E5E7EB] last:border-b-0 hover:bg-[#F8FAFC] cursor-pointer transition-colors ${
-                          !notification.read ? "bg-blue-50" : ""
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${getNotificationBgColor(notification.type)}`}
-                          >
-                            {getNotificationIcon(notification.type)}
-                          </div>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1">
-                              <p className="text-xs font-semibold text-[#0F172A] truncate">
-                                {notification.title}
-                              </p>
-
-                              {!notification.read && (
-                                <div className="w-2 h-2 bg-blue-500 rounded-full ml-2 flex-shrink-0" />
-                              )}
-                            </div>
-
-                            <p className="text-xs text-[#64748B] line-clamp-2">
-                              {notification.message}
-                            </p>
-
-                            <p className="text-xs text-[#94A3B8] mt-1">
-                              {new Date(
-                                notification.createdAt,
-                              ).toLocaleDateString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                              })}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* View All Button */}
-
-                <button
-                  onClick={handleViewAllNotifications}
-
-                  className="w-full px-4 py-2 text-left text-sm font-medium text-[#2563EB] hover:bg-[#F8FAFC] transition-colors border-t border-[#E5E7EB]"
-                >
-                  View All
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Profile */}
-
-          <div className="relative">
-            <button
-              onClick={() => {
-                setProfileDropdownOpen(!profileDropdownOpen);
-
-                setNotificationDropdownOpen(false);
-              }}
-
-              className="flex items-center gap-1 md:gap-2"
-            >
-              <div className="h-9 w-9 md:h-10 md:w-10 rounded-full overflow-hidden border border-[#E5E7EB] flex-shrink-0">
-                {profileImageUrl ? (
-                  <img
-                    src={profileImageUrl}
-
-                    alt={displayName}
-
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="h-full w-full bg-[#2563EB] flex items-center justify-center text-white font-semibold text-sm md:text-base">
-                    {(displayName || "U").charAt(0).toUpperCase()}
-                  </div>
-                )}
-              </div>
-
-              <ChevronDown
-                className={`w-3.5 h-3.5 md:w-4 md:h-4 text-[#64748B] transition-transform ${profileDropdownOpen ? "rotate-180" : ""}`}
-              />
-            </button>
-
-            {/* Profile Dropdown */}
-
-            {profileDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-44 md:w-48 rounded-xl bg-white border border-[#E5E7EB] shadow-lg py-1 z-50">
-                <button
-                  onClick={handleProfileClick}
-
-                  className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#0F172A] hover:bg-[#F8FAFC] transition-colors"
-                >
-                  Profile
-                </button>
-
-                <button
-                  onClick={handleSettingsClick}
-
-                  className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#0F172A] hover:bg-[#F8FAFC] transition-colors"
-                >
-                  Settings
-                </button>
-
-                <div className="border-t border-[#E5E7EB] my-1" />
-
-                <button
-                  onClick={onLogout}
-
-                  className="w-full px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  Logout
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+        <StudentHeaderActions
+          userInfo={userInfo}
+          onLogout={onLogout}
+          className="ml-auto shrink-0"
+        />
     </header>
   );
 }
@@ -1389,21 +1099,34 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
   const isHomeRoute = location.pathname === "/studentpage" || location.pathname === "/studentpage/";
   const [activePanel, setActivePanel] = useState(null);
   const panelContent = {
+    favorites: <StudentFavorite />,
     inbox: <StudentInbox />,
     history: <StudentHistory />,
+    profile: <StudentProfile />,
     settings: <StudentSettings onLogout={onLogout} />,
+  };
+  const panelTitles = {
+    favorites: "Favorites",
+    inbox: "Notifications",
+    history: "Borrow history",
+    profile: "Profile",
+    settings: "Settings",
   };
 
   return (
-    <div className="min-h-[100dvh] w-full max-w-full overflow-x-clip bg-[#F7FAFC] flex">
+    <div
+      className="student-layout min-h-[100dvh] w-full max-w-full overflow-x-visible bg-[#F7FAFC] flex"
+      data-panel-open={activePanel ? "true" : "false"}
+      data-active-panel={activePanel || ""}
+    >
       {/* LEFT SIDEBAR */}
 
       <aside
-        className="hidden lg:flex w-[72px] flex-col fixed left-0 top-0 bottom-0 border-r border-[#E5E7EB] z-40 bg-white"
+        className="fixed left-0 top-0 bottom-0 z-40 hidden w-[72px] flex-col border-r border-[#E5E7EB] bg-white lg:flex"
       >
         {/* Logo */}
 
-        <div className="h-[76px] flex items-center justify-center border-b border-[#E5E7EB]">
+        <div className="h-[86px] flex items-start justify-center pt-[45px]">
           <img
             src="/L.png"
 
@@ -1415,7 +1138,7 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
 
         {/* Navigation Icons */}
 
-        <nav className="flex-1 flex flex-col items-stretch py-6 px-3 gap-1 [&>a]:flex [&>a]:items-center [&>a]:gap-3 [&>a]:px-3 [&>a]:py-3 [&>a]:text-sm [&>a]:font-medium">
+        <nav className="flex-1 flex flex-col items-stretch py-5 px-3 gap-4 [&>a]:flex [&>a]:items-center [&>a]:justify-center [&>a]:gap-3 [&>a]:px-3 [&>a]:py-3.5 [&>a]:text-sm [&>a]:font-medium [&>a>svg]:h-6 [&>a>svg]:w-6">
           <NavLink
             to="/studentpage"
 
@@ -1478,6 +1201,10 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
 
           <NavLink
             to="/studentpage/favorites"
+            onClick={(event) => {
+              event.preventDefault();
+              setActivePanel(activePanel === "favorites" ? null : "favorites");
+            }}
 
             className={({ isActive }) => `
 
@@ -1487,7 +1214,7 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
 
 
 
-              ${isActive ? "text-[#2563EB]" : "text-[#64748B] hover:text-[#0F172A]"}
+              ${isActive || activePanel === "favorites" ? "text-[#2563EB]" : "text-[#64748B] hover:text-[#0F172A]"}
 
 
 
@@ -1498,7 +1225,7 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
                 <Heart className="w-5 h-5 flex-shrink-0" />
                 <span className="sr-only">Favorites</span>
 
-                {isActive && (
+                {(isActive || activePanel === "favorites") && (
                   <span className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-1 h-6 bg-[#2563EB] rounded-full" />
                 )}
               </>
@@ -1520,7 +1247,7 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
 
 
 
-              ${isActive ? "text-[#2563EB]" : "text-[#64748B] hover:text-[#0F172A]"}
+              ${isActive || activePanel === "inbox" ? "text-[#2563EB]" : "text-[#64748B] hover:text-[#0F172A]"}
 
 
 
@@ -1531,7 +1258,7 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
                 <Mail className="w-5 h-5 flex-shrink-0" />
                 <span className="sr-only">Inbox</span>
 
-                {isActive && (
+                {(isActive || activePanel === "inbox") && (
                   <span className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-1 h-6 bg-[#2563EB] rounded-full" />
                 )}
               </>
@@ -1553,7 +1280,7 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
 
 
 
-              ${isActive ? "text-[#2563EB]" : "text-[#64748B] hover:text-[#0F172A]"}
+              ${isActive || activePanel === "history" ? "text-[#2563EB]" : "text-[#64748B] hover:text-[#0F172A]"}
 
 
 
@@ -1564,7 +1291,7 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
                 <ClockIcon className="w-5 h-5 flex-shrink-0" />
                 <span className="sr-only">Borrowing History</span>
 
-                {isActive && (
+                {(isActive || activePanel === "history") && (
                   <span className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-1 h-6 bg-[#2563EB] rounded-full" />
                 )}
               </>
@@ -1574,7 +1301,7 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
 
         {/* Bottom Icons */}
 
-        <div className="flex flex-col items-stretch pb-6 px-3 gap-1 [&>a]:flex [&>a]:items-center [&>a]:gap-3 [&>a]:px-3 [&>a]:py-3 [&>a]:text-sm [&>a]:font-medium">
+        <div className="flex flex-col items-stretch pb-5 px-3 gap-4 [&>a]:flex [&>a]:items-center [&>a]:justify-center [&>a]:gap-3 [&>a]:px-3 [&>a]:py-3.5 [&>a]:text-sm [&>a]:font-medium [&>a>svg]:h-6 [&>a>svg]:w-6">
           <NavLink
             to="/studentpage/settings"
             onClick={(event) => {
@@ -1590,7 +1317,7 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
 
 
 
-              ${isActive ? "text-[#2563EB]" : "text-[#64748B] hover:text-[#0F172A]"}
+              ${isActive || activePanel === "settings" ? "text-[#2563EB]" : "text-[#64748B] hover:text-[#0F172A]"}
 
 
 
@@ -1601,7 +1328,7 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
                 <Settings className="w-5 h-5 flex-shrink-0" />
                 <span className="sr-only">Settings</span>
 
-                {isActive && (
+                {(isActive || activePanel === "settings") && (
                   <span className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-1 h-6 bg-[#2563EB] rounded-full" />
                 )}
               </>
@@ -1611,11 +1338,12 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
           <button
             onClick={onLogout}
             aria-label="Log out"
+            title="Log out"
 
-            className="relative p-3 rounded-xl transition-all duration-200 text-[#64748B] hover:text-red-600"
+            className="relative flex items-center justify-center rounded-xl p-3.5 transition-all duration-200 text-[#64748B] hover:text-red-600"
           >
-            <LogOut className="w-5 h-5 flex-shrink-0" />
-            <span>Log out</span>
+            <LogOut className="h-6 w-6 flex-shrink-0" />
+            <span className="sr-only">Log out</span>
           </button>
         </div>
       </aside>
@@ -1623,9 +1351,23 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
       {activePanel && (
         <section
           aria-label={`${activePanel} panel`}
-          className="fixed bottom-0 left-0 top-[64px] z-30 w-full overscroll-contain overflow-y-auto border-r border-[#E5E7EB] bg-white px-3 pb-20 pt-4 shadow-[12px_0_35px_-28px_rgba(15,23,42,0.45)] [scrollbar-gutter:stable] sm:w-[360px] lg:left-[72px] lg:top-[76px] lg:px-4"
+          className="student-expanded-panel fixed inset-x-0 bottom-0 top-0 z-40 w-full min-w-0 overscroll-contain overflow-y-auto border-r border-[#CBD5E1] bg-[#F7FAFC] px-3 pb-20 pt-0 scrollbar-hide md:top-[64px] md:w-[340px] lg:top-0 lg:left-[72px] lg:h-dvh lg:w-[340px] lg:px-4"
         >
-          {panelContent[activePanel]}
+          <div className="flex h-[72px] shrink-0 items-center justify-between border-b border-slate-200 px-4">
+            <h2 className="text-xl font-bold tracking-tight text-slate-950">{panelTitles[activePanel]}</h2>
+            <button
+              type="button"
+              onClick={() => setActivePanel(null)}
+              className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-200 hover:text-slate-900"
+              aria-label="Close expanded panel"
+              title="Close"
+            >
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </div>
+          <div className="px-1 pt-4">
+            {panelContent[activePanel]}
+          </div>
         </section>
       )}
 
@@ -1634,15 +1376,37 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
       <div className="flex-1 min-w-0 lg:ml-[72px]">
         {/* HEADER */}
 
-        <StudentHeader userInfo={userInfo} onLogout={onLogout} />
+        {!isSearchRoute && !isHomeRoute && (
+          <StudentHeader
+            userInfo={userInfo}
+            onLogout={onLogout}
+            panelOpen={Boolean(activePanel)}
+          />
+        )}
+
+        {isHomeRoute && (
+          <div
+            className={`pointer-events-none fixed inset-x-0 top-0 z-[56] hidden h-[64px] border-b border-[#E5E7EB] bg-[#F7FAFC] md:flex lg:left-[72px] ${activePanel ? "lg:left-[432px] lg:pl-0" : ""}`}
+            aria-label="Home account toolbar"
+          >
+            <div className="pointer-events-auto flex min-w-0 w-full items-center gap-3 px-3 md:px-5 lg:ml-0 lg:mr-0 lg:px-0 lg:translate-y-[3px]">
+              <div className="min-w-0 flex-1">
+                <StudentHeaderSearch />
+              </div>
+              <div className="flex h-full w-[184px] shrink-0 items-center justify-end pr-3 md:pr-5">
+                <StudentHeaderActions userInfo={userInfo} onLogout={onLogout} />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MAIN CONTENT */}
 
         <main
-          className={`w-full min-w-0 overflow-x-clip pt-0 md:pt-[76px] transition-[padding] duration-200 ${activePanel ? "lg:pl-[360px]" : ""}`}
+            className={`w-full min-w-0 overflow-x-visible bg-[#F7FAFC] pt-0 ${isSearchRoute || isHomeRoute ? "md:pt-0" : "md:pt-[64px]"} ${activePanel ? "lg:pl-[360px]" : ""}`}
         >
           <div
-            className={`box-border mx-auto min-w-0 w-full px-3 pb-20 ${isSearchRoute || isHomeRoute ? "pt-0" : "pt-3"} sm:px-4 md:px-6 md:pb-6 md:pt-6 lg:px-0 lg:pb-0 lg:pt-0 ${isSearchRoute ? "max-w-none lg:pr-0" : "max-w-[1280px] lg:pr-8"}`}
+            className={`box-border mx-auto min-w-0 w-full bg-[#F7FAFC] px-3 pb-20 ${isSearchRoute || isHomeRoute ? "pt-0 md:pt-[76px]" : "pt-3"} sm:px-4 md:px-6 md:pb-6 ${isSearchRoute || isHomeRoute ? "lg:px-0 lg:pt-[76px]" : "lg:px-0 lg:pt-0"} lg:pb-0 ${isSearchRoute ? "max-w-none lg:pr-0" : "max-w-[1280px] lg:pr-8"}`}
           >
             {children}
           </div>

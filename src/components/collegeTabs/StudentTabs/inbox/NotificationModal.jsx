@@ -7,16 +7,10 @@ import QRCodeDisplay from "../QRCodeDisplay";
  */
 function NotificationModal({ notification, requestDetails, loading, onClose }) {
   return (
-    <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between p-4 border-b border-slate-200">
-          <h3 className="text-lg font-semibold text-[#0f172a]">{notification.title}</h3>
+    <div className="mt-4 w-full min-w-0 overflow-x-hidden rounded-2xl bg-white">
+      <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto overflow-x-hidden sm:max-h-[75vh]">
+        <div className="flex min-w-0 items-start justify-between gap-3 border-b border-slate-200 p-4 sm:p-5">
+          <h3 className="min-w-0 break-words text-lg font-semibold text-[#0f172a]">{notification.title}</h3>
           <button
             type="button"
             onClick={onClose}
@@ -26,8 +20,8 @@ function NotificationModal({ notification, requestDetails, loading, onClose }) {
             <X className="w-5 h-5 text-slate-600" />
           </button>
         </div>
-        <div className="p-4">
-          <p className="text-sm leading-relaxed text-slate-700 mb-4">
+        <div className="min-w-0 p-4 sm:p-5">
+          <p className="mb-4 break-words text-sm leading-relaxed text-slate-700">
             {notification.message}
           </p>
 
@@ -97,7 +91,7 @@ function RequestDetails({ requestDetails }) {
           <div className="flex-1">
             <p className="text-xs text-slate-500">QR Token</p>
             <div className="flex items-center gap-2">
-              <p className="text-sm font-medium text-slate-800 font-mono">
+              <p className="min-w-0 break-all text-sm font-medium text-slate-800 font-mono">
                 {requestDetails.qr_token || "N/A"}
               </p>
               {requestDetails.qr_token && (
@@ -215,10 +209,11 @@ function BorrowingRequirements({ requestDetails, hasOtherSchoolItems }) {
         Your QR Code
       </h4>
 
-      <div className="bg-gray-50 rounded-xl p-6 mb-4 border border-gray-200">
-        <div className="bg-white rounded-lg p-4 flex items-center justify-center">
+      <div className="mb-4 bg-transparent p-0">
+        <div className="flex items-center justify-center bg-transparent p-0">
           {requestDetails.qr_token ? (
             <QRCodeDisplay
+              request={requestDetails}
               token={requestDetails.qr_token}
               requestId={requestDetails.request_id || "LL-2026-000001"}
             />

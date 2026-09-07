@@ -17,16 +17,16 @@ function NotificationFilters({ selectedFilter, onFilterChange }) {
   };
 
   return (
-    <div className="flex gap-1.5 mb-2 overflow-x-auto pb-1 scrollbar-hide">
+    <div className="mb-1 flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
       {filters.map((filter) => (
         <button
           key={filter}
           type="button"
           onClick={() => onFilterChange(filter)}
-          className={`px-2.5 py-1.5 min-h-8 rounded-lg text-xs font-medium whitespace-nowrap transition-all shadow-sm ${
+          className={`whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
             selectedFilter === filter
               ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-              : "bg-white text-slate-700 hover:bg-slate-50 hover:border-blue-300 border border-slate-200"
+              : "border border-slate-200 bg-transparent text-slate-600 hover:border-blue-300 hover:bg-slate-50"
           }`}
           aria-label={`Filter by ${formatFilterName(filter)}`}
           aria-pressed={selectedFilter === filter}

@@ -427,6 +427,17 @@ class User {
 
   static async update(user_id, data) {
     const updateData = normalizeUserUpdateData(data);
+    if (data.school_name) {
+      const { data: school, error: schoolError } = await supabase
+        .from('schools')
+        .select('school_id')
+        .eq('school_name', data.school_name.trim())
+        .maybeSingle();
+
+      if (schoolError) throw schoolError;
+      if (!school) throw new Error('School not found');
+      updateData.school_id = school.school_id;
+    }
     const { password, ...otherData } = updateData;
 
     if (password) {

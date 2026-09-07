@@ -172,6 +172,26 @@ router.put('/:id/approve', auth, requireRole(['Librarian', 'Librarian Admin']), 
     }
 
     const result = await BorrowRequest.approve(req.params.id, req.user.user_id);
+
+    // Notify the student that their request was approved (persisted to DB
+    // so it also shows up in the student's header notification bell).
+    const approverName = [req.user.firstname, req.user.lastname]
+      .filter(Boolean)
+      .join(' ') || 'Librarian';
+    await supabase
+      .from('notifications')
+      .insert({
+        user_id: request.student_id,
+        school_id: request.home_school_id,
+        type: 'request_approved',
+        title: 'Borrow Request Approved ✅',
+        message: `Your borrow request ${req.params.id} has been approved by ${approverName}. Please bring your School ID and permission letter to the library to pick up your book(s).`,
+        related_id: null,
+        is_read: false,
+        is_admin_notification: false,
+        created_at: new Date().toISOString(),
+      });
+
     res.json({ success: true, data: result });
   } catch (error) {
     console.error('[BORROW REQUESTS] Error approving request:', error);
@@ -212,6 +232,25 @@ router.put('/:id/reject', auth, requireRole(['Librarian', 'Librarian Admin']), a
     }
 
     const result = await BorrowRequest.reject(req.params.id, remarks);
+
+    // Notify the student that their request was rejected (persisted to DB).
+    const rejectorName = [req.user.firstname, req.user.lastname]
+      .filter(Boolean)
+      .join(' ') || 'Librarian';
+    await supabase
+      .from('notifications')
+      .insert({
+        user_id: request.student_id,
+        school_id: request.home_school_id,
+        type: 'request_rejected',
+        title: 'Borrow Request Rejected ❌',
+        message: `Your borrow request ${req.params.id} was declined by ${rejectorName}.${remarks ? ` Reason: ${remarks}` : ''}`,
+        related_id: null,
+        is_read: false,
+        is_admin_notification: false,
+        created_at: new Date().toISOString(),
+      });
+
     res.json({ success: true, data: result });
   } catch (error) {
     console.error('[BORROW REQUESTS] Error rejecting request:', error);

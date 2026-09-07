@@ -1,12 +1,17 @@
 import { useState, useEffect } from 'react';
-import { getStudentNotifications, markNotificationAsRead } from '../../../utils/api';
+import { getStudentNotifications, markNotificationAsRead, getAnnouncements } from '../../../utils/api';
 import Card from "../../ui/Card";
 import EmptyState from "../../ui/EmptyState";
-import { FiMail } from "react-icons/fi";
+import Button from "../../ui/Button";
+import AnnouncementModal from "../../ui/AnnouncementModal";
+import { FiMail, FiSend } from "react-icons/fi";
 
 function AdminInbox() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [announcements, setAnnouncements] = useState([]);
+  const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
 
   const getProfileImage = (notification) => {
     return notification.student_profile_picture ||
@@ -30,6 +35,28 @@ function AdminInbox() {
       notification.staff_name ||
       'Library Staff';
   };
+
+  useEffect(() => {
+    const fetchAnnouncements = async () => {
+      try {
+        const { data, error } = await getAnnouncements();
+        if (!error && Array.isArray(data)) {
+          setAnnouncements(data);
+        } else if (Array.isArray(data?.data)) {
+          setAnnouncements(data.data);
+        } else {
+          setAnnouncements([]);
+        }
+      } catch (error) {
+        console.error('Error fetching announcements:', error);
+        setAnnouncements([]);
+      } finally {
+        setLoadingAnnouncements(false);
+      }
+    };
+
+    fetchAnnouncements();
+  }, []);
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -86,10 +113,55 @@ function AdminInbox() {
 
   return (
     <div className="animate-slide-up">
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 mb-6 shadow-sm">
-        <h2 className="text-xl sm:text-2xl font-bold text-[#0F172A] mb-1">Inbox</h2>
-        <p className="text-[#64748B] text-sm">View your notifications and messages</p>
+      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 mb-6 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-[#0F172A] mb-1">Inbox</h2>
+          <p className="text-[#64748B] text-sm">View your notifications and messages</p>
+        </div>
+        <Button
+          onClick={() => setShowAnnouncementModal(true)}
+          variant="primary"
+          size="sm"
+        >
+          <FiSend className="w-4 h-4 mr-2" />
+          Create Announcement
+        </Button>
       </div>
+
+      <div className="mb-6 rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#2563EB]">Campus updates</p>
+            <h3 className="text-lg font-bold text-[#0F172A]">Announcements</h3>
+          </div>
+        </div>
+
+        {loadingAnnouncements ? (
+          <p className="text-sm text-[#64748B]">Loading announcements...</p>
+        ) : announcements.length === 0 ? (
+          <p className="text-sm text-[#64748B]">No announcements available.</p>
+        ) : (
+          <div className="space-y-3">
+            {announcements.slice(0, 4).map((announcement) => (
+              <div key={announcement.announcement_id || announcement.id} className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-semibold text-[#0F172A]">{announcement.title}</p>
+                  {(announcement.school_id == null || announcement.is_global) && (
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
+                      Global
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-sm text-[#475569]">{announcement.content}</p>
+                <p className="mt-2 text-[11px] text-[#64748B]">
+                  {new Date(announcement.created_at).toLocaleString()}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <Card>
         {loading ? (
           <p className="text-sm text-[#64748B]">Loading notifications...</p>
@@ -147,6 +219,15 @@ function AdminInbox() {
           </div>
         )}
       </Card>
+      <AnnouncementModal
+        open={showAnnouncementModal}
+        onClose={() => setShowAnnouncementModal(false)}
+        superAdmin={false}
+        onCreated={() => {
+          setShowAnnouncementModal(false);
+          window.location.reload();
+        }}
+      />
     </div>
   );
 }

@@ -336,6 +336,7 @@ function Admin() {
               profileImage={userInfo?.profile_picture}
               unreadCount={unreadCount}
               notifications={notifications}
+              schoolId={localStorage.getItem('schoolId')}
               onNotificationClick={handleNotificationClick}
               onProfileClick={handleProfileClick}
               onSettingsClick={handleSettingsClick}

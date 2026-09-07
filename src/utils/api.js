@@ -619,6 +619,28 @@ export async function getStudentNotifications(userId) {
 }
 
 // ============================================
+// ANNOUNCEMENT FUNCTIONS
+// ============================================
+
+export async function createAnnouncement(title, content) {
+  try {
+    const response = await api.post('/announcements', { title, content });
+    return { data: response.data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+export async function getAnnouncements() {
+  try {
+    const response = await api.get('/announcements');
+    return { data: response.data || [], error: null };
+  } catch (error) {
+    return { data: [], error };
+  }
+}
+
+// ============================================
 // UTILITY FUNCTIONS
 // ============================================
 

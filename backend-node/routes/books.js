@@ -128,38 +128,70 @@ router.get('/school', auth, async (req, res) => {
   }
 
   try {
-    // Get books with their copies
-    const { data: books, error } = await supabase
+    // Supabase caps a single response at 1,000 rows. Count first, then fetch pages concurrently.
+    const pageSize = 1000;
+
+    const { count, error: countError } = await supabase
       .from('books')
-      .select(`
-        book_id,
-        title,
-        author,
-        isbn,
-        shelf_location,
-        call_number,
-        school_id,
-        schools(school_id, school_name),
-        book_copies(copy_id, status)
-      `)
+      .select('book_id', { count: 'exact', head: true })
       .eq('school_id', schoolId);
 
-    if (error) throw error;
+    if (countError) throw countError;
+
+    const pageStarts = Array.from(
+      { length: Math.ceil((count || 0) / pageSize) },
+      (_, index) => index * pageSize,
+    );
+
+    const pages = await Promise.all(pageStarts.map(async (pageStart) => {
+      const { data: page, error } = await supabase
+        .from('books')
+        .select(`
+          book_id,
+          title,
+          author,
+          isbn,
+          shelf_location,
+          call_number,
+          school_id,
+          categories(category_name),
+          schools(school_id, school_name, address, latitude, longitude),
+          book_copies(copy_id, status)
+        `)
+        .eq('school_id', schoolId)
+        .order('book_id', { ascending: true })
+        .range(pageStart, pageStart + pageSize - 1);
+
+      if (error) throw error;
+      return page || [];
+    }));
+
+    const books = pages.flat();
 
     // Get active borrow requests for these books to determine real-time status
     const bookIds = books.map(b => b.book_id);
-    const { data: borrowItems, error: borrowError } = await supabase
-      .from('borrow_request_items')
-      .select(`
-        book_id,
-        status,
-        released_at,
-        borrow_requests(request_id, student_id, status, due_date)
-      `)
-      .in('book_id', bookIds)
-      .in('status', ['pending', 'approved', 'released']);
+    const borrowBatches = [];
+    for (let index = 0; index < bookIds.length; index += 500) {
+      borrowBatches.push(bookIds.slice(index, index + 500));
+    }
 
-    if (borrowError) throw borrowError;
+    const borrowResults = await Promise.all(borrowBatches.map(async (bookIdBatch) => {
+      const { data: batch, error: borrowError } = await supabase
+        .from('borrow_request_items')
+        .select(`
+          book_id,
+          status,
+          released_at,
+          borrow_requests(request_id, student_id, status, due_date)
+        `)
+        .in('book_id', bookIdBatch)
+        .in('status', ['pending', 'approved', 'released']);
+
+      if (borrowError) throw borrowError;
+      return batch || [];
+    }));
+
+    const borrowItems = borrowResults.flat();
 
     // Map borrow items by book_id
     const borrowStatusMap = {};

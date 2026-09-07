@@ -9,7 +9,6 @@ import {
   AnnouncementsWidget,
 } from "./StudentDashboardComponents";
 import api, { API_ORIGIN } from "../../../utils/api";
-import { StatsCardSkeleton } from "../../ui/Skeleton";
 
 function SchoolAvatar({ schoolName, logo }) {
   const [imageFailed, setImageFailed] = useState(false);
@@ -305,21 +304,10 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,1fr)]">
         <div className="space-y-6">
           <div className="hidden grid-cols-2 gap-3 sm:gap-4 md:grid xl:grid-cols-4">
-            {statsLoading ? (
-              <>
-                <StatsCardSkeleton />
-                <StatsCardSkeleton />
-                <StatsCardSkeleton />
-                <StatsCardSkeleton />
-              </>
-            ) : (
-              <>
-                <StatsCard icon={Book} title="Books" value={bookCount || 0} subtitle="Total Books" color="blue" onClick={handleBooksClick} />
-                <StatsCard icon={Clock} title="Due soon" value={dueSoonCount} subtitle="Return date approaching" color="orange" onClick={handleDueSoonClick} />
-                <StatsCard icon={Clock} title="Borrowed" value={borrowedBooks.length} subtitle="Currently Borrowed" color="blue" onClick={handleBorrowedClick} />
-                <StatsCard icon={AlertTriangle} title="Overdue" value={overdueCount} subtitle="Overdue Books" color="red" onClick={handleBorrowedClick} />
-              </>
-            )}
+            <StatsCard icon={Book} title="Books" value={bookCount || 0} subtitle="Total Books" color="blue" onClick={handleBooksClick} />
+            <StatsCard icon={Clock} title="Due soon" value={dueSoonCount} subtitle="Return date approaching" color="orange" onClick={handleDueSoonClick} />
+            <StatsCard icon={Clock} title="Borrowed" value={borrowedBooks.length} subtitle="Currently Borrowed" color="blue" onClick={handleBorrowedClick} />
+            <StatsCard icon={AlertTriangle} title="Overdue" value={overdueCount} subtitle="Overdue Books" color="red" onClick={handleBorrowedClick} />
           </div>
 
           <BorrowedBooks books={borrowedBooks} onRenew={handleRenewBook} onViewAll={handleBorrowedClick} />

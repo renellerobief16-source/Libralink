@@ -342,7 +342,7 @@ function StudentSettings({ onLogout }) {
   };
 
   return (
-    <div className="animate-slide-up mx-auto w-full max-w-[380px] min-w-0 overflow-x-hidden text-sm">
+    <div className="mx-auto w-full max-w-[380px] min-w-0 overflow-x-hidden text-sm">
       <header className="mb-5">
         <h1 className="text-2xl font-bold tracking-[-0.02em] text-slate-900">Settings</h1>
         <p className="mt-1 text-sm leading-6 text-slate-500">Manage your profile, security, and preferences.</p>

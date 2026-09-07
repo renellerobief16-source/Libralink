@@ -5,7 +5,73 @@
   font-family: 'Poppins', sans-serif;
 }
 
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes panel-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes expanded-panel-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.student-expanded-panel {
+  animation: expanded-panel-slide-in 220ms ease-out both;
+}
+
+.animate-panel-slide-in {
+  animation: panel-slide-in 180ms ease-out both;
+}
+
+@media (min-width: 1024px) {
+  .student-layout[data-panel-open="true"] .student-search-shell {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0 !important;
+  }
+
+  .student-layout[data-panel-open="true"] .student-search-shell.student-search-has-details {
+    grid-template-columns: minmax(0, 1fr) var(--book-details-width) !important;
+    gap: 0.75rem !important;
+  }
+
+  .student-layout[data-panel-open="true"] .student-search-recommendations {
+    display: none !important;
+  }
+}
+
 @media (max-width: 639px) {
+  .student-layout,
+  .student-layout * {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .student-layout::-webkit-scrollbar,
+  .student-layout *::-webkit-scrollbar {
+    display: none;
+  }
+
   input:not([type="checkbox"]):not([type="radio"]),
   select,
   textarea {
@@ -16,5 +82,25 @@
   button,
   a {
     touch-action: manipulation;
+  }
+}
+
+@media (min-width: 1024px) {
+  .student-layout[data-panel-open="true"] .student-search-global-bar {
+    left: 432px;
+    right: 0;
+    width: auto;
+    max-width: none;
+    background: #F7FAFC;
+    border-bottom: 1px solid #E2E8F0;
+    box-shadow: none;
+  }
+
+  .student-layout[data-panel-open="true"] .student-search-account-actions {
+    left: 432px;
+  }
+
+  .student-layout[data-active-panel="inbox"] .student-search-recommendations {
+    display: none;
   }
 }

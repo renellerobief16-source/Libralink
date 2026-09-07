@@ -151,11 +151,11 @@ function QRCodeDisplay({ request, token, requestId, onClose, onShare }) {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-      <div className="flex justify-between items-start mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Your QR Code</h2>
-          <p className="text-gray-600 text-sm">Show this QR code to the librarian for book pickup/return</p>
+    <div className="box-border w-full min-w-0 max-w-full overflow-x-hidden bg-transparent p-0">
+      <div className="mb-5 flex min-w-0 items-start justify-between gap-3 sm:mb-6">
+        <div className="min-w-0">
+          <h2 className="mb-2 break-words text-xl font-bold text-gray-900 sm:text-2xl">Your QR Code</h2>
+          <p className="break-words text-sm text-gray-600">Show this QR code to the librarian for book pickup/return</p>
         </div>
         <button
           onClick={onClose}
@@ -166,8 +166,8 @@ function QRCodeDisplay({ request, token, requestId, onClose, onShare }) {
       </div>
 
       {/* Request Info */}
-      <div className="bg-blue-50 rounded-xl p-4 mb-6 border border-blue-200">
-        <div className="grid grid-cols-2 gap-4">
+      <div className="mb-6 bg-blue-50/70 p-3 sm:p-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
           <div>
             <p className="text-xs text-blue-600 mb-1">Request ID</p>
             <p className="font-semibold text-blue-900">{request?.request_id}</p>
@@ -192,8 +192,8 @@ function QRCodeDisplay({ request, token, requestId, onClose, onShare }) {
       </div>
 
       {/* QR Code Display */}
-      <div className="flex justify-center mb-6">
-        <div className="relative">
+      <div className="mb-6 flex min-w-0 justify-center">
+        <div className="relative max-w-full">
           {loading && (
             <div className="w-72 h-72 bg-gray-100 rounded-xl flex items-center justify-center">
               <div className="text-center">
@@ -213,11 +213,11 @@ function QRCodeDisplay({ request, token, requestId, onClose, onShare }) {
           )}
 
           {!loading && !error && qrCodeUrl && (
-            <div className="bg-white p-6 rounded-2xl shadow-lg border-2 border-gray-100">
+            <div className="max-w-full bg-white p-3 sm:p-6">
               <img
                 src={qrCodeUrl}
                 alt="Borrowing Request QR Code"
-                className="w-60 h-60"
+                className="h-auto w-[min(68vw,240px)] max-w-full"
               />
               <div className="mt-4 text-center">
                 <p className="text-xs text-gray-500">Scan this code at the library</p>
@@ -267,7 +267,7 @@ function QRCodeDisplay({ request, token, requestId, onClose, onShare }) {
       </div>
 
       {/* Instructions */}
-      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+      <div className="border-t border-gray-100 pt-4">
         <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
           <QrCode className="w-5 h-5" />
           How to use this QR code

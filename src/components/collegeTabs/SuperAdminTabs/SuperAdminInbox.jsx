@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { FiX, FiClock, FiCheckCircle, FiInfo, FiAlertTriangle, FiBell, FiCheck, FiTrash2, FiFilter, FiUser } from 'react-icons/fi';
+import { FiX, FiClock, FiCheckCircle, FiInfo, FiAlertTriangle, FiBell, FiCheck, FiTrash2, FiFilter, FiUser, FiSend } from 'react-icons/fi';
 import { getStudentNotifications, markNotificationAsRead, deleteNotification, deleteAllNotifications } from '../../../utils/api';
-import { PageHeader, Button, Card, Modal, EmptyState, IconButton, StatusBadge } from '../../ui';
+import { PageHeader, Button, Card, Modal, EmptyState, IconButton, StatusBadge, AnnouncementModal } from '../../ui';
 import { ConfirmationOverlay } from '../../common';
 
 function SuperAdminInbox({ darkMode, notifications = [], onNotificationsChange }) {
@@ -9,6 +9,7 @@ function SuperAdminInbox({ darkMode, notifications = [], onNotificationsChange }
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [showDeleteAllConfirmation, setShowDeleteAllConfirmation] = useState(false);
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
 
   const getRoleDisplay = (role, schoolCode) => {
     if (!role) return '';
@@ -109,6 +110,18 @@ function SuperAdminInbox({ darkMode, notifications = [], onNotificationsChange }
       <PageHeader
         title="Inbox"
         description={`You have ${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}`}
+        actions={[
+          {
+            label: (
+              <span className="flex items-center gap-2">
+                <FiSend className="w-4 h-4" />
+                Create Announcement
+              </span>
+            ),
+            onClick: () => setShowAnnouncementModal(true),
+            variant: 'primary'
+          }
+        ]}
       />
 
       {/* Filter Bar */}
@@ -327,6 +340,16 @@ function SuperAdminInbox({ darkMode, notifications = [], onNotificationsChange }
           )}
         </div>
       </Modal>
+
+      {/* Announcement Modal */}
+      <AnnouncementModal
+        open={showAnnouncementModal}
+        onClose={() => setShowAnnouncementModal(false)}
+        superAdmin={true}
+        onCreated={() => {
+          if (onNotificationsChange) onNotificationsChange();
+        }}
+      />
 
       {/* Delete All Confirmation */}
       <ConfirmationOverlay

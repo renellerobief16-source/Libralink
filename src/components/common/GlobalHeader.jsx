@@ -14,7 +14,8 @@ function GlobalHeader({
   onLogout,
   onDeleteNotification,
   onDeleteAllNotifications,
-  darkMode = false
+  darkMode = false,
+  schoolId = null,
 }) {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
@@ -25,14 +26,48 @@ function GlobalHeader({
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [notificationToDelete, setNotificationToDelete] = useState(null);
 
-  // Role-based notification filtering
+  // Role-based notification filtering with school isolation:
+  // - Super Admin sees everything (all schools).
+  // - Everyone else only sees notifications for their own school PLUS
+  //   global announcements (is_global = true / school_id null).
   const getFilteredNotifications = () => {
     const roleLower = (userRole || '').toLowerCase();
-    
+    const currentSchoolId = schoolId != null
+      ? String(schoolId)
+      : (localStorage.getItem('schoolId') != null ? String(localStorage.getItem('schoolId')) : null);
+
+    const isSuperAdmin =
+      roleLower === 'super_admin' ||
+      roleLower === 'super admin' ||
+      roleLower === 'admin';
+
     return notifications.filter(notification => {
       const senderRole = notification.sender_role || notification.role || '';
       const senderRoleLower = senderRole.toLowerCase();
-      
+
+      // Global announcements are visible to everyone, regardless of school.
+      if (
+        notification.is_global === true ||
+        notification.type === 'announcement' ||
+        notification.school_id == null
+      ) {
+        return true;
+      }
+
+      // Super admins can see everything.
+      if (isSuperAdmin) {
+        return true;
+      }
+
+      // School isolation: hide notifications that belong to another school.
+      const notificationSchoolId = notification.school_id != null
+        ? String(notification.school_id)
+        : (notification.school_code ? null : null);
+      if (currentSchoolId && notificationSchoolId && notificationSchoolId !== currentSchoolId) {
+        return false;
+      }
+
+      // Libraries shouldn't see each-other's cross-school sender rows at all.
       // Librarian: can see from Super Admin, Admin Librarian, and Student
       if (roleLower === 'librarian') {
         return (
@@ -44,17 +79,8 @@ function GlobalHeader({
           senderRoleLower === 'student'
         );
       }
-      
-      // Super Admin: can see from Student and Super Admin only
-      if (roleLower === 'super_admin' || roleLower === 'super admin') {
-        return (
-          senderRoleLower === 'student' ||
-          senderRoleLower === 'super_admin' ||
-          senderRoleLower === 'super admin'
-        );
-      }
-      
-      // Admin Librarian: can see from Super Admin, Student, and other Admin Librarians
+
+      // Admin Librarian: can see from Super Admin, Student, and her own staff
       if (roleLower === 'admin_librarian' || roleLower === 'admin-librarian' || roleLower === 'librarian admin') {
         return (
           senderRoleLower === 'super_admin' ||
@@ -65,8 +91,8 @@ function GlobalHeader({
           senderRoleLower === 'librarian admin'
         );
       }
-      
-      // Default: show all
+
+      // Default: show all (super admin handled above)
       return true;
     });
   };

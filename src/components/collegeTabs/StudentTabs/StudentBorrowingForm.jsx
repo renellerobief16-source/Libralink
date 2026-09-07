@@ -151,7 +151,7 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, com
           type: 'BORROW_REQUEST_SUBMITTED',
           title: 'Request Submitted Successfully',
           message: `Your borrowing request for ${borrowingList.length} book(s) has been submitted. Please wait for librarian approval. You will be notified once your request is approved or rejected.`,
-          related_request_id: response.data?.request_id
+          related_request_id: response.data?.data?.request_id || response.data?.request_id
         });
 
         if (onSubmit) {
@@ -218,33 +218,34 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, com
   };
 
   return (
-    <div className={`${compact ? "min-w-0 rounded-xl border border-gray-200 bg-white p-3 text-sm shadow-sm" : "bg-white rounded-2xl shadow-sm border border-gray-200 p-6"}`}>
-      <div className={compact ? "mb-2 min-w-0" : "mb-6"}>
-        <h2 className={`${compact ? "text-base" : "text-2xl"} mb-1 font-bold text-gray-900`}>
-          Borrowing Information
+    <div className={`${compact ? "min-w-0 text-sm" : "rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"}`}>
+      <div className={`${compact ? "mb-4 min-w-0 border-b border-slate-100 pb-3" : "mb-6"}`}>
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">Borrowing request</p>
+        <h2 className={`${compact ? "text-lg" : "text-2xl"} mb-1 font-bold tracking-tight text-slate-900`}>
+          Review and submit
         </h2>
-        <p className={`${compact ? "text-xs leading-5" : "text-sm"} text-gray-600`}>
-          Please complete the required information for your borrowing request
+        <p className={`${compact ? "text-xs leading-5" : "text-sm"} text-slate-500`}>
+          Confirm your details so the library can process your request.
         </p>
       </div>
 
       {/* Summary */}
-      <div className={`${compact ? "mb-3 rounded-lg p-2.5" : "mb-6 rounded-xl bg-blue-50 p-4"} border border-blue-200 bg-blue-50`}>
+      <div className={`${compact ? "mb-4 rounded-xl p-3" : "mb-6 rounded-2xl p-4"} border border-blue-100 bg-blue-50/70`}>
         <div className="mb-2 flex items-center gap-2">
           <Book className={`${compact ? "h-4 w-4" : "h-5 w-5"} shrink-0 text-blue-600`} />
-          <span className={`${compact ? "text-xs" : ""} font-semibold text-blue-900`}>
-            Request Summary
+          <span className={`${compact ? "text-xs" : ""} font-bold text-blue-900`}>
+            Books in this request
           </span>
         </div>
-        <div className={`${compact ? "mb-2 text-[11px]" : "mb-3 text-xs"} grid grid-cols-2 gap-2`}>
+        <div className={`${compact ? "mb-2 text-[11px]" : "mb-3 text-xs"} grid ${compact ? "grid-cols-1" : "grid-cols-2"} gap-2`}>
           <div className="min-w-0">
-            <span className="text-blue-700">Total Books:</span>
+            <span className="text-blue-700">Books</span>
             <span className={`${compact ? "ml-1" : "ml-2"} font-semibold text-blue-900`}>
               {borrowingList.length}
             </span>
           </div>
           <div className="min-w-0">
-            <span className="text-blue-700">Borrow Type:</span>
+            <span className="text-blue-700">Type</span>
             <span className={`${compact ? "ml-1" : "ml-2"} font-semibold text-blue-900`}>
               {getBorrowTypeSummary()}
             </span>
@@ -294,9 +295,9 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, com
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className={compact ? "space-y-2.5" : "space-y-6"}>
+      <form onSubmit={handleSubmit} className={compact ? "space-y-3" : "space-y-6"}>
         {/* Name Fields */}
-        <div className={compact ? "grid grid-cols-3 gap-2" : "grid grid-cols-1 gap-3 md:grid-cols-3"}>
+        <div className={compact ? "grid grid-cols-1 gap-3" : "grid grid-cols-1 gap-3 md:grid-cols-3"}>
           <div className="min-w-0">
             <label
               htmlFor="borrow-first-name"
@@ -539,19 +540,19 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, com
         )}
 
         {/* Action Buttons */}
-        <div className={`${compact ? "gap-2 pt-2" : "gap-4 pt-4"} flex`}>
+        <div className={`${compact ? "gap-2 border-t border-slate-100 pt-4" : "gap-4 pt-4"} flex`}>
           <button
             type="button"
             onClick={onCancel}
             disabled={isSubmitting}
-            className={`${compact ? "min-h-10 rounded-lg border px-3 py-2 text-xs" : "rounded-xl border-2 px-6 py-3"} flex-1 border-gray-300 font-semibold text-gray-700 transition-all hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50`}
+            className={`${compact ? "min-h-10 rounded-xl border px-3 py-2 text-xs" : "rounded-xl border-2 px-6 py-3"} flex-1 border-slate-200 font-semibold text-slate-600 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50`}
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={isSubmitting}
-            className={`${compact ? "min-h-10 rounded-lg px-3 py-2 text-xs" : "px-6 py-3 rounded-xl"} flex flex-1 items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 font-semibold text-white shadow-md transition-all hover:from-blue-700 hover:to-cyan-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50`}
+            className={`${compact ? "min-h-10 rounded-xl px-3 py-2 text-xs" : "px-6 py-3 rounded-xl"} flex flex-1 items-center justify-center gap-2 bg-blue-600 font-bold text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50`}
           >
             {isSubmitting ? (
               <>

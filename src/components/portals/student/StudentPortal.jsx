@@ -403,7 +403,17 @@ function StudentPortal() {
       >
         <Routes>
           <Route path="/" element={<StudentHome bookCount={bookCount} studentCount={studentCount} schoolInfo={schoolInfo} />} />
-          <Route path="/search" element={<StudentSearch onBookClick={handleBookClick} onBorrowClick={handleBorrowClick} />} />
+          <Route
+            path="/search"
+            element={
+              <StudentSearch
+                userInfo={userInfo}
+                onLogout={handleLogout}
+                onBookClick={handleBookClick}
+                onBorrowClick={handleBorrowClick}
+              />
+            }
+          />
           <Route path="/favorites" element={<StudentFavorite />} />
           <Route path="/inbox" element={<StudentInbox />} />
           <Route path="/history" element={<StudentHistory />} />

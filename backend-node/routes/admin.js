@@ -92,7 +92,7 @@ router.get('/audit-logs', auth, requireRole(['Super Admin']), async (req, res) =
     
     const { data, error } = await supabase
       .from('activity_logs')
-      .select('log_id as id, activity as action, users(firstname, lastname, schools(school_name)), created_at')
+      .select('*, users(firstname, lastname, schools(school_name))')
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -105,8 +105,8 @@ router.get('/audit-logs', auth, requireRole(['Super Admin']), async (req, res) =
     console.log('[AUDIT LOGS] Successfully fetched', data?.length || 0, 'logs');
     
     const transformedData = (data || []).map((log) => ({
-      id: log.id,
-      action: log.action,
+      id: log.log_id,
+      action: log.activity,
       user: log.users ? `${log.users.firstname} ${log.users.lastname}` : 'System',
       target: log.users?.schools?.school_name || 'System',
       timestamp: log.created_at,

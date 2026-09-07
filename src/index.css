@@ -1,11 +1,5 @@
 * {
 
-  margin: 0;
-
-  padding: 0;
-
-  box-sizing: border-box;
-
 }
 
 
@@ -16,7 +10,52 @@ body {
 
 }
 
+.leaflet-container {
+  font-family: 'Poppins', sans-serif;
+}
 
+.leaflet-control-attribution {
+  max-width: calc(100% - 8px);
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.leaflet-popup-content {
+  max-width: min(220px, calc(100vw - 6rem));
+  margin: 10px 12px;
+}
+
+.book-details-panel {
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 transparent;
+}
+
+.book-details-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.book-details-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.book-details-panel::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #94a3b8;
+}
+
+.book-details-map {
+  margin-left: -1.25rem !important;
+  margin-right: -1.25rem !important;
+  width: calc(100% + 2.5rem) !important;
+}
+
+@media (min-width: 640px) {
+  .book-details-map {
+    margin-left: -2.25rem !important;
+    margin-right: -2.25rem !important;
+    width: calc(100% + 4.5rem) !important;
+  }
+}
 
 @keyframes slide-up {
 
@@ -104,14 +143,9 @@ body {
   }
 
   50% {
-
     opacity: 0.5;
-
   }
-
 }
-
-
 
 .animate-slide-up {
 

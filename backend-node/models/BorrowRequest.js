@@ -88,7 +88,16 @@ class BorrowRequest {
         .map(item => Number(item.owner_school_id))
         .filter(Number.isInteger))];
 
-      if (ownerSchoolIds.length === 0) return;
+      // The student's home school staff should also be notified so that the
+      // local librarian / admin-librarian is aware of the request (especially
+      // important for cross-school borrowing).
+      const homeSchoolId = Number(requestData.home_school_id) || Number(request.home_school_id);
+      const schoolIdsToNotify = [...new Set(ownerSchoolIds)];
+      if (homeSchoolId && Number.isInteger(homeSchoolId) && !schoolIdsToNotify.includes(homeSchoolId)) {
+        schoolIdsToNotify.push(homeSchoolId);
+      }
+
+      if (schoolIdsToNotify.length === 0) return;
 
       const { data: student, error: studentError } = await supabase
         .from('users')
@@ -101,7 +110,7 @@ class BorrowRequest {
       const { data: staff, error: staffError } = await supabase
         .from('users')
         .select('user_id, school_id')
-        .in('school_id', ownerSchoolIds)
+        .in('school_id', schoolIdsToNotify)
         .in('role_id', [2, 3])
         .eq('status', 'active');
 

@@ -19,8 +19,15 @@ function Navigation() {
         <div className="flex h-16 items-center justify-between sm:h-[72px]">
           <Link to="/" className="flex min-w-0 items-center gap-2" onClick={() => setIsOpen(false)}>
             <img src="/L.png" alt="Libralink Logo" className="h-8 w-8 shrink-0 object-contain sm:h-10 sm:w-10" />
-            <span className="min-w-0"><span className="block text-base font-semibold leading-5 tracking-[-0.02em] text-[#0F172A] sm:text-lg">Libralink</span><span className="mt-0.5 hidden text-[10px] font-medium uppercase tracking-[.12em] text-slate-400 sm:block">Connected libraries</span></span>
-          </Link>
+<span className="min-w-0">
+  <span className="block text-base font-semibold leading-5 tracking-[-0.02em] sm:text-lg">
+    <span className="text-black">Libra</span><span className="text-[#0077B6]">Link</span>
+  </span>
+
+  <span className="mt-0.5 hidden text-[10px] font-medium uppercase tracking-[.12em] text-slate-400 sm:block">
+    Connected libraries
+  </span>
+</span>          </Link>
           
           {/* Desktop Navigation */}
           <div className="hidden items-center gap-1 md:flex">

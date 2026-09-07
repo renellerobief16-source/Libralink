@@ -19,6 +19,7 @@ const permissionRoutes = require('./routes/permissions');
 const settingsRoutes = require('./routes/settings');
 const notificationRoutes = require('./routes/notifications');
 const finesRoutes = require('./routes/fines');
+const mapTilesRoutes = require('./routes/mapTiles');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -68,6 +69,7 @@ app.use('/api/permissions', permissionRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/fines', finesRoutes);
+app.use('/api/map-tiles', mapTilesRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

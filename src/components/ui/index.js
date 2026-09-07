@@ -9,3 +9,4 @@ export { default as DataTable } from './DataTable';
 export { default as SearchBar } from './SearchBar';
 export { default as EmptyState } from './EmptyState';
 export { default as IconButton } from './IconButton';
+export { default as AnnouncementModal } from './AnnouncementModal';

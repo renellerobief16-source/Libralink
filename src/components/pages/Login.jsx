@@ -461,7 +461,7 @@ function Login() {
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="librarian@school.edu.ph"
+                  placeholder="you@libralink.com"
                   value={form.email}
                   onChange={handleChange}
                   className="min-h-11 w-full border border-slate-200 bg-[#F8FAFC] pl-9 pr-3 text-sm text-[#0F172A] outline-none transition placeholder:text-slate-400 focus:border-[#0077B6] focus:bg-white focus:ring-1 focus:ring-[#0077B6]"

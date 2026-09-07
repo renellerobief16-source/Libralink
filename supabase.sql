@@ -213,10 +213,12 @@ CREATE TABLE IF NOT EXISTS announcements (
   content TEXT NOT NULL,
   image VARCHAR(255),
   created_by INTEGER NOT NULL REFERENCES users(user_id),
+  school_id INTEGER REFERENCES schools(school_id) ON DELETE CASCADE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_announcements_created_at ON announcements(created_at);
+CREATE INDEX IF NOT EXISTS idx_announcements_school_id ON announcements(school_id);
 
 -- ============================================
 -- ACTIVITY_LOGS TABLE

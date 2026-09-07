@@ -78,6 +78,50 @@ function normalizeNotification(notification) {
   };
 }
 
+/**
+ * Determine whether a given role is a "super admin".
+ * Super admins are global and may see announcements from every school,
+ * whereas librarian / librarian-admin / student are scoped to a single school.
+ */
+function isSuperAdminRole(user) {
+  const role = String(user?.role_name || user?.role || '').toLowerCase();
+  return role === 'super admin' || role === 'super_admin' || role === 'admin';
+}
+
+/**
+ * Build a reusable notification query that is scoped to the current user's
+ * school by default. Super admins see all schools (global) so they can review
+ * cross-school notifications and issue global announcements.
+ *
+ * @param {object} user  Decoded JWT payload (req.user)
+ * @returns {object} { query, scopeLabel } where query is an executable Supabase builder
+ */
+function buildScopedNotificationsQuery(user, { limit = 50 } = {}) {
+  const userId = user?.user_id || user?.id;
+  const schoolId = user?.school_id || null;
+  const isSuperAdmin = isSuperAdminRole(user);
+
+  let query = supabase
+    .from('notifications')
+    .select('*');
+
+  if (isSuperAdmin) {
+    // Super admins get a global view: their own direct notifications plus
+    // system-wide (global) announcements. They are not limited to one school.
+    query = query.or(
+      `user_id.eq.${userId},type.eq.announcement`
+    );
+  } else {
+    // School-scoped staff and students see notifications addressed to them
+    // OR global announcements broadcast to every school.
+    query = query.or(
+      `and(user_id.eq.${userId},or(school_id.eq.${schoolId},school_id.is.null,type.eq.announcement)),and(school_id.eq.${schoolId},type.eq.announcement)`
+    );
+  }
+
+  return query.order('created_at', { ascending: false }).limit(limit);
+}
+
 async function ensureBorrowRequestNotification(user) {
   if (!user?.school_id || !user?.user_id) return;
 
@@ -137,19 +181,29 @@ async function ensureBorrowRequestNotification(user) {
 }
 
 // @route   GET /api/notifications
-// @desc    Get user notifications
+// @desc    Get user notifications (school-scoped)
 // @access  Private
 router.get('/', auth, async (req, res) => {
   try {
     const userId = req.user.user_id || req.user.id;
     await ensureBorrowRequestNotification(req.user);
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    const query = buildScopedNotificationsQuery(req.user);
+    const { data, error } = await query;
+
+    if (error) {
+      // Fallback: if the OR filter is not supported on this schema, fall back
+      // to the simple user_id fetch to keep the UI functional.
+      console.warn('[NOTIFICATIONS] Scoped query failed, falling back to user_id:', error.message);
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+      if (fallbackError) throw fallbackError;
+      return res.json({ success: true, data: await enrichNotifications(fallbackData || []) });
+    }
+
     res.json({ success: true, data: await enrichNotifications(data || []) });
   } catch (error) {
     console.error('Error getting notifications:', error);
@@ -158,7 +212,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // @route   GET /api/notifications/user/:user_id
-// @desc    Get notifications by user ID
+// @desc    Get notifications by user ID (school-scoped)
 // @access  Private
 router.get('/user/:user_id', auth, async (req, res) => {
   try {
@@ -167,14 +221,22 @@ router.get('/user/:user_id', auth, async (req, res) => {
       return res.status(403).json({ success: false, message: 'You can only view your own notifications' });
     }
 
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', req.params.user_id)
-      .order('created_at', { ascending: false })
-      .limit(50);
+    await ensureBorrowRequestNotification(req.user);
+    const query = buildScopedNotificationsQuery(req.user);
+    const { data, error } = await query;
 
-    if (error) throw error;
+    if (error) {
+      console.warn('[NOTIFICATIONS] Scoped query failed, falling back:', error.message);
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', req.params.user_id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (fallbackError) throw fallbackError;
+      return res.json({ success: true, data: await enrichNotifications(fallbackData || []) });
+    }
+
     res.json({ success: true, data: await enrichNotifications(data || []) });
   } catch (error) {
     console.error('Error getting user notifications:', error);
@@ -188,14 +250,22 @@ router.get('/user/:user_id', auth, async (req, res) => {
 router.get('/admin', auth, requireRole(['Super Admin', 'Librarian Admin']), async (req, res) => {
   try {
     await ensureBorrowRequestNotification(req.user);
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', req.user.user_id || req.user.id)
-      .order('created_at', { ascending: false })
-      .limit(50);
-    
-    if (error) throw error;
+
+    const query = buildScopedNotificationsQuery(req.user);
+    const { data, error } = await query;
+
+    if (error) {
+      console.warn('[NOTIFICATIONS] Scoped admin query failed, falling back:', error.message);
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', req.user.user_id || req.user.id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (fallbackError) throw fallbackError;
+      return res.json({ success: true, data: await enrichNotifications(fallbackData || []) });
+    }
+
     res.json({ success: true, data: await enrichNotifications(data || []) });
   } catch (error) {
     console.error('Error getting admin notifications:', error);

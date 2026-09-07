@@ -37,15 +37,15 @@ function NotificationItem({ notification, onRead, onDelete, onClick }) {
 
   return (
     <div
-      className={`rounded-xl p-2.5 border shadow-sm hover:shadow-md transition-all ${
+      className={`border-b p-2 transition-colors last:border-b-0 ${
         !notification.read
-          ? "border-l-4 border-l-blue-500 bg-gradient-to-r from-blue-50 to-white"
-          : "border border-slate-200 bg-white hover:border-blue-300"
+          ? "border-l-2 border-l-blue-500 bg-blue-50/40"
+          : "border-slate-200 bg-transparent hover:bg-slate-50"
       }`}
     >
-      <div className="flex items-start gap-2.5">
+      <div className="flex items-start gap-2">
         <div
-          className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm ${getBackgroundColor(
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${getBackgroundColor(
             notification.type
           )}`}
         >
@@ -58,15 +58,15 @@ function NotificationItem({ notification, onRead, onDelete, onClick }) {
             onRead(notification.id);
           }}
         >
-          <div className="flex items-start justify-between mb-1.5 sm:mb-2">
-            <h3 className="font-semibold text-xs truncate text-[#0f172a]">
+          <div className="mb-1 flex items-start justify-between">
+            <h3 className="truncate text-xs font-semibold text-[#0f172a]">
               {notification.title}
             </h3>
             {!notification.read && (
               <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-blue-500 rounded-full ml-1.5 sm:ml-2 flex-shrink-0 animate-pulse" />
             )}
           </div>
-          <p className="text-xs mb-1.5 line-clamp-2 text-slate-600 leading-snug">
+          <p className="mb-1 line-clamp-2 text-[11px] leading-snug text-slate-600">
             {notification.message}
           </p>
           <div className="flex items-center gap-1 text-[10px] text-slate-500">
@@ -91,11 +91,11 @@ function NotificationItem({ notification, onRead, onDelete, onClick }) {
             e.stopPropagation();
             onDelete(notification.id);
           }}
-          className="p-1.5 min-h-8 min-w-8 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 active:scale-95"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md p-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
           title="Delete notification"
           aria-label="Delete notification"
         >
-          <X className="w-4 h-4 sm:w-5 sm:h-5" />
+          <X className="h-4 w-4" />
         </button>
       </div>
     </div>

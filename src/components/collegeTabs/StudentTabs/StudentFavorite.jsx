@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { Book, Heart, Search, ArrowUpRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "../../../utils/api";
-import { CardSkeleton } from "../../ui/Skeleton";
 
 function StudentFavorite() {
   const navigate = useNavigate();
@@ -88,22 +87,6 @@ function StudentFavorite() {
     window.dispatchEvent(new Event('favoritesUpdated'));
   };
 
-  if (loading) {
-    return (
-      <div className="animate-slide-up w-full max-w-[1600px] mx-auto px-3 sm:px-5 lg:px-8">
-        <div className="mb-4 sm:mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A]">My Favorites</h1>
-          <p className="text-sm sm:text-base text-[#64748B] mt-1">Your saved books</p>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1.5 sm:gap-2">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <CardSkeleton key={i} />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="animate-slide-up w-full max-w-[1600px] mx-auto px-3 sm:px-5 lg:px-8">
@@ -123,7 +106,7 @@ function StudentFavorite() {
   }
 
   return (
-    <div className="animate-slide-up mx-auto w-full max-w-[1600px] px-0 sm:px-5 lg:px-8">
+    <div className="animate-slide-up mx-auto w-full max-w-[1280px] px-0 sm:px-5 lg:px-8">
       <header className="mb-4 flex items-end justify-between gap-3 sm:mb-6">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-rose-500">Your reading list</p>
@@ -145,34 +128,32 @@ function StudentFavorite() {
           <button onClick={() => navigate('/studentpage/search')} className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition active:scale-[0.98] hover:bg-blue-700">Discover books <ArrowUpRight className="h-4 w-4" /></button>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="divide-y divide-slate-200">
           {favoriteBooks.map((book) => (
-            <article key={book.id} className="group relative min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-[0_5px_16px_rgba(15,23,42,0.06)] transition-all hover:border-rose-200 hover:shadow-md">
+            <article key={book.id} className="group relative flex min-w-0 items-center gap-2.5 py-2.5 transition-colors hover:bg-slate-50 sm:gap-3">
               <button
                 onClick={() => removeFavorite(book.id)}
-                className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-rose-500 shadow-sm transition hover:bg-rose-50"
+                className="order-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-rose-500 transition hover:bg-rose-50"
                 aria-label="Remove from favorites"
               >
                 <Heart className="h-4 w-4 fill-current" />
               </button>
-              <div className="relative mb-2.5 flex aspect-[3/4] min-h-[150px] w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700">
-                <div className="absolute -right-7 -top-7 h-20 w-20 rounded-full bg-white/10" />
-                <Book className="h-7 w-7 text-white/90" />
-                <span className="absolute bottom-2 left-2 max-w-[calc(100%-1rem)] truncate rounded-md bg-slate-950/35 px-1.5 py-1 text-[9px] font-semibold text-white backdrop-blur-sm">{book.category || "General"}</span>
+              <div className="relative flex h-14 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700 shadow-inner">
+                <div className="absolute inset-y-0 left-0 w-1.5 bg-white/15" />
+                <Book className="h-6 w-6 text-white" />
+                <span className="absolute bottom-1 left-1 max-w-[calc(100%-0.5rem)] truncate rounded-md bg-slate-950/35 px-1 py-0.5 text-[7px] font-semibold text-white">{book.category || "General"}</span>
               </div>
-              <div className="min-w-0 space-y-1.5">
-                <h3 className="min-h-[2rem] text-xs font-bold leading-tight text-slate-900 line-clamp-2">
-                  {book.title}
-                </h3>
-                <p className="truncate text-xs text-slate-500">{book.author}</p>
-                <div className="flex items-center justify-between pt-0.5">
+              <div className="min-w-0 flex-1">
+                <h3 className="truncate text-[13px] font-bold leading-4 text-slate-900" title={book.title}>{book.title}</h3>
+                <p className="mt-0.5 truncate text-[11px] text-slate-500">{book.author}</p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   {(() => {
                     const status = book.real_time_status || "available";
-                    const statusColors = {
-                      available: "text-green-600",
-                      requested: "text-yellow-600",
-                      waiting_pickup: "text-blue-600",
-                      borrowed: "text-red-600",
+                    const statusStyles = {
+                      available: "bg-emerald-50 text-emerald-700",
+                      requested: "bg-amber-50 text-amber-700",
+                      waiting_pickup: "bg-blue-50 text-blue-700",
+                      borrowed: "bg-rose-50 text-rose-700",
                     };
                     const statusLabels = {
                       available: "Available",
@@ -180,12 +161,9 @@ function StudentFavorite() {
                       waiting_pickup: "Waiting",
                       borrowed: "Borrowed",
                     };
-                    return (
-                      <span className={`text-[10px] font-bold ${statusColors[status]}`}>
-                        {statusLabels[status]}
-                      </span>
-                    );
+                    return <span className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold ${statusStyles[status] || statusStyles.available}`}>{statusLabels[status] || "Available"}</span>;
                   })()}
+                  <span className="text-[9px] font-medium text-slate-500">{book.category || "General"}</span>
                 </div>
               </div>
             </article>

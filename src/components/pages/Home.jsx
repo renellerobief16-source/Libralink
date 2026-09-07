@@ -116,7 +116,7 @@ function PartnerSchoolGallery() {
         <div className="mx-auto h-20 max-w-7xl animate-pulse bg-slate-100" aria-label="Loading registered schools" />
       ) : error ? (
         <div className="mx-auto max-w-xl px-4 text-center">
-          <p className="text-sm text-[#64748B]">We couldnâ€™t load the registered schools right now.</p>
+          <p className="text-sm text-[#64748B]">We could not load the registered schools right now.</p>
           <button type="button" onClick={loadSchools} className="mt-3 text-sm font-semibold text-[#0077B6]">
             Try again
           </button>

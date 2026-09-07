@@ -1,9 +1,11 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 
-import { useLocation } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 
 import {
   Search,
+  Camera,
+  Mic,
   Book,
   BookOpen,
   BriefcaseBusiness,
@@ -36,17 +38,59 @@ import {
   ChevronRight,
   ShoppingCart,
   Globe,
+  Star,
+  MessageCircle,
+  ArrowDownAZ,
+  RotateCcw,
+  SlidersHorizontal,
+  Check,
+  Sparkles,
 } from "lucide-react";
 
 import api from "../../../utils/api";
 
 import { MinimalSchoolMap } from "./SchoolMap";
+import { StudentHeaderActions } from "./StudentHeaderActions";
 
 import StudentBorrowingForm from "./StudentBorrowingForm";
 
 import QRCodeDisplay from "./QRCodeDisplay";
 
-import { BookGridSkeleton } from "../../ui/Skeleton";
+
+const getBookCategoryValue = (book) => {
+  const directCategory = [
+    book?.categories?.category_name,
+    book?.category?.category_name,
+    book?.category_name,
+    book?.subject,
+    book?.course,
+    book?.program,
+    book?.department,
+  ].find((value) => typeof value === "string" && value.trim());
+
+  if (directCategory) return directCategory.trim();
+
+  const title = `${book?.title || ""} ${book?.description || ""} ${book?.keywords || ""}`.toLowerCase();
+  const categoryRules = [
+    ["Health Sciences", /nursing|medicine|health|anatomy|pharmacy|patient/],
+    ["Technology", /database|programming|software|web development|computer|information technology|coding/],
+    ["Business", /accounting|marketing|business|finance|management|entrepreneur/],
+    ["Education", /teaching|education|pedagogy|instruction|curriculum/],
+    ["Law & Politics", /law|legal|politics|government|constitution|justice/],
+    ["Science", /biology|chemistry|physics|science|astronomy|geology/],
+    ["General Education", /history|philippine|literature|communication|language|humanities/],
+  ];
+
+  return categoryRules.find(([, pattern]) => pattern.test(title))?.[0] || "Other Subjects";
+};
+
+const getBookOrganizationLabels = (book) => [
+  ["Category", book?.categories?.category_name || book?.category?.category_name || book?.category_name],
+  ["Subject", book?.subject],
+  ["Course", book?.course],
+  ["Program", book?.program],
+  ["Department", book?.department],
+].filter(([, value]) => typeof value === "string" && value.trim());
 
 function BookStatusBadge({ status, compact = false }) {
   const statusConfig = {
@@ -102,8 +146,10 @@ function BookStatusBadge({ status, compact = false }) {
   );
 }
 
-function StudentSearch({ onBookClick, onBorrowClick }) {
+function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const categoryView = searchParams.get("category");
 
   const initialSearchQuery = location.state?.query || "";
 
@@ -120,6 +166,8 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
   const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   const filterPanelRef = useRef(null);
+
+  const searchBarRef = useRef(null);
 
   const filterRailRef = useRef(null);
 
@@ -147,15 +195,13 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
   const searchScrollContainerRef = useRef(null);
 
-  const lastSearchScrollTopRef = useRef(0);
-
   const [books, setBooks] = useState([]);
 
   const [loading, setLoading] = useState(true);
 
   const [selectedBook, setSelectedBook] = useState(null);
 
-  const [bookDetailsWidth, setBookDetailsWidth] = useState(360);
+  const [bookDetailsWidth, setBookDetailsWidth] = useState(280);
 
   const [isResizingBookDetails, setIsResizingBookDetails] = useState(false);
 
@@ -178,6 +224,12 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
     return () => window.removeEventListener('open-borrowing-list', openBorrowingList);
   }, []);
+
+  useEffect(() => {
+    if (categoryView) {
+      setShowSearchHistory(false);
+    }
+  }, [categoryView]);
 
   const [showBorrowingForm, setShowBorrowingForm] = useState(false);
 
@@ -202,6 +254,8 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
   const [selectedSchool, setSelectedSchool] = useState(null);
 
   const [selectedCategory, setSelectedCategory] = useState("All Books");
+
+  const [filterAvailability, setFilterAvailability] = useState("all"); // 'all' | 'available'
 
   const [notificationFilter, setNotificationFilter] = useState("all");
 
@@ -232,40 +286,30 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
   const [showSearchHistory, setShowSearchHistory] = useState(false);
 
-  const [showQuickFilters, setShowQuickFilters] = useState(true);
 
-  // Reset filters to visible when component mounts or tab changes
-  useEffect(() => {
-    setShowQuickFilters(true);
-  }, []);
+  const [showDiscoveryFilters, setShowDiscoveryFilters] = useState(false);
 
-  useEffect(() => {
-    const scrollContainer = searchScrollContainerRef.current;
-    const hasInnerScroll = scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight;
-    const scrollTarget = hasInnerScroll ? scrollContainer : window;
-    const getScrollTop = () => (scrollTarget === window ? window.scrollY : scrollContainer.scrollTop);
+  const [sortBy, setSortBy] = useState("recommended");
 
-    lastSearchScrollTopRef.current = getScrollTop();
+  const [readingReviews, setReadingReviews] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("studentReadingReviews") || "{}");
+    } catch {
+      return {};
+    }
+  });
 
-    const handleScroll = () => {
-      const currentTop = getScrollTop();
-      setShowQuickFilters(currentTop <= 10);
-      lastSearchScrollTopRef.current = currentTop;
-    };
+  const [reviewRating, setReviewRating] = useState(0);
 
-    scrollTarget.addEventListener("scroll", handleScroll, { passive: true });
+  const [reviewNote, setReviewNote] = useState("");
 
-    return () => {
-      scrollTarget.removeEventListener("scroll", handleScroll);
-    };
-  }, [selectedBook]);
 
   useEffect(() => {
     if (!isResizingBookDetails) return undefined;
 
     const handlePointerMove = (event) => {
       const nextWidth = window.innerWidth - event.clientX;
-      setBookDetailsWidth(Math.min(620, Math.max(320, nextWidth)));
+      setBookDetailsWidth(Math.min(480, Math.max(240, nextWidth)));
     };
 
     const stopResizing = () => setIsResizingBookDetails(false);
@@ -532,7 +576,11 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
   };
 
   useEffect(() => {
-    setDebouncedQuery(searchQuery);
+    const debounceTimer = window.setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 180);
+
+    return () => window.clearTimeout(debounceTimer);
   }, [searchQuery]);
 
   useEffect(() => {
@@ -568,7 +616,13 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
             available: book.real_time_status === "available",
 
-            category: "General",
+            category: getBookCategoryValue(book),
+            categories: book.categories || null,
+            category_name: book.category_name || null,
+            subject: book.subject || null,
+            course: book.course || null,
+            program: book.program || null,
+            department: book.department || null,
 
             isbn: book.isbn || "Unknown",
 
@@ -585,6 +639,8 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
             school_id: book.school_id,
 
             library: book.schools?.school_name || "Your Library",
+
+            schoolAddress: book.schools?.address || null,
 
             latitude: book.schools?.latitude || null,
 
@@ -791,6 +847,12 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
       book.subject,
 
+      book.course,
+
+      book.program,
+
+      book.department,
+
       book.description,
 
       book.keywords,
@@ -802,9 +864,13 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
       .toLowerCase();
 
-    const matchesSearch =
-      debouncedQuery === "" ||
-      searchableBookText.includes(debouncedQuery.toLowerCase());
+    const searchTerms = debouncedQuery
+      .toLowerCase()
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    const matchesSearch = searchTerms.every((term) => searchableBookText.includes(term));
 
     const selectedKeywords = subjectKeywords[selectedCategory] || [
       selectedCategory.toLowerCase(),
@@ -814,8 +880,110 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
       selectedCategory === "All Books" ||
       selectedKeywords.some((keyword) => searchableBookText.includes(keyword));
 
-    return matchesSearch && matchesCategory;
+    const matchesAvailability =
+      filterAvailability === "all" ||
+      getBookDisplayStatus(book) === "available";
+
+    return matchesSearch && matchesCategory && matchesAvailability;
   });
+
+  const getBookCategory = (book) => getBookCategoryValue(book);
+
+  const orderedBooks = [...filteredBooks].sort((firstBook, secondBook) => {
+    if (sortBy === "title") return (firstBook.title || "").localeCompare(secondBook.title || "");
+    if (sortBy === "author") return (firstBook.author || "").localeCompare(secondBook.author || "");
+    if (sortBy === "available") {
+      return Number(getBookDisplayStatus(secondBook) === "available") - Number(getBookDisplayStatus(firstBook) === "available");
+    }
+
+    const firstCategory = getBookCategory(firstBook);
+    const secondCategory = getBookCategory(secondBook);
+    const firstIsUncategorized = firstCategory === "Other Subjects";
+    const secondIsUncategorized = secondCategory === "Other Subjects";
+
+    if (firstIsUncategorized !== secondIsUncategorized) {
+      return firstIsUncategorized ? 1 : -1;
+    }
+
+    const categoryOrder = firstCategory.localeCompare(secondCategory);
+    if (categoryOrder !== 0) return categoryOrder;
+
+    return Number(getBookDisplayStatus(secondBook) === "available") - Number(getBookDisplayStatus(firstBook) === "available");
+  });
+
+  const bookGroups = orderedBooks.reduce((groups, book) => {
+    const category = getBookCategory(book);
+    const existingGroup = groups.find((group) => group.category === category);
+
+    if (existingGroup) {
+      existingGroup.books.push(book);
+    } else {
+      groups.push({ category, books: [book] });
+    }
+
+    return groups;
+  }, []);
+
+  const smartSearchResults = searchQuery.trim()
+    ? books
+        .filter((book) => {
+          const searchableText = [
+            book.title,
+            book.author,
+            book.isbn,
+            getBookCategory(book),
+            book.subject,
+            book.course,
+            book.program,
+            book.department,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+
+          return searchQuery
+            .toLowerCase()
+            .trim()
+            .split(/\s+/)
+            .every((term) => searchableText.includes(term));
+        })
+        .slice(0, 6)
+    : [];
+
+  const searchSuggestions = searchQuery.trim()
+    ? smartSearchResults
+    : orderedBooks.slice(0, 6);
+
+  const initialBooksPerCategory = 12;
+  const displayedBookGroups = categoryView
+    ? bookGroups.filter(({ category }) => category === categoryView)
+    : bookGroups;
+
+  useEffect(() => {
+    if (!selectedBook) return;
+
+    const savedReview = readingReviews[selectedBook.id];
+    setReviewRating(savedReview?.rating || 0);
+    setReviewNote(savedReview?.note || "");
+  }, [selectedBook, readingReviews]);
+
+  const saveReadingReview = () => {
+    if (!selectedBook || !reviewRating) return;
+
+    setReadingReviews((previousReviews) => {
+      const updatedReviews = {
+        ...previousReviews,
+        [selectedBook.id]: {
+          rating: reviewRating,
+          note: reviewNote.trim(),
+          updatedAt: new Date().toISOString(),
+        },
+      };
+
+      localStorage.setItem("studentReadingReviews", JSON.stringify(updatedReviews));
+      return updatedReviews;
+    });
+  };
 
   const filterCategories = [
     "All Books",
@@ -912,15 +1080,35 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
     requestAnimationFrame(() => {
       filterRailRef.current
-
         ?.querySelector(`[data-category="${category}"]`)
-
         ?.scrollIntoView({
           behavior: "smooth",
           block: "nearest",
           inline: "center",
         });
     });
+  };
+
+  const hasActiveFilters = Boolean(
+    searchQuery.trim() ||
+      selectedCategory !== "All Books" ||
+      sortBy !== "recommended" ||
+      filterAvailability !== "all"
+  );
+
+  const activeFiltersCount =
+    (searchQuery.trim() ? 1 : 0) +
+    (selectedCategory !== "All Books" ? 1 : 0) +
+    (sortBy !== "recommended" ? 1 : 0) +
+    (filterAvailability !== "all" ? 1 : 0);
+
+  const clearAllFilters = () => {
+    setSearchQuery("");
+    setDebouncedQuery("");
+    setSelectedCategory("All Books");
+    setSortBy("recommended");
+    setFilterAvailability("all");
+    setShowSearchHistory(false);
   };
 
   const toggleFavorite = (bookId) => {
@@ -1263,21 +1451,100 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
     };
   }, [showFilterPanel]);
 
+  useEffect(() => {
+    if (categoryView) {
+      setShowSearchHistory(false);
+    }
+  }, [categoryView]);
+
+  useEffect(() => {
+    if (categoryView) {
+      setShowSearchHistory(false);
+    }
+  }, [categoryView]);
+
+  useEffect(() => {
+    if (!showSearchHistory) return undefined;
+
+    const handleSearchOutsideClick = (event) => {
+      if (searchBarRef.current && !searchBarRef.current.contains(event.target)) {
+        setShowSearchHistory(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleSearchOutsideClick);
+    document.addEventListener("touchstart", handleSearchOutsideClick);
+
+    return () => {
+      document.removeEventListener("mousedown", handleSearchOutsideClick);
+      document.removeEventListener("touchstart", handleSearchOutsideClick);
+    };
+  }, [showSearchHistory]);
+
+  if (showBorrowingForm && !selectedBook) {
+    return (
+      <main className="fixed inset-0 z-[100] min-h-[100dvh] w-full min-w-0 overflow-y-auto bg-[#F7FAFC] px-4 pb-10 pt-4 sm:px-6 sm:pt-6 lg:px-10 lg:py-8">
+        <div className="mx-auto w-full max-w-3xl">
+          <button
+            type="button"
+            onClick={() => {
+              setShowBorrowingForm(false);
+              setShowBorrowingList(true);
+            }}
+            className="mb-5 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 transition-colors hover:text-blue-600"
+          >
+            <ChevronRight className="h-4 w-4 rotate-180" aria-hidden="true" />
+            Back to borrowing list
+          </button>
+
+          <header className="mb-6 border-b border-slate-200 pb-5">
+            <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600">
+              Final step
+            </p>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+              Continue to borrow request
+            </h1>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
+              Fill in your details so the library can review your request.
+            </p>
+          </header>
+
+          <StudentBorrowingForm
+            borrowingList={borrowingFormList}
+            userData={userData}
+            onSubmit={handleBorrowingSubmit}
+            onCancel={() => {
+              setShowBorrowingForm(false);
+              setShowBorrowingList(true);
+            }}
+          />
+        </div>
+      </main>
+    );
+  }
+
   return (
     <div
-      className={`animate-slide-up box-border -mx-3 w-[calc(100%+1.5rem)] min-w-0 max-w-none px-0 pb-0 sm:mx-0 sm:w-full sm:px-6 lg:px-0 lg:-mt-[76px] ${selectedBook ? "lg:grid lg:h-screen lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_var(--book-details-width)] lg:gap-0" : ""}`}
+      className={`student-search-shell ${selectedBook ? "student-search-has-details" : ""} box-border -mx-3 w-[calc(100%+1.5rem)] min-w-0 max-w-none px-0 pb-0 sm:mx-0 sm:w-full sm:px-6 lg:pl-[30px] lg:pr-0 ${selectedBook ? "lg:grid lg:h-[calc(100dvh-76px)] lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_var(--book-details-width)] lg:gap-3 lg:overflow-hidden" : "lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-5"}`}
       style={{ "--book-details-width": `${bookDetailsWidth}px` }}
     >
       <div
         ref={searchScrollContainerRef}
-        className={`min-w-0 lg:px-0 ${selectedBook ? "lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain" : ""}`}
+        className={`min-w-0 lg:px-0 ${selectedBook ? "overflow-hidden lg:col-start-1 lg:row-start-1 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-none" : ""}`}
       >
         {/* Other school results - 4th panel - Sticky */}
 
         {showOtherSchoolsModal && (
-          <section
+          <>
+            <button
+              type="button"
+              aria-label="Close other school results"
+              onClick={() => setShowOtherSchoolsModal(false)}
+              className="fixed inset-0 z-[74] bg-slate-950/35 backdrop-blur-[2px]"
+            />
+            <section
             ref={otherSchoolsSectionRef}
-            className="mb-4 sm:mb-6 w-full scroll-mt-[80px] rounded-2xl border border-[#DDE6EF] bg-white p-4 shadow-sm sm:p-5 sticky top-[64px] md:top-[76px] z-40"
+            className="fixed inset-x-3 top-1/2 z-[75] max-h-[calc(100dvh-2rem)] w-auto -translate-y-1/2 overflow-y-auto rounded-2xl bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.22)] sm:inset-x-auto sm:left-1/2 sm:w-[min(680px,calc(100vw-2rem))] sm:-translate-x-1/2 sm:p-5"
           >
             <div className="mb-4 flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -1398,261 +1665,189 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                 </div>
               </>
             )}
-          </section>
+            </section>
+          </>
         )}
 
         {/* Search and filter card */}
 
-        <div className="sticky top-0 z-30 mb-4 shrink-0 bg-[#F8FAFC]/95 pb-2 backdrop-blur-sm sm:mb-5 md:-mt-6 md:top-[76px]">
-          <div className="w-full min-w-0 overflow-visible border-y border-slate-200 bg-white p-3 shadow-[0_12px_30px_rgba(15,23,42,0.08)] sm:rounded-3xl sm:border sm:p-4">
-            <div className="shrink-0 px-1 pb-3 pt-0">
-              <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600">Discover your library</p>
-              <h1 className="text-2xl font-bold tracking-tight text-[#0F172A] sm:text-3xl">
-                Search your books
-              </h1>
-
-              <p className="mt-1 text-sm text-[#64748B] sm:text-base">
-                Find and explore books from your library
-              </p>
+        <div className="mb-2 bg-[#F7FAFC] pb-0 pt-3 md:pt-0 sm:mb-3">
+          <div className="w-full min-w-0 overflow-visible">
+            <div className="mb-4 hidden px-0 pt-2 md:block lg:mb-2">
+              <div className="min-w-0">
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">
+                  Library catalogue
+                </p>
+                <h1 className="text-2xl font-bold leading-tight tracking-tight text-slate-900 sm:text-3xl">
+                  Find your next read
+                </h1>
+              </div>
             </div>
 
-            <div className="relative min-h-12 w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 transition focus-within:border-blue-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-100">
-              <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-[#94A3B8] w-4 h-4 sm:w-5 sm:h-5" />
-
-              <input
-                type="text"
-
-                placeholder="Search by title, author, or ISBN..."
-
-                value={searchQuery}
-
-                onChange={(e) => setSearchQuery(e.target.value)}
-
-                onFocus={() => setShowSearchHistory(true)}
-
-                className="w-full py-3 pl-10 pr-12 text-sm text-[#0F172A] placeholder-[#94A3B8] touch-manipulation transition-all focus:outline-none sm:pl-12"
-              />
-
-              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
-                {searchQuery && (
-                  <button
-                    onClick={() => {
-                      setSearchQuery("");
-
-                      setShowSearchHistory(false);
-                    }}
-
-                    className="p-1.5 text-[#64748B] hover:text-[#0F172A] hover:bg-[#F7FAFC] rounded-lg transition-colors"
-
-                    aria-label="Clear search"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-
-                <button
-                  onClick={() => setShowFilterPanel(true)}
-
-                  className="p-2 text-[#64748B] hover:text-[#0077B6] hover:bg-[#F7FAFC] rounded-lg transition-colors"
-
-                  aria-label="Open filters"
-                >
-                  <Filter className="w-4 h-4 sm:w-5 sm:h-5" />
-                </button>
-              </div>
-
-              {/* Search History Dropdown */}
-
-              {showSearchHistory && searchHistory.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-[#E2E8F0] rounded-xl shadow-lg z-50 max-h-64 overflow-y-auto">
-                  <div className="flex items-center justify-between p-3 border-b border-[#E2E8F0]">
-                    <span className="text-sm font-medium text-[#0F172A]">
-                      Recent Searches
-                    </span>
-
-                    <button
-                      onClick={clearSearchHistory}
-
-                      className="text-xs text-red-600 hover:text-red-700 font-medium"
-                    >
-                      Clear all
-                    </button>
-                  </div>
-
-                  {searchHistory.map((item, index) => (
+            <div className="lg:h-0">
+              <div
+                ref={searchBarRef}
+                className="student-search-global-bar fixed inset-x-3 top-2 z-30 mx-0 bg-transparent px-0 pb-0 pt-0 backdrop-blur-none md:sticky md:inset-x-auto md:top-0 md:-mx-2 md:border-b md:border-slate-200/50 md:bg-[#F7FAFC] md:px-2 md:pb-3 md:pt-2 md:backdrop-blur-none lg:fixed lg:left-[72px] lg:right-0 lg:z-[60] lg:mx-0 lg:h-[64px] lg:border-b lg:border-slate-200/70 lg:bg-[#F7FAFC] lg:px-0 lg:pb-2 lg:pt-1 lg:backdrop-blur-none"
+              >
+                <div className="flex w-full items-center gap-3">
+                  <div className="relative min-w-0 flex-1">
                     <div
-                      key={index}
-
-                      className="flex items-center justify-between px-4 py-2.5 hover:bg-[#F7FAFC] transition-colors cursor-pointer group"
-
-                      onClick={() => handleHistoryClick(item)}
+                      className="relative h-12 w-full min-w-0 overflow-visible rounded-[50px] border-0 bg-[#E7E7E4] shadow-none transition focus-within:bg-[#E7E7E4] md:h-[54px]"
+                      role="search"
                     >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <Clock className="w-4 h-4 text-[#94A3B8] flex-shrink-0" />
-
-                        <span className="text-sm text-[#0F172A] truncate">
-                          {item}
-                        </span>
-                      </div>
-
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-
-                          deleteFromHistory(item);
-                        }}
-
-                        className="p-1 text-[#94A3B8] hover:text-red-500 rounded transition-colors opacity-0 group-hover:opacity-100"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div
-              aria-hidden={!showQuickFilters}
-              inert={!showQuickFilters}
-              className={`relative overflow-hidden transition-[max-height,opacity,transform,margin,padding] duration-75 ease-out will-change-[max-height,opacity,transform] ${
-                showQuickFilters
-                  ? "visible mt-3 max-h-[500px] translate-y-0 border-t border-[#EEF2F6] pt-3 opacity-100"
-                  : "pointer-events-none invisible !mt-0 max-h-0 -translate-y-2 border-t-0 pt-0 opacity-0"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-3 mb-1.5 px-0.5">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[#64748B]">
-                    Browse by subject
-                  </p>
-
-                  <span
-                    className="flex items-center gap-0.5 text-[9px] font-medium normal-case tracking-normal text-[#94A3B8] sm:hidden"
-                    aria-hidden="true"
-                  >
-                    Swipe <ChevronRight className="w-2.5 h-2.5" />
-                  </span>
-                </div>
-
-                <span className="text-[10px] text-[#64748B] whitespace-nowrap">
-                  {filteredBooks.length}{" "}
-                  {filteredBooks.length === 1 ? "result" : "results"}
-                </span>
-              </div>
-
-              <div className="relative min-w-0">
-                <div
-                  ref={filterRailRef}
-                  className="flex min-w-0 max-w-full gap-1.5 overflow-x-auto scroll-smooth overscroll-x-contain touch-pan-x pb-0.5 scrollbar-hide snap-x snap-mandatory animate-filter-rail"
-                  role="tablist"
-                  aria-label="Swipe book subjects horizontally"
-                >
-                  {filterCategories.map((category) => (
-                    <button
-                      key={category}
-
-                      onClick={() => handleCategoryChange(category)}
-
-                      data-category={category}
-
-                      role="tab"
-
-                      aria-selected={selectedCategory === category}
-
-                      className={`snap-center shrink-0 inline-flex min-h-9 items-center justify-start gap-1.5 rounded-xl border px-2.5 text-[10px] font-semibold whitespace-nowrap transition-all duration-200 active:scale-95 touch-manipulation sm:px-3 sm:text-xs ${
-                        selectedCategory === category
-                          ? "border-blue-600 bg-blue-600 text-white shadow-sm shadow-blue-600/25"
-                          : "border-[#E2E8F0] bg-white text-[#334155] hover:border-[#0077B6] hover:text-[#0077B6]"
-                      }`}
-                    >
-                      {(() => {
-                        const SubjectIcon = subjectIcons[category] || BookOpen;
-
-                        return (
-                          <span
-                            className="flex shrink-0 items-center justify-center w-4 h-4 rounded-md border border-current/25"
-                            aria-hidden="true"
-                          >
-                            <SubjectIcon className="w-3 h-3" />
-                          </span>
-                        );
-                      })()}
-
-                      <span>{category}</span>
-                    </button>
-                  ))}
-                </div>
-
-                <div
-                  className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#FBFDFF] to-transparent sm:hidden"
-                  aria-hidden="true"
-                />
-              </div>
-
-              <div className="mt-2 pt-2 border-t border-[#EEF2F6]">
-                <div className="flex items-center justify-between gap-2 mb-1.5 px-0.5">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-[#64748B]">
-                      Popular authors
-                    </p>
-
-                    <span className="text-[9px] text-[#94A3B8]">
-                      Tap to search
-                    </span>
-                  </div>
-
-                  <span
-                    className="flex items-center gap-0.5 text-[9px] font-medium text-[#94A3B8] sm:hidden"
-                    aria-hidden="true"
-                  >
-                    Swipe <ChevronRight className="w-2.5 h-2.5" />
-                  </span>
-                </div>
-
-                <div className="relative">
-                  <div
-                    className="flex gap-1.5 overflow-x-auto overscroll-x-contain touch-pan-x pb-0.5 px-0.5 scrollbar-hide snap-x snap-mandatory"
-                    role="list"
-                    aria-label="Popular authors"
-                  >
-                    {popularAuthors.map((author) => (
-                      <button
-                        key={author}
-
-                        onClick={() => {
-                          setSearchQuery(author);
-
-                          setShowSearchHistory(false);
-                        }}
-
-                        className="snap-start shrink-0 inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-[#DDE6EF] bg-white px-2.5 text-[10px] font-semibold text-[#475569] transition-colors active:scale-95 touch-manipulation hover:border-[#0077B6] hover:text-[#0077B6]"
-                      >
+                      <div className="flex h-full items-center gap-2 px-3 md:px-4">
                         <span
-                          className="flex items-center justify-center w-5 h-5 rounded-md border border-[#DDE6EF] text-[#64748B]"
+                          className="flex shrink-0 items-center justify-center text-slate-600"
                           aria-hidden="true"
                         >
-                          <PenLine className="w-3 h-3" />
+                          <Search className="h-5 w-5" />
                         </span>
 
-                        {author}
-                      </button>
-                    ))}
+                        <input
+                          type="text"
+                          placeholder="Search books, authors, or ISBN"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          onFocus={() => {
+                            if (!categoryView) {
+                              setShowSearchHistory(true);
+                            }
+                          }}
+                          className="min-w-0 flex-1 bg-transparent text-[16px] font-medium text-slate-800 placeholder:font-normal placeholder:text-slate-600 focus:outline-none sm:text-base"
+                        />
+
+                        {searchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSearchQuery("");
+                              setShowSearchHistory(false);
+                            }}
+                            className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-700 transition-colors hover:bg-black/5 hover:text-slate-800"
+                            aria-label="Clear search"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  <div
-                    className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#FBFDFF] to-transparent sm:hidden"
-                    aria-hidden="true"
-                  />
+                  <div className="hidden h-full w-[184px] shrink-0 items-center justify-end pr-3 text-slate-900 md:flex md:pr-5">
+                    <StudentHeaderActions userInfo={userInfo} onLogout={onLogout} />
+                  </div>
                 </div>
+
+                {showSearchHistory && (
+                  <div className="absolute left-0 right-0 top-full z-[60] mt-2 max-h-[min(22rem,calc(100dvh-8rem))] overflow-y-auto overscroll-contain rounded-[18px] border border-slate-200 bg-white p-2 text-left shadow-[0_18px_40px_rgba(15,23,42,0.12)]">
+                  {searchSuggestions.length > 0 ? (
+                    <>
+                      <p className="px-2 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                        {searchQuery.trim() ? "Matching books" : "Suggested books"}
+                      </p>
+
+                      {searchSuggestions.map((book) => (
+                        <button
+                          key={book.id}
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => {
+                            setShowSearchHistory(false);
+                            handleBookClick(book);
+                          }}
+                          className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-slate-50"
+                        >
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#0B63C7] to-[#005D9A] text-white shadow-sm">
+                            <Book className="h-4 w-4" aria-hidden="true" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-bold text-slate-900">
+                              {book.title}
+                            </span>
+                            <span className="mt-0.5 block truncate text-xs text-slate-500">
+                              {book.author} · {getBookCategory(book)}
+                            </span>
+                          </span>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                        </button>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      {searchQuery.trim() ? (
+                        <p className="px-2 py-5 text-center text-sm text-slate-500">
+                          No matching books found.
+                        </p>
+                      ) : searchHistory.length > 0 ? (
+                        <div>
+                          <div className="px-2 py-2">
+                            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                              Recent searches
+                            </span>
+                          </div>
+                          {searchHistory.slice(0, 6).map((term) => (
+                            <button
+                              key={term}
+                              type="button"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => {
+                                handleHistoryClick(term);
+                                setShowSearchHistory(false);
+                              }}
+                              className="flex w-full items-center justify-between rounded-xl px-2 py-2 text-left transition-colors hover:bg-slate-50"
+                            >
+                              <span className="truncate text-sm text-slate-700">{term}</span>
+                              <Clock className="h-4 w-4 shrink-0 text-slate-400" />
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="px-2 py-5 text-center text-sm text-slate-500">
+                          No suggested books yet.
+                        </p>
+                      )}
+                    </>
+                  )}
+                  </div>
+                )}
               </div>
             </div>
+            </div>
+
+            <div className="mt-1 flex min-h-[1rem] items-center justify-between gap-3 px-0 lg:mt-0">
+              <p className="min-w-0 flex-1 truncate text-[10px] text-slate-500">
+                {searchQuery.trim() ? (
+                  <>
+                    Showing matches for <span className="font-semibold text-slate-700">“{searchQuery.trim()}”</span>
+                  </>
+                ) : (
+                  "Start with a title, author, subject, or ISBN."
+                )}
+              </p>
+              <span className="shrink-0 rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700">
+                {filteredBooks.length} results
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowFilterPanel(true)}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-800 sm:hidden"
+                aria-label={`Open filters (${activeFiltersCount} active)`}
+              >
+                <SlidersHorizontal className="h-3 w-3" aria-hidden="true" />
+                Filters
+                {activeFiltersCount > 0 && (
+                  <span className="inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[#0077B6] px-1 text-[9px] font-bold text-white">
+                    {activeFiltersCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
           </div>
-        </div>
 
         {/* Other school results - 4th panel */}
 
-        {showOtherSchoolsModal && (
+        {false && showOtherSchoolsModal && (
           <section
             ref={otherSchoolsSectionRef}
             className="mb-6 w-full scroll-mt-[80px] rounded-2xl border border-[#DDE6EF] bg-white p-4 shadow-sm sm:p-5"
@@ -1853,23 +2048,39 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                           <CheckCircle className="w-4 h-4 ml-auto" />
                         )}
                       </button>
+
+                      <button
+                        onClick={() => {
+                          setFilterAvailability(filterAvailability === "all" ? "available" : "all");
+
+                          setShowFilterPanel(false);
+                        }}
+
+                        aria-pressed={filterAvailability === "available"}
+
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                          filterAvailability === "available"
+                            ? "bg-[#0077B6] text-white shadow-md"
+                            : "hover:bg-[#F7FAFC] text-[#0F172A] border border-[#E2E8F0]"
+                        }`}
+                      >
+                        <CheckCircle className="w-5 h-5" />
+
+                        <span className="text-sm font-medium">Available now only</span>
+
+                        {filterAvailability === "available" && (
+                          <CheckCircle className="w-4 h-4 ml-auto" />
+                        )}
+                      </button>
                     </div>
                   </div>
 
                   {searchHistory.length > 0 && (
                     <div className="border-t border-[#EEF2F6] pt-5">
-                      <div className="flex items-center justify-between gap-3 mb-3">
+                      <div className="mb-3">
                         <h3 className="text-sm font-semibold text-[#64748B]">
                           Recent searches
                         </h3>
-
-                        <button
-                          onClick={clearSearchHistory}
-
-                          className="text-xs font-medium text-[#0077B6] hover:text-[#005f8f]"
-                        >
-                          Clear all
-                        </button>
                       </div>
 
                       <div className="space-y-1.5">
@@ -2158,24 +2369,12 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
           </div>
         )}
 
-        {/* Results Count */}
-
-        <div className="mb-3 px-3 sm:mb-4 sm:px-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-600">Collection</p>
-          <p className="mt-0.5 text-sm font-semibold text-slate-800">
-            {filteredBooks.length}{" "}
-            {filteredBooks.length === 1 ? "book" : "books"} found
-          </p>
-        </div>
-
         {/* Book Results Grid */}
 
-        <div className="max-w-7xl px-3 sm:px-0">
+        <div className="max-w-7xl px-3 pt-[12px] sm:px-0 lg:pl-0 lg:pt-[4px]">
           {!showSchoolView && (
             <>
               {/* Empty State */}
-
-              {loading && <BookGridSkeleton count={6} />}
 
               {!loading && filteredBooks.length === 0 && (
                 <div className="text-center py-20 px-4">
@@ -2195,12 +2394,52 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
               {/* Book Grid */}
 
+              {loading && (
+                <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 py-12 text-center">
+                  <img
+                    src="/L.png"
+                    alt="Loading Libralink books"
+                    className="h-14 w-14 animate-pulse object-contain"
+                  />
+                  <p className="text-sm font-medium text-slate-500">Loading books...</p>
+                </div>
+              )}
+
               {filteredBooks.length > 0 && (
-                <div
-                  className={`grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-4 ${selectedBook ? "lg:grid-cols-4" : "lg:grid-cols-4 xl:grid-cols-5"}`}
-                >
-                  {filteredBooks.map((book) => {
+                <div className="space-y-6">
+                  {categoryView && (
+                    <button type="button" onClick={() => setSearchParams({})} className="mb-1 inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700">
+                      <ChevronRight className="h-4 w-4 rotate-180" aria-hidden="true" />
+                      All book categories
+                    </button>
+                  )}
+                  {displayedBookGroups.map(({ category, books: categoryBooks }) => (
+                    <section key={category} aria-labelledby={`category-${category}`} className="scroll-mt-[160px] pt-1 first:pt-2 lg:first:pt-0">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 id={`category-${category}`} className="truncate text-lg font-bold leading-tight tracking-tight text-slate-900 sm:text-xl">{category} books</h3>
+                        </div>
+
+                        {!categoryView && categoryBooks.length > initialBooksPerCategory && (
+                          <button
+                            type="button"
+                            onClick={() => setSearchParams({ category })}
+                            className="shrink-0 text-xs font-semibold text-blue-600 hover:text-blue-700"
+                          >
+                            See all {categoryBooks.length} books
+                          </button>
+                        )}
+                      </div>
+                      <div className={categoryView
+                        ? "space-y-3"
+                        : "flex gap-2 overflow-x-auto pb-3 pl-0 pr-1 snap-x snap-mandatory [-webkit-overflow-scrolling:touch] sm:grid sm:grid-cols-3 sm:gap-x-4 sm:gap-y-6 sm:overflow-visible sm:snap-none sm:pb-0 sm:pr-0 lg:flex lg:flex-nowrap lg:gap-4 lg:overflow-x-auto lg:pb-4 lg:pr-8 lg:snap-x lg:snap-mandatory scrollbar-hide"}>
+                  {categoryBooks
+                    .slice(0, categoryView ? categoryBooks.length : initialBooksPerCategory)
+                    .map((book) => {
                     const displayStatus = getBookDisplayStatus(book);
+                    const personalReview = readingReviews[book.id];
+
+                    const isAvailable = displayStatus === "available";
 
                     return (
                       <div
@@ -2208,7 +2447,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
                         onClick={() => handleBookClick(book)}
 
-                        className="group min-w-0 cursor-pointer rounded-2xl border border-slate-200 bg-white p-2.5 shadow-[0_5px_16px_rgba(15,23,42,0.06)] transition-all duration-300 active:scale-[0.98] hover:border-blue-300 hover:shadow-md"
+                        className={`group min-w-0 cursor-pointer overflow-hidden bg-transparent p-0 transition-all duration-300 active:scale-[0.98] hover:-translate-y-0.5 ${categoryView ? "w-full rounded-xl px-0 py-1.5 transition hover:bg-slate-100/60" : "w-[38%] shrink-0 snap-start sm:w-full sm:min-w-0 lg:w-[188px] lg:min-w-[188px] lg:shrink-0 lg:snap-start"}`}
 
                         role="button"
 
@@ -2222,98 +2461,164 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                           }
                         }}
                       >
-                        {/* Book Cover */}
-
-                        <div className="relative mb-2.5 flex aspect-[3/4] min-h-[150px] w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700">
-                          <div className="absolute -right-7 -top-7 h-20 w-20 rounded-full bg-white/10" />
-                          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/25 bg-white/15 shadow-lg backdrop-blur-sm"><Book className="h-6 w-6 text-white" /></div>
-                          <span className="absolute bottom-2 left-2 max-w-[calc(100%-1rem)] truncate rounded-md bg-slate-950/35 px-1.5 py-1 text-[9px] font-semibold text-white backdrop-blur-sm">{book.category || "General"}</span>
-                        </div>
-
-                        {/* Book Info */}
-
-                        <div className="min-w-0 space-y-1.5">
-                          {/* Title */}
-
-                          <h3 className="min-h-[2rem] text-xs font-bold leading-tight text-[#0F172A] line-clamp-2">
-                            {book.title}
-                          </h3>
-
-                          {/* Author */}
-
-                          <p className="text-[#64748B] text-xs line-clamp-1">
-                            {book.author}
-                          </p>
-
-                          {/* Availability Status */}
-
-                          <div className="flex items-center justify-between gap-1 pt-0.5">
-                            <BookStatusBadge status={displayStatus} compact />
-
-                            <div className="flex items-center gap-1">
-                              {displayStatus !== "available" ? (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-
-                                    searchBookInOtherSchools(book);
-                                  }}
-
-                                  className="rounded-lg p-1.5 transition-colors hover:bg-[#0077B6]/10"
-
-                                  aria-label="Find in other schools"
-
-                                  title="Find in other schools"
-                                >
-                                  <Globe className="w-3.5 h-3.5 text-[#0077B6]" />
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-
-                                    handleAddToBorrowingList(book);
-                                  }}
-
-                                  className="rounded-lg p-1.5 transition-colors hover:bg-[#0077B6]/10"
-
-                                  aria-label="Add to borrowing list"
-
-                                  disabled={displayStatus !== "available"}
-                                >
-                                  <Plus
-                                    className={`w-3.5 h-3.5 ${displayStatus === "available" ? "text-[#0077B6] hover:text-[#005f8f]" : "text-gray-300 cursor-not-allowed"}`}
-                                  />
-                                </button>
+                        {categoryView ? (
+                          <div className="flex items-center gap-2.5 border-b border-slate-100 pb-1.5 last:border-b-0 last:pb-0">
+                            <div className="relative flex h-14 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700 shadow-inner">
+                              <div className="absolute inset-y-0 left-0 w-1.5 bg-white/15" />
+                              <Book className="h-6 w-6 text-white" />
+                              <span className="absolute bottom-1 left-1 max-w-[calc(100%-0.5rem)] truncate rounded-md bg-slate-950/35 px-1 py-0.5 text-[7px] font-semibold text-white backdrop-blur-sm">
+                                {getBookCategory(book)}
+                              </span>
+                              {personalReview && (
+                                <span className="absolute right-1 top-1 inline-flex items-center gap-0.5 rounded-md bg-amber-400 px-1 py-0.5 text-[7px] font-bold text-amber-950 shadow-sm">
+                                  <Star className="h-2.5 w-2.5 fill-current" />
+                                  {personalReview.rating}
+                                </span>
                               )}
+                            </div>
 
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <h3 className="truncate text-[13px] font-bold leading-4 text-[#0F172A]" title={book.title}>
+                                    {book.title}
+                                  </h3>
+                                  <p className="mt-0.5 truncate text-[11px] text-[#64748B]">
+                                    {book.author}
+                                  </p>
+                                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                    <BookStatusBadge status={displayStatus} compact />
+                                    <span className="text-[9px] font-medium text-slate-500">
+                                      {getBookCategory(book)}
+                                    </span>
+                                  </div>
+                                </div>
 
-                                  toggleFavorite(book.id);
-                                }}
+                                <div className="flex shrink-0 items-center gap-1.5">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleBookClick(book);
+                                    }}
+                                    className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-700 transition hover:bg-slate-200"
+                                    type="button"
+                                  >
+                                    Details
+                                  </button>
 
-                                className="rounded-lg p-1.5 transition-colors hover:bg-red-50"
-
-                                aria-label={
-                                  favorites.includes(book.id)
-                                    ? "Remove from favorites"
-                                    : "Add to favorites"
-                                }
-
-                                aria-pressed={favorites.includes(book.id)}
-                              >
-                                <Heart
-                                  className={`w-3.5 h-3.5 ${favorites.includes(book.id) ? "text-red-500 fill-current" : "text-[#64748B] hover:text-red-400"}`}
-                                />
-                              </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (isAvailable) {
+                                        handleAddToBorrowingList(book);
+                                      } else {
+                                        searchBookInOtherSchools(book);
+                                      }
+                                    }}
+                                    className={`rounded-md px-2 py-1 text-[10px] font-semibold transition ${
+                                      isAvailable
+                                        ? "bg-blue-600 text-white hover:bg-blue-700"
+                                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                                    }`}
+                                    type="button"
+                                  >
+                                    {isAvailable ? "Borrow" : "Check"}
+                                  </button>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        ) : (
+                          <>
+                            <div className="relative mb-1.5 flex aspect-[4/5] min-h-[118px] w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700 shadow-inner sm:min-h-[164px]">
+                              <div className="absolute inset-y-0 left-0 w-2 bg-white/15" />
+                              <div className="absolute -right-7 -top-7 h-24 w-24 rounded-full bg-white/10" />
+                              <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-white/25 bg-white/15 shadow-lg backdrop-blur-sm"><Book className="h-6 w-6 text-white" /></div>
+                              <span className="absolute bottom-2 left-2 max-w-[calc(100%-1rem)] truncate rounded-md bg-slate-950/35 px-1.5 py-1 text-[9px] font-semibold text-white backdrop-blur-sm">{getBookCategory(book)}</span>
+                              {personalReview && <span className="absolute right-2 top-2 inline-flex items-center gap-0.5 rounded-md bg-amber-400 px-1.5 py-1 text-[9px] font-bold text-amber-950 shadow-sm"><Star className="h-2.5 w-2.5 fill-current" /> {personalReview.rating}</span>}
+                            </div>
+
+                            <div className="min-w-0 space-y-1.5">
+                              <h3 className="h-8 overflow-hidden text-ellipsis text-[11px] font-bold leading-4 text-[#0F172A] line-clamp-2" title={book.title}>
+                                {book.title}
+                              </h3>
+
+                              <p className="text-[#64748B] text-[10px] line-clamp-1">
+                                {book.author}
+                              </p>
+
+                              <div className="flex items-center justify-between gap-1 pt-1">
+                                <BookStatusBadge status={displayStatus} compact />
+
+                                <div className="flex items-center gap-1">
+                                  {displayStatus !== "available" ? (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+
+                                        searchBookInOtherSchools(book);
+                                      }}
+
+                                      className="rounded-lg p-1.5 transition-colors hover:bg-[#0077B6]/10"
+
+                                      aria-label="Find in other schools"
+
+                                      title="Find in other schools"
+                                    >
+                                      <Globe className="w-3.5 h-3.5 text-[#0077B6]" />
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+
+                                        handleAddToBorrowingList(book);
+                                      }}
+
+                                      className="rounded-lg p-1.5 transition-colors hover:bg-[#0077B6]/10"
+
+                                      aria-label="Add to borrowing list"
+
+                                      disabled={displayStatus !== "available"}
+                                    >
+                                      <Plus
+                                        className={`w-3.5 h-3.5 ${displayStatus === "available" ? "text-[#0077B6] hover:text-[#005f8f]" : "text-gray-300 cursor-not-allowed"}`}
+                                      />
+                                    </button>
+                                  )}
+
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+
+                                      toggleFavorite(book.id);
+                                    }}
+
+                                    className="rounded-lg p-1.5 transition-colors hover:bg-red-50"
+
+                                    aria-label={
+                                      favorites.includes(book.id)
+                                        ? "Remove from favorites"
+                                        : "Add to favorites"
+                                    }
+
+                                    aria-pressed={favorites.includes(book.id)}
+                                  >
+                                    <Heart
+                                      className={`w-3.5 h-3.5 ${favorites.includes(book.id) ? "text-red-500 fill-current" : "text-[#64748B] hover:text-red-400"}`}
+                                    />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
                     );
                   })}
+                      </div>
+                    </section>
+                  ))}
                 </div>
               )}
             </>
@@ -2714,6 +3019,60 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
         )}
       </div>
 
+      {!selectedBook && (
+        <aside className="student-search-recommendations hidden self-start lg:sticky lg:top-[80px] lg:block lg:h-[calc(100vh-96px)] lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:rounded-2xl lg:border lg:border-slate-200 lg:bg-[#F7FAFC] lg:p-4 lg:shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
+          <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
+            <img src="/L.png" alt="Libralink" className="h-9 w-9 object-contain" />
+            <span className="text-base font-bold tracking-tight text-slate-900">Libralink</span>
+          </div>
+
+          <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+              <BookOpen className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600">Recommended</p>
+              <h2 className="text-sm font-bold text-slate-900">Books for you</h2>
+            </div>
+          </div>
+
+          <div className="space-y-2.5">
+            {orderedBooks.slice(0, 6).map((book) => (
+              <button
+                key={book.id}
+                type="button"
+                onClick={() => handleBookClick(book)}
+                className="flex w-full min-w-0 items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-left transition-colors hover:border-blue-200 hover:bg-blue-50/60"
+              >
+                <span className="flex h-12 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-blue-700 text-white shadow-sm">
+                  <Book className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-bold text-slate-900">{book.title}</span>
+                  <span className="mt-1 block truncate text-[11px] text-slate-500">{book.author}</span>
+                  <span className="mt-1 block truncate text-[10px] font-medium text-slate-400">
+                    {getBookCategory(book)}
+                    {book.library ? ` · ${book.library}` : ""}
+                  </span>
+                  <span className={`mt-1 block text-[10px] font-semibold ${getBookDisplayStatus(book) === "available" ? "text-emerald-600" : "text-amber-600"}`}>
+                    {getBookDisplayStatus(book) === "available"
+                      ? book.total_copies > 0
+                        ? `${book.available_copies} of ${book.total_copies} available`
+                        : "Available"
+                      : "Check availability"}
+                  </span>
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+
+          {orderedBooks.length === 0 && (
+            <p className="py-6 text-center text-xs text-slate-500">Search for books to see recommendations.</p>
+          )}
+        </aside>
+      )}
+
       {/* Book Details Panel */}
 
       {selectedBook &&
@@ -2729,7 +3088,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
               role="dialog"
               aria-modal="true"
               aria-label={`Book details for ${selectedBook.title}`}
-              className="fixed inset-0 z-[70] w-full min-w-0 max-w-none overflow-y-auto overscroll-contain bg-white shadow-2xl animate-slide-up lg:relative lg:z-auto lg:w-full lg:self-start lg:mt-[76px] lg:h-[calc(100vh-76px)] lg:min-h-0 lg:max-h-[calc(100vh-76px)] lg:overflow-y-scroll lg:border lg:border-[#E2E8F0] lg:rounded-xl lg:shadow-lg"
+              className="book-details-panel fixed inset-0 z-[70] w-full min-w-0 max-w-none overflow-y-auto overscroll-contain bg-[#F7FAFC] lg:relative lg:col-start-2 lg:row-start-1 lg:z-auto lg:h-full lg:w-full lg:min-h-0 lg:max-h-none lg:overflow-y-auto lg:overscroll-contain lg:border-l lg:border-slate-200 animate-panel-slide-in"
             >
               <button
                 type="button"
@@ -2744,18 +3103,21 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
               <div className="w-full">
                 {/* Modal Header */}
 
-                <div className="sticky top-0 z-10 border-b border-[#E2E8F0] bg-white px-4 pb-3 pt-4 sm:px-5 sm:pb-4 sm:pt-5">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[#0077B6] mb-1">
+                <div className="sticky top-0 z-10 border-b border-slate-200 bg-[#F7FAFC] px-3 pb-2.5 pt-3 sm:px-5 sm:pb-4 sm:pt-5">
+                  <div className="flex items-start gap-2.5 sm:gap-3">
+                    <span className="flex h-8 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-blue-700 text-white sm:h-9 sm:w-8" aria-hidden="true">
+                      <Book className="h-4 w-4 sm:h-5 sm:w-5" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="mb-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-blue-600 sm:mb-1 sm:text-[10px] sm:tracking-[0.16em]">
                         Book Details
                       </p>
 
-                      <h2 className="text-xl sm:text-2xl font-bold text-[#0F172A] mb-1 line-clamp-2 pr-2">
+                      <h2 className="mb-0.5 pr-1 text-sm font-bold leading-5 tracking-normal text-slate-900 sm:mb-1 sm:pr-2 sm:text-lg sm:leading-snug">
                         {selectedBook.title}
                       </h2>
 
-                      <p className="text-[#64748B] text-sm">
+                      <p className="truncate text-xs text-slate-500 sm:text-sm">
                         {selectedBook.author}
                       </p>
                     </div>
@@ -2765,35 +3127,19 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
                       onClick={handleCloseOverlay}
 
-                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 sm:h-9 sm:w-9"
                     >
-                      <X className="w-6 h-6 text-[#64748B]" />
+                      <X className="h-5 w-5 sm:h-6 sm:w-6" />
                     </button>
                   </div>
                 </div>
 
-                <div className="px-4 sm:px-5 pt-5 sm:pt-6">
+                <div className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
                   {/* Show Borrowing Form Inline */}
 
                   {showBorrowingForm ? (
                     <div className="h-full flex flex-col">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-[#0F172A]">
-                          Borrowing Request
-                        </h3>
-
-                        <button
-                          type="button"
-
-                          onClick={() => setShowBorrowingForm(false)}
-
-                          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                        >
-                          <X className="w-5 h-5 text-[#64748B]" />
-                        </button>
-                      </div>
-
-                      <div className="flex-1 overflow-y-auto">
+                      <div className="flex-1">
                         <StudentBorrowingForm
                           borrowingList={borrowingFormList}
 
@@ -2809,83 +3155,32 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                     </div>
                   ) : (
                     <>
-                       <div className="grid grid-cols-1 gap-4">
-                        <div className="flex gap-3 min-w-0">
-                          <div className="w-24 h-36 bg-gradient-to-br from-[#0077B6] to-[#005f8f] rounded-lg flex-shrink-0 flex items-center justify-center shadow-sm">
-                            <div className="text-center p-3">
-                              <Book className="w-10 h-10 text-white/90 mx-auto mb-2" />
-
-                              <p className="text-white/80 text-xs font-medium line-clamp-2">
-                                {selectedBook.title}
-                              </p>
+                      <div className="space-y-5">
+                        <div className="grid grid-cols-1 gap-3 border-y border-slate-200 py-3">
+                          <div className="flex items-start gap-3">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><Calendar className="h-4 w-4" aria-hidden="true" /></span>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Shelf</p>
+                              <p className="mt-1 break-words text-sm font-medium text-slate-900">{selectedBook.shelf || "Shelf not available"}</p>
                             </div>
                           </div>
-
-                          <div className="flex-1">
-                            <div className="flex flex-wrap gap-1.5 mb-3">
-                              <span className="px-2 py-1 border border-[#E2E8F0] text-[#64748B] text-xs rounded-md font-medium">
-                                {selectedBook.category}
-                              </span>
-
-                              <span className="px-2 py-1 border border-[#E2E8F0] text-[#64748B] text-xs rounded-md font-medium">
-                                {selectedBook.year}
-                              </span>
+                          <div className="flex items-start gap-3">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><User className="h-4 w-4" aria-hidden="true" /></span>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Library</p>
+                              <p className="mt-1 break-words text-sm font-medium text-slate-900">{selectedBook.library || "Library not available"}</p>
                             </div>
-
-                            <p className="text-sm text-[#64748B] mb-2">
-                              <span className="font-semibold text-[#0F172A]">
-                                Author:
-                              </span>{" "}
-                              {selectedBook.author}
-                            </p>
-
-                            <p className="text-sm text-[#64748B]">
-                              <span className="font-semibold text-[#0F172A]">
-                                ISBN:
-                              </span>{" "}
-                              {selectedBook.isbn}
-                            </p>
                           </div>
                         </div>
 
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-3 text-sm p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
-                            <div className="w-8 h-8 bg-[#0077B6]/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                              <MapPin className="w-4 h-4 text-[#0077B6]" />
-                            </div>
-
-                            <span className="min-w-0 break-words text-[#0F172A]">
-                              <span className="font-semibold">Location:</span>{" "}
-                              {selectedBook.location}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-3 text-sm p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
-                            <div className="w-8 h-8 bg-[#0077B6]/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                              <Calendar className="w-4 h-4 text-[#0077B6]" />
-                            </div>
-
-                            <span className="min-w-0 break-words text-[#0F172A]">
-                              <span className="font-semibold">Shelf:</span>{" "}
-                              {selectedBook.shelf}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-3 text-sm p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
-                            <div className="w-8 h-8 bg-[#0077B6]/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                              <User className="w-4 h-4 text-[#0077B6]" />
-                            </div>
-
-                            <span className="min-w-0 break-words text-[#0F172A]">
-                              <span className="font-semibold">Library:</span>{" "}
-                              {selectedBook.library}
-                            </span>
-                          </div>
+                        <div className="grid grid-cols-2 gap-3 text-xs text-slate-500">
+                          <p className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"><span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Category</span><span className="mt-1 block truncate font-semibold text-slate-700">{selectedBook.category || "Not specified"}</span></p>
+                          <p className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"><span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">ISBN</span><span className="mt-1 block truncate font-semibold text-slate-700">{selectedBook.isbn || "Not available"}</span></p>
                         </div>
                       </div>
 
-                       <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-[#F8FAFC]">
-                        <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                      <div className="border-b border-slate-100 pb-6">
+                        <div className="flex items-center justify-between gap-3 pb-3">
                           <div className="flex items-center gap-2">
                             <MapPin className="w-4 h-4 text-[#0077B6]" />
 
@@ -2894,53 +3189,34 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                             </span>
                           </div>
 
-                          {selectedBook.latitude && selectedBook.longitude && (
-                            <button
-                              type="button"
-
-                              onClick={() =>
-                                window.open(
-                                  `https://www.google.com/maps/dir/?api=1&destination=${selectedBook.latitude},${selectedBook.longitude}`,
-                                  "_blank",
-                                  "noopener,noreferrer",
-                                )
-                              }
-
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-[#0077B6] px-2.5 py-1.5 text-xs font-semibold text-[#0077B6] hover:bg-[#EAF6FB]"
-                            >
-                              <Navigation className="w-3.5 h-3.5" />
-                              Directions
-                            </button>
-                          )}
                         </div>
 
-                        <div className="h-44 sm:h-52 bg-white">
+                        <div className="book-details-map relative isolate -mx-4 h-56 min-h-0 overflow-hidden bg-slate-100 sm:-mx-5 sm:h-64 lg:h-64">
                           <MinimalSchoolMap
                             school={{
+                              school_id: selectedBook.school_id,
                               latitude: selectedBook.latitude,
-
                               longitude: selectedBook.longitude,
-
                               school_name: selectedBook.library,
-
-                              address: selectedBook.location,
+                              address: selectedBook.schoolAddress,
                             }}
                           />
                         </div>
                       </div>
 
-                       <div className="border-t border-[#E2E8F0] pt-4">
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="text-sm font-medium text-[#64748B]">
-                            Availability Status
-                          </span>
+                       <div className="border-y border-slate-200 py-3">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <span className="text-sm font-bold text-slate-900">Availability</span>
+                            <p className="mt-0.5 text-xs text-slate-500">Check this copy before requesting it.</p>
+                          </div>
 
                           <BookStatusBadge status={selectedBookDisplayStatus} />
                         </div>
 
                          {selectedBook.status_details && (
-                           <div className="p-3 bg-[#F7FAFC] rounded-lg border border-[#E2E8F0]">
-                             <p className="text-sm text-[#64748B]">
+                           <div className="mt-3 rounded-xl bg-slate-50 p-3">
+                             <p className="text-xs leading-5 text-slate-600">
                                {selectedBook.status_details}
                              </p>
                            </div>
@@ -2948,18 +3224,14 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
                          {selectedBook.available_copies !== undefined &&
                            selectedBook.total_copies > 0 && (
-                             <div className="p-3 bg-[#F7FAFC] rounded-lg border border-[#E2E8F0]">
-                               <p className="text-sm text-[#0F172A]">
-                                 <span className="font-semibold">
-                                   Available Copies:
-                                 </span>{" "}
-                                 {selectedBook.available_copies} /{" "}
-                                 {selectedBook.total_copies}
+                             <div className="mt-3 rounded-xl bg-emerald-50 px-3 py-2.5">
+                               <p className="text-xs text-emerald-800">
+                                 <span className="font-bold">{selectedBook.available_copies} of {selectedBook.total_copies}</span> copies available
                                </p>
                              </div>
                            )}
 
-                        <div className="grid grid-cols-1 gap-2.5">
+                        <div className="mt-4 grid grid-cols-1 gap-2">
                           <button
                             type="button"
 
@@ -2967,10 +3239,10 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
                             disabled={!selectedBookAvailable}
 
-                            className={`w-full min-w-0 py-3 px-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 text-sm ${
+                            className={`flex w-full min-w-0 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition-colors ${
                               selectedBookAvailable
-                                ? "bg-[#0077B6] hover:bg-[#005f8f] text-white shadow-sm"
-                                : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                                ? "bg-blue-600 text-white hover:bg-blue-700"
+                                : "cursor-not-allowed bg-slate-100 text-gray-400"
                             }`}
                           >
                             <Book className="w-5 h-5" />
@@ -2987,7 +3259,7 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                               searchBookInOtherSchools(selectedBook)
                             }
 
-                            className="w-full min-w-0 py-3 px-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 text-sm bg-white border-2 border-[#0077B6] text-[#0077B6] hover:bg-[#F7FAFC]"
+                            className="flex w-full min-w-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-800"
                           >
                             <Globe className="w-5 h-5" />
                             Find in Other Schools
@@ -3002,10 +3274,10 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
 
                             disabled={!selectedBookAvailable}
 
-                            className={`w-full min-w-0 py-3 px-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 text-sm ${
+                            className={`flex w-full min-w-0 items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors ${
                               selectedBookAvailable
-                                ? "bg-white border-2 border-[#0077B6] text-[#0077B6] hover:bg-[#F7FAFC]"
-                                : "bg-gray-100 border-2 border-gray-300 text-gray-400 cursor-not-allowed"
+                                ? "border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                                : "cursor-not-allowed border-slate-100 text-gray-400"
                             }`}
                           >
                             <Plus className="w-5 h-5" />
@@ -3013,6 +3285,51 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                           </button>
                         </div>
                       </div>
+
+                      <section className="pt-5 pb-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center text-[#0077B6]">
+                              <MessageCircle className="h-4 w-4" />
+                            </span>
+                            <div>
+                              <h3 className="text-sm font-bold text-slate-900">Your reading review</h3>
+                              <p className="mt-0.5 text-xs leading-5 text-slate-500">Save a personal rating or note for this book.</p>
+                            </div>
+                          </div>
+                          {readingReviews[selectedBook.id] && <span className="shrink-0 text-[10px] font-semibold text-emerald-600">Saved</span>}
+                        </div>
+
+                        <div className="mt-3 flex items-center gap-1" role="radiogroup" aria-label="Your book rating">
+                          {[1, 2, 3, 4, 5].map((rating) => (
+                            <button
+                              key={rating}
+                              type="button"
+                              onClick={() => setReviewRating(rating)}
+                              className="rounded-lg p-1 transition hover:scale-110 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                              role="radio"
+                              aria-checked={reviewRating === rating}
+                              aria-label={`${rating} star${rating === 1 ? "" : "s"}`}
+                            >
+                              <Star className={`h-6 w-6 ${rating <= reviewRating ? "fill-amber-400 text-amber-400" : "text-amber-200"}`} />
+                            </button>
+                          ))}
+                          <span className="ml-1 text-xs font-medium text-slate-500">{reviewRating ? `${reviewRating}/5` : "Rate this book"}</span>
+                        </div>
+
+                        <textarea
+                          value={reviewNote}
+                          onChange={(event) => setReviewNote(event.target.value)}
+                          maxLength={280}
+                          rows={3}
+                          placeholder="What would you like to remember about it?"
+                          className="mt-3 w-full resize-none border-b border-slate-200 bg-transparent px-0 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#0077B6]"
+                        />
+                        <div className="mt-2 flex items-center justify-between gap-3">
+                          <span className="text-[10px] text-slate-400">Private to this browser</span>
+                          <button type="button" onClick={saveReadingReview} disabled={!reviewRating} className="text-xs font-bold text-[#0077B6] transition hover:text-[#005f8f] disabled:cursor-not-allowed disabled:text-slate-300">Save review</button>
+                        </div>
+                      </section>
                     </>
                   )}
                 </div>
@@ -3159,20 +3476,22 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
                 <p className="mb-3 text-center text-[11px] text-slate-500">Review your selected books before submitting a request.</p>
                 <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
                   <button
+                    type="button"
                     onClick={clearBorrowingList}
 
-                    className="min-h-11 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-100"
+                    className="min-h-11 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 active:scale-[0.98]"
                   >
                     Clear All
                   </button>
 
                   <button
+                    type="button"
                     onClick={handleContinueToRequest}
 
-                    className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition active:scale-[0.98] hover:bg-blue-700"
+                    className="group flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-[0_10px_22px_rgba(37,99,235,0.22)] transition hover:bg-blue-700 active:scale-[0.98]"
                   >
-                    <CheckCircle className="w-5 h-5" />
-                    Continue to request
+                    <span>Continue to borrow request</span>
+                    <ChevronRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -3181,89 +3500,64 @@ function StudentSearch({ onBookClick, onBorrowClick }) {
         </div>
       )}
 
-      {/* Request form opened from the floating borrowing list. */}
-      {showBorrowingForm && !selectedBook && (
-        <div className="fixed inset-0 z-[85] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-          <section className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] bg-slate-50 shadow-2xl sm:max-h-[86vh] sm:rounded-3xl" aria-label="Borrowing request form">
-            <div className="mx-auto mt-2 h-1.5 w-11 rounded-full bg-slate-300 sm:hidden" aria-hidden="true" />
-            <header className="flex items-start justify-between border-b border-slate-200 bg-white px-5 pb-4 pt-5 sm:px-6">
-              <div>
-                <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600">Final step</p>
-                <h2 className="text-2xl font-bold tracking-tight text-slate-900">Submit borrowing request</h2>
-                <p className="mt-1 text-sm text-slate-500">Complete your details to send this to the library.</p>
-              </div>
-              <button type="button" onClick={() => { setShowBorrowingForm(false); setShowBorrowingList(true); }} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900" aria-label="Back to borrowing list">
-                <X className="h-5 w-5" />
-              </button>
-            </header>
-            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-              <StudentBorrowingForm
-                borrowingList={borrowingFormList}
-                userData={userData}
-                compact
-                onSubmit={handleBorrowingSubmit}
-                onCancel={() => { setShowBorrowingForm(false); setShowBorrowingList(true); }}
-              />
-            </div>
-          </section>
-        </div>
-      )}
-
-      {/* Success Overlay */}
+      {/* QR Code Modal - Only shown when request is approved */}
 
       {showSuccessOverlay && submittedRequest && (
-        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/40 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-          <section className="relative w-full max-w-md overflow-hidden rounded-t-[30px] bg-white px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-5 shadow-2xl animate-success-sheet sm:rounded-3xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="request-success-title">
-            <span className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-blue-50" />
-            <span className="pointer-events-none absolute right-12 top-9 h-2.5 w-2.5 rounded-full bg-amber-300 animate-success-sparkle" />
-            <span className="pointer-events-none absolute right-20 top-16 h-1.5 w-1.5 rounded-full bg-rose-300 animate-success-sparkle-delayed" />
-            <button onClick={() => setShowSuccessOverlay(false)} className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-800" aria-label="Close confirmation">
-              <X className="h-5 w-5" />
-            </button>
-
-            <div className="relative text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-blue-600 text-white shadow-[0_12px_24px_rgba(37,99,235,0.28)] animate-success-pop">
-                <CheckCircle className="h-8 w-8" aria-hidden="true" />
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-md">
+          <section
+            className="animate-success-sheet relative w-full max-w-[410px] overflow-hidden rounded-[26px] border border-white/70 bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.24)] sm:p-7"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="request-success-title"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                  <CheckCircle className="h-4 w-4" />
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">Borrowing request</span>
               </div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-600">Request sent</p>
-              <h2 id="request-success-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-900">You’re all set!</h2>
-              <p className="mx-auto mt-2 max-w-[300px] text-sm leading-6 text-slate-500">Your library will review your borrowing request and notify you of the result.</p>
+              <button
+                type="button"
+                onClick={() => setShowSuccessOverlay(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-800"
+                aria-label="Close confirmation"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
 
-            <div className="relative mt-6 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3.5">
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm"><CheckCircle className="h-5 w-5" /></span>
-                <div className="min-w-0 text-left">
-                  <p className="truncate text-sm font-bold text-emerald-900">{submittedRequest?.request_id || "LL-2026-000001"}</p>
-                  <p className="mt-0.5 text-xs font-semibold text-emerald-700">Pending library review</p>
-                </div>
+            <div className="pt-5 text-center">
+              <div className="animate-success-pop mx-auto flex h-16 w-16 items-center justify-center rounded-[20px] bg-blue-600 text-white shadow-[0_12px_25px_rgba(37,99,235,0.25)]">
+                <CheckCircle className="h-8 w-8" strokeWidth={2.5} />
               </div>
+              <p className="mt-5 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-600">Request sent successfully</p>
+              <h2 id="request-success-title" className="mt-1 text-[23px] font-bold tracking-tight text-slate-900">
+                Request Submitted Successfully
+              </h2>
+              <p className="mx-auto mt-2 max-w-[300px] text-sm leading-6 text-slate-500">
+                Your borrowing request has been submitted. Please wait for librarian approval.
+              </p>
             </div>
 
-            <div className="relative mt-5">
-              <p className="mb-3 text-left text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">What happens next</p>
-              <ol className="space-y-3">
-                {[
-                  'The library reviews your request.',
-                  'You receive an update in your Inbox.',
-                  'When approved, use your QR code to continue.',
-                ].map((step, index) => (
-                  <li key={step} className="flex items-center gap-3 text-left">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-700">{index + 1}</span>
-                    <span className="text-sm leading-5 text-slate-600">{step}</span>
-                  </li>
-                ))}
-              </ol>
+            <div className="mt-6 flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="min-w-0 text-left">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Request ID</p>
+                <p className="mt-1 truncate text-sm font-bold text-slate-900">{submittedRequest?.request_id || "Pending"}</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-700">Pending review</span>
             </div>
 
-            <button onClick={() => setShowSuccessOverlay(false)} className="relative mt-7 flex min-h-12 w-full items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition active:scale-[0.98] hover:bg-blue-700">
-              Done
+            <button
+              type="button"
+              onClick={() => setShowSuccessOverlay(false)}
+              className="mt-5 flex min-h-11 w-full items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-[0_10px_20px_rgba(37,99,235,0.2)] transition hover:bg-blue-700 active:scale-[0.99]"
+            >
+              Continue
             </button>
           </section>
         </div>
       )}
-
-      {/* QR Code Modal - Only shown when request is approved */}
 
       {showQRCode && submittedRequest && (
         <div

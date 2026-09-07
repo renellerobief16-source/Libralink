@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Clock, Book, Calendar, CheckCircle, User, Settings } from 'lucide-react';
+import { Clock, Calendar, CheckCircle } from 'lucide-react';
 import { getStudentBorrowHistory } from '../../../utils/api';
-import { NotificationSkeleton } from '../../ui/Skeleton';
 
 function StudentHistory() {
-  const navigate = useNavigate();
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('all');
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -32,67 +30,81 @@ function StudentHistory() {
     fetchHistory();
   }, []);
 
+  const isReturned = (item) => Boolean(item.return_date || item.returned_at || item.status === 'returned');
+  const filteredHistory = history.filter((item) => {
+    if (activeTab === 'returned') return isReturned(item);
+    if (activeTab === 'borrowed') return !isReturned(item);
+    return true;
+  });
+
+  const tabs = [
+    { id: 'all', label: 'All', count: history.length },
+    { id: 'borrowed', label: 'Borrowed', count: history.filter((item) => !isReturned(item)).length },
+    { id: 'returned', label: 'Returned', count: history.filter(isReturned).length },
+  ];
+
   return (
-    <div className="animate-slide-up mx-auto w-full max-w-4xl min-w-0 overflow-x-hidden text-sm">
-      <header className="mb-5 flex items-end justify-between gap-3">
+    <div className="mx-auto w-full max-w-4xl min-w-0 overflow-x-hidden text-sm">
+      <header className="mb-4">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600">Reading activity</p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Borrow history</h1>
           <p className="mt-1 text-sm text-slate-500">Review the books you have borrowed and returned.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate('/studentpage/profile')}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm transition hover:bg-slate-50"
-            title="Profile"
-          >
-            <User className="w-5 h-5 text-slate-600" />
-          </button>
-          <button
-            onClick={() => navigate('/studentpage/settings')}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm transition hover:bg-slate-50"
-            title="Settings"
-          >
-            <Settings className="w-5 h-5 text-slate-600" />
-          </button>
-        </div>
       </header>
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_10px_28px_rgba(15,23,42,0.06)] sm:p-4">
+
+      <div className="mb-3 flex gap-5 overflow-x-auto border-b border-slate-200 px-1 scrollbar-hide">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`shrink-0 border-b-2 px-1 pb-2 text-xs font-semibold transition-colors ${
+              activeTab === tab.id
+                ? 'border-slate-900 text-slate-900'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+            aria-pressed={activeTab === tab.id}
+          >
+            {tab.label} <span className="text-[10px] text-slate-400">{tab.count}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="overflow-hidden">
         {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <NotificationSkeleton key={i} />
-            ))}
-          </div>
-        ) : history.length === 0 ? (
+          <div className="py-10 text-center text-xs text-slate-500">Loading history...</div>
+        ) : filteredHistory.length === 0 ? (
           <div className="py-12 text-center sm:py-16">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 sm:h-20 sm:w-20">
               <Clock className="w-6 h-6 sm:w-8 sm:h-8 text-slate-300" />
             </div>
-            <h3 className="text-base sm:text-lg font-semibold text-[#0f172a] mb-1.5 sm:mb-2">No borrowing history</h3>
-            <p className="text-xs sm:text-sm text-slate-600">Your borrowing history will appear here</p>
+            <h3 className="mb-1.5 text-base font-semibold text-[#0f172a] sm:text-lg">
+              {history.length === 0 ? 'No borrowing history' : `No ${activeTab} books`}
+            </h3>
+            <p className="text-xs text-slate-600 sm:text-sm">Your borrowing history will appear here</p>
           </div>
         ) : (
-          <div className="space-y-2 sm:space-y-3">
-            {history.map((item) => (
+          <div className="divide-y divide-slate-200">
+            {filteredHistory.map((item) => (
               <div
                 key={item.id || item.borrow_id}
-                className="rounded-2xl border border-slate-200 bg-slate-50 p-3 transition hover:border-blue-200 hover:bg-white sm:p-4"
+                className="py-3 transition hover:bg-slate-50 sm:py-3.5"
               >
-                <div className="flex items-start gap-2 sm:gap-3">
-                  <div className="p-1.5 sm:p-2 rounded-lg bg-green-100 flex-shrink-0">
-                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
+                <div className="flex items-start gap-2.5">
+                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${isReturned(item) ? 'bg-green-100' : 'bg-blue-100'}`}>
+                    <CheckCircle className={`h-4 w-4 ${isReturned(item) ? 'text-green-600' : 'text-blue-600'}`} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-sm sm:text-base text-[#0f172a] mb-1 truncate">{item.book_title || item.title || 'Book'}</h3>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm text-slate-600">
+                    <h3 className="mb-1 truncate text-sm font-semibold text-[#0f172a]">{item.book_title || item.title || 'Book'}</h3>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-600 sm:text-xs">
                       <div className="flex items-center gap-1">
                         <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
                         <span>Borrowed: {item.borrow_date ? new Date(item.borrow_date).toLocaleDateString() : 'N/A'}</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
-                        <span>Returned: {item.return_date ? new Date(item.return_date).toLocaleDateString() : 'N/A'}</span>
+                        <span>{isReturned(item) ? `Returned: ${new Date(item.return_date || item.returned_at).toLocaleDateString()}` : 'Not returned'}</span>
                       </div>
                     </div>
                   </div>
