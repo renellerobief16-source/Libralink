@@ -15,6 +15,7 @@
     "@material-tailwind/react": "^2.1.10",
     "@mui/icons-material": "^9.2.0",
     "@mui/material": "^9.2.0",
+    "@supabase/supabase-js": "^2.115.0",
     "@tailwindcss/vite": "^4.3.2",
     "axios": "^1.7.9",
     "clsx": "^2.1.1",

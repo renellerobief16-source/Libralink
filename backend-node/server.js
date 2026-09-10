@@ -52,6 +52,11 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Serve static files for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Add a specific route to handle uploads directory access
+app.get('/uploads', (req, res) => {
+  res.json({ message: 'Uploads directory is accessible via specific file paths' });
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);

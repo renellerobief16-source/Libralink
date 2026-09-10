@@ -137,8 +137,9 @@ function StudentPortal() {
       try {
         // Fetch books for this school
         const booksResponse = await api.get(`/books/school?school_id=${schoolId}`);
-        if (booksResponse.data) {
-          setBookCount(booksResponse.data.length);
+        if (booksResponse?.data) {
+          const count = booksResponse.data.total_books ?? (Array.isArray(booksResponse.data.books) ? booksResponse.data.books.length : (Array.isArray(booksResponse.data) ? booksResponse.data.length : 0));
+          setBookCount(count);
         }
 
         // Count students for this school

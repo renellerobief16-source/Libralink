@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FiBook, FiUser, FiMapPin, FiCalendar, FiArrowLeft, FiHome, FiTag, FiCopy } from 'react-icons/fi';
-import api from '../../utils/api';
+import { FiBook, FiUser, FiMapPin, FiCalendar, FiArrowLeft, FiHome, FiTag, FiCopy, FiChevronDown, FiAlertCircle, FiClock, FiShield } from 'react-icons/fi';
+import api, { getLibraryPolicy } from '../../utils/api';
 import StudentBorrowingForm from '../collegeTabs/StudentTabs/StudentBorrowingForm';
 import { MinimalSchoolMap } from '../collegeTabs/StudentTabs/SchoolMap';
 
@@ -11,6 +11,8 @@ function BookDetail() {
   const [book, setBook] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
+  const [owningPolicy, setOwningPolicy] = useState(null);
+  const [activeLoanCount, setActiveLoanCount] = useState(0);
   const [showBorrowingForm, setShowBorrowingForm] = useState(false);
   const [borrowingFormList, setBorrowingFormList] = useState([]);
   const [submittedRequest, setSubmittedRequest] = useState(null);
@@ -18,10 +20,13 @@ function BookDetail() {
 
   useEffect(() => {
     // Load user data
+    let currentUserId = null;
     const userStr = localStorage.getItem('currentUser');
     if (userStr) {
       try {
-        setUserData(JSON.parse(userStr));
+        const u = JSON.parse(userStr);
+        setUserData(u);
+        currentUserId = u.user_id;
       } catch (err) {
         console.error('Error parsing user data:', err);
       }
@@ -31,7 +36,28 @@ function BookDetail() {
       try {
         const response = await api.get(`/books/${bookId}`);
         if (response.data) {
-          setBook(response.data);
+          const bookData = response.data;
+          setBook(bookData);
+
+          // Fetch policy of the library that owns this book
+          const targetSchoolId = bookData.school_id || parseInt(localStorage.getItem('schoolId'));
+          if (targetSchoolId) {
+            const policyRes = await getLibraryPolicy(targetSchoolId);
+            if (policyRes.data) {
+              setOwningPolicy(policyRes.data);
+            }
+          }
+        }
+
+        // Fetch student's active commitment count
+        if (currentUserId) {
+          try {
+            const activeRes = await api.get(`/borrow/active/student/${currentUserId}`);
+            const count = Array.isArray(activeRes.data?.data) ? activeRes.data.data.length : (Array.isArray(activeRes.data) ? activeRes.data.length : 0);
+            setActiveLoanCount(count);
+          } catch {
+            // fallback
+          }
         }
       } catch (error) {
         console.error('Error loading book:', error);
@@ -170,6 +196,33 @@ function BookDetail() {
                 )}
               </div>
 
+              {/* Current Borrowers */}
+              {book.current_borrowers && book.current_borrowers.length > 0 && (
+                <div className="mb-4 sm:mb-6">
+                  <details className="group">
+                    <summary className="flex items-center gap-2 text-xs cursor-pointer hover:text-blue-600 transition-colors sm:text-sm">
+                      <FiUser className="w-3.5 h-3.5 text-[#64748B] sm:w-4 sm:h-4" />
+                      <span className="text-[#64748B] font-medium">
+                        {book.current_borrowers.length} borrower{book.current_borrowers.length > 1 ? 's' : ''}
+                      </span>
+                      <FiChevronDown className="w-3 h-3 text-[#64748B] group-open:rotate-180 transition-transform sm:w-4 sm:h-4" />
+                    </summary>
+                    <div className="mt-2 pl-5 space-y-1.5 sm:pl-6 sm:space-y-2">
+                      {book.current_borrowers.map((borrower, idx) => (
+                        <div key={idx} className="flex items-center gap-2 text-xs sm:text-sm">
+                          <span className="text-[#64748B]">{borrower.username}</span>
+                          <span className={`text-xs font-medium ${
+                            borrower.status === 'borrowed' ? 'text-blue-600' : 'text-orange-600'
+                          }`}>
+                            ({borrower.status === 'borrowed' ? 'Borrowed' : 'Waiting'})
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+              )}
+
               {/* Location Info */}
               <div className="space-y-3 pt-3 border-t border-[#E2E8F0] sm:pt-4">
                 <div className="flex items-start gap-2 sm:gap-3">
@@ -274,6 +327,61 @@ function BookDetail() {
                 </div>
               </div>
             )}
+
+            {/* Borrowing Terms & Policy Card */}
+            <div className="border border-[#E2E8F0] bg-white p-4 sm:p-5 lg:p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-[#0F172A]">Borrowing Policy</h3>
+                <span className="text-[10px] font-semibold text-[#0077B6] bg-sky-50 border border-sky-100 px-2.5 py-0.5 rounded-full">
+                  {book.schools?.school_name || 'Owning Library'}
+                </span>
+              </div>
+
+              <div className="space-y-2.5 text-xs">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <span className="block text-[10px] uppercase font-bold text-slate-400">Loan Period</span>
+                  <span className="font-semibold text-slate-800 text-sm">
+                    {book.school_id && userData?.school_id && book.school_id !== userData.school_id && owningPolicy?.inter_school_library_use_only
+                      ? 'In-Library Reading Room Only (Partner School)'
+                      : `${owningPolicy?.home_borrowing_days || 7} Days Loan`}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <span className="block text-[10px] uppercase font-bold text-slate-400">Borrowing Limit</span>
+                  <span className="font-semibold text-slate-800 text-sm">
+                    Up to {owningPolicy?.max_borrow_limit || 5} active books per student
+                  </span>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <span className="block text-[10px] uppercase font-bold text-slate-400">Overdue Penalty</span>
+                  <span className="font-semibold text-slate-800 text-sm">
+                    {owningPolicy?.enable_fines
+                      ? `₱${Number(owningPolicy.fine_amount_per_day).toFixed(2)}/day after due date`
+                      : 'Fine-free borrowing'}
+                  </span>
+                  {owningPolicy?.enable_fines && owningPolicy.grace_period_days > 0 && (
+                    <span className="block text-[11px] text-slate-500 mt-0.5">
+                      ({owningPolicy.grace_period_days}-day grace period applies)
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Student quota notice */}
+              {activeLoanCount >= (owningPolicy?.max_borrow_limit || 5) && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-start gap-2.5">
+                  <FiAlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold">Borrowing Limit Reached</p>
+                    <p className="text-[11px] text-amber-700 mt-0.5">
+                      You currently have {activeLoanCount} active book(s). Please return an active loan before requesting additional books.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -281,17 +389,26 @@ function BookDetail() {
       {/* Footer with Borrow Button */}
       <div className="fixed bottom-0 left-0 right-0 border-t border-[#E2E8F0] bg-white/95 shadow-lg backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 sm:py-4 lg:px-8">
-          <button
-            onClick={handleBorrow}
-            disabled={book.real_time_status !== 'available'}
-            className={`w-full min-h-11 px-4 text-xs font-semibold text-white transition-all sm:min-h-12 sm:px-6 sm:text-sm ${
-              book.real_time_status === 'available'
-                ? 'bg-[#0077B6] hover:bg-[#005f8f] shadow-md shadow-[#0077B6]/20 hover:shadow-lg'
-                : 'bg-gray-300 cursor-not-allowed'
-            }`}
-          >
-            {book.real_time_status === 'available' ? 'Borrow This Book' : 'Currently Unavailable'}
-          </button>
+          {activeLoanCount >= (owningPolicy?.max_borrow_limit || 5) ? (
+            <button
+              disabled
+              className="w-full min-h-11 px-4 text-xs font-semibold text-slate-400 bg-slate-200 cursor-not-allowed sm:min-h-12 sm:px-6 sm:text-sm rounded-lg"
+            >
+              Borrowing Limit Reached ({activeLoanCount}/{owningPolicy?.max_borrow_limit || 5} Books)
+            </button>
+          ) : (
+            <button
+              onClick={handleBorrow}
+              disabled={book.real_time_status !== 'available'}
+              className={`w-full min-h-11 px-4 text-xs font-semibold text-white transition-all sm:min-h-12 sm:px-6 sm:text-sm rounded-lg ${
+                book.real_time_status === 'available'
+                  ? 'bg-[#0077B6] hover:bg-[#005f8f] shadow-md shadow-[#0077B6]/20 hover:shadow-lg'
+                  : 'bg-gray-300 cursor-not-allowed'
+              }`}
+            >
+              {book.real_time_status === 'available' ? 'Borrow This Book' : 'Currently Unavailable'}
+            </button>
+          )}
         </div>
       </div>
 

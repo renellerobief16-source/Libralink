@@ -9,6 +9,9 @@ function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, on
   const [borrowedCount, setBorrowedCount] = useState(0);
   const [availableCount, setAvailableCount] = useState(0);
   const [overdueCount, setOverdueCount] = useState(0);
+  const [dueSoonCount, setDueSoonCount] = useState(0);
+  const [finesDueTotal, setFinesDueTotal] = useState(0);
+  const [activeLoansList, setActiveLoansList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [schoolInfo, setSchoolInfo] = useState(null);
@@ -52,11 +55,12 @@ function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, on
           setUserProfile(userRes.data);
         }
 
-        const [requests, activeBorrows, overdueRes, interlibraryRes] = await Promise.all([
+        const [requests, activeBorrows, overdueRes, interlibraryRes, finesRes] = await Promise.all([
           getBorrowRequests(schoolId),
           getAllActiveBorrows(schoolId),
-          api.get(`/borrow/overdue?school_id=${schoolId}`),
-          api.get(`/borrow-requests/partner/${schoolId}`)
+          api.get(`/borrow/overdue?school_id=${schoolId}`).catch(() => ({ data: [] })),
+          api.get(`/borrow-requests/partner/${schoolId}`).catch(() => ({ data: [] })),
+          api.get(`/fines/school/${schoolId}`).catch(() => ({ data: [] }))
         ]);
         
         if (!requests.error && requests.data) {
@@ -66,15 +70,32 @@ function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, on
           const pendingInterlibrary = (interlibraryRes.data || []).filter(item => item.status === 'pending').length;
           setInterlibraryPendingCount(pendingInterlibrary);
         }
-        if (!activeBorrows.error && activeBorrows.data) {
-          setBorrowedCount(activeBorrows.length);
-        }
-        if (!overdueRes.error && overdueRes.data) {
-          setOverdueCount(overdueRes.data.length);
-        }
+        
+        const activeList = Array.isArray(activeBorrows.data) ? activeBorrows.data : [];
+        setBorrowedCount(activeList.length);
+        setActiveLoansList(activeList);
+
+        const now = new Date();
+        const in48Hours = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+        const dueSoon = activeList.filter(b => {
+          if (!b.due_date) return false;
+          const d = new Date(b.due_date);
+          return d > now && d <= in48Hours;
+        }).length;
+        setDueSoonCount(dueSoon);
+
+        const overdueList = Array.isArray(overdueRes.data) ? overdueRes.data : [];
+        setOverdueCount(overdueList.length);
+
+        const finesList = Array.isArray(finesRes.data) ? finesRes.data : [];
+        const unpaidFines = finesList
+          .filter(f => f.status === 'pending')
+          .reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
+        setFinesDueTotal(unpaidFines);
 
         // Calculate available books
-        const available = books.filter(b => b.status === 'available').length;
+        const booksArray = Array.isArray(books) ? books : [];
+        const available = booksArray.filter(b => b.status === 'available').length;
         setAvailableCount(available);
 
         // Fetch partner schools with real availability data
@@ -252,69 +273,104 @@ function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, on
         </p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {/* Total Books */}
-        <div className="rounded-2xl p-5 border bg-white border-[#E2E8F0] shadow-sm hover:border-blue-200 hover:shadow-md transition-all">
+      {/* Stats Grid - Circulation & Loan Monitoring */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        {/* Active Loans */}
+        <div 
+          onClick={onNavigateToRequests}
+          className="rounded-2xl p-5 border bg-white border-[#E2E8F0] hover:border-blue-300 transition-colors cursor-pointer group"
+        >
           <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-blue-50 border border-blue-100 rounded-lg flex items-center justify-center">
               <FiBook className="w-5 h-5 text-[#2563EB]" />
             </div>
-            <span className="text-xs font-medium text-[#64748B]">Total Books</span>
+            <span className="text-xs font-semibold text-[#2563EB] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+              Active Loans
+            </span>
           </div>
-          <h3 className="text-3xl font-bold text-[#0F172A]">{loading ? '...' : books.length}</h3>
-          <div className="flex items-center gap-4 mt-2">
-            <div>
-              <p className="text-xs text-[#64748B]">Available</p>
-              <p className="text-sm font-semibold text-[#16A34A]">{availableCount}</p>
-            </div>
-            <div>
-              <p className="text-xs text-[#64748B]">Borrowed</p>
-              <p className="text-sm font-semibold text-[#F59E0B]">{borrowedCount}</p>
-            </div>
-          </div>
-          <div className="mt-3 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-[#2563EB] rounded-full transition-all"
-              style={{ width: `${books.length > 0 ? (availableCount / books.length) * 100 : 0}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Students */}
-        <div className="rounded-2xl p-5 border bg-white border-[#E2E8F0] shadow-sm hover:border-green-200 hover:shadow-md transition-all">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <FiUsers className="w-5 h-5 text-[#16A34A]" />
-            </div>
-            <span className="text-xs font-medium text-[#64748B]">Students</span>
-          </div>
-          <h3 className="text-3xl font-bold text-[#0F172A]">{loading ? '...' : studentCount}</h3>
-          <p className="text-sm mt-1 text-[#64748B]">Registered students</p>
+          <h3 className="text-3xl font-bold text-[#0F172A]">{loading ? '...' : borrowedCount}</h3>
+          <p className="text-xs mt-1.5 text-[#64748B]">
+            {dueSoonCount > 0 ? (
+              <span className="text-amber-600 font-medium">{dueSoonCount} due within 48h</span>
+            ) : (
+              'Currently borrowed'
+            )}
+          </p>
         </div>
 
         {/* Pending Requests */}
-        <div className="rounded-2xl p-5 border bg-white border-[#E2E8F0] shadow-sm hover:border-purple-200 hover:shadow-md transition-all">
+        <div 
+          onClick={onNavigateToRequests}
+          className="rounded-2xl p-5 border bg-white border-[#E2E8F0] hover:border-purple-300 transition-colors cursor-pointer group"
+        >
           <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-purple-50 border border-purple-100 rounded-lg flex items-center justify-center">
               <FiBell className="w-5 h-5 text-[#9333EA]" />
             </div>
-            <span className="text-xs font-medium text-[#64748B]">Pending Requests</span>
+            <span className="text-xs font-semibold text-[#9333EA] bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
+              Requests
+            </span>
           </div>
           <h3 className="text-3xl font-bold text-[#0F172A]">{loading ? '...' : pendingCount}</h3>
-          <p className="text-sm mt-1 text-[#64748B]">Awaiting approval</p>
+          <p className="text-xs mt-1.5 text-[#64748B]">
+            {interlibraryPendingCount > 0 ? `+${interlibraryPendingCount} inter-school` : 'Awaiting review'}
+          </p>
         </div>
 
         {/* Overdue Books */}
-        <div className="rounded-2xl p-5 border bg-white border-[#E2E8F0] shadow-sm hover:border-red-200 hover:shadow-md transition-all">
+        <div 
+          onClick={onNavigateToOverdue}
+          className="rounded-2xl p-5 border bg-white border-[#E2E8F0] hover:border-rose-300 transition-colors cursor-pointer group"
+        >
           <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-rose-50 border border-rose-100 rounded-lg flex items-center justify-center">
               <FiAlertTriangle className="w-5 h-5 text-[#DC2626]" />
             </div>
-            <span className="text-xs font-medium text-[#64748B]">Overdue Books</span>
+            <span className="text-xs font-semibold text-[#DC2626] bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
+              Overdue
+            </span>
           </div>
           <h3 className="text-3xl font-bold text-[#0F172A]">{loading ? '...' : overdueCount}</h3>
-          <p className="text-sm mt-1 text-[#DC2626]">Require attention</p>
+          <p className="text-xs mt-1.5 text-[#DC2626] font-medium">
+            {overdueCount > 0 ? 'Require return' : 'All on time'}
+          </p>
+        </div>
+
+        {/* Fines Due */}
+        <div className="rounded-2xl p-5 border bg-white border-[#E2E8F0] transition-colors">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-lg flex items-center justify-center">
+              <span className="text-lg font-bold text-emerald-600">₱</span>
+            </div>
+            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+              Fines Due
+            </span>
+          </div>
+          <h3 className="text-3xl font-bold text-[#0F172A]">
+            {loading ? '...' : `₱${finesDueTotal.toFixed(2)}`}
+          </h3>
+          <p className="text-xs mt-1.5 text-[#64748B]">
+            {finesDueTotal > 0 ? 'Unpaid late fees' : 'All accounts cleared'}
+          </p>
+        </div>
+
+        {/* Total Catalog */}
+        <div 
+          onClick={onNavigateToBooks}
+          className="rounded-2xl p-5 border bg-white border-[#E2E8F0] hover:border-slate-300 transition-colors cursor-pointer group"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center">
+              <FiGrid className="w-5 h-5 text-slate-700" />
+            </div>
+            <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
+              Catalog
+            </span>
+          </div>
+          <h3 className="text-3xl font-bold text-[#0F172A]">{loading ? '...' : books.length}</h3>
+          <p className="text-xs mt-1.5 text-[#64748B]">
+            {availableCount} avail · {borrowedCount} out
+          </p>
         </div>
       </div>
 
@@ -392,6 +448,17 @@ function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, on
                 </div>
                 <FiArrowRight className="w-4 h-4 text-[#64748B]" />
               </button>
+            )}
+            {finesDueTotal > 0 && (
+              <div className="w-full p-3 rounded-xl border border-emerald-200 bg-emerald-50 flex items-center gap-3">
+                <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="text-sm font-bold text-emerald-700">₱</span>
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-medium text-[#0F172A]">₱{finesDueTotal.toFixed(2)} in pending fines</p>
+                  <p className="text-xs text-[#64748B]">Awaiting student settlement at counter</p>
+                </div>
+              </div>
             )}
             {interlibraryPendingCount > 0 && (
               <button onClick={onNavigateToRequests} className="w-full p-3 rounded-xl border border-[#FEF3C7] bg-yellow-50 hover:bg-yellow-100 transition-all flex items-center gap-3">

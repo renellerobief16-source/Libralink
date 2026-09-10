@@ -1,10 +1,30 @@
 import { useState } from "react";
-import { Book, User, MapPin, Phone, FileText, AlertCircle, X, CheckCircle, Clock } from "lucide-react";
+import {
+  Book,
+  User,
+  MapPin,
+  Phone,
+  FileText,
+  AlertCircle,
+  X,
+  CheckCircle,
+  Clock,
+  ChevronRight,
+  ChevronLeft,
+  ShieldCheck,
+  Building2,
+  Calendar,
+  UploadCloud,
+} from "lucide-react";
 import { useNotifications } from "../../../context/NotificationContext";
 import api from "../../../utils/api";
 
 function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, compact = false }) {
   const { addNotification } = useNotifications();
+
+  // 3-step state: 1 = Books & Type, 2 = Personal Details, 3 = Review & Submit
+  const [currentStep, setCurrentStep] = useState(1);
+
   const [formData, setFormData] = useState({
     first_name: userData?.first_name || userData?.firstname || userData?.name || '',
     middle_name: '',
@@ -18,37 +38,35 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, com
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    // Clear error when user starts typing
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
+      setErrors((prev) => ({ ...prev, [name]: '' }));
     }
   };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Validate file type
       if (!file.type.startsWith('image/')) {
-        setErrors(prev => ({ ...prev, id_picture: 'Please upload a valid image file' }));
+        setErrors((prev) => ({ ...prev, id_picture: 'Please upload a valid image file' }));
         return;
       }
-      // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        setErrors(prev => ({ ...prev, id_picture: 'Image must be less than 5MB' }));
+        setErrors((prev) => ({ ...prev, id_picture: 'Image must be less than 5MB' }));
         return;
       }
 
-      setFormData(prev => ({ ...prev, id_picture: file }));
+      setFormData((prev) => ({ ...prev, id_picture: file }));
       setPreviewImage(URL.createObjectURL(file));
-      setErrors(prev => ({ ...prev, id_picture: '' }));
+      setErrors((prev) => ({ ...prev, id_picture: '' }));
     }
   };
 
-  const validateForm = () => {
+  const validateStep2 = () => {
     const newErrors = {};
 
     if (!formData.first_name.trim()) {
@@ -76,32 +94,47 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, com
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleNext = () => {
+    if (currentStep === 1) {
+      setCurrentStep(2);
+    } else if (currentStep === 2) {
+      if (validateStep2()) {
+        setCurrentStep(3);
+      }
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentStep > 1) {
+      setCurrentStep((prev) => prev - 1);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!validateForm()) {
+    if (!validateStep2()) {
+      setCurrentStep(2);
+      return;
+    }
+
+    if (!agreedToTerms) {
+      setErrors((prev) => ({ ...prev, terms: 'Please confirm that your submitted details are accurate' }));
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      console.log('Starting borrowing request submission...');
-      console.log('Borrowing list:', borrowingList);
-      console.log('Form data:', formData);
-
-      // Upload ID picture (required)
       let idPictureUrl = '';
       if (formData.id_picture instanceof File) {
-        console.log('Uploading ID picture...');
         const formDataUpload = new FormData();
         formDataUpload.append('id_picture', formData.id_picture);
-        
+
         try {
           const uploadResponse = await api.post('/users/borrowing-id', formDataUpload, {
             headers: { 'Content-Type': 'multipart/form-data' },
           });
-          console.log('Upload response:', uploadResponse);
           idPictureUrl = uploadResponse.id_picture_url || uploadResponse.data?.id_picture_url || '';
         } catch (uploadError) {
           console.error('Error uploading ID picture:', uploadError);
@@ -111,23 +144,18 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, com
         throw new Error('ID picture is required');
       }
 
-      // Determine request type based on borrowing list
-      const hasInterSchoolItems = borrowingList.some(item => item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE');
+      const hasInterSchoolItems = borrowingList.some(
+        (item) => item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE'
+      );
       const requestType = hasInterSchoolItems ? 'INTER_SCHOOL' : 'HOME';
 
-      console.log('Request type:', requestType);
-
-      // Prepare request items
-      const items = borrowingList.map(item => ({
+      const items = borrowingList.map((item) => ({
         book_id: item.book_id,
         owner_school_id: item.owner_school_id,
         partner_school_id: item.partner_school_id || null,
         borrow_type: item.borrow_type,
       }));
 
-      console.log('Request items:', items);
-
-      // Submit borrowing request
       const requestData = {
         request_type: requestType,
         purpose: formData.purpose,
@@ -137,34 +165,21 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, com
         items,
       };
 
-      console.log('Submitting borrowing request with data:', requestData);
-
       try {
-        console.log('About to call API with requestData:', JSON.stringify(requestData, null, 2));
         const response = await api.post('/borrow-requests', requestData);
-        console.log('Borrowing request response:', response);
-        console.log('Response data:', response.data);
-        console.log('Response success:', response.data?.success);
 
-        // Add notification for successful submission
         addNotification({
           type: 'BORROW_REQUEST_SUBMITTED',
           title: 'Request Submitted Successfully',
-          message: `Your borrowing request for ${borrowingList.length} book(s) has been submitted. Please wait for librarian approval. You will be notified once your request is approved or rejected.`,
-          related_request_id: response.data?.data?.request_id || response.data?.request_id
+          message: `Your borrowing request for ${borrowingList.length} book(s) has been submitted. Please wait for librarian approval.`,
+          related_request_id: response.data?.data?.request_id || response.data?.request_id,
         });
 
         if (onSubmit) {
-          onSubmit(response); // Pass full response, not just response.data
+          onSubmit(response);
         }
       } catch (apiError) {
         console.error('API Error details:', apiError);
-        console.error('API Error response:', apiError.response);
-        console.error('API Error status:', apiError.response?.status);
-        console.error('API Error data:', apiError.response?.data);
-        console.error('API Error message:', apiError.message);
-        
-        // Don't re-throw, handle the error here
         let errorMessage = 'Failed to submit borrowing request';
         if (apiError.response?.data?.message) {
           errorMessage = apiError.response.data.message;
@@ -173,43 +188,38 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, com
         } else if (apiError.message) {
           errorMessage = apiError.message;
         }
-        
-        setErrors(prev => ({ 
-          ...prev, 
-          submit: errorMessage
+
+        setErrors((prev) => ({
+          ...prev,
+          submit: errorMessage,
         }));
-        
-        alert(`Error: ${errorMessage}`);
-        return; // Don't proceed to outer catch
       }
     } catch (error) {
       console.error('Error submitting borrowing request:', error);
-      console.error('Error details:', error.response?.data || error.message);
-      
       let errorMessage = 'Failed to submit borrowing request';
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
-      setErrors(prev => ({ 
-        ...prev, 
-        submit: errorMessage
+
+      setErrors((prev) => ({
+        ...prev,
+        submit: errorMessage,
       }));
-      
-      alert(`Error: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const getBorrowTypeSummary = () => {
-    const homeItems = borrowingList.filter(item => item.borrow_type === 'HOME').length;
-    const interSchoolItems = borrowingList.filter(item => item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE').length;
-    
+    const homeItems = borrowingList.filter((item) => item.borrow_type === 'HOME').length;
+    const interSchoolItems = borrowingList.filter(
+      (item) => item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE'
+    ).length;
+
     if (homeItems > 0 && interSchoolItems > 0) {
-      return `${homeItems} Home Library, ${interSchoolItems} Inter-School`;
+      return `${homeItems} Home, ${interSchoolItems} Inter-School`;
     } else if (interSchoolItems > 0) {
       return `${interSchoolItems} Inter-School (Library Use Only)`;
     } else {
@@ -217,356 +227,492 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, com
     }
   };
 
+  const steps = [
+    { num: 1, label: 'Items & Source' },
+    { num: 2, label: 'Personal Info' },
+    { num: 3, label: 'Review & Send' },
+  ];
+
   return (
-    <div className={`${compact ? "min-w-0 text-sm" : "rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"}`}>
-      <div className={`${compact ? "mb-4 min-w-0 border-b border-slate-100 pb-3" : "mb-6"}`}>
-        <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">Borrowing request</p>
-        <h2 className={`${compact ? "text-lg" : "text-2xl"} mb-1 font-bold tracking-tight text-slate-900`}>
-          Review and submit
-        </h2>
-        <p className={`${compact ? "text-xs leading-5" : "text-sm"} text-slate-500`}>
-          Confirm your details so the library can process your request.
-        </p>
-      </div>
-
-      {/* Summary */}
-      <div className={`${compact ? "mb-4 rounded-xl p-3" : "mb-6 rounded-2xl p-4"} border border-blue-100 bg-blue-50/70`}>
-        <div className="mb-2 flex items-center gap-2">
-          <Book className={`${compact ? "h-4 w-4" : "h-5 w-5"} shrink-0 text-blue-600`} />
-          <span className={`${compact ? "text-xs" : ""} font-bold text-blue-900`}>
-            Books in this request
-          </span>
-        </div>
-        <div className={`${compact ? "mb-2 text-[11px]" : "mb-3 text-xs"} grid ${compact ? "grid-cols-1" : "grid-cols-2"} gap-2`}>
-          <div className="min-w-0">
-            <span className="text-blue-700">Books</span>
-            <span className={`${compact ? "ml-1" : "ml-2"} font-semibold text-blue-900`}>
-              {borrowingList.length}
-            </span>
-          </div>
-          <div className="min-w-0">
-            <span className="text-blue-700">Type</span>
-            <span className={`${compact ? "ml-1" : "ml-2"} font-semibold text-blue-900`}>
-              {getBorrowTypeSummary()}
-            </span>
-          </div>
-        </div>
-        
-        {/* School Library Availability */}
-        <div className={`${compact ? "mt-2 border-t border-blue-200 pt-2" : "mt-3 border-t border-blue-200 pt-3"}`}>
-          <div className={`${compact ? "mb-2 text-xs" : "mb-3 text-sm"} flex items-center gap-2`}>
-            <MapPin className="h-4 w-4 shrink-0 text-blue-600" />
-            <span className="font-semibold text-blue-900">School Library Availability</span>
-          </div>
-          <div className={compact ? "space-y-1.5" : "space-y-2"}>
-            {borrowingList.map((item, index) => {
-              const isInterSchool = item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE';
-              return (
-                <div key={item.book_id || index} className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-blue-100 bg-white p-2">
-                  <div className="min-w-0 flex-1">
-                    <p className={`${compact ? "text-[11px]" : "text-xs"} truncate font-medium text-gray-900`}>
-                      {item.title}
-                    </p>
-                    <div className="flex min-w-0 items-center gap-1">
-                      <p className={`${compact ? "text-[10px]" : "text-xs"} min-w-0 truncate text-blue-700`}>
-                        {item.owner_school_name}
-                      </p>
-                      {isInterSchool && (
-                        <span className={`${compact ? "text-[10px]" : "text-xs"} shrink-0 rounded bg-orange-100 px-1.5 py-0.5 font-medium text-orange-700`}>
-                          Partner School
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <span className={`${compact ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-1 text-xs"} shrink-0 rounded-full bg-green-100 font-medium text-green-700`}>
-                    Available
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          {borrowingList.some(item => item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE') && (
-            <div className={`${compact ? "mt-2 text-[10px] leading-4" : "mt-3 text-xs"} rounded-lg border border-orange-200 bg-orange-50 p-2`}>
-              <p className="text-orange-800">
-                <span className="font-semibold">Note:</span> Partner school books are for library use only.
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit} className={compact ? "space-y-3" : "space-y-6"}>
-        {/* Name Fields */}
-        <div className={compact ? "grid grid-cols-1 gap-3" : "grid grid-cols-1 gap-3 md:grid-cols-3"}>
-          <div className="min-w-0">
-            <label
-              htmlFor="borrow-first-name"
-              className={`${compact ? "mb-1 text-xs leading-4" : "mb-2 text-sm"} block font-medium text-gray-700`}
-            >
-              First Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="borrow-first-name"
-              type="text"
-              name="first_name"
-              value={formData.first_name}
-              onChange={handleChange}
-              aria-invalid={Boolean(errors.first_name)}
-              aria-describedby={errors.first_name ? "borrow-first-name-error" : undefined}
-              className={`w-full ${compact ? "min-h-10 rounded-lg border px-2.5 py-2 text-sm" : "rounded-xl border-2 px-4 py-3"} bg-white transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.first_name ? 'border-red-300' : 'border-gray-200'
-              }`}
-              placeholder="Juan"
-            />
-            {errors.first_name && (
-              <p id="borrow-first-name-error" role="alert" className={`${compact ? "mt-0.5 text-[10px] leading-4" : "mt-1 text-xs"} flex items-center gap-1 text-red-500`}>
-                <AlertCircle className="h-3 w-3 shrink-0" />
-                {errors.first_name}
-              </p>
-            )}
-          </div>
-          <div className="min-w-0">
-            <label
-              htmlFor="borrow-middle-name"
-              className={`${compact ? "mb-1 text-xs leading-4" : "mb-2 text-sm"} block font-medium text-gray-700`}
-            >
-              Middle Name
-            </label>
-            <input
-              id="borrow-middle-name"
-              type="text"
-              name="middle_name"
-              value={formData.middle_name}
-              onChange={handleChange}
-              className={`w-full ${compact ? "min-h-10 rounded-lg border px-2.5 py-2 text-sm" : "rounded-xl border-2 px-4 py-3"} border-gray-200 bg-white transition-all focus:outline-none focus:ring-2 focus:ring-blue-500`}
-              placeholder="Dela"
-            />
-          </div>
-          <div className="min-w-0">
-            <label
-              htmlFor="borrow-last-name"
-              className={`${compact ? "mb-1 text-xs leading-4" : "mb-2 text-sm"} block font-medium text-gray-700`}
-            >
-              Last Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="borrow-last-name"
-              type="text"
-              name="last_name"
-              value={formData.last_name}
-              onChange={handleChange}
-              aria-invalid={Boolean(errors.last_name)}
-              aria-describedby={errors.last_name ? "borrow-last-name-error" : undefined}
-              className={`w-full ${compact ? "min-h-10 rounded-lg border px-2.5 py-2 text-sm" : "rounded-xl border-2 px-4 py-3"} bg-white transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.last_name ? 'border-red-300' : 'border-gray-200'
-              }`}
-              placeholder="Cruz"
-            />
-            {errors.last_name && (
-              <p id="borrow-last-name-error" role="alert" className={`${compact ? "mt-0.5 text-[10px] leading-4" : "mt-1 text-xs"} flex items-center gap-1 text-red-500`}>
-                <AlertCircle className="h-3 w-3 shrink-0" />
-                {errors.last_name}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Address */}
-        <div className="min-w-0">
-          <label
-            htmlFor="borrow-address"
-            className={`${compact ? "mb-1 text-xs leading-4" : "mb-2 text-sm"} block font-medium text-gray-700`}
-          >
-            Address <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <MapPin className={`absolute top-1/2 -translate-y-1/2 text-gray-400 ${compact ? "left-3 h-4 w-4" : "left-4 h-5 w-5"}`} />
-            <input
-              id="borrow-address"
-              type="text"
-              name="address"
-              value={formData.address}
-              onChange={handleChange}
-              aria-invalid={Boolean(errors.address)}
-              aria-describedby={errors.address ? "borrow-address-error" : undefined}
-              className={`w-full ${compact ? "min-h-10 rounded-lg border py-2 pl-9 pr-3 text-sm" : "rounded-xl border-2 py-3 pl-12 pr-4"} bg-white transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400 ${
-                errors.address ? 'border-red-300' : 'border-gray-200'
-              }`}
-              placeholder="123 Main Street, City"
-            />
-          </div>
-          {errors.address && (
-            <p id="borrow-address-error" role="alert" className={`${compact ? "mt-0.5 text-[10px] leading-4" : "mt-1 text-xs"} flex items-center gap-1 text-red-500`}>
-              <AlertCircle className="h-3 w-3 shrink-0" />
-              {errors.address}
-            </p>
-          )}
-        </div>
-
-        {/* Contact Number */}
-        <div className="min-w-0">
-          <label
-            htmlFor="borrow-contact-number"
-            className={`${compact ? "mb-1 text-xs leading-4" : "mb-2 text-sm"} block font-medium text-gray-700`}
-          >
-            Contact Number <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <Phone className={`absolute top-1/2 -translate-y-1/2 text-gray-400 ${compact ? "left-3 h-4 w-4" : "left-4 h-5 w-5"}`} />
-            <input
-              id="borrow-contact-number"
-              type="tel"
-              name="contact_number"
-              value={formData.contact_number}
-              onChange={handleChange}
-              aria-invalid={Boolean(errors.contact_number)}
-              aria-describedby={errors.contact_number ? "borrow-contact-number-error" : undefined}
-              className={`w-full ${compact ? "min-h-10 rounded-lg border py-2 pl-9 pr-3 text-sm" : "rounded-xl border-2 py-3 pl-12 pr-4"} bg-white transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400 ${
-                errors.contact_number ? 'border-red-300' : 'border-gray-200'
-              }`}
-              placeholder="+63 912 345 6789"
-            />
-          </div>
-          {errors.contact_number && (
-            <p id="borrow-contact-number-error" role="alert" className={`${compact ? "mt-0.5 text-[10px] leading-4" : "mt-1 text-xs"} flex items-center gap-1 text-red-500`}>
-              <AlertCircle className="h-3 w-3 shrink-0" />
-              {errors.contact_number}
-            </p>
-          )}
-        </div>
-
-        {/* Purpose */}
-        <div className="min-w-0">
-          <label
-            htmlFor="borrow-purpose"
-            className={`${compact ? "mb-1 text-xs leading-4" : "mb-2 text-sm"} block font-medium text-gray-700`}
-          >
-            Purpose of Borrowing <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <FileText className={`absolute text-gray-400 ${compact ? "left-3 top-3 h-4 w-4" : "left-4 top-4 h-5 w-5"}`} />
-            <textarea
-              id="borrow-purpose"
-              name="purpose"
-              value={formData.purpose}
-              onChange={handleChange}
-              rows={compact ? 2 : 4}
-              aria-invalid={Boolean(errors.purpose)}
-              aria-describedby={errors.purpose ? "borrow-purpose-error" : undefined}
-              className={`w-full ${compact ? "rounded-lg border py-2 pl-9 pr-3 text-sm" : "rounded-xl border-2 py-3 pl-12 pr-4"} resize-none bg-white transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400 ${
-                errors.purpose ? 'border-red-300' : 'border-gray-200'
-              }`}
-              placeholder="Please describe the purpose of borrowing these books..."
-            />
-          </div>
-          {errors.purpose && (
-            <p id="borrow-purpose-error" role="alert" className={`${compact ? "mt-0.5 text-[10px] leading-4" : "mt-1 text-xs"} flex items-center gap-1 text-red-500`}>
-              <AlertCircle className="h-3 w-3 shrink-0" />
-              {errors.purpose}
-            </p>
-          )}
-        </div>
-
-        {/* ID Picture */}
-        <div className="min-w-0">
-          <label
-            htmlFor="borrow-id-picture"
-            className={`${compact ? "mb-1 text-xs leading-4" : "mb-2 text-sm"} block font-medium text-gray-700`}
-          >
-            ID Picture <span className="text-red-500">*</span>
-          </label>
-          <div className={`${compact ? "rounded-lg border p-3" : "rounded-xl border-2 p-6"} relative border-dashed text-center transition-colors ${
-            errors.id_picture ? 'border-red-300' : 'border-gray-300 hover:border-blue-400'
-          }`}>
-            {previewImage ? (
-              <div className="relative">
-                <img
-                  src={previewImage}
-                  alt="ID Preview"
-                  className={`${compact ? "max-h-36" : "max-h-48"} mx-auto rounded-lg object-contain`}
-                />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setFormData(prev => ({ ...prev, id_picture: null }));
-                    setPreviewImage(null);
-                  }}
-                  className="absolute right-1 top-1 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
-                  aria-label="Remove ID picture"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ) : (
-              <div>
-                <User className={`${compact ? "mb-2 h-8 w-8" : "mb-3 h-12 w-12"} mx-auto text-gray-400`} />
-                <p className={`${compact ? "mb-1 text-[11px]" : "mb-2 text-sm"} text-gray-600`}>
-                  Click to upload or drag and drop
-                </p>
-                <p className={`${compact ? "text-[10px]" : "text-xs"} text-gray-400`}>
-                  PNG, JPG up to 5MB (Required)
-                </p>
-              </div>
-            )}
-            <input
-              id="borrow-id-picture"
-              type="file"
-              name="id_picture"
-              onChange={handleImageChange}
-              accept="image/*"
-              aria-invalid={Boolean(errors.id_picture)}
-              aria-describedby={errors.id_picture ? "borrow-id-picture-error" : undefined}
-              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-          {errors.id_picture && (
-            <p id="borrow-id-picture-error" role="alert" className={`${compact ? "mt-0.5 text-[10px] leading-4" : "mt-1 text-xs"} flex items-center gap-1 text-red-500`}>
-              <AlertCircle className="h-3 w-3 shrink-0" />
-              {errors.id_picture}
-            </p>
-          )}
-        </div>
-
-        {/* Submit Error */}
-        {errors.submit && (
-          <div className={`${compact ? "rounded-lg p-2" : "rounded-xl p-4"} border border-red-200 bg-red-50`}>
-            <p className={`${compact ? "text-xs" : "text-sm"} flex items-center gap-2 text-red-700`} role="alert">
-              <AlertCircle className={`${compact ? "h-3.5 w-3.5" : "h-4 w-4"} shrink-0`} />
-              {errors.submit}
-            </p>
-          </div>
-        )}
-
-        {/* Action Buttons */}
-        <div className={`${compact ? "gap-2 border-t border-slate-100 pt-4" : "gap-4 pt-4"} flex`}>
+    <div className={`${compact ? 'min-w-0 text-sm' : 'rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm'}`}>
+      {/* Compact Back Bar for Book Details Drawer */}
+      {compact && onCancel && (
+        <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
           <button
             type="button"
             onClick={onCancel}
-            disabled={isSubmitting}
-            className={`${compact ? "min-h-10 rounded-xl border px-3 py-2 text-xs" : "rounded-xl border-2 px-6 py-3"} flex-1 border-slate-200 font-semibold text-slate-600 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50`}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 hover:text-slate-900"
           >
-            Cancel
+            <ChevronLeft className="h-3.5 w-3.5" />
+            <span>Back to Book Details</span>
           </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className={`${compact ? "min-h-10 rounded-xl px-3 py-2 text-xs" : "px-6 py-3 rounded-xl"} flex flex-1 items-center justify-center gap-2 bg-blue-600 font-bold text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50`}
-          >
-            {isSubmitting ? (
-              <>
-                <Clock className={`${compact ? "h-4 w-4" : "h-5 w-5"} animate-spin`} />
-                Submitting...
-              </>
-            ) : (
-              <>
-                <CheckCircle className={`${compact ? "h-4 w-4" : "h-5 w-5"}`} />
-                Submit Request
-              </>
-            )}
-          </button>
+          <span className="text-[11px] font-medium text-slate-400">
+            Step {currentStep} of 3
+          </span>
         </div>
+      )}
+
+      {/* Stepper Header */}
+      <div className="mb-5 border-b border-slate-100 pb-4">
+        <div className="flex items-center justify-between gap-2 px-1">
+          {steps.map((step, idx) => (
+            <div key={step.num} className="flex flex-1 items-center">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all ${
+                    currentStep === step.num
+                      ? 'bg-blue-600 text-white ring-4 ring-blue-100 shadow-sm'
+                      : currentStep > step.num
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-slate-100 text-slate-400'
+                  }`}
+                >
+                  {currentStep > step.num ? <CheckCircle className="h-4 w-4" /> : step.num}
+                </div>
+                <div className="hidden sm:block">
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400 leading-none">Step {step.num}</p>
+                  <p className={`text-xs font-semibold ${currentStep === step.num ? 'text-slate-900' : 'text-slate-500'}`}>{step.label}</p>
+                </div>
+              </div>
+              {idx < steps.length - 1 && (
+                <div
+                  className={`mx-2 h-0.5 flex-1 rounded-full transition-all ${
+                    currentStep > step.num ? 'bg-emerald-500' : 'bg-slate-200'
+                  }`}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        {/* ================= STEP 1: BOOKS & SOURCES ================= */}
+        {currentStep === 1 && (
+          <div className="space-y-4 animate-fadeIn">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Step 1: Confirm Borrowing Books</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Review the {borrowingList.length} book(s) you are requesting.
+              </p>
+            </div>
+
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {borrowingList.map((item, index) => {
+                const isInterSchool = item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE';
+                return (
+                  <div
+                    key={item.book_id || index}
+                    className="flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/50 p-3 transition hover:border-blue-200"
+                  >
+                    <div className="flex h-12 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-xs">
+                      <Book className="h-5 w-5 opacity-90" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <h4 className="line-clamp-1 text-xs font-bold text-slate-900">{item.title}</h4>
+                      <p className="line-clamp-1 text-[11px] text-slate-500">{item.author}</p>
+                      
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                          <Building2 className="h-3 w-3 text-blue-600" />
+                          <span className="truncate max-w-[130px]">{item.owner_school_name || 'Home Library'}</span>
+                        </span>
+
+                        <span
+                          className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold ${
+                            isInterSchool
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }`}
+                        >
+                          {isInterSchool ? 'Inter-School (In-Library Use)' : 'Home Loan (Take Home)'}
+                        </span>
+
+                        {isInterSchool && Number(item.visiting_fee) > 0 ? (
+                          <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[9px] font-extrabold text-amber-900 border border-amber-300">
+                            Fee: ₱{Number(item.visiting_fee).toFixed(2)} / {item.visiting_fee_type === 'per_day' ? 'Day' : 'Visit'}
+                          </span>
+                        ) : isInterSchool ? (
+                          <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800 border border-emerald-200">
+                            Free Partner Access
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Inter-School & Visiting Fee Notice */}
+            {borrowingList.some((item) => item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE') && (() => {
+              const partnerItems = borrowingList.filter((item) => item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE');
+              const paidItems = partnerItems.filter((item) => Number(item.visiting_fee) > 0);
+              const hasFee = paidItems.length > 0;
+
+              return (
+                <div className={`rounded-2xl border p-3.5 space-y-2.5 ${hasFee ? 'border-amber-200 bg-amber-50/90 text-amber-900' : 'border-blue-100 bg-blue-50/70 text-blue-900'}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className={`h-4 w-4 shrink-0 ${hasFee ? 'text-amber-600' : 'text-blue-600'}`} />
+                      <span className="text-xs font-bold">
+                        {hasFee ? 'Partner Campus Visiting Fee & Entry Terms' : 'Inter-Library Reading Room Policy'}
+                      </span>
+                    </div>
+                    {hasFee ? (
+                      <span className="rounded-full bg-amber-200/90 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-900 border border-amber-300 shrink-0">
+                        ₱{Number(paidItems[0].visiting_fee).toFixed(2)} / {paidItems[0].visiting_fee_type === 'per_day' ? 'Day' : 'Visit'}
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200 shrink-0">
+                        Free Consortium Entry
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs leading-relaxed">
+                    {partnerItems[0].visiting_policy_notes ||
+                      (hasFee
+                        ? `A visitor access fee of ₱${Number(paidItems[0].visiting_fee).toFixed(2)} applies for on-site reading privileges. Please present your student ID and request confirmation upon arrival.`
+                        : `Visiting students may read this book on-site inside the owning school's library premises. An electronic QR permit will be issued upon approval.`)}
+                  </p>
+
+                  {hasFee && (
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 pt-1.5 border-t border-amber-200/60">
+                      <ShieldCheck className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                      <span>Fee is payable directly at {partnerItems[0].owner_school_name || 'the partner campus'} library reception desk.</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={onCancel}
+                className="rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleNext}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm shadow-blue-600/20 transition hover:bg-blue-700 active:scale-[0.98]"
+              >
+                <span>Continue to Your Details</span>
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ================= STEP 2: PERSONAL INFO ================= */}
+        {currentStep === 2 && (
+          <div className="space-y-3.5 animate-fadeIn">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Step 2: Borrower Verification Details</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Ensure your contact information is correct for notification.
+              </p>
+            </div>
+
+            {/* Name Fields */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  First Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="first_name"
+                  value={formData.first_name}
+                  onChange={handleChange}
+                  className={`w-full rounded-xl border bg-white px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none ${
+                    errors.first_name ? 'border-red-300' : 'border-slate-200'
+                  }`}
+                  placeholder="Juan"
+                />
+                {errors.first_name && <p className="text-[10px] text-red-500 mt-0.5">{errors.first_name}</p>}
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Middle Name</label>
+                <input
+                  type="text"
+                  name="middle_name"
+                  value={formData.middle_name}
+                  onChange={handleChange}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="Dela"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Last Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="last_name"
+                  value={formData.last_name}
+                  onChange={handleChange}
+                  className={`w-full rounded-xl border bg-white px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none ${
+                    errors.last_name ? 'border-red-300' : 'border-slate-200'
+                  }`}
+                  placeholder="Cruz"
+                />
+                {errors.last_name && <p className="text-[10px] text-red-500 mt-0.5">{errors.last_name}</p>}
+              </div>
+            </div>
+
+            {/* Contact & Address */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Contact Number <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="tel"
+                    name="contact_number"
+                    value={formData.contact_number}
+                    onChange={handleChange}
+                    className={`w-full rounded-xl border bg-white pl-8 pr-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none ${
+                      errors.contact_number ? 'border-red-300' : 'border-slate-200'
+                    }`}
+                    placeholder="+63 912 345 6789"
+                  />
+                </div>
+                {errors.contact_number && <p className="text-[10px] text-red-500 mt-0.5">{errors.contact_number}</p>}
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Current Address <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    className={`w-full rounded-xl border bg-white pl-8 pr-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none ${
+                      errors.address ? 'border-red-300' : 'border-slate-200'
+                    }`}
+                    placeholder="Barangay, Municipality"
+                  />
+                </div>
+                {errors.address && <p className="text-[10px] text-red-500 mt-0.5">{errors.address}</p>}
+              </div>
+            </div>
+
+            {/* Purpose */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Purpose of Borrowing <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                name="purpose"
+                value={formData.purpose}
+                onChange={handleChange}
+                rows={2}
+                className={`w-full rounded-xl border bg-white p-2.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none resize-none ${
+                  errors.purpose ? 'border-red-300' : 'border-slate-200'
+                }`}
+                placeholder="E.g. Thesis research, course requirement, exam preparation..."
+              />
+              {errors.purpose && <p className="text-[10px] text-red-500 mt-0.5">{errors.purpose}</p>}
+            </div>
+
+            {/* ID Picture Upload */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Student / Government ID <span className="text-red-500">*</span>
+              </label>
+              <div
+                className={`relative rounded-2xl border-2 border-dashed p-3 text-center transition ${
+                  errors.id_picture ? 'border-red-300 bg-red-50/20' : 'border-slate-200 hover:border-blue-400 bg-slate-50/40'
+                }`}
+              >
+                {previewImage ? (
+                  <div className="relative inline-block">
+                    <img
+                      src={previewImage}
+                      alt="ID Preview"
+                      className="max-h-28 rounded-lg object-contain shadow-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData((prev) => ({ ...prev, id_picture: null }));
+                        setPreviewImage(null);
+                      }}
+                      className="absolute -right-2 -top-2 rounded-full bg-rose-500 p-1 text-white shadow hover:bg-rose-600"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <UploadCloud className="mx-auto h-7 w-7 text-blue-500 mb-1" />
+                    <p className="text-xs font-semibold text-slate-700">Click or drag student ID here</p>
+                    <p className="text-[10px] text-slate-400">PNG, JPG up to 5MB</p>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  name="id_picture"
+                  onChange={handleImageChange}
+                  accept="image/*"
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                />
+              </div>
+              {errors.id_picture && <p className="text-[10px] text-red-500 mt-0.5">{errors.id_picture}</p>}
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={handlePrev}
+                className="inline-flex items-center gap-1 rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span>Back</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleNext}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm shadow-blue-600/20 transition hover:bg-blue-700 active:scale-[0.98]"
+              >
+                <span>Review & Confirm</span>
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ================= STEP 3: REVIEW & SUBMIT ================= */}
+        {currentStep === 3 && (
+          <div className="space-y-4 animate-fadeIn">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Step 3: Review & Submit Request</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Verify all details before sending to the library system.
+              </p>
+            </div>
+
+            {/* Receipt-style Card */}
+            <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm space-y-3">
+              <div className="flex items-center justify-between border-b border-dashed border-slate-200 pb-2.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Summary</span>
+                <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold text-blue-700">
+                  {getBorrowTypeSummary()}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Borrower</span>
+                  <span className="font-semibold text-slate-800">{formData.first_name} {formData.last_name}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Contact</span>
+                  <span className="font-semibold text-slate-800">{formData.contact_number}</span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Address</span>
+                  <span className="text-slate-700 truncate block">{formData.address}</span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Purpose</span>
+                  <span className="text-slate-700 italic block">{formData.purpose}</span>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 pt-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+                  Items ({borrowingList.length})
+                </span>
+                <div className="space-y-1">
+                  {borrowingList.map((book) => (
+                    <div key={book.book_id} className="flex items-center justify-between text-xs py-1">
+                      <span className="truncate max-w-[200px] font-medium text-slate-800">{book.title}</span>
+                      <span className="text-[10px] text-slate-500">{book.owner_school_name || 'Home'}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {borrowingList.some((book) => Number(book.visiting_fee) > 0) && (
+                  <div className="mt-2.5 pt-2 border-t border-dashed border-amber-200 bg-amber-50/70 p-2.5 rounded-xl space-y-1">
+                    <div className="flex items-center justify-between text-xs font-bold text-amber-950">
+                      <span>Visiting Student Fee:</span>
+                      <span className="font-mono text-amber-900">
+                        ₱{Number(borrowingList.find((b) => Number(b.visiting_fee) > 0)?.visiting_fee || 0).toFixed(2)}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-amber-800 leading-relaxed">
+                      {borrowingList.find((b) => Number(b.visiting_fee) > 0)?.visiting_policy_notes || "Payable upon arrival at the partner school's library counter."}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Agreement Checkbox */}
+            <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={(e) => {
+                  setAgreedToTerms(e.target.checked);
+                  if (errors.terms) setErrors((prev) => ({ ...prev, terms: '' }));
+                }}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-xs leading-5 text-slate-700">
+                I hereby declare that all provided details and my uploaded student ID are authentic. I promise to abide by Libralink borrowing rules.
+              </span>
+            </label>
+            {errors.terms && <p className="text-[10px] text-red-500 mt-0.5">{errors.terms}</p>}
+            {errors.submit && <p className="text-[10px] text-red-500 mt-0.5">{errors.submit}</p>}
+
+            <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={handlePrev}
+                disabled={isSubmitting}
+                className="inline-flex items-center gap-1 rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span>Back</span>
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSubmitting || !agreedToTerms}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/25 transition hover:bg-emerald-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Clock className="h-4 w-4 animate-spin" />
+                    <span>Submitting Request...</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="h-4 w-4" />
+                    <span>Submit Borrow Request</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
       </form>
     </div>
   );

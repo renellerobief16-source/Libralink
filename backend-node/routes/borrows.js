@@ -18,77 +18,13 @@ router.get('/active', auth, async (req, res) => {
 });
 
 // @route   GET /api/borrow/overdue
-// @desc    Get all overdue borrows (any overdue books with days count)
+// @desc    Get all overdue borrows (any overdue books with days count & accrued fines)
 // @access  Private
 router.get('/overdue', auth, async (req, res) => {
   try {
     const schoolId = req.query.school_id || req.query.schoolId || req.query.school;
-    
     console.log('[OVERDUE API] Fetching overdue books, schoolId:', schoolId);
-    
-    // First, get all overdue books without school filter
-    let query = supabase
-      .from('borrow_transactions')
-      .select(`
-        *,
-        student:student_id(firstname, lastname, student_number, email, contact_number),
-        book_copies(accession_number, books(title, isbn, schools(school_name)))
-      `)
-      .eq('status', 'active')
-      .lt('due_date', new Date().toISOString())
-      .order('due_date', { ascending: true });
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('[OVERDUE API] Supabase error:', error);
-      // Fallback: try without nested relationships
-      let fallbackQuery = supabase
-        .from('borrow_transactions')
-        .select('*')
-        .eq('status', 'active')
-        .lt('due_date', new Date().toISOString())
-        .order('due_date', { ascending: true });
-
-      const fallbackResult = await fallbackQuery;
-      
-      const overdueData = (fallbackResult.data || []).map(borrow => {
-        const dueDate = new Date(borrow.due_date);
-        const today = new Date();
-        const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
-        return {
-          ...borrow,
-          days_overdue: daysOverdue > 0 ? daysOverdue : 0
-        };
-      });
-      
-      res.json({ success: true, data: overdueData });
-      return;
-    }
-    
-    console.log('[OVERDUE API] Raw data count (before filter):', data?.length || 0);
-    
-    // Calculate days overdue and filter by school if needed
-    let overdueData = (data || []).map(borrow => {
-      const dueDate = new Date(borrow.due_date);
-      const today = new Date();
-      const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
-      return {
-        ...borrow,
-        days_overdue: daysOverdue > 0 ? daysOverdue : 0
-      };
-    });
-    
-    // Filter by school_id in JavaScript if provided
-    if (schoolId) {
-      overdueData = overdueData.filter(borrow => 
-        borrow.book_copies?.books?.schools?.school_id === parseInt(schoolId)
-      );
-      console.log('[OVERDUE API] After school filter:', overdueData.length);
-    }
-    
-    console.log('[OVERDUE API] Processed overdue books:', overdueData.length);
-    
+    const overdueData = await BorrowTransaction.getOverdue(schoolId);
     res.json({ success: true, data: overdueData });
   } catch (error) {
     console.error('Error getting overdue borrows:', error);

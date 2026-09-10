@@ -347,10 +347,30 @@ export async function returnBook(borrowId) {
 export async function getAllActiveBorrows(schoolId) {
   try {
     const response = await api.get('/borrow/active/school', { params: { school_id: schoolId } });
-    
-    return { data: response.data || [], error: null };
+    const rows = Array.isArray(response.data?.data)
+      ? response.data.data
+      : (Array.isArray(response.data) ? response.data : []);
+    return { data: rows, error: null };
   } catch (error) {
     return { data: [], error };
+  }
+}
+
+export async function getLibraryPolicy(schoolId) {
+  try {
+    const response = await api.get(`/library-settings/policy/${schoolId}`);
+    return { data: response.data?.data || response.data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+export async function updateLibraryPolicy(schoolId, policy) {
+  try {
+    const response = await api.put(`/library-settings/policy/${schoolId}`, policy);
+    return { data: response.data?.data || response.data, error: null };
+  } catch (error) {
+    return { data: null, error };
   }
 }
 
@@ -522,10 +542,37 @@ export async function returnBookItem(itemId) {
   }
 }
 
-export async function cancelBorrowRequest(requestId) {
+export async function cancelBorrowRequest(requestId, reason = '') {
   try {
-    const response = await api.put(`/borrow-requests/${requestId}/cancel`);
-    return { data: response.data, error: null };
+    const response = await api.put(`/borrow-requests/${requestId}/cancel`, { reason });
+    return { data: response.data || response, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+export async function requestBorrowCancellation(requestId, reason = '') {
+  try {
+    const response = await api.put(`/borrow-requests/${requestId}/request-cancellation`, { reason });
+    return { data: response.data || response, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+export async function confirmBorrowCancellation(requestId) {
+  try {
+    const response = await api.put(`/borrow-requests/${requestId}/confirm-cancellation`);
+    return { data: response.data || response, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+export async function declineBorrowCancellation(requestId, remarks = '') {
+  try {
+    const response = await api.put(`/borrow-requests/${requestId}/decline-cancellation`, { remarks });
+    return { data: response.data || response, error: null };
   } catch (error) {
     return { data: null, error };
   }

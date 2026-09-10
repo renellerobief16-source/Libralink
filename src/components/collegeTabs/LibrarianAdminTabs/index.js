@@ -8,3 +8,4 @@ export { default as LibrarianAdminSettings } from './LibrarianAdminSettings';
 export { default as LibrarianAdminProfile } from './LibrarianAdminProfile';
 export { default as LibrarianAdminChangePassword } from './LibrarianAdminChangePassword';
 export { default as LibrarianAdminReportedOverdue } from './LibrarianAdminReportedOverdue';
+export { default as LibrarianAdminPolicies } from './LibrarianAdminPolicies';

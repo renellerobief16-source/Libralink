@@ -14,6 +14,7 @@ import { StudentHeaderSearch } from "./StudentHeaderSearch";
 import {
   Book,
   ChevronRight,
+  ChevronLeft,
   User,
   Home,
   Search,
@@ -371,7 +372,7 @@ function StudentFloatingCart() {
   };
 
   return (
-    <button type="button" onClick={openCart} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onContextMenu={(event) => event.preventDefault()} style={{ left: position.x, top: position.y, touchAction: 'none' }} className={`fixed z-[60] flex h-14 w-14 touch-none select-none items-center justify-center rounded-full border-2 border-white bg-blue-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.38)] transition-[left,top,opacity,box-shadow,transform] ${isDragging ? 'duration-0' : 'duration-150'} active:scale-95 ${isDragging || !isIdle ? 'opacity-100' : 'opacity-45'}`} aria-label="Open borrowing list">
+    <button type="button" onClick={openCart} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onContextMenu={(event) => event.preventDefault()} style={{ left: position.x, top: position.y, touchAction: 'none' }} className={`fixed z-[60] flex h-14 w-14 touch-none select-none items-center justify-center rounded-full border-2 border-white bg-blue-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.38)] transition-[left,top,opacity,box-shadow,transform] ${isDragging ? 'duration-0' : 'duration-150'} active:scale-95 ${isDragging || !isIdle ? 'opacity-100' : 'opacity-45'} mb-16 lg:mb-0`} aria-label="Open borrowing list">
       <ShoppingCart className="h-6 w-6" aria-hidden="true" />
     </button>
   );
@@ -981,114 +982,114 @@ export function StudentHeader({ userInfo, onLogout, panelOpen = false }) {
 
   return (
     <header className={`fixed left-0 right-0 top-0 z-50 hidden h-[64px] items-center border-b border-[#E5E7EB] bg-[#F7FAFC] px-3 md:flex md:px-5 lg:left-[72px] ${panelOpen ? "lg:left-[432px] lg:pl-0" : ""}`}>
-        {/* Search Bar */}
+      {/* Search Bar */}
 
-        <div className="flex min-w-0 flex-1 justify-start px-0 md:px-4 lg:mr-3 lg:px-0 lg:translate-y-[3px]">
-          <div className="relative min-w-0 flex-1">
-            <div className="pointer-events-none absolute left-4 top-1/2 z-10 flex items-center justify-center text-slate-600">
-              <Search className="h-5 w-5" />
-            </div>
+      <div className="flex min-w-0 flex-1 justify-start px-0 md:px-4 lg:mr-3 lg:px-0 lg:translate-y-[3px]">
+        <div className="relative min-w-0 flex-1">
+          <div className="pointer-events-none absolute left-4 top-1/2 z-10 flex items-center justify-center text-slate-600">
+            <Search className="h-5 w-5" />
+          </div>
 
-            <input
-              type="text"
+          <input
+            type="text"
 
-              placeholder="Search books, authors, or ISBN"
+            placeholder="Search"
 
-              value={searchQuery}
+            value={searchQuery}
 
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
 
-                setShowSearchSuggestions(e.target.value.length > 0);
-              }}
+              setShowSearchSuggestions(e.target.value.length > 0);
+            }}
 
-              onKeyDown={handleSearch}
+            onKeyDown={handleSearch}
 
-              onFocus={handleSearchFocus}
+            onFocus={handleSearchFocus}
 
-              onBlur={handleSearchBlur}
+            onBlur={handleSearchBlur}
 
-              className="h-12 w-full rounded-[50px] border-0 bg-[#E7E7E4] pl-12 pr-20 text-[16px] font-medium text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-600 focus:bg-[#E7E7E4] md:h-[54px] md:pr-24 md:text-base lg:h-[54px] lg:pr-14 lg:text-base"
-            />
+            className="h-12 w-full rounded-[50px] border-0 bg-[#E7E7E4] pl-12 pr-20 text-[16px] font-medium text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-600 focus:bg-[#E7E7E4] md:h-[54px] md:pr-24 md:text-base lg:h-[54px] lg:pr-14 lg:text-base"
+          />
 
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={clearSearch}
-                aria-label="Clear search"
-                className="absolute right-12 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-blue-100 transition-colors hover:bg-white/10 hover:text-white md:right-14 lg:right-3"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-
+          {searchQuery && (
             <button
               type="button"
-              onClick={handleSearchButtonClick}
-              aria-label="Search books"
-              className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-full bg-[#2563EB] p-1.5 transition-colors hover:bg-[#1D4ED8] md:right-3 md:p-2 lg:hidden"
+              onClick={clearSearch}
+              aria-label="Clear search"
+              className="absolute right-12 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-blue-100 transition-colors hover:bg-white/10 hover:text-white md:right-14 lg:right-3"
             >
-              <Search className="h-3.5 w-3.5 text-white md:h-4 md:w-4" />
+              <X className="h-3.5 w-3.5" />
             </button>
+          )}
 
-            {/* Global student feature suggestions */}
-            {showSearchSuggestions && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl border border-[#E5E7EB] shadow-lg z-50 overflow-hidden">
-                <div className="px-4 py-2 border-b border-[#EEF2F6]">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
-                    Student page
-                  </p>
-                </div>
-                <div className="p-2">
-                  {matchingFeatures.map((feature) => {
-                    const FeatureIcon = feature.icon;
-                    return (
-                      <button
-                        key={feature.path}
-                        onClick={() => {
-                          setShowSearchSuggestions(false);
-                          navigate(
-                            feature.path,
-                            feature.path === "/studentpage/search"
-                              ? { state: { query: searchQuery.trim() } }
-                              : undefined,
-                          );
-                        }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#F8FAFC] transition-colors text-left"
-                      >
-                        <span className="flex items-center justify-center w-8 h-8 rounded-lg border border-[#DDE6EF] text-[#2563EB] shrink-0">
-                          <FeatureIcon className="w-4 h-4" />
-                        </span>
-                        <span className="flex-1 min-w-0">
-                          <span className="block text-sm font-medium text-[#0F172A] truncate">
-                            {feature.label}
-                          </span>
-                          <span className="block text-xs text-[#64748B] truncate">
-                            {feature.description}
-                          </span>
-                        </span>
-                        <ChevronRight className="w-4 h-4 text-[#94A3B8] shrink-0" />
-                      </button>
-                    );
-                  })}
-                  <button
-                    onClick={handleSearchButtonClick}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 mt-1 rounded-lg border-t border-[#EEF2F6] text-left text-sm font-medium text-[#2563EB] hover:bg-[#F8FAFC]"
-                  >
-                    <Search className="w-4 h-4" />
-                    Search for “{searchQuery}” in books
-                  </button>
-                </div>
+          <button
+            type="button"
+            onClick={handleSearchButtonClick}
+            aria-label="Search books"
+            className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-full bg-[#2563EB] p-1.5 transition-colors hover:bg-[#1D4ED8] md:right-3 md:p-2 lg:hidden"
+          >
+            <Search className="h-3.5 w-3.5 text-white md:h-4 md:w-4" />
+          </button>
+
+          {/* Global student feature suggestions */}
+          {showSearchSuggestions && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl border border-[#E5E7EB] shadow-lg z-50 overflow-hidden">
+              <div className="px-4 py-2 border-b border-[#EEF2F6]">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                  Student page
+                </p>
               </div>
-            )}
-          </div>
+              <div className="p-2">
+                {matchingFeatures.map((feature) => {
+                  const FeatureIcon = feature.icon;
+                  return (
+                    <button
+                      key={feature.path}
+                      onClick={() => {
+                        setShowSearchSuggestions(false);
+                        navigate(
+                          feature.path,
+                          feature.path === "/studentpage/search"
+                            ? { state: { query: searchQuery.trim() } }
+                            : undefined,
+                        );
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#F8FAFC] transition-colors text-left"
+                    >
+                      <span className="flex items-center justify-center w-8 h-8 rounded-lg border border-[#DDE6EF] text-[#2563EB] shrink-0">
+                        <FeatureIcon className="w-4 h-4" />
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-sm font-medium text-[#0F172A] truncate">
+                          {feature.label}
+                        </span>
+                        <span className="block text-xs text-[#64748B] truncate">
+                          {feature.description}
+                        </span>
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-[#94A3B8] shrink-0" />
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={handleSearchButtonClick}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 mt-1 rounded-lg border-t border-[#EEF2F6] text-left text-sm font-medium text-[#2563EB] hover:bg-[#F8FAFC]"
+                >
+                  <Search className="w-4 h-4" />
+                  Search for “{searchQuery}” in books
+                </button>
+              </div>
+            </div>
+          )}
         </div>
+      </div>
 
-        <StudentHeaderActions
-          userInfo={userInfo}
-          onLogout={onLogout}
-          className="ml-auto shrink-0"
-        />
+      <StudentHeaderActions
+        userInfo={userInfo}
+        onLogout={onLogout}
+        className="ml-auto shrink-0"
+      />
     </header>
   );
 }
@@ -1098,20 +1099,100 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
   const isSearchRoute = location.pathname.startsWith("/studentpage/search");
   const isHomeRoute = location.pathname === "/studentpage" || location.pathname === "/studentpage/";
   const [activePanel, setActivePanel] = useState(null);
-  const panelContent = {
-    favorites: <StudentFavorite />,
-    inbox: <StudentInbox />,
-    history: <StudentHistory />,
-    profile: <StudentProfile />,
-    settings: <StudentSettings onLogout={onLogout} />,
+  const panelMeta = {
+    favorites: { title: "Favorites", icon: Heart, iconClass: "text-rose-500 bg-rose-50" },
+    inbox: { title: "Notifications", icon: Bell, iconClass: "text-amber-500 bg-amber-50" },
+    history: { title: "Borrow history", icon: ClockIcon, iconClass: "text-blue-600 bg-blue-50" },
+    profile: { title: "Profile & ID", icon: User, iconClass: "text-indigo-600 bg-indigo-50" },
+    settings: { title: "Settings", icon: Settings, iconClass: "text-sky-600 bg-sky-50" },
   };
   const panelTitles = {
     favorites: "Favorites",
     inbox: "Notifications",
     history: "Borrow history",
-    profile: "Profile",
+    profile: "Profile & ID",
     settings: "Settings",
   };
+
+  const [sidebarExpanded, setSidebarExpanded] = useState(() => {
+    try {
+      return localStorage.getItem("libralink_student_sidebar_expanded") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSidebar = () => {
+    setSidebarExpanded((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("libralink_student_sidebar_expanded", String(next));
+      } catch { }
+      return next;
+    });
+  };
+
+  const safeSchoolInfo = schoolInfo?.data || schoolInfo || {};
+  const schoolName = safeSchoolInfo?.school_name || userInfo?.school_name || "LibraLink";
+
+  // Sidebar profile picture resolution with real-time sync & localStorage caching
+  const [sidebarImageError, setSidebarImageError] = useState(false);
+  const [profileSyncKey, setProfileSyncKey] = useState(0);
+
+  useEffect(() => {
+    const handleProfileUpdate = () => {
+      setSidebarImageError(false);
+      setProfileSyncKey((prev) => prev + 1);
+    };
+
+    window.addEventListener("libralink-profile-updated", handleProfileUpdate);
+    window.addEventListener("libralink-user-changed", handleProfileUpdate);
+    window.addEventListener("storage", handleProfileUpdate);
+    return () => {
+      window.removeEventListener("libralink-profile-updated", handleProfileUpdate);
+      window.removeEventListener("libralink-user-changed", handleProfileUpdate);
+      window.removeEventListener("storage", handleProfileUpdate);
+    };
+  }, []);
+
+  const currentUser = JSON.parse(localStorage.getItem("currentUser") || "null");
+  const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+  const rawProfileImage =
+    userInfo?.profile_picture ||
+    userInfo?.profile_image ||
+    userInfo?.avatar ||
+    currentUser?.profile_picture ||
+    currentUser?.profile_image ||
+    currentUser?.avatar ||
+    storedUser?.profile_picture ||
+    storedUser?.profile_image ||
+    storedUser?.avatar ||
+    "";
+
+  const getProfileImageUrl = (picture) => {
+    if (!picture) return "";
+    if (
+      picture.startsWith("http://") ||
+      picture.startsWith("https://") ||
+      picture.startsWith("data:") ||
+      picture.startsWith("blob:")
+    ) {
+      return picture;
+    }
+    if (picture.startsWith("/")) return `${API_ORIGIN}${picture}`;
+    return `${API_ORIGIN}/${picture}`;
+  };
+
+  const userId = userInfo?.user_id || currentUser?.user_id || currentUser?.id || storedUser?.user_id || storedUser?.id;
+  const cachedAvatar = userId ? localStorage.getItem(`libralink_avatar_${userId}`) : null;
+
+  const candidateImage = rawProfileImage || cachedAvatar || "";
+  const sidebarAvatarUrl = (!sidebarImageError && candidateImage)
+    ? getProfileImageUrl(candidateImage)
+    : "";
+
+  const userDisplayName = userInfo?.first_name || userInfo?.name || currentUser?.first_name || currentUser?.name || storedUser?.first_name || storedUser?.name || "Student";
+  const userInitial = userDisplayName.charAt(0).toUpperCase();
 
   return (
     <div
@@ -1119,294 +1200,413 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
       data-panel-open={activePanel ? "true" : "false"}
       data-active-panel={activePanel || ""}
     >
-      {/* LEFT SIDEBAR */}
-
+      {/* LEFT SIDEBAR (Expandable w-[72px] to w-[240px]) */}
       <aside
-        className="fixed left-0 top-0 bottom-0 z-40 hidden w-[72px] flex-col border-r border-[#E5E7EB] bg-white lg:flex"
+        className={`fixed left-0 top-0 bottom-0 z-40 hidden flex-col border-r border-[#E5E7EB] bg-white transition-all duration-300 ease-in-out lg:flex ${sidebarExpanded ? "w-[240px]" : "w-[72px]"
+          }`}
       >
-        {/* Logo */}
-
-        <div className="h-[86px] flex items-start justify-center pt-[45px]">
-          <img
-            src="/L.png"
-
-            alt="Libralink"
-
-            className="h-10 w-10 object-contain"
-          />
+        {/* Top Branding & Toggle */}
+        <div className="flex h-[64px] shrink-0 items-center border-b border-slate-100 px-3.5">
+          {sidebarExpanded ? (
+            <div className="flex w-full items-center justify-between">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <img
+                  src="/L.png"
+                  alt="Libralink"
+                  className="h-8 w-8 shrink-0 object-contain"
+                />
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-sm font-bold tracking-tight text-slate-900 truncate leading-none">
+                    LibraLink
+                  </h1>
+                  <p className="text-[10px] font-medium text-slate-400 truncate mt-1">
+                    {schoolName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                title="Collapse sidebar"
+                aria-label="Collapse sidebar"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex w-full items-center justify-center">
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                className="group relative flex items-center justify-center p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                title="Expand sidebar"
+                aria-label="Expand sidebar"
+              >
+                <img
+                  src="/L.png"
+                  alt="Libralink"
+                  className="h-8 w-8 object-contain group-hover:scale-105 transition-transform"
+                />
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Navigation Icons */}
+        {/* Expand helper button when collapsed */}
+        {!sidebarExpanded && (
+          <div className="flex justify-center pt-2 pb-0.5">
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+              title="Expand sidebar"
+              aria-label="Expand sidebar"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
 
-        <nav className="flex-1 flex flex-col items-stretch py-5 px-3 gap-4 [&>a]:flex [&>a]:items-center [&>a]:justify-center [&>a]:gap-3 [&>a]:px-3 [&>a]:py-3.5 [&>a]:text-sm [&>a]:font-medium [&>a>svg]:h-6 [&>a>svg]:w-6">
+        {/* Navigation Icons & Links */}
+        <nav className="flex-1 flex flex-col py-4 px-2.5 gap-1.5 overflow-y-auto scrollbar-hide">
+          {/* Home */}
           <NavLink
             to="/studentpage"
-
             end
-
+            onClick={() => setActivePanel(null)}
+            title={!sidebarExpanded ? "Home" : undefined}
             className={({ isActive }) => `
-
-
-
-              relative p-3 rounded-xl transition-all duration-200
-
-
-
-              ${isActive ? "text-[#2563EB]" : "text-[#64748B] hover:text-[#0F172A]"}
-
-
-
+              relative flex items-center rounded-xl transition-all duration-200
+              ${sidebarExpanded ? "gap-3 px-3 py-2.5 text-sm font-medium" : "justify-center p-3"}
+              ${isActive && !activePanel ? "text-[#2563EB] bg-blue-50/80 font-semibold" : "text-[#64748B] hover:text-[#0F172A] hover:bg-slate-50"}
             `}
           >
             {({ isActive }) => (
               <>
                 <Home className="w-5 h-5 flex-shrink-0" />
-                <span className="sr-only">Home</span>
-
-                {isActive && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-1 h-6 bg-[#2563EB] rounded-full" />
+                {sidebarExpanded ? (
+                  <span className="truncate">Home</span>
+                ) : (
+                  <span className="sr-only">Home</span>
+                )}
+                {isActive && !activePanel && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-[#2563EB] rounded-r-full" />
                 )}
               </>
             )}
           </NavLink>
 
+          {/* Search Books */}
           <NavLink
             to="/studentpage/search"
-
+            onClick={() => setActivePanel(null)}
+            title={!sidebarExpanded ? "Search Books" : undefined}
             className={({ isActive }) => `
-
-
-
-              relative p-3 rounded-xl transition-all duration-200
-
-
-
-              ${isActive ? "text-[#2563EB]" : "text-[#64748B] hover:text-[#0F172A]"}
-
-
-
+              relative flex items-center rounded-xl transition-all duration-200
+              ${sidebarExpanded ? "gap-3 px-3 py-2.5 text-sm font-medium" : "justify-center p-3"}
+              ${isActive && !activePanel ? "text-[#2563EB] bg-blue-50/80 font-semibold" : "text-[#64748B] hover:text-[#0F172A] hover:bg-slate-50"}
             `}
           >
             {({ isActive }) => (
               <>
                 <Search className="w-5 h-5 flex-shrink-0" />
-                <span className="sr-only">Search Books</span>
-
-                {isActive && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-1 h-6 bg-[#2563EB] rounded-full" />
+                {sidebarExpanded ? (
+                  <span className="truncate">Search Books</span>
+                ) : (
+                  <span className="sr-only">Search Books</span>
+                )}
+                {isActive && !activePanel && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-[#2563EB] rounded-r-full" />
                 )}
               </>
             )}
           </NavLink>
 
+          {/* Favorites (Drawer) */}
           <NavLink
             to="/studentpage/favorites"
             onClick={(event) => {
               event.preventDefault();
               setActivePanel(activePanel === "favorites" ? null : "favorites");
             }}
-
+            title={!sidebarExpanded ? "Favorites" : undefined}
             className={({ isActive }) => `
-
-
-
-              relative p-3 rounded-xl transition-all duration-200
-
-
-
-              ${isActive || activePanel === "favorites" ? "text-[#2563EB]" : "text-[#64748B] hover:text-[#0F172A]"}
-
-
-
+              relative flex items-center rounded-xl transition-all duration-200
+              ${sidebarExpanded ? "gap-3 px-3 py-2.5 text-sm font-medium" : "justify-center p-3"}
+              ${isActive || activePanel === "favorites" ? "text-[#2563EB] bg-blue-50/80 font-semibold" : "text-[#64748B] hover:text-[#0F172A] hover:bg-slate-50"}
             `}
           >
             {({ isActive }) => (
               <>
                 <Heart className="w-5 h-5 flex-shrink-0" />
-                <span className="sr-only">Favorites</span>
-
+                {sidebarExpanded ? (
+                  <span className="truncate">Favorites</span>
+                ) : (
+                  <span className="sr-only">Favorites</span>
+                )}
                 {(isActive || activePanel === "favorites") && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-1 h-6 bg-[#2563EB] rounded-full" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-[#2563EB] rounded-r-full" />
                 )}
               </>
             )}
           </NavLink>
 
+          {/* Inbox / Notifications (Drawer) */}
           <NavLink
             to="/studentpage/inbox"
             onClick={(event) => {
               event.preventDefault();
               setActivePanel(activePanel === "inbox" ? null : "inbox");
             }}
-
+            title={!sidebarExpanded ? "Inbox" : undefined}
             className={({ isActive }) => `
-
-
-
-              relative p-3 rounded-xl transition-all duration-200
-
-
-
-              ${isActive || activePanel === "inbox" ? "text-[#2563EB]" : "text-[#64748B] hover:text-[#0F172A]"}
-
-
-
+              relative flex items-center rounded-xl transition-all duration-200
+              ${sidebarExpanded ? "gap-3 px-3 py-2.5 text-sm font-medium" : "justify-center p-3"}
+              ${isActive || activePanel === "inbox" ? "text-[#2563EB] bg-blue-50/80 font-semibold" : "text-[#64748B] hover:text-[#0F172A] hover:bg-slate-50"}
             `}
           >
             {({ isActive }) => (
               <>
                 <Mail className="w-5 h-5 flex-shrink-0" />
-                <span className="sr-only">Inbox</span>
-
+                {sidebarExpanded ? (
+                  <span className="truncate">Inbox</span>
+                ) : (
+                  <span className="sr-only">Inbox</span>
+                )}
                 {(isActive || activePanel === "inbox") && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-1 h-6 bg-[#2563EB] rounded-full" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-[#2563EB] rounded-r-full" />
                 )}
               </>
             )}
           </NavLink>
 
+          {/* Borrow History (Drawer) */}
           <NavLink
             to="/studentpage/history"
             onClick={(event) => {
               event.preventDefault();
               setActivePanel(activePanel === "history" ? null : "history");
             }}
-
+            title={!sidebarExpanded ? "Borrowing History" : undefined}
             className={({ isActive }) => `
-
-
-
-              relative p-3 rounded-xl transition-all duration-200
-
-
-
-              ${isActive || activePanel === "history" ? "text-[#2563EB]" : "text-[#64748B] hover:text-[#0F172A]"}
-
-
-
+              relative flex items-center rounded-xl transition-all duration-200
+              ${sidebarExpanded ? "gap-3 px-3 py-2.5 text-sm font-medium" : "justify-center p-3"}
+              ${isActive || activePanel === "history" ? "text-[#2563EB] bg-blue-50/80 font-semibold" : "text-[#64748B] hover:text-[#0F172A] hover:bg-slate-50"}
             `}
           >
             {({ isActive }) => (
               <>
                 <ClockIcon className="w-5 h-5 flex-shrink-0" />
-                <span className="sr-only">Borrowing History</span>
-
+                {sidebarExpanded ? (
+                  <span className="truncate">Borrow History</span>
+                ) : (
+                  <span className="sr-only">Borrowing History</span>
+                )}
                 {(isActive || activePanel === "history") && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-1 h-6 bg-[#2563EB] rounded-full" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-[#2563EB] rounded-r-full" />
                 )}
               </>
             )}
           </NavLink>
         </nav>
 
-        {/* Bottom Icons */}
-
-        <div className="flex flex-col items-stretch pb-5 px-3 gap-4 [&>a]:flex [&>a]:items-center [&>a]:justify-center [&>a]:gap-3 [&>a]:px-3 [&>a]:py-3.5 [&>a]:text-sm [&>a]:font-medium [&>a>svg]:h-6 [&>a>svg]:w-6">
+        {/* Bottom Icons & Profile */}
+        <div className="shrink-0 border-t border-slate-100 p-2.5">
+          {/* Settings */}
           <NavLink
             to="/studentpage/settings"
             onClick={(event) => {
               event.preventDefault();
               setActivePanel(activePanel === "settings" ? null : "settings");
             }}
-
+            title={!sidebarExpanded ? "Settings" : undefined}
             className={({ isActive }) => `
-
-
-
-              relative p-3 rounded-xl transition-all duration-200
-
-
-
-              ${isActive || activePanel === "settings" ? "text-[#2563EB]" : "text-[#64748B] hover:text-[#0F172A]"}
-
-
-
+              relative flex items-center rounded-xl transition-all duration-200
+              ${sidebarExpanded ? "gap-3 px-3 py-2 text-sm font-medium" : "justify-center p-3"}
+              ${isActive || activePanel === "settings" ? "text-[#2563EB] bg-blue-50/80 font-semibold" : "text-[#64748B] hover:text-[#0F172A] hover:bg-slate-50"}
             `}
           >
             {({ isActive }) => (
               <>
                 <Settings className="w-5 h-5 flex-shrink-0" />
-                <span className="sr-only">Settings</span>
-
+                {sidebarExpanded ? (
+                  <span className="truncate">Settings</span>
+                ) : (
+                  <span className="sr-only">Settings</span>
+                )}
                 {(isActive || activePanel === "settings") && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-1 h-6 bg-[#2563EB] rounded-full" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-[#2563EB] rounded-r-full" />
                 )}
               </>
             )}
           </NavLink>
 
-          <button
-            onClick={onLogout}
-            aria-label="Log out"
-            title="Log out"
-
-            className="relative flex items-center justify-center rounded-xl p-3.5 transition-all duration-200 text-[#64748B] hover:text-red-600"
-          >
-            <LogOut className="h-6 w-6 flex-shrink-0" />
-            <span className="sr-only">Log out</span>
-          </button>
+          {/* Profile Card */}
+          {sidebarExpanded ? (
+            <div className="mt-2 pt-2 border-t border-slate-100/80">
+              <button
+                type="button"
+                onClick={() => setActivePanel(activePanel === "profile" ? null : "profile")}
+                className="flex w-full items-center gap-3 p-2 rounded-xl hover:bg-slate-50 text-left transition-all duration-200 group"
+                title="View Profile"
+              >
+                {sidebarAvatarUrl ? (
+                  <div className="relative h-9 w-9 shrink-0">
+                    <img
+                      key={`sidebar-avatar-${profileSyncKey}`}
+                      src={sidebarAvatarUrl}
+                      alt={userDisplayName}
+                      className="h-9 w-9 rounded-full object-cover border-2 border-blue-500/20 shadow-xs group-hover:border-blue-500 transition-colors"
+                      onError={() => setSidebarImageError(true)}
+                    />
+                    <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                  </div>
+                ) : (
+                  <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs shadow-xs group-hover:ring-2 group-hover:ring-blue-400/40 transition-all">
+                    {userInitial}
+                    <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold text-slate-800 leading-tight group-hover:text-blue-600 transition-colors">
+                    {userDisplayName}
+                  </p>
+                  <p className="truncate text-[10px] text-slate-400 mt-0.5">
+                    {userInfo?.student_id || userInfo?.id_number || currentUser?.student_id || currentUser?.id_number || "Student Account"}
+                  </p>
+                </div>
+              </button>
+            </div>
+          ) : (
+            <div className="mt-2 pt-2 border-t border-slate-100/80 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setActivePanel(activePanel === "profile" ? null : "profile")}
+                className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-slate-50 transition-colors"
+                title={userDisplayName}
+              >
+                {sidebarAvatarUrl ? (
+                  <div className="relative h-9 w-9 shrink-0">
+                    <img
+                      key={`sidebar-avatar-mini-${profileSyncKey}`}
+                      src={sidebarAvatarUrl}
+                      alt={userDisplayName}
+                      className="h-9 w-9 rounded-full object-cover border-2 border-blue-500/20 shadow-xs hover:border-blue-500 transition-colors"
+                      onError={() => setSidebarImageError(true)}
+                    />
+                    <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                  </div>
+                ) : (
+                  <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs shadow-xs">
+                    {userInitial}
+                    <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                  </div>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
       {activePanel && (
         <section
           aria-label={`${activePanel} panel`}
-          className="student-expanded-panel fixed inset-x-0 bottom-0 top-0 z-40 w-full min-w-0 overscroll-contain overflow-y-auto border-r border-[#CBD5E1] bg-[#F7FAFC] px-3 pb-20 pt-0 scrollbar-hide md:top-[64px] md:w-[340px] lg:top-0 lg:left-[72px] lg:h-dvh lg:w-[340px] lg:px-4"
+          className={`student-expanded-panel fixed inset-x-0 bottom-0 top-0 z-40 flex flex-col w-full min-w-0 border-r border-slate-300 bg-[#F7FAFC] md:top-[64px] md:w-[380px] lg:top-0 lg:h-dvh lg:w-[380px] overflow-hidden transition-all duration-300 ${sidebarExpanded ? "lg:left-[240px]" : "lg:left-[72px]"
+            }`}
         >
-          <div className="flex h-[72px] shrink-0 items-center justify-between border-b border-slate-200 px-4">
-            <h2 className="text-xl font-bold tracking-tight text-slate-950">{panelTitles[activePanel]}</h2>
+          {/* Fixed Drawer Header - Never Scrolls */}
+          <div className="flex h-[64px] shrink-0 items-center justify-between border-b border-slate-200/90 px-4 bg-white/95 backdrop-blur-md z-20">
+            <div className="flex items-center gap-2.5">
+              {(() => {
+                const meta = panelMeta[activePanel] || {
+                  title: "Panel",
+                  icon: Book,
+                  iconClass: "text-blue-600 bg-blue-50",
+                };
+                const IconComponent = meta.icon;
+                return (
+                  <>
+                    <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${meta.iconClass}`}>
+                      <IconComponent className="h-4 w-4" />
+                    </span>
+                    <h2 className="text-base font-bold tracking-tight text-slate-950">{meta.title}</h2>
+                  </>
+                );
+              })()}
+            </div>
             <button
               type="button"
               onClick={() => setActivePanel(null)}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-200 hover:text-slate-900"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-200/80 hover:text-slate-900 transition-colors"
               aria-label="Close expanded panel"
               title="Close"
             >
               <X className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
-          <div className="px-1 pt-4">
-            {panelContent[activePanel]}
+
+          {/* Scrollable Content Body */}
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pt-2 pb-16 scrollbar-hide">
+            {activePanel === "favorites" && (
+              <StudentFavorite isDrawer onClose={() => setActivePanel(null)} />
+            )}
+            {activePanel === "inbox" && (
+              <StudentInbox isDrawer onClose={() => setActivePanel(null)} />
+            )}
+            {activePanel === "history" && (
+              <StudentHistory isDrawer onClose={() => setActivePanel(null)} />
+            )}
+            {activePanel === "profile" && (
+              <StudentProfile
+                isDrawer
+                onClose={() => setActivePanel(null)}
+                onSwitchTab={(tab) => setActivePanel(tab)}
+              />
+            )}
+            {activePanel === "settings" && (
+              <StudentSettings
+                onLogout={onLogout}
+                isDrawer
+                onClose={() => setActivePanel(null)}
+                onSwitchTab={(tab) => setActivePanel(tab)}
+              />
+            )}
           </div>
         </section>
       )}
 
-      {/* MAIN CONTENT AREA */}
-
-      <div className="flex-1 min-w-0 lg:ml-[72px]">
-        {/* HEADER */}
-
-        {!isSearchRoute && !isHomeRoute && (
-          <StudentHeader
-            userInfo={userInfo}
-            onLogout={onLogout}
-            panelOpen={Boolean(activePanel)}
-          />
-        )}
-
-        {isHomeRoute && (
-          <div
-            className={`pointer-events-none fixed inset-x-0 top-0 z-[56] hidden h-[64px] border-b border-[#E5E7EB] bg-[#F7FAFC] md:flex lg:left-[72px] ${activePanel ? "lg:left-[432px] lg:pl-0" : ""}`}
-            aria-label="Home account toolbar"
-          >
-            <div className="pointer-events-auto flex min-w-0 w-full items-center gap-3 px-3 md:px-5 lg:ml-0 lg:mr-0 lg:px-0 lg:translate-y-[3px]">
-              <div className="min-w-0 flex-1">
-                <StudentHeaderSearch />
-              </div>
-              <div className="flex h-full w-[184px] shrink-0 items-center justify-end pr-3 md:pr-5">
-                <StudentHeaderActions userInfo={userInfo} onLogout={onLogout} />
-              </div>
-            </div>
+      {/* UNIFIED TOP HEADER (Consistent across ALL student routes) */}
+      <header
+        className={`fixed inset-x-0 top-0 z-[35] flex h-[64px] items-center border-b border-[#E5E7EB] bg-[#F7FAFC]/95 backdrop-blur-md transition-all duration-300 ${sidebarExpanded ? "lg:left-[240px]" : "lg:left-[72px]"
+          } ${activePanel ? (sidebarExpanded ? "lg:left-[620px]" : "lg:left-[452px]") : ""}`}
+        aria-label="Student account toolbar"
+      >
+        <div className="flex w-full min-w-0 items-center gap-3 px-3 md:px-5">
+          {/* Unified Search Bar */}
+          <div className="min-w-0 flex-1">
+            <StudentHeaderSearch />
           </div>
-        )}
 
-        {/* MAIN CONTENT */}
+          {/* Right Action Icons (Pass, Cart, Profile) */}
+          <div className="flex h-full shrink-0 items-center justify-end">
+            <StudentHeaderActions userInfo={userInfo} onLogout={onLogout} />
+          </div>
+        </div>
+      </header>
 
+      {/* MAIN CONTENT AREA */}
+      <div
+        className={`flex-1 min-w-0 transition-all duration-300 ${sidebarExpanded ? "lg:ml-[240px]" : "lg:ml-[72px]"
+          }`}
+      >
         <main
-            className={`w-full min-w-0 overflow-x-visible bg-[#F7FAFC] pt-0 ${isSearchRoute || isHomeRoute ? "md:pt-0" : "md:pt-[64px]"} ${activePanel ? "lg:pl-[360px]" : ""}`}
+          className={`w-full min-w-0 overflow-x-visible bg-[#F7FAFC] pt-[64px] ${activePanel ? "lg:pl-[380px]" : ""
+            }`}
         >
           <div
-            className={`box-border mx-auto min-w-0 w-full bg-[#F7FAFC] px-3 pb-20 ${isSearchRoute || isHomeRoute ? "pt-0 md:pt-[76px]" : "pt-3"} sm:px-4 md:px-6 md:pb-6 ${isSearchRoute || isHomeRoute ? "lg:px-0 lg:pt-[76px]" : "lg:px-0 lg:pt-0"} lg:pb-0 ${isSearchRoute ? "max-w-none lg:pr-0" : "max-w-[1280px] lg:pr-8"}`}
+            className={`box-border mx-auto min-w-0 w-full bg-[#F7FAFC] px-3 pb-28 sm:pb-24 sm:px-4 md:px-6 md:pb-6 lg:px-6 lg:pb-8 ${isSearchRoute ? "max-w-none" : "max-w-[1280px]"
+              }`}
           >
             {children}
           </div>
@@ -1470,7 +1670,7 @@ export function WelcomeSection({ displayName, schoolInfo, profileImage, onBrowse
 
           {/* Heading */}
           <h1 className="text-2xl font-black tracking-tight text-white sm:text-4xl lg:text-[2.5rem] leading-tight">
-            Welcome back, {displayName} <span className="inline-block animate-pulse">👋</span>
+            Welcome back, {displayName}
           </h1>
 
           <p className="mt-2.5 max-w-lg text-sm text-slate-300 sm:text-base font-normal leading-relaxed">
@@ -1659,22 +1859,28 @@ export function BorrowedBookCard({ book, onRenew }) {
       </div>
 
       {/* Book Info */}
-
       <div className="flex-1 min-w-0">
-        <p className="text-base font-semibold text-[#0F172A] line-clamp-1 mb-1">
-          {book.title}
-        </p>
+        <div className="flex flex-wrap items-center gap-1.5 mb-1">
+          <p className="text-base font-semibold text-[#0F172A] line-clamp-1">
+            {book.title}
+          </p>
+          {book.ownerSchool && (
+            <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
+              {book.ownerSchool}
+            </span>
+          )}
+        </div>
 
         <p className="text-sm text-[#64748B] mb-2">{book.author}</p>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span
-            className={`text-xs font-medium px-3 py-1 rounded-full border ${statusStyles[book.status]}`}
+            className={`text-xs font-medium px-2.5 py-0.5 rounded-full border ${statusStyles[book.status] || statusStyles.onTime}`}
           >
-            {statusLabels[book.status]}
+            {statusLabels[book.status] || "On Time"}
           </span>
 
-          <span className="text-xs text-[#64748B]">· {book.dueIn}</span>
+          <span className="text-xs font-medium text-[#64748B]">· {book.dueIn}</span>
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotifications } from "../../../context/NotificationContext";
 import { API_ORIGIN } from "../../../utils/api";
@@ -8,12 +8,15 @@ import {
   ChevronDown,
   Clock,
   X,
+  LogOut,
+  User,
 } from "lucide-react";
 
 export function StudentHeaderActions({ userInfo, onLogout, className = "" }) {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
   const [notificationFilter, setNotificationFilter] = useState("all");
+  const [imageError, setImageError] = useState(false);
 
   const { unreadCount, notifications, markAsRead } = useNotifications();
   const navigate = useNavigate();
@@ -44,17 +47,16 @@ export function StudentHeaderActions({ userInfo, onLogout, className = "" }) {
     return `${API_ORIGIN}/${picture}`;
   };
 
-  const profileImageUrl = getProfileImageUrl(profileImage);
+  const userId = userInfo?.user_id || currentUser?.user_id || currentUser?.id;
+  const cachedAvatar = userId ? localStorage.getItem(`libralink_avatar_${userId}`) : null;
 
-  const handleProfileClick = () => {
-    navigate("/studentpage/profile");
-    setProfileDropdownOpen(false);
-  };
+  const profileImageUrl = (!imageError && profileImage) 
+    ? getProfileImageUrl(profileImage) 
+    : (cachedAvatar || "");
 
-  const handleSettingsClick = () => {
-    navigate("/studentpage/settings");
-    setProfileDropdownOpen(false);
-  };
+  useEffect(() => {
+    setImageError(false);
+  }, [profileImage]);
 
   const handleNotificationClick = () => {
     setNotificationDropdownOpen((isOpen) => !isOpen);
@@ -223,11 +225,16 @@ export function StudentHeaderActions({ userInfo, onLogout, className = "" }) {
           aria-expanded={profileDropdownOpen}
           className="flex items-center gap-1 md:gap-2"
         >
-          <span className="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-[#E5E7EB] md:h-10 md:w-10">
-            {profileImageUrl ? (
-              <img src={profileImageUrl} alt={displayName} className="h-full w-full object-cover" />
+          <span className="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-[#E5E7EB] bg-slate-100 md:h-10 md:w-10 flex items-center justify-center">
+            {profileImageUrl && !imageError ? (
+              <img
+                src={profileImageUrl}
+                alt={displayName}
+                className="h-full w-full object-cover"
+                onError={() => setImageError(true)}
+              />
             ) : (
-              <span className="flex h-full w-full items-center justify-center bg-[#2563EB] text-sm font-semibold text-white md:text-base">
+              <span className="flex h-full w-full items-center justify-center bg-[#2563EB] text-sm font-semibold text-white md:text-base select-none">
                 {(displayName || "U").charAt(0).toUpperCase()}
               </span>
             )}
@@ -238,29 +245,33 @@ export function StudentHeaderActions({ userInfo, onLogout, className = "" }) {
         </button>
 
         {profileDropdownOpen && (
-          <div className="absolute right-0 z-50 mt-2 w-44 rounded-xl border border-[#E5E7EB] bg-white py-1 shadow-lg md:w-48">
-            <button
-              type="button"
-              onClick={handleProfileClick}
-              className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#0F172A] transition-colors hover:bg-[#F8FAFC]"
-            >
-              Profile
-            </button>
-            <button
-              type="button"
-              onClick={handleSettingsClick}
-              className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#0F172A] transition-colors hover:bg-[#F8FAFC]"
-            >
-              Settings
-            </button>
-            <div className="my-1 border-t border-[#E5E7EB]" />
-            <button
-              type="button"
-              onClick={onLogout}
-              className="w-full px-4 py-2.5 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
-            >
-              Logout
-            </button>
+          <div className="absolute right-0 z-50 mt-2 w-52 rounded-2xl border border-[#E5E7EB] bg-white p-2 shadow-xl ring-1 ring-black/5 animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="rounded-xl bg-slate-50 px-3.5 py-2.5 border border-slate-100">
+              <p className="text-xs font-bold text-[#0F172A] truncate">{displayName}</p>
+              <p className="text-[11px] text-[#64748B] truncate mt-0.5">{currentUser?.email || userInfo?.email || "Student Account"}</p>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <span className="inline-flex items-center rounded-md bg-blue-100/70 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                  Student
+                </span>
+                <span className="text-[10px] text-slate-500 truncate max-w-[110px]">
+                  {currentUser?.school_name || userInfo?.school_name || "Libralink"}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-1 border-t border-slate-100 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileDropdownOpen(false);
+                  onLogout();
+                }}
+                className="flex w-full items-center gap-2 rounded-xl px-3.5 py-2 text-left text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 active:bg-red-100"
+              >
+                <LogOut className="h-4 w-4 text-red-500" />
+                <span>Sign Out</span>
+              </button>
+            </div>
           </div>
         )}
       </div>

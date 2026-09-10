@@ -110,9 +110,13 @@ router.post('/:id/logo', auth, requireRole(['Super Admin']), uploadLogo.single('
 
 // @route   PUT /api/schools/:id
 // @desc    Update school
-// @access  Private (Super Admin)
-router.put('/:id', auth, requireRole(['Super Admin']), async (req, res) => {
+// @access  Private (Super Admin, Librarian Admin/Librarian for own school)
+router.put('/:id', auth, requireRole(['Super Admin', 'Librarian Admin', 'Librarian']), async (req, res) => {
   try {
+    const userRole = (req.user.role_name || req.user.role || '').toLowerCase();
+    if (userRole !== 'super admin' && String(req.user.school_id) !== String(req.params.id)) {
+      return res.status(403).json({ success: false, message: 'You can only update your own school' });
+    }
     const result = await School.update(req.params.id, req.body);
     if (result) {
       res.json({ success: true, message: 'School updated successfully' });

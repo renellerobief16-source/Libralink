@@ -24,12 +24,41 @@ class Book {
         .select(`
           *,
           schools(school_name, school_code),
-          categories(category_name)
+          categories(category_name),
+          book_copies(copy_id, status)
         `)
         .eq('book_id', id)
         .single();
 
       if (error) throw error;
+
+      // Get active borrow requests for this book
+      const { data: borrowItems, error: borrowError } = await supabase
+        .from('borrow_request_items')
+        .select(`
+          book_id,
+          status,
+          borrow_requests(request_id, student_id, status, due_date, users!borrow_requests_student_id_fkey(username))
+        `)
+        .eq('book_id', id)
+        .in('status', ['pending', 'approved', 'released']);
+
+      if (borrowError) {
+        console.error('[BOOK] Error fetching borrow items:', borrowError);
+      }
+
+      // Add current borrowers to the book data
+      if (borrowItems && borrowItems.length > 0) {
+        data.current_borrowers = borrowItems
+          .filter(i => i.status === 'released' || i.status === 'approved')
+          .map(i => ({
+            username: i.borrow_requests?.users?.username || 'Student',
+            status: i.status === 'released' ? 'borrowed' : 'waiting_pickup'
+          }));
+      } else {
+        data.current_borrowers = [];
+      }
+
       return data;
     } catch (error) {
       console.error('Error getting book by ID:', error);

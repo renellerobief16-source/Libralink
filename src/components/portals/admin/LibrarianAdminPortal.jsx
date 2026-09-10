@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiHome, FiMail, FiLogOut, FiBook, FiMoon, FiSun, FiUsers, FiList, FiCheckCircle, FiDollarSign, FiSettings, FiActivity, FiChevronDown, FiUser, FiLock, FiGrid, FiAlertOctagon, FiAlertTriangle } from "react-icons/fi";
+import { FiHome, FiMail, FiLogOut, FiBook, FiMoon, FiSun, FiUsers, FiList, FiCheckCircle, FiDollarSign, FiSettings, FiActivity, FiChevronDown, FiUser, FiLock, FiGrid, FiAlertOctagon, FiAlertTriangle, FiSliders } from "react-icons/fi";
 import { getAdminNotifications, getBackendAssetUrl, signOut } from "../../../utils/api";
 import api from "../../../utils/api";
 import { AlertOverlay, ConfirmationOverlay, GlobalHeader } from "../../common";
-import { LibrarianAdminDashboard, LibrarianAdminAddLibrarian, LibrarianAdminBooks, LibrarianAdminFines, LibrarianAdminActivityLog, LibrarianAdminInbox, LibrarianAdminSettings, LibrarianAdminProfile, LibrarianAdminChangePassword, LibrarianAdminReportedOverdue } from "../../collegeTabs/LibrarianAdminTabs";
+import { LibrarianAdminDashboard, LibrarianAdminAddLibrarian, LibrarianAdminBooks, LibrarianAdminFines, LibrarianAdminActivityLog, LibrarianAdminInbox, LibrarianAdminSettings, LibrarianAdminProfile, LibrarianAdminChangePassword, LibrarianAdminReportedOverdue, LibrarianAdminPolicies } from "../../collegeTabs/LibrarianAdminTabs";
 import { LibrarianOverdueBooks } from "../../collegeTabs/LibrarianTabs";
 
 const PesoIcon = ({ className }) => (
@@ -148,6 +148,7 @@ function LibrarianAdminPortal() {
     { id: 'home', label: 'Dashboard', icon: FiHome },
     { id: 'books', label: 'Books Management', icon: FiBook },
     { id: 'users', label: 'Users Management', icon: FiUsers },
+    { id: 'policies', label: 'Borrowing Policies', icon: FiSliders },
     { id: 'reported-overdue', label: 'Reported Overdue', icon: FiAlertTriangle },
     { id: 'fines', label: 'Fines Management', icon: PesoIcon },
     { id: 'activity', label: 'Activity Log', icon: FiActivity },
@@ -178,6 +179,8 @@ function LibrarianAdminPortal() {
         return <LibrarianAdminAddLibrarian />;
       case 'reported-overdue':
         return <LibrarianAdminReportedOverdue darkMode={darkMode} schoolId={localStorage.getItem('schoolId')} />;
+      case 'policies':
+        return <LibrarianAdminPolicies />;
       case 'fines':
         return <LibrarianAdminFines />;
       case 'activity':

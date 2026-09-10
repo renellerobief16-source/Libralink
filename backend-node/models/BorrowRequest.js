@@ -407,16 +407,46 @@ class BorrowRequest {
     try {
       console.log('[BORROW REQUEST] Approving request:', request_id, 'by user:', approved_by);
       
-      // Get request details to determine borrow type
+      // Get request details with items for availability validation
       const { data: requestData, error: fetchError } = await supabase
         .from('borrow_requests')
-        .select('request_type')
+        .select(`
+          request_type,
+          home_school_id,
+          items:borrow_request_items(
+            item_id,
+            book_id,
+            owner_school_id,
+            status
+          )
+        `)
         .eq('request_id', request_id)
         .single();
 
       if (fetchError) {
         console.error('[BORROW REQUEST] Error fetching request:', fetchError);
         throw fetchError;
+      }
+
+      // Validate availability for each item before approving
+      for (const item of requestData.items || []) {
+        let availabilityCheck = true;
+        try {
+          const { data: availability } = await supabase.rpc('get_book_availability', {
+            p_book_id: item.book_id
+          });
+
+          if (!availability || availability.length === 0 || availability[0].available_copies <= 0) {
+            console.warn('[BORROW REQUEST] No available copies for book:', item.book_id, '- will approve without copy assignment');
+            availabilityCheck = false;
+          } else {
+            console.log('[BORROW REQUEST] Availability check passed for book:', item.book_id,
+              'Available:', availability[0].available_copies, '/', availability[0].total_copies);
+          }
+        } catch (rpcError) {
+          console.warn('[BORROW REQUEST] get_book_availability RPC not available, skipping check:', rpcError.message);
+          availabilityCheck = false;
+        }
       }
 
       // Calculate due date based on request type
@@ -439,7 +469,7 @@ class BorrowRequest {
       const qr_token = `LL-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
       console.log('[BORROW REQUEST] Generated QR token:', qr_token);
       
-      // Simple status update with QR token generation and due date
+      // Update status to approved with proper lifecycle
       const updateData = {
         status: 'approved',
         qr_token: qr_token,
@@ -463,17 +493,63 @@ class BorrowRequest {
 
       console.log('[BORROW REQUEST] Request status updated successfully with QR token');
 
-      // Update items status
-      const { error: itemsError } = await supabase
-        .from('borrow_request_items')
-        .update({ status: 'approved' })
-        .eq('request_id', request_id);
+      // Update items status and assign available copies
+      for (const item of requestData.items || []) {
+        // Use atomic copy assignment to handle concurrent requests safely
+        let copy_id;
+        try {
+          const { data: assignedCopy } = await supabase.rpc('assign_available_copy', {
+            p_book_id: item.book_id,
+            p_request_item_id: item.item_id
+          });
+          copy_id = assignedCopy;
+          console.log('[BORROW REQUEST] Atomically assigned copy:', copy_id, 'to item:', item.item_id);
+        } catch (rpcError) {
+          console.warn('[BORROW REQUEST] Atomic copy assignment failed:', rpcError.message);
+          // Fallback to manual assignment if RPC not available
+          try {
+            const { data: availableCopy } = await supabase
+              .from('book_copies')
+              .select('copy_id')
+              .eq('book_id', item.book_id)
+              .eq('status', 'available')
+              .limit(1)
+              .single();
 
-      if (itemsError) {
-        console.error('[BORROW REQUEST] Error updating items:', itemsError);
+            if (availableCopy) {
+              copy_id = availableCopy.copy_id;
+              // Update copy status to reserved
+              await supabase
+                .from('book_copies')
+                .update({ status: 'reserved' })
+                .eq('copy_id', copy_id);
+              console.log('[BORROW REQUEST] Manually assigned copy:', copy_id, 'to item:', item.item_id);
+            } else {
+              console.warn('[BORROW REQUEST] No available copies for book:', item.book_id, '- approving without copy assignment');
+            }
+          } catch (manualError) {
+            console.warn('[BORROW REQUEST] Manual copy assignment failed:', manualError.message, '- approving without copy assignment');
+          }
+        }
+
+        // Update item status to approved (with or without copy assignment)
+        const updateData = {
+          status: 'approved',
+          item_status: 'approved'
+        };
+        if (copy_id) {
+          updateData.assigned_copy_id = copy_id;
+        }
+
+        await supabase
+          .from('borrow_request_items')
+          .update(updateData)
+          .eq('item_id', item.item_id);
+
+        console.log('[BORROW REQUEST] Updated item:', item.item_id, 'with copy:', copy_id || 'none');
       }
 
-      console.log('[BORROW REQUEST] Approval completed with QR code generation');
+      console.log('[BORROW REQUEST] Approval completed with QR code generation and copy assignment');
       return { success: true, qr_token, due_date };
     } catch (error) {
       console.error('[BORROW REQUEST] Error approving request:', error);
@@ -541,7 +617,7 @@ class BorrowRequest {
     try {
       const { data: existingItem, error: checkError } = await supabase
         .from('borrow_request_items')
-        .select('item_id, status, copy_id, book_id')
+        .select('item_id, status, copy_id, book_id, assigned_copy_id, request_id, owner_school_id')
         .eq('item_id', item_id)
         .single();
 
@@ -550,56 +626,107 @@ class BorrowRequest {
         throw new Error(`Item ${item_id} not found: ${message}`);
       }
 
+      // Check if item is already released (prevent duplicate transactions)
+      if (existingItem.item_status === 'borrowed' || existingItem.released_at) {
+        throw new Error(`Item ${item_id} has already been released`);
+      }
+
+      const actualCopyId = copy_id || existingItem.assigned_copy_id || existingItem.copy_id;
+      
+      if (!actualCopyId) {
+        throw new Error(`No copy assigned to item ${item_id}. Cannot release.`);
+      }
+
+      // Update item status to borrowed with proper lifecycle
       const updateData = {
-        status: 'released',
+        status: 'borrowed',
+        item_status: 'borrowed',
+        copy_id: actualCopyId,
+        assigned_copy_id: actualCopyId,
+        released_at: new Date().toISOString(),
       };
 
       if (released_by) {
         updateData.released_by = released_by;
-        updateData.released_at = new Date().toISOString();
       }
 
-      if (copy_id) {
-        updateData.copy_id = copy_id;
-      }
-
-      const { data, error } = await supabase
+      // Update the item
+      const { error: itemError } = await supabase
         .from('borrow_request_items')
         .update(updateData)
-        .eq('item_id', item_id)
-        .select()
+        .eq('item_id', item_id);
+
+      if (itemError) {
+        throw new Error(`Failed to update item: ${itemError.message}`);
+      }
+
+      // Update the book copy status to borrowed
+      const { error: copyError } = await supabase
+        .from('book_copies')
+        .update({ status: 'borrowed' })
+        .eq('copy_id', actualCopyId);
+
+      if (copyError) {
+        console.warn(`[BORROW REQUEST] Note on updating copy status: ${copyError.message}`);
+      }
+
+      // Synchronize with borrow_transactions table
+      const { data: parentRequest } = await supabase
+        .from('borrow_requests')
+        .select('request_id, student_id, due_date, home_school_id, request_type')
+        .eq('request_id', existingItem.request_id)
         .single();
 
-      if (error) {
-        const isMissingColumn = /column .* does not exist/i.test(error.message || '');
-        if (isMissingColumn) {
-          const fallbackData = { status: 'released' };
-          if (copy_id) fallbackData.copy_id = copy_id;
-
-          const fallbackResult = await supabase
-            .from('borrow_request_items')
-            .update(fallbackData)
-            .eq('item_id', item_id)
-            .select()
-            .single();
-
-          if (fallbackResult.error) throw fallbackResult.error;
-          return fallbackResult.data;
+      if (parentRequest) {
+        let dueDate = parentRequest.due_date;
+        if (!dueDate) {
+          const schoolForDays = existingItem.owner_school_id || parentRequest.home_school_id;
+          const borrowingDays = await LibrarySettings.getHomeBorrowingDays(schoolForDays);
+          const d = new Date();
+          d.setDate(d.getDate() + borrowingDays);
+          dueDate = d.toISOString();
         }
 
-        throw error;
-      }
+        // Check if an active transaction already exists for this copy & student
+        const { data: existingTx } = await supabase
+          .from('borrow_transactions')
+          .select('borrow_id')
+          .eq('copy_id', actualCopyId)
+          .eq('status', 'active')
+          .maybeSingle();
 
-      // Update book copy status to borrowed
-      const finalCopyId = copy_id || existingItem.copy_id;
-      if (finalCopyId) {
+        if (!existingTx) {
+          const { error: insertTxError } = await supabase
+            .from('borrow_transactions')
+            .insert({
+              student_id: parentRequest.student_id,
+              copy_id: actualCopyId,
+              librarian_id: released_by || null,
+              borrow_date: new Date().toISOString(),
+              due_date: dueDate,
+              status: 'active'
+            });
+
+          if (insertTxError) {
+            console.warn('[BORROW REQUEST] Error inserting borrow_transaction sync:', insertTxError);
+          } else {
+            console.log('[BORROW REQUEST] Synchronized active loan to borrow_transactions');
+          }
+        }
+
+        // Update parent borrow_requests status to 'borrowed'
         await supabase
-          .from('book_copies')
-          .update({ status: 'borrowed' })
-          .eq('copy_id', finalCopyId);
+          .from('borrow_requests')
+          .update({
+            status: 'borrowed',
+            borrowed_at: new Date().toISOString(),
+            due_date: dueDate
+          })
+          .eq('request_id', existingItem.request_id);
       }
 
-      return data;
+      console.log('[BORROW REQUEST] Book released successfully:', item_id, 'copy:', actualCopyId);
+      return { success: true, copy_id: actualCopyId };
     } catch (error) {
       console.error('[BORROW REQUEST] Error releasing book:', error);
       throw error;
@@ -610,7 +737,7 @@ class BorrowRequest {
     try {
       const { data: existingItem, error: checkError } = await supabase
         .from('borrow_request_items')
-        .select('item_id, status, copy_id, request_id')
+        .select('item_id, status, copy_id, request_id, assigned_copy_id, owner_school_id, book_id')
         .eq('item_id', item_id)
         .single();
 
@@ -619,77 +746,193 @@ class BorrowRequest {
         throw new Error(`Item ${item_id} not found: ${message}`);
       }
 
+      // Check if item is already returned
+      if (existingItem.item_status === 'returned' || existingItem.returned_at) {
+        throw new Error(`Item ${item_id} has already been returned`);
+      }
+
+      const actualCopyId = existingItem.assigned_copy_id || existingItem.copy_id;
+      
+      if (!actualCopyId) {
+        throw new Error(`No copy associated with item ${item_id}. Cannot return.`);
+      }
+
+      const returnTime = new Date().toISOString();
+
+      // Update item status to returned with proper lifecycle
       const updateData = {
         status: 'returned',
+        item_status: 'returned',
+        returned_at: returnTime,
       };
 
       if (returned_by) {
         updateData.returned_by = returned_by;
-        updateData.returned_at = new Date().toISOString();
       }
 
-      const { data, error } = await supabase
+      // Update the item
+      const { error: itemError } = await supabase
         .from('borrow_request_items')
         .update(updateData)
-        .eq('item_id', item_id)
-        .select()
+        .eq('item_id', item_id);
+
+      if (itemError) {
+        throw new Error(`Failed to update item: ${itemError.message}`);
+      }
+
+      // Update the book copy status back to available
+      const { error: copyError } = await supabase
+        .from('book_copies')
+        .update({ status: 'available' })
+        .eq('copy_id', actualCopyId);
+
+      if (copyError) {
+        console.warn(`[BORROW REQUEST] Note on updating copy status: ${copyError.message}`);
+      }
+
+      // Get parent request details
+      const { data: parentRequest } = await supabase
+        .from('borrow_requests')
+        .select('student_id, home_school_id, due_date, request_id')
+        .eq('request_id', existingItem.request_id)
         .single();
 
-      if (error) {
-        const isMissingColumn = /column .* does not exist/i.test(error.message || '');
-        if (isMissingColumn) {
-          const fallbackResult = await supabase
-            .from('borrow_request_items')
-            .update({ status: 'returned' })
-            .eq('item_id', item_id)
-            .select()
-            .single();
+      // Synchronize with borrow_transactions table
+      const { data: activeTx } = await supabase
+        .from('borrow_transactions')
+        .select('borrow_id, due_date, borrow_date, student_id')
+        .eq('copy_id', actualCopyId)
+        .eq('status', 'active')
+        .order('borrow_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-          if (fallbackResult.error) throw fallbackResult.error;
-          data = fallbackResult.data;
-        } else {
-          throw error;
+      if (activeTx) {
+        await supabase
+          .from('borrow_transactions')
+          .update({
+            status: 'returned',
+            return_date: returnTime
+          })
+          .eq('borrow_id', activeTx.borrow_id);
+        console.log('[BORROW REQUEST] Synchronized return to borrow_transactions:', activeTx.borrow_id);
+      }
+
+      // Check remaining items for parent request status update
+      const { data: siblingItems } = await supabase
+        .from('borrow_request_items')
+        .select('item_status')
+        .eq('request_id', existingItem.request_id);
+
+      const hasUnreturned = (siblingItems || []).some(
+        it => it.item_status === 'borrowed' || it.item_status === 'approved' || it.item_status === 'pending'
+      );
+
+      if (!hasUnreturned && parentRequest) {
+        await supabase
+          .from('borrow_requests')
+          .update({
+            status: 'returned',
+            returned_at: returnTime
+          })
+          .eq('request_id', existingItem.request_id);
+      }
+
+      // Overdue fine calculation
+      let fineAssessed = 0;
+      let daysOverdue = 0;
+      const schoolId = existingItem.owner_school_id || parentRequest?.home_school_id;
+      const dueDateStr = activeTx?.due_date || parentRequest?.due_date;
+
+      if (schoolId && dueDateStr) {
+        try {
+          const finePolicy = await LibrarySettings.getFinePolicy(schoolId);
+          if (finePolicy.enable_fines) {
+            const dueDate = new Date(dueDateStr);
+            const now = new Date();
+            if (now > dueDate) {
+              const diffMs = now.getTime() - dueDate.getTime();
+              const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+              daysOverdue = Math.max(0, diffDays - (finePolicy.grace_period_days || 0));
+
+              if (daysOverdue > 0) {
+                const rawFine = daysOverdue * finePolicy.fine_amount_per_day;
+                fineAssessed = Math.min(rawFine, finePolicy.max_fine_cap);
+
+                // Prevent duplicate fines for the same borrow transaction / student
+                const studentId = parentRequest?.student_id || activeTx?.student_id;
+                const { data: existingFine } = await supabase
+                  .from('fines')
+                  .select('fine_id')
+                  .eq('student_id', studentId)
+                  .eq('borrow_id', activeTx?.borrow_id || null)
+                  .maybeSingle();
+
+                if (!existingFine && fineAssessed > 0) {
+                  await supabase
+                    .from('fines')
+                    .insert({
+                      student_id: studentId,
+                      school_id: schoolId,
+                      borrow_id: activeTx?.borrow_id || null,
+                      amount: fineAssessed,
+                      reason: `Overdue return (${daysOverdue} day${daysOverdue > 1 ? 's' : ''} late)`,
+                      status: 'pending',
+                      created_at: new Date().toISOString()
+                    });
+                  console.log(`[BORROW REQUEST] Generated overdue fine: ₱${fineAssessed} for student ${studentId}`);
+                }
+              }
+            }
+          }
+        } catch (fineErr) {
+          console.error('[BORROW REQUEST] Error calculating fine on return:', fineErr);
         }
       }
 
-      if (data?.copy_id) {
-        await supabase
-          .from('book_copies')
-          .update({ status: 'available' })
-          .eq('copy_id', data.copy_id);
-      }
-
-      const { data: request } = await supabase
-        .from('borrow_requests')
-        .select('request_id, items:borrow_request_items(status)')
-        .eq('request_id', data.request_id)
-        .single();
-
-      const allReturned = request.items.every(item => item.status === 'returned');
-      if (allReturned) {
-        await supabase
-          .from('borrow_requests')
-          .update({ status: 'returned', returned_at: new Date().toISOString() })
-          .eq('request_id', data.request_id);
-      }
-
-      return data;
+      console.log('[BORROW REQUEST] Book returned successfully:', item_id, 'copy:', actualCopyId, 'fine:', fineAssessed);
+      return { success: true, copy_id: actualCopyId, fineAssessed, daysOverdue };
     } catch (error) {
       console.error('[BORROW REQUEST] Error returning book:', error);
       throw error;
     }
   }
 
-  static async cancel(request_id) {
+  static async cancel(request_id, reason = '') {
     try {
+      const updatePayload = {
+        status: 'cancelled',
+        updated_at: new Date().toISOString()
+      };
+      if (reason) {
+        updatePayload.cancellation_reason = reason;
+      }
+
       const { data, error } = await supabase
         .from('borrow_requests')
-        .update({ status: 'cancelled' })
+        .update(updatePayload)
         .eq('request_id', request_id)
         .select()
         .single();
 
       if (error) throw error;
+
+      // Release any reserved book copies back to available
+      const { data: items } = await supabase
+        .from('borrow_request_items')
+        .select('item_id, assigned_copy_id')
+        .eq('request_id', request_id);
+
+      if (items && items.length > 0) {
+        for (const itm of items) {
+          if (itm.assigned_copy_id) {
+            await supabase
+              .from('book_copies')
+              .update({ status: 'available' })
+              .eq('copy_id', itm.assigned_copy_id);
+          }
+        }
+      }
 
       // Update items status
       await supabase
@@ -700,6 +943,68 @@ class BorrowRequest {
       return data;
     } catch (error) {
       console.error('[BORROW REQUEST] Error cancelling request:', error);
+      throw error;
+    }
+  }
+
+  static async requestCancellation(request_id, reason = '') {
+    try {
+      const { data, error } = await supabase
+        .from('borrow_requests')
+        .update({
+          status: 'cancel_requested',
+          cancellation_reason: reason,
+          updated_at: new Date().toISOString()
+        })
+        .eq('request_id', request_id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await supabase
+        .from('borrow_request_items')
+        .update({ status: 'cancel_requested' })
+        .eq('request_id', request_id);
+
+      return data;
+    } catch (error) {
+      console.error('[BORROW REQUEST] Error requesting cancellation:', error);
+      throw error;
+    }
+  }
+
+  static async declineCancellation(request_id, remarks = '') {
+    try {
+      // Check whether this request was previously approved (has qr_token) or pending
+      const { data: existingReq } = await supabase
+        .from('borrow_requests')
+        .select('qr_token')
+        .eq('request_id', request_id)
+        .single();
+
+      const restoredStatus = existingReq?.qr_token ? 'approved' : 'pending';
+
+      const { data, error } = await supabase
+        .from('borrow_requests')
+        .update({
+          status: restoredStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('request_id', request_id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await supabase
+        .from('borrow_request_items')
+        .update({ status: restoredStatus })
+        .eq('request_id', request_id);
+
+      return data;
+    } catch (error) {
+      console.error('[BORROW REQUEST] Error declining cancellation:', error);
       throw error;
     }
   }

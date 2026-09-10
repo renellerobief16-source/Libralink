@@ -37,38 +37,15 @@ const supabase = createClient(
   }
 );
 
-// Test connection with detailed error logging
-console.log('Testing Supabase connection with SERVICE_ROLE_KEY...');
-supabase.from('schools').select('*', { count: 'exact' }).then(({ data, error, status, statusText, count }) => {
-  console.log('=== Supabase Connection Test ===');
-  console.log('Data:', data);
-  console.log('Error:', error);
-  console.log('Status:', status);
-  console.log('Status Text:', statusText);
-  console.log('Count:', count);
-  console.log('Full response:', JSON.stringify({ data, error, status, statusText, count }, null, 2));
-  console.log('===============================');
-  
+// Test connection
+supabase.from('schools').select('school_id', { count: 'exact', head: true }).then(({ error, count }) => {
   if (error) {
-    console.error('=== Supabase Connection Error ===');
-    console.error('Error code:', error.code);
-    console.error('Error message:', error.message);
-    console.error('Error details:', error.details);
-    console.error('Error hint:', error.hint);
-    console.error('Full error:', JSON.stringify(error, null, 2));
-    console.error('================================');
+    console.error('=== Supabase Connection Error ===', error.message);
   } else {
-    console.log('✓ Connected to Supabase successfully with SERVICE_ROLE_KEY');
-    console.log('Schools count:', count);
-    console.log('Schools data:', data);
+    console.log(`✓ Connected to Supabase successfully (${count} schools)`);
   }
 }).catch(err => {
-  console.error('=== Supabase Connection Exception ===');
-  console.error('Exception type:', err.constructor.name);
-  console.error('Exception message:', err.message);
-  console.error('Exception stack:', err.stack);
-  console.error('Full exception:', JSON.stringify(err, null, 2));
-  console.error('====================================');
+  console.error('=== Supabase Connection Exception ===', err.message);
 });
 
 module.exports = supabase;

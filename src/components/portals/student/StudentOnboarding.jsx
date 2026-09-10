@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiArrowRight, FiCamera, FiCheckCircle, FiCheck } from 'react-icons/fi';
 import api, { updateProfilePicture, updateUserProfile, getBackendAssetUrl } from '../../../utils/api';
+import { STUDENT_COURSES, STUDENT_TOPICS, saveStudentPreferences } from '../../../utils/studentRecommendations';
 
 function isOnboardingComplete(user) {
   if (!user) return false;
@@ -15,15 +16,6 @@ function isOnboardingComplete(user) {
   return !!(username.trim() && cellphone.trim() && recoveryEmail.trim() && profilePicture && policyAccepted);
 }
 
-const requestDesktopFullscreen = () => {
-  const docEl = document.documentElement;
-  const requestFS = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
-
-  if (typeof requestFS === 'function') {
-    requestFS.call(docEl);
-  }
-};
-
 function StudentOnboarding() {
   const navigate = useNavigate();
   const [userInfo, setUserInfo] = useState(null);
@@ -31,8 +23,11 @@ function StudentOnboarding() {
     username: '',
     cellphone: '',
     recoveryEmail: '',
+    course: '',
+    favorite_topics: [],
     policyAccepted: false,
   });
+  const [courseSearch, setCourseSearch] = useState('');
   const [photo, setPhoto] = useState(null);
   const [preview, setPreview] = useState('');
   const [loading, setLoading] = useState(false);
@@ -122,9 +117,9 @@ function StudentOnboarding() {
         setVerificationCode('');
         setCodeSent(false);
         setVerifySuccessMessage('Gmail account Verified!');
-        // Auto-advance to next step after a short delay
+        // Auto-advance to photo step after a short delay
         setTimeout(() => {
-          setCurrentStep(4);
+          setCurrentStep(6);
         }, 1500);
       } else {
         setVerificationError(data.message || 'Invalid verification code');
@@ -138,6 +133,8 @@ function StudentOnboarding() {
 
   const steps = [
     { key: 'welcome', label: 'Welcome' },
+    { key: 'course', label: 'Course / Program' },
+    { key: 'topics', label: 'Reading Interests' },
     { key: 'username', label: 'Username' },
     { key: 'cellphone', label: 'Cellphone Number' },
     { key: 'email', label: 'Gmail Account' },
@@ -145,10 +142,12 @@ function StudentOnboarding() {
     { key: 'policy', label: 'Policy' },
   ];
 
-  const stepLabels = ['Welcome', 'Username', 'Cellphone', 'Recovery email', 'Photo', 'Policy'];
+  const stepLabels = ['Welcome', 'Course', 'Topics', 'Username', 'Cellphone', 'Recovery email', 'Photo', 'Policy'];
 
   const reminders = {
     welcome: 'Welcome to Libralink. Please complete these details to personalize your account and access the library system.',
+    course: 'Select your degree program or course. This helps us tailor syllabus-aligned book recommendations for you.',
+    topics: 'Select the reading topics you love! We will curate your "Recommended for You" shelf with these genres.',
     username: 'Create a unique username that others can recognize.',
     cellphone: 'Enter your active mobile number in case we need to contact you.',
     email: 'Use a valid Gmail account for password recovery and account safety.',
@@ -165,10 +164,23 @@ function StudentOnboarding() {
 
     const parsedUser = JSON.parse(storedUser);
     setUserInfo(parsedUser);
+
+    const storedCourse = parsedUser.course || parsedUser.position || localStorage.getItem('studentCourse') || '';
+    let storedTopics = parsedUser.favorite_topics || parsedUser.interests;
+    if (!Array.isArray(storedTopics)) {
+      try {
+        storedTopics = JSON.parse(localStorage.getItem('studentInterests') || '[]');
+      } catch {
+        storedTopics = [];
+      }
+    }
+
     setForm({
       username: parsedUser.username || parsedUser.name || parsedUser.first_name || '',
       cellphone: parsedUser.contact_number || '',
       recoveryEmail: parsedUser.recovery_email || parsedUser.email || '',
+      course: storedCourse,
+      favorite_topics: Array.isArray(storedTopics) ? storedTopics : [],
       policyAccepted: !!parsedUser.policy_accepted,
     });
     setPreview(parsedUser.profile_picture || parsedUser.profile_image || '');
@@ -199,6 +211,16 @@ function StudentOnboarding() {
   };
 
   const handleSubmit = async () => {
+    if (!form.course.trim()) {
+      alert('Please select your academic course or program.');
+      return;
+    }
+
+    if (!form.favorite_topics || form.favorite_topics.length === 0) {
+      alert('Please select at least 1 reading topic you love.');
+      return;
+    }
+
     if (!form.username.trim()) {
       alert('Please enter your username.');
       return;
@@ -234,12 +256,20 @@ function StudentOnboarding() {
         uploadedPicture = data?.profile_picture || data?.profile_image || uploadedPicture;
       }
 
+      // Save course and favorite topics via shared recommendations helper
+      await saveStudentPreferences({
+        course: form.course.trim(),
+        favorite_topics: form.favorite_topics || [],
+      });
+
       const userId = userInfo?.user_id || userInfo?.id || Number(localStorage.getItem('currentUserId'));
       const cleanedEmail = form.recoveryEmail.trim();
       const payload = {
         username: form.username.trim(),
         contact_number: form.cellphone.trim(),
         recovery_email: cleanedEmail,
+        position: form.course.trim(),
+        course: form.course.trim(),
         profile_picture: uploadedPicture,
         profile_image: uploadedPicture,
         policy_accepted: true,
@@ -253,6 +283,10 @@ function StudentOnboarding() {
       const updatedUser = {
         ...userInfo,
         ...payload,
+        course: form.course.trim(),
+        position: form.course.trim(),
+        favorite_topics: form.favorite_topics || [],
+        interests: form.favorite_topics || [],
         username: payload.username,
         contact_number: payload.contact_number,
         recovery_email: payload.recovery_email,
@@ -262,6 +296,13 @@ function StudentOnboarding() {
       };
 
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+      localStorage.setItem('studentCourse', form.course.trim());
+      localStorage.setItem('studentInterests', JSON.stringify(form.favorite_topics || []));
+
+      window.dispatchEvent(new CustomEvent('libralink-preferences-updated', {
+        detail: { course: form.course.trim(), favorite_topics: form.favorite_topics || [] }
+      }));
+
       navigate('/studentpage');
     } catch (error) {
       console.error('Student onboarding error:', error);
@@ -272,22 +313,32 @@ function StudentOnboarding() {
   };
 
   const handleNext = () => {
-    if (currentStep === 1 && !form.username.trim()) {
+    if (currentStep === 1 && !form.course.trim()) {
+      alert('Please select your academic course or program.');
+      return;
+    }
+
+    if (currentStep === 2 && (!form.favorite_topics || form.favorite_topics.length === 0)) {
+      alert('Please select at least 1 reading topic you love.');
+      return;
+    }
+
+    if (currentStep === 3 && !form.username.trim()) {
       alert('Please enter your username.');
       return;
     }
 
-    if (currentStep === 2 && !form.cellphone.trim()) {
+    if (currentStep === 4 && !form.cellphone.trim()) {
       alert('Please enter your cellphone number.');
       return;
     }
 
-    if (currentStep === 3 && !form.recoveryEmail.trim()) {
+    if (currentStep === 5 && !form.recoveryEmail.trim()) {
       alert('Please enter your Gmail account.');
       return;
     }
 
-    if (currentStep === 3 && !emailVerified) {
+    if (currentStep === 5 && !emailVerified) {
       if (!codeSent) {
         handleSendVerificationCode();
       } else {
@@ -296,12 +347,12 @@ function StudentOnboarding() {
       return;
     }
 
-    if (currentStep === 4 && !photo && !preview) {
+    if (currentStep === 6 && !photo && !preview) {
       alert('Please upload a profile picture.');
       return;
     }
 
-    if (currentStep === 5) {
+    if (currentStep === 7) {
       if (!form.policyAccepted) {
         alert('Please accept the policy before continuing.');
         return;
@@ -329,17 +380,165 @@ function StudentOnboarding() {
             <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0077B6]">Student setup</p>
             <h1 className="text-3xl font-semibold tracking-[-.03em] text-slate-900">Welcome to Libralink</h1>
             <p className="text-sm leading-6 text-slate-600">
-              Welcome to Libralink. Before you can access your library account, we need a few details to complete your profile and keep your account secure.
+              Welcome to Libralink. Let's personalize your library journey by selecting your course and favorite reading topics, along with a few profile details.
             </p>
             <p className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
-              This quick setup helps you log in smoothly and recover your account if needed.
+              This setup curates your "Recommended for You" library shelf and secures your account.
             </p>
           </div>
         </div>
       );
     }
 
+    // STEP 1: Academic Course Selection
     if (currentStep === 1) {
+      const filtered = STUDENT_COURSES.filter(
+        (c) =>
+          c.name.toLowerCase().includes(courseSearch.toLowerCase()) ||
+          c.code.toLowerCase().includes(courseSearch.toLowerCase()) ||
+          c.dept.toLowerCase().includes(courseSearch.toLowerCase())
+      );
+
+      return (
+        <div className="space-y-4">
+          <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
+            {reminders.course}
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Select your Academic Course / Program
+            </label>
+            <input
+              type="text"
+              value={courseSearch}
+              onChange={(e) => setCourseSearch(e.target.value)}
+              placeholder="Search course (e.g. BSIT, Nursing, Criminology, Accountancy)..."
+              className="min-h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 text-sm outline-none transition focus:border-[#0077B6] focus:bg-white focus:ring-4 focus:ring-[#0077B6]/10 mb-2.5"
+            />
+
+            <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1 scrollbar-thin">
+              {filtered.map((c) => {
+                const isSelected = form.course === c.code || form.course === c.name;
+                return (
+                  <div
+                    key={c.code}
+                    onClick={() => setForm({ ...form, course: c.code })}
+                    className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                      isSelected
+                        ? "border-[#0077B6] bg-[#E0F2FE]/70 shadow-xs ring-2 ring-[#0077B6]/20"
+                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1 pr-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded">
+                          {c.code}
+                        </span>
+                        <span className="text-xs font-bold text-slate-800 truncate">
+                          {c.name}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5 truncate">{c.dept}</p>
+                    </div>
+                    <div
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ml-2 transition-all ${
+                        isSelected ? "bg-[#0077B6] text-white shadow-xs" : "border border-slate-300"
+                      }`}
+                    >
+                      {isSelected && <FiCheck className="w-3.5 h-3.5" />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // STEP 2: Favorite Reading Topics (WITH PICTURES!)
+    if (currentStep === 2) {
+      const toggleTopic = (id) => {
+        const prev = form.favorite_topics || [];
+        const next = prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id];
+        setForm({ ...form, favorite_topics: next });
+      };
+
+      return (
+        <div className="space-y-4">
+          <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
+            {reminders.topics}
+          </div>
+
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-slate-700">
+              Pick reading topics you like:
+            </label>
+            <span className="text-xs font-bold text-[#0077B6] bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
+              {(form.favorite_topics || []).length} selected
+            </span>
+          </div>
+
+          {/* TOPICS PICTURE CARDS GRID */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[350px] overflow-y-auto pr-1 scrollbar-thin">
+            {STUDENT_TOPICS.map((topic) => {
+              const isSelected = (form.favorite_topics || []).includes(topic.id);
+              return (
+                <div
+                  key={topic.id}
+                  onClick={() => toggleTopic(topic.id)}
+                  className={`group relative flex h-32 overflow-hidden rounded-2xl border-2 transition-all duration-300 cursor-pointer shadow-sm ${
+                    isSelected
+                      ? "border-[#0077B6] shadow-lg ring-4 ring-[#0077B6]/25 scale-[1.01]"
+                      : "border-slate-200 hover:border-slate-300 hover:shadow-md"
+                  }`}
+                >
+                  {/* High Quality Local Photo with Gradient Overlay */}
+                  <img
+                    src={topic.image}
+                    alt={topic.title}
+                    className="absolute inset-0 h-full w-full object-cover group-hover:scale-105 transition duration-500"
+                    loading="eager"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/10" />
+
+                  {/* Content Overlay */}
+                  <div className="relative z-10 flex flex-col justify-between p-3 w-full">
+                    <div className="flex items-center justify-between">
+                      <span className="rounded-lg bg-black/60 border border-white/20 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-white backdrop-blur-md shadow-xs">
+                        {topic.badge}
+                      </span>
+                      <div
+                        className={`flex h-6 w-6 items-center justify-center rounded-full transition-all ${
+                          isSelected
+                            ? "bg-[#0077B6] text-white shadow-md ring-2 ring-white/80"
+                            : "border-2 border-white/70 bg-black/40 backdrop-blur-md text-transparent"
+                        }`}
+                      >
+                        <FiCheck className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-bold text-white leading-tight drop-shadow-md">
+                        {topic.title}
+                      </h4>
+                      <p className="text-[11px] font-medium text-white/90 truncate mt-0.5 drop-shadow-xs">
+                        {topic.subtitle}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // STEP 3: Username
+    if (currentStep === 3) {
       return (
         <div className="space-y-4">
           <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
@@ -352,14 +551,15 @@ function StudentOnboarding() {
               value={form.username}
               onChange={(e) => setForm({ ...form, username: e.target.value })}
               placeholder="Enter username"
-              className="min-h-12 w-full border border-slate-300 bg-slate-50 px-3 text-base outline-none transition focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
+              className="min-h-12 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-base outline-none transition focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
             />
           </div>
         </div>
       );
     }
 
-    if (currentStep === 2) {
+    // STEP 4: Cellphone
+    if (currentStep === 4) {
       return (
         <div className="space-y-4">
           <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
@@ -372,14 +572,15 @@ function StudentOnboarding() {
               value={form.cellphone}
               onChange={(e) => setForm({ ...form, cellphone: e.target.value })}
               placeholder="09xxxxxxxxx"
-              className="min-h-12 w-full border border-slate-300 bg-slate-50 px-3 text-base outline-none transition focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
+              className="min-h-12 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-base outline-none transition focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
             />
           </div>
         </div>
       );
     }
 
-    if (currentStep === 3) {
+    // STEP 5: Gmail Account & Verification
+    if (currentStep === 5) {
       return (
         <div className="space-y-4">
           <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
@@ -400,7 +601,7 @@ function StudentOnboarding() {
                   setCodeSuccessMessage('');
                 }}
                 placeholder="you@gmail.com"
-                className="min-h-12 flex-1 border border-slate-300 bg-slate-50 px-3 text-base outline-none transition focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
+                className="min-h-12 flex-1 rounded-xl border border-slate-300 bg-slate-50 px-3 text-base outline-none transition focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
                 disabled={emailVerified}
               />
               {emailVerified && (
@@ -452,7 +653,7 @@ function StudentOnboarding() {
                       setVerificationError('');
                     }}
                     placeholder="123456"
-                    className="min-h-12 w-full border border-slate-300 bg-slate-50 px-3 text-center text-lg font-mono tracking-widest outline-none transition placeholder:text-slate-400 focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
+                    className="min-h-12 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-center text-lg font-mono tracking-widest outline-none transition placeholder:text-slate-400 focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
                     maxLength={6}
                     disabled={verifyingCode}
                   />
@@ -461,7 +662,7 @@ function StudentOnboarding() {
                   type="button"
                   onClick={handleVerifyCode}
                   disabled={verificationCode.length !== 6 || verifyingCode}
-                  className="w-full min-h-11 bg-[#0077B6] px-4 text-sm font-semibold text-white transition hover:bg-[#00669d] disabled:cursor-wait disabled:opacity-60 sm:min-h-12"
+                  className="w-full min-h-11 rounded-xl bg-[#0077B6] px-4 text-sm font-semibold text-white transition hover:bg-[#00669d] disabled:cursor-wait disabled:opacity-60 sm:min-h-12"
                 >
                   {verifyingCode ? 'Verifying...' : 'Verify code'}
                 </button>
@@ -490,7 +691,8 @@ function StudentOnboarding() {
       );
     }
 
-    if (currentStep === 4) {
+    // STEP 6: Profile Picture
+    if (currentStep === 6) {
       return (
         <div className="space-y-4">
           <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
@@ -498,7 +700,7 @@ function StudentOnboarding() {
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">Profile Picture</label>
-            <div className="flex items-center gap-4 border border-dashed border-slate-300 bg-slate-50 p-4">
+            <div className="flex items-center gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
               <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white">
                 {preview ? (
                   <img src={preview} alt="Profile preview" className="h-full w-full object-cover" />
@@ -507,7 +709,7 @@ function StudentOnboarding() {
                 )}
               </div>
 
-              <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-[#0077B6] px-4 text-sm font-semibold text-[#0077B6] transition hover:bg-[#E0F2FE]">
+              <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[#0077B6] px-4 text-sm font-semibold text-[#0077B6] transition hover:bg-[#E0F2FE]">
                 <FiCamera /> Upload photo
                 <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
               </label>
@@ -517,13 +719,14 @@ function StudentOnboarding() {
       );
     }
 
+    // STEP 7: Policy
     return (
       <div className="space-y-4">
         <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
           {reminders.policy}
         </div>
         <p className="text-sm font-semibold text-slate-800">Policy</p>
-        <div className="max-h-36 overflow-y-auto border border-slate-200 bg-slate-50 p-4 text-xs leading-6 text-slate-600">
+        <div className="max-h-36 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs leading-6 text-slate-600">
           By using this system, you agree to keep your account information accurate, use the platform responsibly, protect your login credentials, and avoid unauthorized or harmful activity. The library administration may monitor account usage for security and compliance purposes. Misuse of the system may result in restricted access or disciplinary action.
         </div>
         <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
@@ -531,7 +734,7 @@ function StudentOnboarding() {
             type="checkbox"
             checked={form.policyAccepted}
             onChange={(e) => setForm({ ...form, policyAccepted: e.target.checked })}
-            className="h-4 w-4 accent-blue-600"
+            className="h-4 w-4 accent-blue-600 rounded"
           />
           I agree to the policy
         </label>
@@ -552,7 +755,7 @@ function StudentOnboarding() {
       />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(125,211,252,0.22),transparent_35%)]" />
 
-      <div className="relative mx-auto flex min-h-[100dvh] max-w-xl flex-col bg-white px-5 py-8 shadow-2xl sm:min-h-0 sm:border sm:border-white/20 sm:px-8 sm:py-9 lg:px-10">
+      <div className="relative mx-auto flex min-h-[100dvh] max-w-2xl flex-col rounded-3xl bg-white px-5 py-8 shadow-2xl sm:min-h-0 sm:border sm:border-white/20 sm:px-8 sm:py-9 lg:px-10">
         <div className="mb-7 flex items-center gap-3 border-b border-slate-100 pb-5">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white">
             <img src={schoolLogo} alt={`${schoolName} logo`} className="h-full w-full object-contain p-1" onError={(e) => { e.target.src = '/L.png'; }} />
@@ -564,16 +767,24 @@ function StudentOnboarding() {
         </div>
 
         <div className="mb-7">
-          <div className="mb-2 flex items-center justify-between text-xs font-medium"><span className="text-slate-500">Step {currentStep + 1} of {steps.length}</span><span className="text-[#0077B6]">{stepLabels[currentStep]}</span></div>
+          <div className="mb-2 flex items-center justify-between text-xs font-medium">
+            <span className="text-slate-500">Step {currentStep + 1} of {steps.length}</span>
+            <span className="text-[#0077B6] font-semibold">{stepLabels[currentStep]}</span>
+          </div>
           <div className="flex gap-1.5" aria-label={`Step ${currentStep + 1} of ${steps.length}`}>
-          {stepLabels.map((label, index) => {
-            const isActive = index === currentStep;
-            const isCompleted = index < currentStep;
+            {stepLabels.map((label, index) => {
+              const isActive = index === currentStep;
+              const isCompleted = index < currentStep;
 
-            return (
-              <span key={label} className={`h-1 flex-1 ${isCompleted ? 'bg-[#0077B6]' : isActive ? 'bg-[#388697]' : 'bg-slate-200'}`} />
-            );
-          })}
+              return (
+                <span
+                  key={label}
+                  className={`h-1.5 rounded-full flex-1 transition-colors ${
+                    isCompleted ? 'bg-[#0077B6]' : isActive ? 'bg-[#388697]' : 'bg-slate-200'
+                  }`}
+                />
+              );
+            })}
           </div>
         </div>
 
@@ -594,7 +805,7 @@ function StudentOnboarding() {
             type="button"
             onClick={handleNext}
             disabled={loading}
-            className="inline-flex min-h-11 items-center gap-2 bg-[#0077B6] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#00669d] disabled:cursor-not-allowed disabled:bg-blue-400"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#0077B6] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#00669d] disabled:cursor-not-allowed disabled:bg-blue-400 active:scale-95"
           >
             {loading ? 'Saving...' : currentStep === steps.length - 1 ? <>Complete setup <FiCheckCircle /></> : <>Continue <FiArrowRight /></>}
           </button>

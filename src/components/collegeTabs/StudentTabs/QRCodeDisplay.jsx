@@ -166,90 +166,88 @@ function QRCodeDisplay({ request, token, requestId, onClose, onShare }) {
       </div>
 
       {/* Request Info */}
-      <div className="mb-6 bg-blue-50/70 p-3 sm:p-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+      <div className="mb-4 rounded-2xl bg-blue-50/70 p-3 sm:p-4 border border-blue-100">
+        <div className="grid grid-cols-2 gap-2 sm:gap-4">
           <div>
-            <p className="text-xs text-blue-600 mb-1">Request ID</p>
-            <p className="font-semibold text-blue-900">{request?.request_id}</p>
+            <p className="text-[11px] font-semibold text-blue-600 mb-0.5">Request ID</p>
+            <p className="font-mono text-xs sm:text-sm font-bold text-blue-950 truncate">{request?.request_id}</p>
           </div>
           <div>
-            <p className="text-xs text-blue-600 mb-1">Status</p>
-            <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(request?.status)}`}>
+            <p className="text-[11px] font-semibold text-blue-600 mb-0.5">Status</p>
+            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold border ${getStatusColor(request?.status)}`}>
               {getStatusText(request?.status)}
             </span>
           </div>
           <div>
-            <p className="text-xs text-blue-600 mb-1">Request Type</p>
-            <p className="font-semibold text-blue-900">
+            <p className="text-[11px] font-semibold text-blue-600 mb-0.5">Request Type</p>
+            <p className="text-xs sm:text-sm font-semibold text-blue-900">
               {request?.request_type === 'INTER_SCHOOL' ? 'Inter-School' : 'Home Library'}
             </p>
           </div>
           <div>
-            <p className="text-xs text-blue-600 mb-1">Books</p>
-            <p className="font-semibold text-blue-900">{request?.items?.length || 0} items</p>
+            <p className="text-[11px] font-semibold text-blue-600 mb-0.5">Books</p>
+            <p className="text-xs sm:text-sm font-semibold text-blue-900">{request?.items?.length || 0} items</p>
           </div>
         </div>
       </div>
 
       {/* QR Code Display */}
-      <div className="mb-6 flex min-w-0 justify-center">
-        <div className="relative max-w-full">
+      <div className="mb-4 flex min-w-0 justify-center">
+        <div className="relative flex flex-col items-center">
           {loading && (
-            <div className="w-72 h-72 bg-gray-100 rounded-xl flex items-center justify-center">
+            <div className="w-56 h-56 sm:w-64 sm:h-64 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100">
               <div className="text-center">
-                <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                <p className="text-gray-600">Generating QR code...</p>
+                <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                <p className="text-xs text-slate-500 font-medium">Generating QR code...</p>
               </div>
             </div>
           )}
 
           {error && (
-            <div className="w-72 h-72 bg-red-50 rounded-xl flex items-center justify-center border border-red-200">
-              <div className="text-center p-6">
-                <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-                <p className="text-red-700">{error}</p>
+            <div className="w-56 h-56 sm:w-64 sm:h-64 bg-red-50 rounded-2xl flex items-center justify-center border border-red-200 p-4">
+              <div className="text-center">
+                <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-2" />
+                <p className="text-xs text-red-700">{error}</p>
               </div>
             </div>
           )}
 
           {!loading && !error && qrCodeUrl && (
-            <div className="max-w-full bg-white p-3 sm:p-6">
+            <div className="flex flex-col items-center rounded-2xl bg-white p-3 sm:p-4 border border-slate-200/80 shadow-xs">
               <img
                 src={qrCodeUrl}
                 alt="Borrowing Request QR Code"
-                className="h-auto w-[min(68vw,240px)] max-w-full"
+                className="h-44 w-44 sm:h-56 sm:w-56 object-contain"
               />
-              <div className="mt-4 text-center">
-                <p className="text-xs text-gray-500">Scan this code at the library</p>
-              </div>
+              <p className="mt-2 text-[11px] font-medium text-slate-500">Scan this code at the library counter</p>
             </div>
           )}
         </div>
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-3 mb-5">
         <button
           onClick={downloadQRCode}
           disabled={loading || !qrCodeUrl}
-          className="flex-1 px-4 py-3 rounded-xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-3 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-semibold text-xs sm:text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-95"
         >
-          <Download className="w-5 h-5" />
+          <Download className="w-4 h-4 text-slate-600" />
           Download
         </button>
         <button
           onClick={copyQRCode}
           disabled={loading || !qrCodeUrl}
-          className="flex-1 px-4 py-3 rounded-xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-3 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-semibold text-xs sm:text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-95"
         >
           {copied ? (
             <>
-              <CheckCircle className="w-5 h-5 text-green-600" />
+              <CheckCircle className="w-4 h-4 text-green-600" />
               Copied!
             </>
           ) : (
             <>
-              <Copy className="w-5 h-5" />
+              <Copy className="w-4 h-4 text-slate-600" />
               Copy
             </>
           )}
@@ -258,9 +256,9 @@ function QRCodeDisplay({ request, token, requestId, onClose, onShare }) {
           <button
             onClick={shareQRCode}
             disabled={loading || !qrCodeUrl}
-            className="flex-1 px-4 py-3 rounded-xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="col-span-2 sm:flex-1 px-3 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-semibold text-xs sm:text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-95"
           >
-            <Share2 className="w-5 h-5" />
+            <Share2 className="w-4 h-4 text-slate-600" />
             Share
           </button>
         )}

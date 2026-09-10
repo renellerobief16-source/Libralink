@@ -11,3 +11,5 @@ export { default as StudentHelp } from './StudentHelp';
 export { default as StudentTermsOfService } from './StudentTermsOfService';
 export { default as StudentPrivacyPolicy } from './StudentPrivacyPolicy';
 export { StudentLayout } from './StudentDashboardComponents';
+export { StudentRecommendedShelf } from './StudentRecommendedShelf';
+export { StudentPreferencesModal } from './StudentPreferencesModal';

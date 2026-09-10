@@ -1,8 +1,18 @@
 import { useState, useEffect } from "react";
 import { FiBook, FiUser, FiCalendar, FiMapPin, FiPhone, FiCheckCircle, FiXCircle, FiClock, FiEye, FiChevronDown, FiChevronUp, FiRefreshCw, FiAlertTriangle, FiGlobe } from "react-icons/fi";
-import { getBorrowRequests, updateBorrowRequestStatus, getAllActiveBorrows, getBookById, getBackendAssetUrl, returnBook } from "../../../utils/api";
+import {
+  getBorrowRequests,
+  updateBorrowRequestStatus,
+  getAllActiveBorrows,
+  getBookById,
+  getBackendAssetUrl,
+  returnBook,
+  confirmBorrowCancellation,
+  declineBorrowCancellation,
+} from "../../../utils/api";
 import api from "../../../utils/api";
 import { useNotifications } from "../../../context/NotificationContext";
+import { subscribeToSchoolChanges } from "../../../utils/realtime";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import StatusBadge from "../../ui/StatusBadge";
@@ -60,7 +70,14 @@ function AdminBorrowRequests() {
   const [processingRequest, setProcessingRequest] = useState(null);
   const [approvedRequest, setApprovedRequest] = useState(null);
   const [returningBookId, setReturningBookId] = useState(null);
-  const [activeRequestTab, setActiveRequestTab] = useState('home-school'); // 'home-school' or 'inter-school'
+  const [activeRequestTab, setActiveRequestTab] = useState('home-school'); // 'home-school' | 'inter-school' | 'cancellations'
+
+  // Cancellation handling states
+  const [showConfirmCancelModal, setShowConfirmCancelModal] = useState(false);
+  const [showDeclineCancelModal, setShowDeclineCancelModal] = useState(false);
+  const [cancellationRequestToProcess, setCancellationRequestToProcess] = useState(null);
+  const [declineRemarks, setDeclineRemarks] = useState('');
+  const [cancellationProcessing, setCancellationProcessing] = useState(false);
 
   const handleReturnBook = async (borrowId) => {
     try {
@@ -240,6 +257,26 @@ function AdminBorrowRequests() {
     fetchBorrowRequests();
     fetchInterSchoolRequests();
     fetchActiveBorrows();
+
+    // Subscribe to realtime changes for this school
+    const schoolId = localStorage.getItem('schoolId');
+    if (schoolId) {
+      const unsubscribe = subscribeToSchoolChanges(schoolId, (change) => {
+        console.log('[LIBRARIAN] Realtime change detected:', change);
+        // Refresh relevant data based on change type
+        if (change.type === 'borrow_request' || change.type === 'borrow_request_item') {
+          fetchBorrowRequests();
+          fetchInterSchoolRequests();
+        } else if (change.type === 'book_copy') {
+          // Book copy status changed - refresh active borrows
+          fetchActiveBorrows();
+        }
+      });
+
+      return () => {
+        if (unsubscribe) unsubscribe();
+      };
+    }
   }, []);
 
   useEffect(() => {
@@ -448,6 +485,10 @@ function AdminBorrowRequests() {
         return 'bg-yellow-100 text-yellow-700';
       case 'approved':
         return 'bg-green-100 text-green-700';
+      case 'cancellation_requested':
+        return 'bg-amber-100 text-amber-800 border border-amber-300 font-semibold';
+      case 'cancelled':
+        return 'bg-slate-100 text-slate-600';
       case 'rejected':
         return 'bg-red-100 text-red-700';
       case 'permission_ready':
@@ -463,6 +504,98 @@ function AdminBorrowRequests() {
     }
   };
 
+  // Compute cancellation requests
+  const cancellationRequests = [
+    ...borrowRequests.filter(r => r.status === 'cancel_requested' || r.status === 'cancellation_requested'),
+    ...interSchoolRequests
+      .filter(r => 
+        r.status === 'cancel_requested' || 
+        r.status === 'cancellation_requested' || 
+        r.borrow_request?.status === 'cancel_requested' || 
+        r.borrow_request?.status === 'cancellation_requested'
+      )
+      .map(r => ({
+        ...(r.borrow_request || r),
+        isInterSchool: true,
+        cancellation_reason: r.cancellation_reason || r.borrow_request?.cancellation_reason,
+      }))
+  ].reduce((acc, curr) => {
+    if (!acc.some(item => item.request_id === curr.request_id)) {
+      acc.push(curr);
+    }
+    return acc;
+  }, []);
+
+  const handleConfirmCancellation = async (requestId) => {
+    try {
+      setCancellationProcessing(true);
+      const { error } = await confirmBorrowCancellation(requestId);
+      if (error) throw error;
+
+      const request = cancellationRequests.find(r => r.request_id === requestId);
+      if (request) {
+        const studentIdentity = getRequestStudentIdentity(request);
+        addNotification({
+          type: 'BORROW_REQUEST_CANCELLED',
+          title: 'Hold Cancellation Confirmed',
+          message: `The cancellation for request ${requestId} has been confirmed. The reserved copy has been restored to catalog inventory.`,
+          related_request_id: requestId,
+          student_name: studentIdentity.name,
+        });
+      }
+
+      setShowConfirmCancelModal(false);
+      setCancellationRequestToProcess(null);
+      if (showDetailModal && selectedRequest?.request_id === requestId) {
+        setShowDetailModal(false);
+      }
+
+      await fetchBorrowRequests();
+      await fetchInterSchoolRequests();
+      window.dispatchEvent(new CustomEvent('refreshStats'));
+    } catch (err) {
+      console.error('Error confirming cancellation:', err);
+      alert('Failed to confirm cancellation. Please try again.');
+    } finally {
+      setCancellationProcessing(false);
+    }
+  };
+
+  const handleDeclineCancellation = async (requestId) => {
+    try {
+      setCancellationProcessing(true);
+      const { error } = await declineBorrowCancellation(requestId, declineRemarks);
+      if (error) throw error;
+
+      const request = cancellationRequests.find(r => r.request_id === requestId);
+      if (request) {
+        const studentIdentity = getRequestStudentIdentity(request);
+        addNotification({
+          type: 'CANCELLATION_DECLINED',
+          title: 'Hold Cancellation Declined',
+          message: `Your cancellation request for ${requestId} was declined.${declineRemarks ? ` Reason: ${declineRemarks}` : ' The reserved hold remains active for pickup.'}`,
+          related_request_id: requestId,
+          student_name: studentIdentity.name,
+        });
+      }
+
+      setShowDeclineCancelModal(false);
+      setCancellationRequestToProcess(null);
+      setDeclineRemarks('');
+      if (showDetailModal && selectedRequest?.request_id === requestId) {
+        setShowDetailModal(false);
+      }
+
+      await fetchBorrowRequests();
+      await fetchInterSchoolRequests();
+    } catch (err) {
+      console.error('Error declining cancellation:', err);
+      alert('Failed to decline cancellation. Please try again.');
+    } finally {
+      setCancellationProcessing(false);
+    }
+  };
+
   return (
     <div className="animate-slide-up">
       <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 mb-6 shadow-sm">
@@ -471,7 +604,7 @@ function AdminBorrowRequests() {
       </div>
       
       {/* Request Type Tabs */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex flex-wrap gap-2 mb-6">
         <button
           onClick={() => setActiveRequestTab('home-school')}
           className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
@@ -481,7 +614,7 @@ function AdminBorrowRequests() {
           }`}
         >
           <FiBook className="inline w-4 h-4 mr-2" />
-          Home School Requests
+          Home School Requests ({borrowRequests.filter(r => r.status === 'pending').length})
         </button>
         <button
           onClick={() => setActiveRequestTab('inter-school')}
@@ -492,7 +625,27 @@ function AdminBorrowRequests() {
           }`}
         >
           <FiGlobe className="inline w-4 h-4 mr-2" />
-          Inter-School Requests
+          Inter-School Requests ({interSchoolRequests.filter(r => r.status === 'pending').length})
+        </button>
+        <button
+          onClick={() => setActiveRequestTab('cancellations')}
+          className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-1.5 ${
+            activeRequestTab === 'cancellations'
+              ? 'bg-[#0077B6] text-white shadow-md'
+              : 'bg-white border border-[#E2E8F0] text-[#64748B] hover:bg-[#F7FAFC]'
+          }`}
+        >
+          <FiAlertTriangle className={`w-4 h-4 ${cancellationRequests.length > 0 ? 'text-amber-500' : ''}`} />
+          <span>Cancellations</span>
+          {cancellationRequests.length > 0 && (
+            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+              activeRequestTab === 'cancellations'
+                ? 'bg-white text-[#0077B6]'
+                : 'bg-amber-500 text-white animate-pulse'
+            }`}>
+              {cancellationRequests.length}
+            </span>
+          )}
         </button>
       </div>
       
@@ -698,6 +851,145 @@ function AdminBorrowRequests() {
         </Card>
       )}
 
+      {/* Cancellation Requests Table */}
+      {activeRequestTab === 'cancellations' && (
+        <Card className="mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="text-lg font-semibold text-[#0F172A] flex items-center gap-2">
+                <FiAlertTriangle className="w-5 h-5 text-amber-500" />
+                Hold Cancellation Requests ({cancellationRequests.length})
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Students requesting to cancel their approved book holds. Confirming will restock reserved copies to available shelf inventory.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                fetchBorrowRequests();
+                fetchInterSchoolRequests();
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition shrink-0 self-start sm:self-auto"
+            >
+              <FiRefreshCw className="w-3.5 h-3.5" />
+              Refresh
+            </button>
+          </div>
+
+          {borrowRequestsLoading || interSchoolRequestsLoading ? (
+            <div className="text-center py-12 text-slate-600">Loading cancellation requests...</div>
+          ) : cancellationRequests.length === 0 ? (
+            <EmptyState
+              title="No Cancellation Requests"
+              description="There are no hold cancellation requests awaiting librarian review."
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="text-left py-4 px-4 text-sm font-semibold text-slate-700">Request ID</th>
+                    <th className="text-left py-4 px-4 text-sm font-semibold text-slate-700">Student</th>
+                    <th className="text-left py-4 px-4 text-sm font-semibold text-slate-700">Reserved Books</th>
+                    <th className="text-left py-4 px-4 text-sm font-semibold text-slate-700">Cancellation Reason</th>
+                    <th className="text-left py-4 px-4 text-sm font-semibold text-slate-700">Date</th>
+                    <th className="text-left py-4 px-4 text-sm font-semibold text-slate-700">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cancellationRequests.map((request) => {
+                    const student = request.student || request.borrow_request?.student || {};
+                    const bookItems = request.items || request.borrow_request?.items || [];
+                    const reason = request.cancellation_reason || 'No reason provided';
+                    const isProcessing = cancellationProcessing && cancellationRequestToProcess?.request_id === request.request_id;
+
+                    return (
+                      <tr key={request.request_id} className="border-b border-slate-100 hover:bg-amber-50/30 transition-colors">
+                        <td className="py-4 px-4 text-sm font-medium text-slate-900">
+                          <div>{request.request_id}</div>
+                          {request.isInterSchool && (
+                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
+                              Inter-School
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-4 px-4 text-sm text-slate-700">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                              <FiUser className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-slate-900">
+                                {student.firstname || student.first_name || 'N/A'} {student.lastname || student.last_name || ''}
+                              </div>
+                              <div className="text-xs text-slate-500">{student.student_number || student.student_id || ''}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 text-sm text-slate-700">
+                          <div className="space-y-1 max-w-xs">
+                            {bookItems.map((itm, i) => (
+                              <div key={i} className="flex items-center gap-1.5 text-xs text-slate-800 truncate">
+                                <FiBook className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                <span className="truncate font-medium">{itm.book?.title || itm.title || `Book ID: ${itm.book_id}`}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 text-sm">
+                          <div className="rounded-lg bg-amber-50 border border-amber-200/80 p-2.5 max-w-sm">
+                            <p className="text-xs font-semibold text-amber-900 leading-snug">{reason}</p>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 text-xs text-slate-500 whitespace-nowrap">
+                          {new Date(request.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleViewDetails(request)}
+                              className="p-2 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors"
+                              title="View Details"
+                            >
+                              <FiEye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setCancellationRequestToProcess(request);
+                                setShowConfirmCancelModal(true);
+                              }}
+                              disabled={isProcessing}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition active:scale-95 shadow-sm disabled:opacity-50"
+                              title="Confirm cancellation and release copy back to catalog"
+                            >
+                              <FiCheckCircle className="w-3.5 h-3.5" />
+                              Confirm
+                            </button>
+                            <button
+                              onClick={() => {
+                                setCancellationRequestToProcess(request);
+                                setDeclineRemarks('');
+                                setShowDeclineCancelModal(true);
+                              }}
+                              disabled={isProcessing}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition active:scale-95 disabled:opacity-50"
+                              title="Decline cancellation and maintain reservation"
+                            >
+                              <FiXCircle className="w-3.5 h-3.5 text-rose-500" />
+                              Decline
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* Request Detail Modal */}
       {showDetailModal && selectedRequest && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 p-4 overflow-y-auto" onClick={() => setShowDetailModal(false)}>
@@ -726,6 +1018,42 @@ function AdminBorrowRequests() {
 
               {/* Modal Content */}
               <div className="p-6 overflow-y-auto max-h-[70vh]">
+                {/* Cancellation Alert Banner */}
+                {(selectedRequest.status === 'cancel_requested' || selectedRequest.status === 'cancellation_requested' || selectedRequest.cancellation_reason) && (
+                  <div className={`mb-6 rounded-xl border p-4 shadow-sm ${
+                    selectedRequest.status === 'cancelled'
+                      ? 'border-slate-300 bg-slate-50'
+                      : 'border-amber-300 bg-amber-50'
+                  }`}>
+                    <div className="flex items-start gap-3">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                        selectedRequest.status === 'cancelled'
+                          ? 'bg-slate-200 text-slate-700'
+                          : 'bg-amber-100 text-amber-600'
+                      }`}>
+                        <FiAlertTriangle className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className={`text-sm font-bold ${
+                          selectedRequest.status === 'cancelled' ? 'text-slate-900' : 'text-amber-900'
+                        }`}>
+                          {selectedRequest.status === 'cancelled' ? 'Hold Was Cancelled' : 'Hold Cancellation Requested by Student'}
+                        </h4>
+                        <p className={`text-xs mt-1 ${
+                          selectedRequest.status === 'cancelled' ? 'text-slate-700' : 'text-amber-800'
+                        }`}>
+                          Reason: <span className="font-semibold">"{selectedRequest.cancellation_reason || 'No specific reason provided'}"</span>
+                        </p>
+                        {selectedRequest.status === 'cancellation_requested' && (
+                          <p className="text-[11px] text-amber-700 mt-1">
+                            Confirming cancellation will mark this request as cancelled and restore the reserved copy to available catalog inventory.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Student Information Section - Two Column Layout */}
                 <div className="mb-6">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -914,79 +1242,107 @@ function AdminBorrowRequests() {
                   >
                     Close
                   </button>
-                  <button
-                    onClick={() => {
-                      setRequestToProcess(selectedRequest.request_id);
-                      setShowApproveConfirm(true);
-                    }}
-                    disabled={processingRequest === selectedRequest.request_id || approvedRequest === selectedRequest.request_id}
-                    className="px-6 py-3 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed min-w-[140px]"
-                  >
-                    {processingRequest === selectedRequest.request_id ? (
-                      <div className="flex items-center justify-center">
-                        <svg className="w-6 h-6" viewBox="0 0 24 24">
-                          <circle 
-                            cx="12" 
-                            cy="12" 
-                            r="10" 
-                            stroke="currentColor" 
-                            strokeWidth="3" 
-                            fill="none"
-                            strokeLinecap="round"
-                            className="animate-circle-draw"
-                            style={{
-                              strokeDasharray: 63,
-                              strokeDashoffset: 63,
-                              animation: 'drawCircle 1s ease-in-out forwards'
-                            }}
-                          />
-                        </svg>
-                      </div>
-                    ) : approvedRequest === selectedRequest.request_id ? (
-                      <div className="flex items-center justify-center">
-                        <svg className="w-6 h-6" viewBox="0 0 24 24">
-                          <circle 
-                            cx="12" 
-                            cy="12" 
-                            r="10" 
-                            stroke="currentColor" 
-                            strokeWidth="3" 
-                            fill="none"
-                            strokeLinecap="round"
-                          />
-                          <path 
-                            d="M8 12l3 3 5-6" 
-                            stroke="currentColor" 
-                            strokeWidth="3" 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round"
-                            className="animate-check-draw"
-                            style={{
-                              strokeDasharray: 20,
-                              strokeDashoffset: 20,
-                              animation: 'drawCheck 0.5s ease-in-out forwards 0.5s'
-                            }}
-                          />
-                        </svg>
-                      </div>
-                    ) : (
-                      <>
+                  {selectedRequest.status === 'cancel_requested' || selectedRequest.status === 'cancellation_requested' ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          setCancellationRequestToProcess(selectedRequest);
+                          setShowConfirmCancelModal(true);
+                        }}
+                        className="px-6 py-3 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                      >
                         <FiCheckCircle className="w-4 h-4" />
-                        Approve Request
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setRequestToProcess(selectedRequest.request_id);
-                      setShowRejectConfirm(true);
-                    }}
-                    disabled={processingRequest === selectedRequest.request_id}
-                    className="px-6 py-3 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <FiXCircle className="w-4 h-4" />
-                    Reject Request
-                  </button>
+                        Confirm Cancellation & Restock Copy
+                      </button>
+                      <button
+                        onClick={() => {
+                          setCancellationRequestToProcess(selectedRequest);
+                          setDeclineRemarks('');
+                          setShowDeclineCancelModal(true);
+                        }}
+                        className="px-6 py-3 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-100 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <FiXCircle className="w-4 h-4 text-rose-500" />
+                        Decline Cancellation
+                      </button>
+                    </>
+                  ) : selectedRequest.status === 'pending' ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          setRequestToProcess(selectedRequest.request_id);
+                          setShowApproveConfirm(true);
+                        }}
+                        disabled={processingRequest === selectedRequest.request_id || approvedRequest === selectedRequest.request_id}
+                        className="px-6 py-3 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed min-w-[140px]"
+                      >
+                        {processingRequest === selectedRequest.request_id ? (
+                          <div className="flex items-center justify-center">
+                            <svg className="w-6 h-6" viewBox="0 0 24 24">
+                              <circle 
+                                cx="12" 
+                                cy="12" 
+                                r="10" 
+                                stroke="currentColor" 
+                                strokeWidth="3" 
+                                fill="none"
+                                strokeLinecap="round"
+                                className="animate-circle-draw"
+                                style={{
+                                  strokeDasharray: 63,
+                                  strokeDashoffset: 63,
+                                  animation: 'drawCircle 1s ease-in-out forwards'
+                                }}
+                              />
+                            </svg>
+                          </div>
+                        ) : approvedRequest === selectedRequest.request_id ? (
+                          <div className="flex items-center justify-center">
+                            <svg className="w-6 h-6" viewBox="0 0 24 24">
+                              <circle 
+                                cx="12" 
+                                cy="12" 
+                                r="10" 
+                                stroke="currentColor" 
+                                strokeWidth="3" 
+                                fill="none"
+                                strokeLinecap="round"
+                              />
+                              <path 
+                                d="M8 12l3 3 5-6" 
+                                stroke="currentColor" 
+                                strokeWidth="3" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round"
+                                className="animate-check-draw"
+                                style={{
+                                  strokeDasharray: 20,
+                                  strokeDashoffset: 20,
+                                  animation: 'drawCheck 0.5s ease-in-out forwards 0.5s'
+                                }}
+                              />
+                            </svg>
+                          </div>
+                        ) : (
+                          <>
+                            <FiCheckCircle className="w-4 h-4" />
+                            Approve Request
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setRequestToProcess(selectedRequest.request_id);
+                          setShowRejectConfirm(true);
+                        }}
+                        disabled={processingRequest === selectedRequest.request_id}
+                        className="px-6 py-3 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <FiXCircle className="w-4 h-4" />
+                        Reject Request
+                      </button>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -1078,6 +1434,128 @@ function AdminBorrowRequests() {
         </div>
       )}
 
+      {/* Confirm Cancellation Modal */}
+      {showConfirmCancelModal && cancellationRequestToProcess && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 p-4 flex items-center justify-center animate-fade-in" onClick={() => setShowConfirmCancelModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                <FiCheckCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-slate-900">Confirm Hold Cancellation</h3>
+                <p className="text-xs text-slate-500">Request ID: {cancellationRequestToProcess.request_id}</p>
+              </div>
+            </div>
+
+            <p className="text-slate-600 text-sm mb-3">
+              Are you sure you want to confirm this cancellation?
+            </p>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-xs text-amber-900">
+              <p className="font-semibold mb-1">Student's Stated Reason:</p>
+              <p className="italic">"{cancellationRequestToProcess.cancellation_reason || 'No specific reason provided'}"</p>
+            </div>
+
+            <p className="text-xs text-slate-500 mb-6">
+              Confirming will mark this request as <span className="font-bold text-slate-700">cancelled</span> and automatically restore any reserved physical book copies back to available shelf inventory.
+            </p>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowConfirmCancelModal(false);
+                  setCancellationRequestToProcess(null);
+                }}
+                disabled={cancellationProcessing}
+                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors text-sm"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => handleConfirmCancellation(cancellationRequestToProcess.request_id)}
+                disabled={cancellationProcessing}
+                className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
+              >
+                {cancellationProcessing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <FiCheckCircle className="w-4 h-4" />
+                    Confirm & Restock Copy
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Decline Cancellation Modal */}
+      {showDeclineCancelModal && cancellationRequestToProcess && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 p-4 flex items-center justify-center animate-fade-in" onClick={() => setShowDeclineCancelModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
+                <FiXCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-slate-900">Decline Hold Cancellation</h3>
+                <p className="text-xs text-slate-500">Request ID: {cancellationRequestToProcess.request_id}</p>
+              </div>
+            </div>
+
+            <p className="text-slate-600 text-sm mb-4">
+              Declining will keep this request as <span className="font-bold text-slate-700">approved</span> and the reserved copy will remain held at the circulation desk for the student.
+            </p>
+
+            <div className="mb-5">
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Remarks / Instructions for Student (Optional)
+              </label>
+              <textarea
+                rows={3}
+                value={declineRemarks}
+                onChange={(e) => setDeclineRemarks(e.target.value)}
+                placeholder="e.g., Hold will remain reserved until 5:00 PM today. Please pick up at the circulation counter."
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
+              />
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowDeclineCancelModal(false);
+                  setCancellationRequestToProcess(null);
+                  setDeclineRemarks('');
+                }}
+                disabled={cancellationProcessing}
+                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeclineCancellation(cancellationRequestToProcess.request_id)}
+                disabled={cancellationProcessing}
+                className="px-4 py-2 rounded-lg bg-slate-800 text-white font-medium hover:bg-slate-900 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
+              >
+                {cancellationProcessing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Declining...
+                  </>
+                ) : (
+                  'Decline Cancellation'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Active Borrows */}
       <Card padding="none">
         <div className="p-6 border-b border-[#E2E8F0]">
@@ -1124,11 +1602,12 @@ function AdminBorrowRequests() {
               </thead>
               <tbody className="divide-y divide-[#E2E8F0]">
                 {activeBorrows.map((borrow) => {
-                  const book = booksData[borrow.book_id];
-                  const student = studentsData[borrow.student_id];
-                  const isOverdue = new Date(borrow.due_date) < new Date();
+                  const book = booksData[borrow.book_id] || borrow.book_copies?.books || {};
+                  const student = studentsData[borrow.student_id] || borrow.student || {};
                   const dueDate = new Date(borrow.due_date);
                   const today = new Date();
+                  const isOverdue = dueDate < today;
+                  const isDueSoon = !isOverdue && (dueDate.getTime() - today.getTime()) <= (2 * 24 * 60 * 60 * 1000);
                   const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
                   
                   return (
@@ -1156,10 +1635,10 @@ function AdminBorrowRequests() {
                       <td className="px-6 py-4">
                         <div>
                           <p className="text-sm font-medium text-slate-900">
-                            {student ? `${student.firstname} ${student.lastname}` : 'Unknown Student'}
+                            {student?.firstname ? `${student.firstname} ${student.lastname}` : (student?.name || 'Student')}
                           </p>
                           <p className="text-xs text-slate-500 mt-0.5">
-                            {student?.student_number || borrow.student_id}
+                            {student?.student_number || `ID: ${borrow.student_id}`}
                           </p>
                         </div>
                       </td>
@@ -1170,7 +1649,7 @@ function AdminBorrowRequests() {
                       </td>
                       <td className="px-6 py-4">
                         <div>
-                          <span className={`text-sm ${isOverdue ? 'text-red-600 font-medium' : 'text-slate-600'}`}>
+                          <span className={`text-sm ${isOverdue ? 'text-red-600 font-medium' : (isDueSoon ? 'text-amber-600 font-medium' : 'text-slate-600')}`}>
                             {dueDate.toLocaleDateString()}
                           </span>
                           {isOverdue && (
@@ -1178,10 +1657,15 @@ function AdminBorrowRequests() {
                               {daysOverdue} day{daysOverdue !== 1 ? 's' : ''} overdue
                             </p>
                           )}
+                          {isDueSoon && (
+                            <p className="text-xs text-amber-600 mt-0.5 font-medium">
+                              Due soon
+                            </p>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <StatusBadge status={borrow.status} />
+                        <StatusBadge status={isOverdue ? 'overdue' : (isDueSoon ? 'due soon' : 'active')} />
                       </td>
                       <td className="px-6 py-4 text-right">
                         <Button

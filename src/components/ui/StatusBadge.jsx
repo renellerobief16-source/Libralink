@@ -13,11 +13,11 @@ const StatusBadge = ({
   if (!resolvedVariant) {
     if (['available', 'active', 'approved', 'returned', 'online', 'connected', 'success', 'on time', 'ontime'].includes(normalizedStatus)) {
       resolvedVariant = 'success';
-    } else if (['pending', 'in review', 'borrowed', 'due soon', 'duesoon', 'warning'].includes(normalizedStatus)) {
+    } else if (['pending', 'in review', 'due soon', 'duesoon', 'warning', 'waiting_pickup', 'waiting for pickup'].includes(normalizedStatus)) {
       resolvedVariant = 'warning';
     } else if (['overdue', 'rejected', 'error', 'offline', 'failed', 'cancelled'].includes(normalizedStatus)) {
       resolvedVariant = 'error';
-    } else if (['info', 'processing', 'transit', 'interlibrary'].includes(normalizedStatus)) {
+    } else if (['info', 'processing', 'transit', 'interlibrary', 'borrowed', 'requested'].includes(normalizedStatus)) {
       resolvedVariant = 'info';
     } else {
       resolvedVariant = 'neutral';

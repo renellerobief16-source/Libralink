@@ -6,6 +6,7 @@ const fs = require('fs');
 const uploadDir = path.join(__dirname, '../uploads/logos');
 const uploadDirProfile = path.join(__dirname, '../uploads/profiles');
 const uploadDirBorrowingIds = path.join(__dirname, '../uploads/borrowing-ids');
+const uploadDirBookCovers = path.join(__dirname, '../uploads/book-covers');
 
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -17,6 +18,10 @@ if (!fs.existsSync(uploadDirProfile)) {
 
 if (!fs.existsSync(uploadDirBorrowingIds)) {
   fs.mkdirSync(uploadDirBorrowingIds, { recursive: true });
+}
+
+if (!fs.existsSync(uploadDirBookCovers)) {
+  fs.mkdirSync(uploadDirBookCovers, { recursive: true });
 }
 
 // Storage configuration for school logos
@@ -52,6 +57,17 @@ const borrowingIdStorage = multer.diskStorage({
   }
 });
 
+// Storage configuration for book covers
+const bookCoverStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDirBookCovers);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'book-cover-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
 // File filter
 const fileFilter = (req, file, cb) => {
   const allowedTypes = /jpeg|jpg|png|gif|webp/;
@@ -84,4 +100,10 @@ const uploadBorrowingId = multer({
   fileFilter: fileFilter
 });
 
-module.exports = { uploadLogo, uploadProfile, uploadBorrowingId };
+const uploadBookCover = multer({
+  storage: bookCoverStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: fileFilter
+});
+
+module.exports = { uploadLogo, uploadProfile, uploadBorrowingId, uploadBookCover };
