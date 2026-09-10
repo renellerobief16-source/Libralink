@@ -31,11 +31,21 @@ class Fine {
         .eq('school_id', school_id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        // If fines table doesn't exist in Supabase schema yet, return empty list cleanly
+        if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
+          console.warn('[FINES] fines table does not exist in schema, returning empty array');
+          return [];
+        }
+        throw error;
+      }
       return data || [];
     } catch (error) {
-      console.error('Error getting fines by school:', error);
-      throw error;
+      if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
+        return [];
+      }
+      console.warn('[FINES] Safe fallback on error getting fines by school:', error.message);
+      return [];
     }
   }
 

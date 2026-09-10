@@ -20,7 +20,7 @@ const EXACT_CSV_MATCHES = {
   'ye_ar': 'copyright_year',
   'status': 'status',
   'location': 'shelf_location',
-  'coun_ter': 'quantity',
+  'coun_ter': 'ignore',
   'copies': 'quantity',
   'id': 'ignore',
 
@@ -127,9 +127,8 @@ const COLUMN_ALIASES = {
   // Copies/Quantity variations
   'quantity': [
     'copies', 'quantity', 'qty', 'number of copies', 'stock', 
-    'count', 'total copies', 'no of copies', 'no. of copies',
-    'copy', 'kopya', 'dami', 'bilang',
-    'coun_ter', 'counter', 'num_copies'
+    'total copies', 'no of copies', 'no. of copies',
+    'copy', 'kopya', 'dami', 'bilang', 'num_copies'
   ],
   
   // School variations
@@ -467,9 +466,9 @@ export function inferColumnFromData(columnName, sampleValues) {
   if (allNumbers) {
     const avg = values.reduce((a, b) => parseFloat(a) + parseFloat(b), 0) / values.length;
     
-    // If average is small (1-100), likely quantity
-    if (avg >= 1 && avg <= 100 && values.every(v => parseInt(v) === parseFloat(v))) {
-      return { field: 'copies', confidence: 0.7, method: 'inferred from data' };
+    // If average is small (1-20) and max is <= 50, likely quantity
+    if (avg >= 1 && avg <= 20 && values.every(v => parseInt(v, 10) === parseFloat(v) && parseInt(v, 10) >= 1 && parseInt(v, 10) <= 50)) {
+      return { field: 'quantity', confidence: 0.7, method: 'inferred from data' };
     }
     
     // If average is year-like (1900-2030), likely year
@@ -601,23 +600,36 @@ export function getRecommendedFields() {
 }
 
 /**
- * Smart quantity extraction
+ * Smart quantity extraction with library sanity bounds
  * Handles various formats: "5", "5 copies", "Qty: 10", etc.
+ * Any number > 50 or with 5+ digits is treated as a barcode/accession number and defaults to 1.
  */
 function extractQuantity(value) {
   if (!value) return 1;
   
-  // Try direct number
-  const directNum = parseInt(String(value), 10);
-  if (!isNaN(directNum) && directNum > 0) {
-    return directNum;
+  const str = String(value).trim();
+  if (!str) return 1;
+  
+  // If the string contains 5+ consecutive digits or is clearly a barcode/ID (e.g. 3344053564),
+  // it is an accession number or barcode mistakenly mapped to quantity -> default to 1.
+  if (/\d{5,}/.test(str)) {
+    return 1;
   }
   
-  // Extract number from text
-  const match = String(value).match(/(\d+)/);
+  // Try direct number
+  const directNum = parseInt(str, 10);
+  if (!isNaN(directNum) && directNum > 0) {
+    // Realistic library title copy ceiling is 50
+    return directNum <= 50 ? directNum : 1;
+  }
+  
+  // Extract number from text like "5 copies" or "qty: 3"
+  const match = str.match(/\b(\d+)\b/);
   if (match) {
     const num = parseInt(match[1], 10);
-    if (num > 0) return num;
+    if (num > 0 && num <= 50 && match[1].length < 5) {
+      return num;
+    }
   }
   
   return 1; // Default fallback
@@ -743,10 +755,37 @@ export function normalizeBookData(row, columnMapping) {
     normalized[dbField] = value;
   }
   
-  // Default quantity to 1 if not set
-  if (!normalized.quantity || normalized.quantity <= 0) {
-    normalized.quantity = 1;
+  // Tag source sheet if row originated from a multi-sheet Excel workbook
+  if (row._sheet && row._sheet !== 'Sheet1') {
+    const sheetTag = `[Sheet: ${row._sheet}]`;
+    normalized.remarks = normalized.remarks 
+      ? `${sheetTag} ${normalized.remarks}` 
+      : sheetTag;
   }
+
+  // Collect unmapped extra columns so that "kahit anong column pwede" without data loss
+  const extraEntries = [];
+  for (const [key, val] of Object.entries(row)) {
+    if (key === '_sheet') continue;
+    const mappedField = columnMapping[key];
+    if ((!mappedField || mappedField === 'ignore') && val !== null && val !== undefined) {
+      const cleanVal = String(val).trim();
+      if (cleanVal !== '') {
+        extraEntries.push(`${key}: ${cleanVal}`);
+      }
+    }
+  }
+
+  if (extraEntries.length > 0) {
+    const extraNotesStr = `[Metadata | ${extraEntries.join(' • ')}]`;
+    normalized.remarks = normalized.remarks 
+      ? `${normalized.remarks} ${extraNotesStr}` 
+      : extraNotesStr;
+  }
+
+  // Ensure quantity is strictly a sane integer number (1 - 50)
+  const parsedQty = parseInt(normalized.quantity, 10);
+  normalized.quantity = !isNaN(parsedQty) && parsedQty > 0 && parsedQty <= 50 ? parsedQty : 1;
   
   return normalized;
 }
@@ -767,8 +806,8 @@ export function validateImportRow(row, rowIndex, existingAccessionNumbers = []) 
     warnings.push(`Row ${rowIndex + 1}: Auto-generated title`);
   }
   
-  // Auto-correct quantity to always be valid
-  if (!row.quantity || isNaN(row.quantity) || row.quantity <= 0) {
+  // Auto-correct quantity to always be valid and realistic (1-50)
+  if (!row.quantity || isNaN(row.quantity) || row.quantity <= 0 || row.quantity > 50) {
     row.quantity = 1;
     warnings.push(`Row ${rowIndex + 1}: Auto-set quantity to 1`);
   }
@@ -1073,34 +1112,77 @@ function parseCSVLine(line) {
 }
 
 /**
- * Parse Excel file (requires xlsx library)
+ * Parse Excel file across ALL sheets (requires xlsx library)
  */
 async function parseExcelFile(file) {
   try {
     const XLSX = await import('xlsx');
     const data = await file.arrayBuffer();
     const workbook = XLSX.read(data, { type: 'array' });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
     
-    if (jsonData.length === 0) {
-      throw new Error('Excel file is empty');
+    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+      throw new Error('Excel workbook contains no sheets');
     }
-    
-    const headers = jsonData[0].map(h => String(h).trim());
-    const dataRows = jsonData.slice(1).filter(row => row.some(cell => cell !== null && cell !== ''));
-    
-    return {
-      headers,
-      data: dataRows.map(row => {
-        const obj = {};
-        headers.forEach((header, index) => {
-          obj[header] = row[index] !== undefined ? String(row[index]) : '';
+
+    const allHeadersSet = new Set();
+    const allDataRows = [];
+    const sheetSummaries = [];
+
+    // Process EVERY sheet in the Excel workbook
+    for (const sheetName of workbook.SheetNames) {
+      const worksheet = workbook.Sheets[sheetName];
+      if (!worksheet) continue;
+
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      if (!jsonData || jsonData.length === 0) continue;
+
+      // Find the first row that contains headers (first non-empty row)
+      let headerRowIndex = -1;
+      for (let i = 0; i < jsonData.length; i++) {
+        if (jsonData[i] && jsonData[i].some(cell => cell !== null && cell !== undefined && String(cell).trim() !== '')) {
+          headerRowIndex = i;
+          break;
+        }
+      }
+
+      if (headerRowIndex === -1) continue;
+
+      const sheetHeaders = jsonData[headerRowIndex].map(h => String(h || '').trim()).filter(Boolean);
+      sheetHeaders.forEach(h => allHeadersSet.add(h));
+
+      const rawRows = jsonData.slice(headerRowIndex + 1).filter(row => 
+        row && row.some(cell => cell !== null && cell !== undefined && String(cell).trim() !== '')
+      );
+
+      const parsedRows = rawRows.map(row => {
+        const obj = { _sheet: sheetName };
+        sheetHeaders.forEach((header, index) => {
+          obj[header] = row[index] !== undefined && row[index] !== null ? String(row[index]).trim() : '';
         });
         return obj;
-      }),
-      rowCount: dataRows.length
+      });
+
+      if (parsedRows.length > 0) {
+        sheetSummaries.push({
+          name: sheetName,
+          rowCount: parsedRows.length
+        });
+        allDataRows.push(...parsedRows);
+      }
+    }
+
+    if (allDataRows.length === 0) {
+      throw new Error('No valid book records found in any sheets of the Excel workbook');
+    }
+
+    const headers = Array.from(allHeadersSet);
+
+    return {
+      headers,
+      data: allDataRows,
+      rowCount: allDataRows.length,
+      sheets: sheetSummaries,
+      isMultiSheet: sheetSummaries.length > 1
     };
   } catch (error) {
     throw new Error(`Failed to parse Excel file: ${error.message}`);

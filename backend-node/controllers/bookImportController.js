@@ -344,8 +344,16 @@ function normalizeImportData(row, columnMapping) {
         
       case 'quantity':
         // Extract number from text like "5 copies" or "Qty: 10"
-        value = String(value).replace(/[^0-9]/g, '');
-        value = parseInt(value, 10) || 1; // Default to 1 if invalid
+        // Reject long strings (e.g. 5+ digits like barcodes/accession numbers 3344053564)
+        {
+          const rawStr = String(value).trim();
+          if (/\d{5,}/.test(rawStr)) {
+            value = 1;
+          } else {
+            const parsedNum = parseInt(rawStr.replace(/[^0-9]/g, ''), 10);
+            value = (!isNaN(parsedNum) && parsedNum > 0 && parsedNum <= 50) ? parsedNum : 1;
+          }
+        }
         break;
         
       case 'copyright_year':
@@ -398,10 +406,10 @@ function validateRow(data, existingAccessionNumbers) {
     warnings.push('Auto-generated title');
   }
   
-  // Always ensure quantity is valid
-  if (!data.quantity || isNaN(data.quantity) || data.quantity <= 0) {
+  // Always ensure quantity is valid and within safe library boundaries (1-50)
+  if (!data.quantity || isNaN(data.quantity) || data.quantity <= 0 || data.quantity > 50) {
     data.quantity = 1;
-    warnings.push('Auto-set quantity to 1');
+    warnings.push('Auto-set quantity to 1 (capped)');
   }
   
   // Fix all data types - never reject
@@ -618,7 +626,7 @@ async function updateExistingBook(existingBook, data, schoolId, userId) {
  * Resilient to schema differences: only inserts columns that exist
  */
 async function createBookCopies(bookId, schoolId, data, startCopyNumber = 0) {
-  const copies = data.quantity || 1;
+  const copies = Math.min(Math.max(parseInt(data.quantity, 10) || 1, 1), 50);
   const copiesCreated = [];
   
   for (let i = 0; i < copies; i++) {

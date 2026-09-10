@@ -3,7 +3,7 @@ import { FiBook, FiUsers, FiBell, FiClock, FiCheckCircle, FiUser, FiChevronDown,
 import { getBorrowRequests, getAllActiveBorrows, getBackendAssetUrl } from "../../../utils/api";
 import api from "../../../utils/api";
 
-function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, onOpenInbox, darkMode, onNavigateToBooks, onNavigateToRequests, onNavigateToOverdue, onNavigateToPartners, onNavigateToProfile, onNavigateToSettings, onLogout }) {
+function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, onOpenInbox, darkMode, onNavigateToBooks, onNavigateToRequests, onNavigateToOverdue, onNavigateToPartners, onNavigateToScanner, onNavigateToProfile, onNavigateToSettings, onLogout }) {
   const [pendingCount, setPendingCount] = useState(0);
   const [interlibraryPendingCount, setInterlibraryPendingCount] = useState(0);
   const [borrowedCount, setBorrowedCount] = useState(0);
@@ -94,7 +94,7 @@ function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, on
         setFinesDueTotal(unpaidFines);
 
         // Calculate available books
-        const booksArray = Array.isArray(books) ? books : [];
+        const booksArray = Array.isArray(books) ? books : (Array.isArray(books?.books) ? books.books : []);
         const available = booksArray.filter(b => b.status === 'available').length;
         setAvailableCount(available);
 
@@ -179,7 +179,7 @@ function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, on
         }
 
         // Find low stock books (less than 2 available copies)
-        const lowStock = books.filter(b => {
+        const lowStock = booksArray.filter(b => {
           const totalCopies = b.total_copies || 1;
           const availableCopies = b.available_copies || 0;
           return totalCopies > 0 && availableCopies < 2;
@@ -253,24 +253,36 @@ function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, on
   };
 
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const maxValue = Math.max(...weeklyData);
+  const maxValue = Math.max(...weeklyData) || 1;
 
   return (
     <div className="animate-slide-up">
       {/* Main Header */}
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-10 mb-6 shadow-sm -mt-10">
-        {schoolInfo && (
-          <div className="inline-flex items-center px-3 py-1 bg-[#F8FAFC] rounded-lg mb-4">
-            <span className="text-sm font-semibold text-[#0F172A]">{schoolInfo.school_code || 'SCH'}</span>
+      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 sm:p-8 mb-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            {schoolInfo && (
+              <div className="inline-flex items-center px-2.5 py-0.5 bg-blue-50 border border-blue-100 rounded-md mb-2">
+                <span className="text-xs font-semibold text-blue-700">{schoolInfo.school_code || 'SCH'} · {schoolInfo.school_name}</span>
+              </div>
+            )}
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A]">
+              {getGreeting()}, Librarian
+            </h1>
+            <p className="text-sm text-[#64748B] mt-1">
+              Operational dashboard for circulation, approvals, and loan monitoring.
+            </p>
           </div>
-        )}
-        
-        <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A] mb-2">
-          {getGreeting()}, Librarian! 
-        </h1>
-        <p className="text-sm sm:text-base text-[#64748B]">
-          Here's what's happening in {schoolInfo?.school_name || 'your library'}.
-        </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onNavigateToScanner || onNavigateToRequests}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all"
+            >
+              <FiGrid className="w-4 h-4" />
+              Circulation Counter
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Stats Grid - Circulation & Loan Monitoring */}
@@ -374,58 +386,95 @@ function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, on
         </div>
       </div>
 
-      {/* Quick Actions & Alerts */}
+      {/* Quick Actions & Operational Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Quick Actions */}
+        {/* Quick Operational Circulation Actions */}
         <div className="rounded-2xl p-6 border bg-white border-[#E2E8F0] shadow-sm">
           <div className="mb-4">
-            <h3 className="text-lg font-semibold text-[#0F172A]">Quick Actions</h3>
-            <p className="text-sm text-[#64748B]">Perform common tasks quickly</p>
+            <h3 className="text-lg font-semibold text-[#0F172A]">Circulation Quick Actions</h3>
+            <p className="text-sm text-[#64748B]">Direct shortcuts for daily library counter operations</p>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <button onClick={onNavigateToBooks} className="p-4 rounded-xl border transition-all hover:-translate-y-[1px] border-[#E2E8F0] hover:border-[#2563EB] hover:bg-blue-50 text-left">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <FiPlus className="w-5 h-5 text-[#2563EB]" />
-                </div>
-                <div>
-                  <span className="block text-sm font-medium text-[#0F172A]">Add Book</span>
-                  <span className="block text-xs text-[#64748B]">New book</span>
-                </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {/* Scan QR Pass */}
+            <button 
+              onClick={onNavigateToScanner || onNavigateToRequests} 
+              className="p-3.5 rounded-xl border transition-all hover:-translate-y-[1px] border-[#E2E8F0] hover:border-blue-500 hover:bg-blue-50/70 text-left group"
+            >
+              <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center mb-2 group-hover:bg-blue-600 transition-colors">
+                <FiGrid className="w-4 h-4 text-blue-600 group-hover:text-white" />
               </div>
+              <span className="block text-sm font-semibold text-[#0F172A]">Scan QR Pass</span>
+              <span className="block text-xs text-[#64748B]">Verify student badge</span>
             </button>
-            <button onClick={onAddStudent} className="p-4 rounded-xl border transition-all hover:-translate-y-[1px] border-[#E2E8F0] hover:border-[#16A34A] hover:bg-green-50 text-left">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <FiUsers className="w-5 h-5 text-[#16A34A]" />
-                </div>
-                <div>
-                  <span className="block text-sm font-medium text-[#0F172A]">Add Student</span>
-                  <span className="block text-xs text-[#64748B]">Register</span>
-                </div>
+
+            {/* Fast Desk Return */}
+            <button 
+              onClick={onNavigateToScanner || onNavigateToRequests} 
+              className="p-3.5 rounded-xl border transition-all hover:-translate-y-[1px] border-[#E2E8F0] hover:border-emerald-500 hover:bg-emerald-50/70 text-left group"
+            >
+              <div className="w-9 h-9 bg-emerald-100 rounded-lg flex items-center justify-center mb-2 group-hover:bg-emerald-600 transition-colors">
+                <FiCheckCircle className="w-4 h-4 text-emerald-600 group-hover:text-white" />
               </div>
+              <span className="block text-sm font-semibold text-[#0F172A]">Fast Desk Return</span>
+              <span className="block text-xs text-[#64748B]">Receive books quickly</span>
             </button>
-            <button onClick={onNavigateToBooks} className="p-4 rounded-xl border transition-all hover:-translate-y-[1px] border-[#E2E8F0] hover:border-[#6366F1] hover:bg-indigo-50 text-left">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <FiGrid className="w-5 h-5 text-[#6366F1]" />
-                </div>
-                <div>
-                  <span className="block text-sm font-medium text-[#0F172A]">View Books</span>
-                  <span className="block text-xs text-[#64748B]">Browse</span>
-                </div>
+
+            {/* Review Requests */}
+            <button 
+              onClick={onNavigateToRequests} 
+              className="p-3.5 rounded-xl border transition-all hover:-translate-y-[1px] border-[#E2E8F0] hover:border-purple-500 hover:bg-purple-50/70 text-left group relative"
+            >
+              {pendingCount > 0 && (
+                <span className="absolute top-3 right-3 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-purple-600 text-white">
+                  {pendingCount}
+                </span>
+              )}
+              <div className="w-9 h-9 bg-purple-100 rounded-lg flex items-center justify-center mb-2 group-hover:bg-purple-600 transition-colors">
+                <FiBell className="w-4 h-4 text-purple-600 group-hover:text-white" />
               </div>
+              <span className="block text-sm font-semibold text-[#0F172A]">Review Requests</span>
+              <span className="block text-xs text-[#64748B]">Pending approvals</span>
             </button>
-            <button onClick={onOpenInbox} className="p-4 rounded-xl border transition-all hover:-translate-y-[1px] border-[#E2E8F0] hover:border-[#9333EA] hover:bg-purple-50 text-left">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <FiMail className="w-5 h-5 text-[#9333EA]" />
-                </div>
-                <div>
-                  <span className="block text-sm font-medium text-[#0F172A]">Inbox</span>
-                  <span className="block text-xs text-[#64748B]">Messages</span>
-                </div>
+
+            {/* Overdue Tracker */}
+            <button 
+              onClick={onNavigateToOverdue} 
+              className="p-3.5 rounded-xl border transition-all hover:-translate-y-[1px] border-[#E2E8F0] hover:border-rose-500 hover:bg-rose-50/70 text-left group relative"
+            >
+              {overdueCount > 0 && (
+                <span className="absolute top-3 right-3 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-rose-600 text-white">
+                  {overdueCount}
+                </span>
+              )}
+              <div className="w-9 h-9 bg-rose-100 rounded-lg flex items-center justify-center mb-2 group-hover:bg-rose-600 transition-colors">
+                <FiAlertTriangle className="w-4 h-4 text-rose-600 group-hover:text-white" />
               </div>
+              <span className="block text-sm font-semibold text-[#0F172A]">Overdue Loans</span>
+              <span className="block text-xs text-[#64748B]">Notice & fines</span>
+            </button>
+
+            {/* Add Book */}
+            <button 
+              onClick={onNavigateToBooks} 
+              className="p-3.5 rounded-xl border transition-all hover:-translate-y-[1px] border-[#E2E8F0] hover:border-indigo-500 hover:bg-indigo-50/70 text-left group"
+            >
+              <div className="w-9 h-9 bg-indigo-100 rounded-lg flex items-center justify-center mb-2 group-hover:bg-indigo-600 transition-colors">
+                <FiPlus className="w-4 h-4 text-indigo-600 group-hover:text-white" />
+              </div>
+              <span className="block text-sm font-semibold text-[#0F172A]">Add New Book</span>
+              <span className="block text-xs text-[#64748B]">Catalog accession</span>
+            </button>
+
+            {/* Register Student */}
+            <button 
+              onClick={onAddStudent} 
+              className="p-3.5 rounded-xl border transition-all hover:-translate-y-[1px] border-[#E2E8F0] hover:border-teal-500 hover:bg-teal-50/70 text-left group"
+            >
+              <div className="w-9 h-9 bg-teal-100 rounded-lg flex items-center justify-center mb-2 group-hover:bg-teal-600 transition-colors">
+                <FiUsers className="w-4 h-4 text-teal-600 group-hover:text-white" />
+              </div>
+              <span className="block text-sm font-semibold text-[#0F172A]">Add Student</span>
+              <span className="block text-xs text-[#64748B]">Register borrower</span>
             </button>
           </div>
         </div>

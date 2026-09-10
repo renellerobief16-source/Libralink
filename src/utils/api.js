@@ -50,6 +50,15 @@ api.interceptors.response.use(
     return response.data;
   },
   (error) => {
+    // Handle user-initiated cancellation cleanly without treating as network failure
+    if (axios.isCancel(error) || error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED' || error?.name === 'AbortError') {
+      return Promise.reject({
+        isCancel: true,
+        message: 'Request was cancelled by user',
+        status: 0,
+        name: 'CanceledError'
+      });
+    }
     if (error.response) {
       // Server responded with error status
       return Promise.reject({

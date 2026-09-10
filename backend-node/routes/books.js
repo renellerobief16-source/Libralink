@@ -685,6 +685,7 @@ router.post('/', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBook
         school_id: req.body.school_id ? parseInt(req.body.school_id) : null,
         quantity: req.body.quantity ? parseInt(req.body.quantity) : 1,
         isbn: req.body.isbn || null,
+        call_number: req.body.call_number || null,
         publisher: req.body.publisher || null,
         edition: req.body.edition || null,
         copyright_year: req.body.copyright_year ? parseInt(req.body.copyright_year) : null,
@@ -694,6 +695,30 @@ router.post('/', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBook
         shelf_location: req.body.shelf_location || null,
         cover_image: req.file ? `/uploads/book-covers/${req.file.filename}` : null
       };
+    }
+
+    if (req.body.category && req.body.category.trim()) {
+      try {
+        const catName = req.body.category.trim();
+        const { data: existingCat } = await supabase
+          .from('categories')
+          .select('category_id')
+          .ilike('category_name', catName)
+          .maybeSingle();
+
+        if (existingCat) {
+          bookData.category_id = existingCat.category_id;
+        } else {
+          const { data: newCat } = await supabase
+            .from('categories')
+            .insert({ category_name: catName })
+            .select('category_id')
+            .single();
+          if (newCat) bookData.category_id = newCat.category_id;
+        }
+      } catch (catErr) {
+        console.warn('[CREATE BOOK] Category resolution error:', catErr.message);
+      }
     }
 
     const { title, school_id, quantity } = bookData;
@@ -749,16 +774,41 @@ router.put('/:id', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBo
         author: req.body.author,
         isbn: req.body.isbn || null,
         call_number: req.body.call_number || null,
+        shelf_location: req.body.shelf_location || null,
         edition: req.body.edition || null,
         copyright_year: req.body.copyright_year ? parseInt(req.body.copyright_year) : null,
         physical_description: req.body.physical_description || null,
         series_title: req.body.series_title || null,
         general_note: req.body.general_note || null,
-        cover_image: req.file ? `/uploads/book-covers/${req.file.filename}` : null
+        cover_image: `/uploads/book-covers/${req.file.filename}`
       };
     } else {
       // Regular JSON or FormData without file
       updateData = req.body;
+    }
+
+    if (req.body.category && req.body.category.trim()) {
+      try {
+        const catName = req.body.category.trim();
+        const { data: existingCat } = await supabase
+          .from('categories')
+          .select('category_id')
+          .ilike('category_name', catName)
+          .maybeSingle();
+
+        if (existingCat) {
+          updateData.category_id = existingCat.category_id;
+        } else {
+          const { data: newCat } = await supabase
+            .from('categories')
+            .insert({ category_name: catName })
+            .select('category_id')
+            .single();
+          if (newCat) updateData.category_id = newCat.category_id;
+        }
+      } catch (catErr) {
+        console.warn('[UPDATE BOOK] Category resolution error:', catErr.message);
+      }
     }
 
     console.log('[UPDATE] Update data:', updateData);

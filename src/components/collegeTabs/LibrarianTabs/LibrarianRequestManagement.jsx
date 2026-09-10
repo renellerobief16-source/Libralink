@@ -2,35 +2,44 @@ import { useState, useEffect } from 'react';
 import { FileText, CheckCircle, XCircle, Clock, MapPin, User, Book, Filter, Search, Eye, Printer, AlertCircle } from 'lucide-react';
 import { getSchoolBorrowRequests, approveBorrowRequest, rejectBorrowRequest, generatePermissionLetter } from '../../../utils/api';
 
-function LibrarianRequestManagement({ schoolId, librarianId }) {
+function LibrarianRequestManagement({ schoolId: propSchoolId, librarianId: propLibrarianId }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedStatus, setSelectedStatus] = useState('pending');
+  const [selectedStatus, setSelectedStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
 
+  const activeSchoolId = propSchoolId || localStorage.getItem('schoolId');
+
   useEffect(() => {
     loadRequests();
-  }, [schoolId, selectedStatus]);
+  }, [activeSchoolId, selectedStatus]);
 
   const loadRequests = async () => {
-    if (!schoolId) return;
+    if (!activeSchoolId) {
+      setLoading(false);
+      setError('School ID not found. Please ensure you are logged in to an institution.');
+      setRequests([]);
+      return;
+    }
 
     setLoading(true);
     setError(null);
 
     try {
-      const response = await getSchoolBorrowRequests(schoolId, selectedStatus);
-      if (response.error) {
-        setError(response.error.message || 'Failed to load requests');
+      const statusParam = selectedStatus === 'all' ? null : selectedStatus;
+      const response = await getSchoolBorrowRequests(activeSchoolId, statusParam);
+      if (response?.error) {
+        setError(response.error.response?.data?.message || response.error.message || 'Failed to load requests');
         setRequests([]);
       } else {
-        setRequests(response.data || []);
+        const rawData = response?.data || response || [];
+        setRequests(Array.isArray(rawData) ? rawData : (rawData.data || []));
       }
     } catch (err) {
-      setError('Failed to load requests');
+      setError(err.response?.data?.message || err.message || 'Failed to load requests');
       setRequests([]);
     } finally {
       setLoading(false);
@@ -147,8 +156,10 @@ function LibrarianRequestManagement({ schoolId, librarianId }) {
   };
 
   const statusOptions = [
+    { value: 'all', label: 'All Statuses' },
     { value: 'pending', label: 'Pending' },
     { value: 'approved', label: 'Approved' },
+    { value: 'rejected', label: 'Rejected' },
     { value: 'permission_ready', label: 'Permission Ready' },
     { value: 'ready_for_pickup', label: 'Ready for Pickup' },
     { value: 'borrowed', label: 'Borrowed' },
@@ -222,7 +233,7 @@ function LibrarianRequestManagement({ schoolId, librarianId }) {
           <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">No requests found</h3>
           <p className="text-sm text-gray-600">
-            {searchQuery ? 'Try adjusting your search' : `No ${selectedStatus} requests`}
+            {searchQuery ? 'Try adjusting your search' : `No ${selectedStatus === 'all' ? '' : selectedStatus} requests`}
           </p>
         </div>
       )}
@@ -318,28 +329,37 @@ function LibrarianRequestManagement({ schoolId, librarianId }) {
 
       {/* Request Detail Modal */}
       {selectedRequest && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 p-4" onClick={() => setSelectedRequest(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto mx-auto my-8" onClick={(e) => e.stopPropagation()}>
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 p-4 sm:p-6 overflow-y-auto flex items-center justify-center animate-fade-in" 
+          onClick={() => setSelectedRequest(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden my-auto animate-scale-up" 
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-cyan-600 p-6 rounded-t-2xl">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h2 className="text-2xl font-bold text-white mb-1">{selectedRequest.request_id}</h2>
-                  <p className="text-blue-100 text-sm">
-                    {selectedRequest.request_type === 'INTER_SCHOOL' ? 'Inter-School' : 'Home Library'} Request
-                  </p>
+            <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/70 flex justify-between items-start">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-slate-900">Request #{selectedRequest.request_id}</h2>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                    {selectedRequest.request_type === 'INTER_SCHOOL' ? 'Inter-School' : 'Home Library'}
+                  </span>
                 </div>
-                <button
-                  onClick={() => setSelectedRequest(null)}
-                  className="p-2 bg-white/20 hover:bg-white/30 rounded-full transition-colors backdrop-blur-sm"
-                >
-                  <XCircle className="w-6 h-6 text-white" />
-                </button>
+                <p className="text-xs text-slate-500 mt-1">
+                  Submitted {new Date(selectedRequest.created_at).toLocaleDateString()}
+                </p>
               </div>
+              <button
+                onClick={() => setSelectedRequest(null)}
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+              >
+                <XCircle className="w-5 h-5 text-slate-400 hover:text-slate-700" />
+              </button>
             </div>
 
             {/* Modal Content */}
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto">
               {/* Student Information */}
               <div className="bg-blue-50 rounded-xl p-4 mb-6 border border-blue-200">
                 <h3 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
