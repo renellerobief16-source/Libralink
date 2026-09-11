@@ -13,3 +13,4 @@ export { default as LibrarianFineSettings } from './LibrarianFineSettings';
 export { default as LibrarianPermissionLetter } from './LibrarianPermissionLetter';
 export { default as LibrarianOverdueBooks } from './LibrarianOverdueBooks';
 export { default as LibrarianRequestManagement } from './LibrarianRequestManagement';
+export { default as LibrarianSettings } from './LibrarianSettings';

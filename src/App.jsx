@@ -7,6 +7,7 @@ import About from "./components/pages/About";
 import Library from "./components/pages/Library";
 import Contact from "./components/pages/Contact";
 import Login from "./components/pages/Login";
+import ClaimAccount from "./components/pages/ClaimAccount";
 import BookDetail from "./components/pages/BookDetail";
 
 // User Portals
@@ -31,6 +32,8 @@ function App() {
 
           {/* Authentication */}
           <Route path="/login" element={<Login />} />
+          <Route path="/claim-account" element={<ClaimAccount />} />
+          <Route path="/view-account" element={<ClaimAccount />} />
 
           {/* User Portals - Updated Routes */}
           

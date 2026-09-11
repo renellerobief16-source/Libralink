@@ -36,6 +36,36 @@ router.get('/public', async (req, res) => {
   }
 });
 
+// @route   GET /api/schools/code/:code
+// @desc    Lookup school identity by school code (e.g. SRC, GNC)
+// @access  Public
+router.get('/code/:code', async (req, res) => {
+  try {
+    const rawCode = String(req.params.code || '').trim().toUpperCase();
+    if (!rawCode) {
+      return res.status(400).json({ success: false, message: 'School code is required' });
+    }
+
+    const supabase = require('../config/database');
+    const { data, error } = await supabase
+      .from('schools')
+      .select('school_id, school_name, school_code, logo')
+      .ilike('school_code', rawCode)
+      .limit(1);
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, message: `School with code "${rawCode}" not found` });
+    }
+
+    res.json({ success: true, data: data[0] });
+  } catch (error) {
+    console.error('Error looking up school by code:', error);
+    res.status(500).json({ success: false, message: 'Unable to lookup school code' });
+  }
+});
+
 // @route   GET /api/schools/:id
 // @desc    Get school by ID
 // @access  Private

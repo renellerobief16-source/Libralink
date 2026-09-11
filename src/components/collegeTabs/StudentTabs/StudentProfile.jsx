@@ -22,14 +22,16 @@ import {
   Clock,
   Heart,
   Info,
+  MapPin,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api, { updateProfilePicture, updateUserProfile, API_ORIGIN, getLibraryPolicy } from '../../../utils/api';
 
 const getDisplayName = (userData) => {
-  const firstName = userData?.first_name || userData?.name || '';
-  const lastName = userData?.last_name || '';
-  return `${firstName} ${lastName}`.trim() || 'Student';
+  const firstName = userData?.first_name || userData?.firstname || userData?.name || '';
+  const middleName = userData?.middle_name || userData?.middlename || '';
+  const lastName = userData?.last_name || userData?.lastname || '';
+  return [firstName, middleName, lastName].filter(Boolean).join(' ') || 'Student';
 };
 
 const getInitials = (userData) => {
@@ -122,7 +124,9 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
 
           setEditForm({
             firstName: fName,
+            middleName: normalized.middle_name || normalized.middlename || '',
             lastName: lName,
+            address: normalized.address || '',
             email: normalized.email || '',
             contactNumber: normalized.contactNumber || normalized.contact_number || '',
             studentNumber: normalized.studentNumber || normalized.student_number || '',
@@ -277,7 +281,9 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
       setSavingProfile(true);
       const payload = {
         firstname: editForm.firstName.trim(),
+        middle_name: editForm.middleName.trim(),
         lastname: editForm.lastName.trim(),
+        address: editForm.address.trim(),
         email: editForm.email.trim(),
         contact_number: editForm.contactNumber.trim(),
         student_number: editForm.studentNumber.trim(),
@@ -287,11 +293,13 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
       const { data, error } = await updateUserProfile(user.user_id, payload);
       if (error) throw error;
 
-      const fullName = `${payload.firstname} ${payload.lastname}`.trim();
+      const fullName = [payload.firstname, payload.middle_name, payload.lastname].filter(Boolean).join(' ');
       const updatedUser = {
         ...user,
         first_name: payload.firstname,
+        middle_name: payload.middle_name,
         last_name: payload.lastname,
+        address: payload.address,
         name: fullName,
         full_name: fullName,
         email: payload.email,
@@ -586,7 +594,7 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
         {isEditing ? (
           /* EDIT FORM */
           <form onSubmit={handleSaveProfile} className="mt-3.5 space-y-3">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                   First Name
@@ -597,6 +605,20 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
                   value={editForm.firstName}
                   onChange={(e) =>
                     setEditForm((prev) => ({ ...prev, firstName: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Middle Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="(Optional)"
+                  value={editForm.middleName}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, middleName: e.target.value }))
                   }
                   className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
@@ -615,6 +637,21 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
                   className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                Residential Address
+              </label>
+              <input
+                type="text"
+                value={editForm.address}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, address: e.target.value }))
+                }
+                placeholder="e.g. San Agustin, Santa Rita, Pampanga"
+                className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
             </div>
 
             <div>
@@ -704,6 +741,16 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
               </span>
               <span className="font-medium text-slate-700 text-right truncate max-w-[180px]">
                 {user?.email || 'Not provided'}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between py-2.5">
+              <span className="text-slate-500 flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                Address
+              </span>
+              <span className="font-medium text-slate-700 text-right truncate max-w-[180px]" title={user?.address || ''}>
+                {user?.address || 'Not provided'}
               </span>
             </div>
 

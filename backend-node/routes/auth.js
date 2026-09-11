@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const supabase = require('../config/database');
 const User = require('../models/User');
 const VerificationCode = require('../models/VerificationCode');
-const { sendVerificationEmail } = require('../utils/email');
+const { sendVerificationEmail, sendStudentCredentialsEmail } = require('../utils/email');
 const { auth, requireRole } = require('../middleware/auth');
 
 // @route   POST /api/auth/login
@@ -81,11 +82,18 @@ router.post('/register', auth, requireRole(['Librarian Admin', 'Librarian']), as
       student_number,
       employee_number,
       firstname,
+      middle_name,
       lastname,
       gender,
       contact_number,
+      address,
       email,
-      password
+      password,
+      personal_email,
+      academic_level,
+      course,
+      department,
+      send_email_credentials
     } = req.body;
 
     if (!email || !password || !firstname || !lastname) {
@@ -110,17 +118,67 @@ router.post('/register', auth, requireRole(['Librarian Admin', 'Librarian']), as
       student_number,
       employee_number,
       firstname,
+      middle_name,
       lastname,
       gender,
       contact_number,
+      address,
       email,
       password
     });
 
+    // If personal email provided and sending enabled, dispatch welcome credentials email
+    let emailSent = false;
+    let claimToken = null;
+    const shouldSendEmail = send_email_credentials !== false && send_email_credentials !== 'false';
+    const recipientEmail = (personal_email && personal_email.trim()) ? personal_email.trim() : null;
+
+    if (recipientEmail) {
+      claimToken = jwt.sign(
+        {
+          type: 'claim_credentials',
+          user_id,
+          school_id,
+          temp_pass: password
+        },
+        process.env.JWT_SECRET || 'libralink_fallback_secret',
+        { expiresIn: '30d' }
+      );
+    }
+
+    if (shouldSendEmail && recipientEmail && sendStudentCredentialsEmail) {
+      try {
+        const School = require('../models/School');
+        const schoolData = await School.getById(school_id);
+        const schoolName = schoolData?.school_name || 'Library Institution';
+        const schoolCode = schoolData?.school_code || 'SRC';
+        const formattedStudentName = [firstname, middle_name, lastname].filter(Boolean).join(' ');
+
+        const emailResult = await sendStudentCredentialsEmail({
+          toEmail: recipientEmail,
+          studentName: formattedStudentName,
+          studentId: student_number || employee_number || 'N/A',
+          portalEmail: email,
+          temporaryPassword: password,
+          schoolName,
+          schoolCode,
+          claimToken,
+          academicLevel: academic_level || 'College',
+          courseOrGrade: course || department || 'Enrolled Student'
+        });
+        emailSent = !!emailResult.success;
+      } catch (err) {
+        console.warn('[AUTH] Notice: Could not dispatch credentials email:', err.message);
+      }
+    }
+
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
-      user_id
+      user_id,
+      claim_token: claimToken,
+      emailSent,
+      emailRecipient: emailSent ? recipientEmail : null
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -518,6 +576,198 @@ router.post('/change-password', auth, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error'
+    });
+  }
+});
+
+// @route   GET /api/auth/claim-info
+// @desc    Pre-fetch school and claim status for account unlock page
+// @access  Public
+router.get('/claim-info', async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing verification token.'
+      });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET || 'libralink_fallback_secret');
+    } catch (e) {
+      return res.status(400).json({
+        success: false,
+        message: 'This account link has expired or is invalid. Please contact your campus library.'
+      });
+    }
+
+    if (!decoded.user_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid token payload.'
+      });
+    }
+
+    const userRecord = await User.getById(decoded.user_id, true);
+    if (!userRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student account not found.'
+      });
+    }
+
+    const alreadyClaimed = !!userRecord.account_claimed_at;
+
+    return res.json({
+      success: true,
+      already_claimed: alreadyClaimed,
+      data: {
+        school_id: userRecord.school_id,
+        school_name: userRecord.school_name || 'Library Institution',
+        school_code: userRecord.school_code || 'SRC',
+        already_claimed: alreadyClaimed
+      }
+    });
+  } catch (err) {
+    console.error('[AUTH] Claim info error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve school verification info.'
+    });
+  }
+});
+
+// @route   POST /api/auth/claim-credentials
+// @desc    Verify student number/LRN to securely reveal Libralink account credentials (1-time use)
+// @access  Public
+router.post('/claim-credentials', async (req, res) => {
+  try {
+    const { token, student_id, email } = req.body;
+    const submittedStudentId = String(student_id || '').trim().toLowerCase();
+
+    if (!submittedStudentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter your Student Number / LRN (e.g. 20-22252) to unlock your account.'
+      });
+    }
+
+    let userRecord = null;
+    let tempPass = null;
+
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'libralink_fallback_secret');
+        if (decoded.user_id) {
+          userRecord = await User.getById(decoded.user_id, true);
+          tempPass = decoded.temp_pass || userRecord?.initial_temp_password || null;
+        }
+      } catch (tokenErr) {
+        return res.status(400).json({
+          success: false,
+          message: 'The secure account link has expired or is invalid. Please contact your campus librarian.'
+        });
+      }
+    } else if (student_id || email) {
+      let query = supabase.from('users').select('*, schools(school_name, school_code), roles(role_name)');
+      if (student_id) {
+        query = query.or(`student_number.eq.${student_id.trim()},employee_number.eq.${student_id.trim()}`);
+      } else if (email) {
+        query = query.or(`email.eq.${email.trim().toLowerCase()},recovery_email.eq.${email.trim().toLowerCase()}`);
+      }
+      const { data: users, error } = await query;
+      if (!error && users && users.length > 0) {
+        const u = users[0];
+        userRecord = {
+          ...u,
+          school_name: u.schools?.school_name,
+          school_code: u.schools?.school_code,
+          role_name: u.roles?.role_name
+        };
+        tempPass = u.initial_temp_password || null;
+      }
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing account verification parameters.'
+      });
+    }
+
+    if (!tempPass && userRecord?.initial_temp_password) {
+      tempPass = userRecord.initial_temp_password;
+    }
+
+    if (!userRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Account not found. Please check your details or visit your campus library circulation counter.'
+      });
+    }
+
+    // 1-Time Claim Security Check: Cannot claim repeatedly
+    if (userRecord.account_claimed_at) {
+      return res.status(400).json({
+        success: false,
+        already_claimed: true,
+        message: 'This account has already been claimed and unlocked. For security, your credentials link can only be used once. Please sign in directly using your email and password.'
+      });
+    }
+
+    // Validate Student Number / LRN (Security Password/Key)
+    const registeredStudentNum = String(userRecord.student_number || userRecord.employee_number || '').trim().toLowerCase();
+    const cleanSubmitted = submittedStudentId.replace(/[\s-]/g, '');
+    const cleanRegistered = registeredStudentNum.replace(/[\s-]/g, '');
+
+    if (!cleanRegistered || (submittedStudentId !== registeredStudentNum && cleanSubmitted !== cleanRegistered)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Incorrect Student Number / LRN for this account. Please verify your school ID or registration slip and try again.'
+      });
+    }
+
+    // Mark as claimed now (1-time use only!)
+    try {
+      await supabase
+        .from('users')
+        .update({ account_claimed_at: new Date().toISOString() })
+        .eq('user_id', userRecord.user_id);
+    } catch (claimErr) {
+      console.warn('[AUTH] Could not record account_claimed_at timestamp:', claimErr.message);
+    }
+
+    const formattedFullName = [userRecord.firstname, userRecord.middle_name, userRecord.lastname]
+      .filter(Boolean)
+      .join(' ');
+
+    const safeSchoolCode = String(userRecord.school_code || '').trim().toUpperCase();
+
+    return res.json({
+      success: true,
+      message: 'Institutional identity verified successfully!',
+      data: {
+        school_id: userRecord.school_id,
+        school_name: userRecord.school_name || 'Library Institution',
+        school_code: safeSchoolCode,
+        student_id: userRecord.student_number || userRecord.employee_number || 'N/A',
+        student_name: formattedFullName,
+        first_name: userRecord.firstname,
+        middle_name: userRecord.middle_name,
+        last_name: userRecord.lastname,
+        address: userRecord.address,
+        contact_number: userRecord.contact_number,
+        portal_email: userRecord.email,
+        temporary_password: tempPass || '••••••••',
+        has_plain_password: !!tempPass,
+        role: userRecord.role_name || 'student'
+      }
+    });
+  } catch (err) {
+    console.error('[AUTH] Claim credentials error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while verifying account. Please try again or contact your librarian.'
     });
   }
 });

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { 
+import api, { 
   getStudentNotifications, markNotificationAsRead, getAnnouncements 
 } from '../../../utils/api';
 import Card from "../../ui/Card";
@@ -9,7 +9,7 @@ import AnnouncementModal from "../../ui/AnnouncementModal";
 import { 
   FiMail, FiSend, FiBell, FiCheckCircle, FiClock, FiAlertCircle, 
   FiBook, FiExternalLink, FiCheck, FiFilter, FiCompass, FiLayers, FiMessageSquare,
-  FiArrowRight
+  FiArrowRight, FiSearch, FiX, FiUser, FiFileText, FiShield
 } from "react-icons/fi";
 import { formatPhilippineDateTime, formatRelativeTime } from "../../../utils/timeUtils";
 
@@ -21,6 +21,150 @@ function AdminInbox({ darkMode, onNavigateTab }) {
   const [announcements, setAnnouncements] = useState([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+
+  // Direct Email Composer States
+  const [showEmailComposer, setShowEmailComposer] = useState(false);
+  const [composerStudents, setComposerStudents] = useState([]);
+  const [recipientSearch, setRecipientSearch] = useState('');
+  const [selectedRecipient, setSelectedRecipient] = useState(null);
+  const [showRecipientDropdown, setShowRecipientDropdown] = useState(false);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [activeTemplate, setActiveTemplate] = useState('custom');
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [sendEmailStatus, setSendEmailStatus] = useState(null);
+
+  // Load registered students for live contact card autocomplete
+  useEffect(() => {
+    const loadStudents = async () => {
+      try {
+        const schoolId = localStorage.getItem('schoolId');
+        if (!schoolId) return;
+        const res = await api.get(`/users/school/${schoolId}`);
+        const list = (res.data || []).filter(u => {
+          const roleId = Number(u.role_id || 0);
+          const role = String(u.role_name || u.role || '').toLowerCase();
+          if (roleId === 1 || roleId === 2 || roleId === 3) return false;
+          if (role.includes('admin') || role.includes('librarian')) return false;
+          return true;
+        });
+        setComposerStudents(list);
+      } catch (err) {
+        console.warn('Could not load student list for email composer:', err);
+      }
+    };
+    loadStudents();
+  }, []);
+
+  const applyTemplate = (templateKey, student = selectedRecipient) => {
+    setActiveTemplate(templateKey);
+    const studentName = student ? `${student.firstname} ${student.lastname}` : 'Student';
+    const studentId = student?.student_number || 'Your ID';
+    const studentEmail = student?.email || 'your-portal-email@libralink.com';
+
+    if (templateKey === 'credentials') {
+      setEmailSubject(`Your Libralink Library Account Credentials`);
+      setEmailBody(`Hello ${studentName},
+
+Here is a reminder of your official Libralink library portal credentials:
+
+Student ID / LRN: ${studentId}
+Portal Username: ${studentEmail}
+
+You can access book catalogs, view your borrowing history, and place holds on library materials. If you need assistance or a temporary password reset, please visit the campus circulation desk.
+
+Best regards,
+Library Circulation Desk`);
+    } else if (templateKey === 'overdue') {
+      setEmailSubject(`URGENT: Library Overdue Notice & Return Reminder`);
+      setEmailBody(`Dear ${studentName},
+
+Our circulation records indicate that you have one or more library books currently overdue.
+
+Please return your borrowed materials to the circulation counter immediately to avoid accumulating overdue penalties and temporary suspension of circulation privileges.
+
+Thank you for your prompt cooperation.
+
+Library Circulation Counter`);
+    } else if (templateKey === 'pickup') {
+      setEmailSubject(`Your Requested Library Book is Ready for Pickup`);
+      setEmailBody(`Dear ${studentName},
+
+Great news! The library material you requested has been processed and is now waiting for you at the circulation counter.
+
+Please claim your item within 3 business days by presenting your student identification card.
+
+Warm regards,
+Campus Library Team`);
+    } else {
+      setEmailSubject('');
+      setEmailBody('');
+    }
+  };
+
+  const handleSelectRecipient = (student) => {
+    setSelectedRecipient(student);
+    setRecipientSearch(`${student.firstname} ${student.lastname}`);
+    setShowRecipientDropdown(false);
+    if (activeTemplate !== 'custom') {
+      applyTemplate(activeTemplate, student);
+    }
+  };
+
+  const handleSendDirectEmail = async (e) => {
+    e.preventDefault();
+    const targetEmail = selectedRecipient?.personal_email || selectedRecipient?.email || recipientSearch.trim();
+    if (!targetEmail) {
+      setSendEmailStatus({ type: 'error', text: 'Please specify a recipient email address.' });
+      return;
+    }
+    if (!emailSubject.trim() || !emailBody.trim()) {
+      setSendEmailStatus({ type: 'error', text: 'Subject and message body cannot be empty.' });
+      return;
+    }
+
+    setSendingEmail(true);
+    setSendEmailStatus(null);
+    try {
+      const recipientName = selectedRecipient ? `${selectedRecipient.firstname} ${selectedRecipient.lastname}` : 'Library Patron';
+      const res = await api.post('/notifications/send-email', {
+        recipient_email: targetEmail,
+        recipient_name: recipientName,
+        subject: emailSubject.trim(),
+        message: emailBody.trim(),
+        template_type: activeTemplate
+      });
+
+      if (res.data?.success) {
+        setSendEmailStatus({ type: 'success', text: `Email dispatched successfully to ${targetEmail}!` });
+        setTimeout(() => {
+          setShowEmailComposer(false);
+          setSelectedRecipient(null);
+          setRecipientSearch('');
+          setEmailSubject('');
+          setEmailBody('');
+          setSendEmailStatus(null);
+        }, 2200);
+      } else {
+        setSendEmailStatus({ type: 'error', text: res.data?.message || 'Failed to dispatch email.' });
+      }
+    } catch (err) {
+      console.error('Error dispatching email:', err);
+      setSendEmailStatus({ type: 'error', text: err.response?.data?.message || err.message || 'Error dispatching email.' });
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
+  const filteredRecipientSuggestions = composerStudents.filter(s => {
+    if (!recipientSearch.trim()) return false;
+    const q = recipientSearch.toLowerCase();
+    const fullName = `${s.firstname || ''} ${s.lastname || ''}`.toLowerCase();
+    const id = String(s.student_number || '').toLowerCase();
+    const email = String(s.email || '').toLowerCase();
+    const personal = String(s.personal_email || '').toLowerCase();
+    return fullName.includes(q) || id.includes(q) || email.includes(q) || personal.includes(q);
+  }).slice(0, 8);
 
   const getProfileImage = (notification) => {
     return notification.student_profile_picture ||
@@ -197,15 +341,28 @@ function AdminInbox({ darkMode, onNavigateTab }) {
           </button>
         </div>
 
-        {activeInboxTab === 'alerts' && unreadCount > 0 && (
+        <div className="flex items-center gap-2.5 pb-2">
+          {activeInboxTab === 'alerts' && unreadCount > 0 && (
+            <button
+              onClick={handleMarkAllRead}
+              className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors px-2.5 py-1.5 rounded-xl hover:bg-blue-50"
+            >
+              <FiCheck className="w-3.5 h-3.5" />
+              Mark all read
+            </button>
+          )}
+
           <button
-            onClick={handleMarkAllRead}
-            className="text-xs font-semibold text-blue-600 hover:text-blue-800 pb-2.5 flex items-center gap-1 transition-colors"
+            onClick={() => {
+              setShowEmailComposer(true);
+              setSendEmailStatus(null);
+            }}
+            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-blue-500/20 transition-all cursor-pointer"
           >
-            <FiCheck className="w-3.5 h-3.5" />
-            Mark all read
+            <FiSend className="w-3.5 h-3.5" />
+            <span>Compose Email</span>
           </button>
-        )}
+        </div>
       </div>
 
       {/* Channel 1: Desk Alerts */}
@@ -409,6 +566,313 @@ function AdminInbox({ darkMode, onNavigateTab }) {
           fetchAnnouncements();
         }}
       />
+
+      {/* ========================================================= */}
+      {/* GMAIL-STYLE DIRECT EMAIL COMPOSER MODAL                   */}
+      {/* ========================================================= */}
+      {showEmailComposer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto animate-fade-in">
+          <div className={`relative w-full max-w-2xl rounded-3xl border shadow-2xl overflow-hidden transition-all duration-300 animate-scale-up ${
+            darkMode ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-200 text-slate-900"
+          }`}>
+            
+            {/* Modal Header */}
+            <div className={`p-5 sm:p-6 border-b flex items-start justify-between ${
+              darkMode ? "border-slate-800 bg-slate-900/80" : "border-slate-100 bg-slate-50/80"
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/25">
+                  <FiSend className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold tracking-tight">
+                    Compose Library Notice & Email
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Dispatches official correspondence directly to the student's personal Gmail inbox.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEmailComposer(false);
+                  setSendEmailStatus(null);
+                }}
+                className={`p-2 rounded-xl transition-colors ${
+                  darkMode ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Composer Form */}
+            <form onSubmit={handleSendDirectEmail} className="p-5 sm:p-7 space-y-4">
+              
+              {/* Alert Status Banner */}
+              {sendEmailStatus && (
+                <div className={`p-3.5 rounded-2xl flex items-center gap-2.5 text-xs font-semibold ${
+                  sendEmailStatus.type === 'success'
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-800"
+                    : "bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-200 dark:border-rose-800"
+                }`}>
+                  {sendEmailStatus.type === 'success' ? (
+                    <FiCheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  ) : (
+                    <FiAlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                  )}
+                  <span>{sendEmailStatus.text}</span>
+                </div>
+              )}
+
+              {/* Recipient Field with Gmail-Style Search Dropdown */}
+              <div className="relative">
+                <label className={`block text-xs font-bold mb-1.5 ${darkMode ? "text-slate-300" : "text-slate-700"}`}>
+                  To (Student Recipient): <span className="text-rose-500">*</span>
+                </label>
+
+                {selectedRecipient ? (
+                  // Selected Contact Chip
+                  <div className={`p-2.5 rounded-2xl border flex items-center justify-between gap-3 ${
+                    darkMode ? "bg-slate-800/90 border-blue-500/40" : "bg-blue-50/70 border-blue-200"
+                  }`}>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-blue-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
+                        {selectedRecipient.firstname?.charAt(0)}{selectedRecipient.lastname?.charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold truncate">
+                            {selectedRecipient.firstname} {selectedRecipient.lastname}
+                          </span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-semibold">
+                            #{selectedRecipient.student_number || 'ID'}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate block">
+                          {selectedRecipient.personal_email || selectedRecipient.email}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRecipient(null);
+                        setRecipientSearch('');
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-700"
+                      title="Clear recipient"
+                    >
+                      <FiX className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  // Search Input with Live Dropdown
+                  <div className="relative">
+                    <div className="relative">
+                      <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Type student name, student ID / LRN, or Gmail address..."
+                        value={recipientSearch}
+                        onChange={(e) => {
+                          setRecipientSearch(e.target.value);
+                          setShowRecipientDropdown(true);
+                        }}
+                        onFocus={() => setShowRecipientDropdown(true)}
+                        className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl text-xs sm:text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          darkMode 
+                            ? "bg-slate-800 border border-slate-700 text-white placeholder-slate-500" 
+                            : "bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400"
+                        }`}
+                      />
+                    </div>
+
+                    {/* Autocomplete Dropdown */}
+                    {showRecipientDropdown && recipientSearch.trim() && (
+                      <div className={`absolute top-full left-0 right-0 mt-1.5 max-h-60 overflow-y-auto rounded-2xl border shadow-xl z-50 divide-y ${
+                        darkMode 
+                          ? "bg-slate-900 border-slate-700 divide-slate-800" 
+                          : "bg-white border-slate-200 divide-slate-100"
+                      }`}>
+                        {filteredRecipientSuggestions.length > 0 ? (
+                          filteredRecipientSuggestions.map((student) => (
+                            <button
+                              key={student.user_id}
+                              type="button"
+                              onClick={() => handleSelectRecipient(student)}
+                              className={`w-full p-3 text-left flex items-center justify-between gap-3 transition-colors ${
+                                darkMode ? "hover:bg-slate-800" : "hover:bg-slate-50"
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center justify-center flex-shrink-0">
+                                  {student.firstname?.charAt(0)}{student.lastname?.charAt(0)}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold truncate">
+                                      {student.firstname} {student.lastname}
+                                    </span>
+                                    {student.student_number && (
+                                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                        #{student.student_number}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[11px] text-slate-400 truncate block">
+                                    {student.course || student.department || 'Enrolled Student'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold truncate flex-shrink-0">
+                                {student.personal_email || student.email}
+                              </span>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="p-3.5 text-center">
+                            <p className="text-xs text-slate-400">No matching student found in campus roster.</p>
+                            {recipientSearch.includes('@') && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowRecipientDropdown(false);
+                                }}
+                                className="mt-1.5 text-xs text-blue-600 font-semibold hover:underline"
+                              >
+                                Send directly to "{recipientSearch.trim()}"
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Template Switcher Pills */}
+              <div>
+                <label className={`block text-[11px] font-bold uppercase tracking-wider mb-2 ${
+                  darkMode ? "text-slate-400" : "text-slate-500"
+                }`}>
+                  Quick Message Templates:
+                </label>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[
+                    { id: 'credentials', label: '🔑 Credentials Resend' },
+                    { id: 'overdue', label: '⚠️ Overdue Notice' },
+                    { id: 'pickup', label: '📦 Book Ready for Pickup' },
+                    { id: 'custom', label: '✍️ Custom Notice' }
+                  ].map((tpl) => (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      onClick={() => applyTemplate(tpl.id)}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all ${
+                        activeTemplate === tpl.id
+                          ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                          : darkMode
+                            ? "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700"
+                            : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/70"
+                      }`}
+                    >
+                      {tpl.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Subject Input */}
+              <div>
+                <label className={`block text-xs font-bold mb-1.5 ${darkMode ? "text-slate-300" : "text-slate-700"}`}>
+                  Subject Line: <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Your Library Circulation Notice"
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  required
+                  className={`w-full px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    darkMode 
+                      ? "bg-slate-800 border border-slate-700 text-white placeholder-slate-500" 
+                      : "bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400"
+                  }`}
+                />
+              </div>
+
+              {/* Message Body */}
+              <div>
+                <label className={`block text-xs font-bold mb-1.5 ${darkMode ? "text-slate-300" : "text-slate-700"}`}>
+                  Message Content: <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={6}
+                  placeholder="Write the message that will appear in the student's Gmail inbox..."
+                  value={emailBody}
+                  onChange={(e) => setEmailBody(e.target.value)}
+                  required
+                  className={`w-full px-3.5 py-2.5 rounded-xl text-xs sm:text-sm leading-relaxed transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    darkMode 
+                      ? "bg-slate-800 border border-slate-700 text-white placeholder-slate-500" 
+                      : "bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400"
+                  }`}
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className={`pt-3 border-t flex items-center justify-between gap-3 ${
+                darkMode ? "border-slate-800" : "border-slate-100"
+              }`}>
+                <span className={`text-[11px] ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+                  Powered by Libralink Gmail SMTP (SSL 465)
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEmailComposer(false);
+                      setSendEmailStatus(null);
+                    }}
+                    className={`px-4 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                      darkMode 
+                        ? "border-slate-700 text-slate-300 hover:bg-slate-800" 
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    Cancel
+                  </button>
+
+                  <Button
+                    type="submit"
+                    disabled={sendingEmail}
+                    className="px-5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20"
+                  >
+                    {sendingEmail ? (
+                      <span className="flex items-center gap-2">
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Dispatching to Gmail...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <FiSend className="w-3.5 h-3.5" />
+                        Send Notice
+                      </span>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

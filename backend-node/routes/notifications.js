@@ -348,4 +348,47 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
+// @route   POST /api/notifications/send-email
+// @desc    Librarian sends direct email to a student
+// @access  Private (Librarian Admin, Librarian)
+router.post('/send-email', auth, requireRole(['Librarian Admin', 'Librarian']), async (req, res) => {
+  try {
+    const { recipient_email, recipient_name, subject, message, template_type } = req.body;
+    if (!recipient_email || !subject || !message) {
+      return res.status(400).json({ success: false, message: 'Recipient email, subject, and message are required' });
+    }
+
+    const { sendDirectLibrarianEmail } = require('../utils/email');
+    const School = require('../models/School');
+    const schoolId = req.user?.school_id;
+    let schoolName = 'Library Institution';
+    if (schoolId) {
+      const school = await School.getById(schoolId);
+      if (school?.school_name) schoolName = school.school_name;
+    }
+
+    const emailResult = await sendDirectLibrarianEmail({
+      toEmail: recipient_email,
+      recipientName: recipient_name || 'Library Patron',
+      subject,
+      messageBody: message,
+      templateType: template_type || 'notice',
+      schoolName
+    });
+
+    if (!emailResult.success) {
+      return res.status(500).json({ success: false, message: emailResult.error || 'Failed to dispatch email' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Email dispatched successfully to ' + recipient_email,
+      messageId: emailResult.messageId
+    });
+  } catch (err) {
+    console.error('[NOTIFICATIONS] Error sending direct email:', err);
+    res.status(500).json({ success: false, message: err.message || 'Server error' });
+  }
+});
+
 module.exports = router;

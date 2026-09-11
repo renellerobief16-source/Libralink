@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   FiHome, FiMail, FiLogOut, FiBook, FiMoon, FiSun, FiUsers, FiList, 
-  FiCheckCircle, FiGrid, FiClock, FiFileText, FiAlertOctagon, FiX, FiShield, FiInfo, FiCheck 
+  FiCheckCircle, FiGrid, FiClock, FiFileText, FiAlertOctagon, FiX, FiShield, FiInfo, FiCheck,
+  FiSettings 
 } from "react-icons/fi";
 import { getUserNotifications, getBackendAssetUrl, signOut, getBorrowRequests } from "../../../utils/api";
 import api from "../../../utils/api";
@@ -21,6 +22,7 @@ import {
   LibrarianFineSettings as AdminFineSettings,
   LibrarianPermissionLetter as AdminPermissionLetter,
   LibrarianOverdueBooks as AdminOverdueBooks,
+  LibrarianSettings as AdminSettings,
 } from "../../collegeTabs/LibrarianTabs";
 
 function LibrarianPortal() {
@@ -127,11 +129,11 @@ function LibrarianPortal() {
   };
 
   const handleProfileClick = () => {
-    setShowStaffModal(true);
+    setActiveTab('settings');
   };
 
   const handleSettingsClick = () => {
-    setShowStaffModal(true);
+    setActiveTab('settings');
   };
 
   const handleDeleteNotification = async (notificationId) => {
@@ -187,6 +189,12 @@ function LibrarianPortal() {
         { id: "history", label: "Circulation History", icon: FiClock },
         { id: "permission-letter", label: "Permission Letter", icon: FiFileText },
         { id: "inbox", label: "Staff Inbox", icon: FiMail },
+      ]
+    },
+    {
+      title: "Preferences",
+      items: [
+        { id: "settings", label: "Settings", icon: FiSettings },
       ]
     }
   ];
@@ -334,8 +342,8 @@ function LibrarianPortal() {
                 onNavigateToOverdue={() => setActiveTab('overdue-books')}
                 onNavigateToPartners={() => setActiveTab('borrow-requests')}
                 onNavigateToScanner={() => setActiveTab('book-approved')}
-                onNavigateToProfile={() => setShowStaffModal(true)}
-                onNavigateToSettings={() => setShowStaffModal(true)}
+                onNavigateToProfile={() => setActiveTab('settings')}
+                onNavigateToSettings={() => setActiveTab('settings')}
                 onLogout={handleLogout}
               />
             )}
@@ -349,6 +357,15 @@ function LibrarianPortal() {
             {activeTab === 'books' && <AdminBooks darkMode={darkMode} />}
             {activeTab === 'books-management' && <AdminBooksManagement darkMode={darkMode} onNavigateTab={setActiveTab} />}
             {activeTab === 'inbox' && <AdminInbox darkMode={darkMode} notifications={notifications} onNavigateTab={setActiveTab} />}
+            {activeTab === 'settings' && (
+              <AdminSettings 
+                darkMode={darkMode} 
+                onToggleDarkMode={() => setDarkMode(prev => !prev)} 
+                userInfo={userInfo} 
+                schoolInfo={schoolInfo} 
+                onNavigateTab={setActiveTab} 
+              />
+            )}
           </div>
         </main>
 

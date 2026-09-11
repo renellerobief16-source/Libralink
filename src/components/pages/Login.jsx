@@ -1,10 +1,10 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { signIn, API_BASE_URL } from "../../utils/api";
 import { 
   FiMail, 
   FiLock, 
-  FiArrowLeft,
+  FiArrowLeft, 
   FiArrowRight, 
   FiCheck, 
   FiEye, 
@@ -80,7 +80,11 @@ function normalizeUserRecord(user) {
 
 function Login() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ email: "", password: "" });
+  const location = useLocation();
+  const [form, setForm] = useState({ 
+    email: location.state?.email || "", 
+    password: "" 
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -426,7 +430,6 @@ function Login() {
 
         {/* Center Form */}
         <div className="w-full max-w-sm mx-auto my-auto py-6">
-          
           {/* Form Header */}
           <div className="mb-6">
             <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0077B6] mb-1.5">
@@ -526,7 +529,6 @@ function Login() {
               </span>
             </p>
           </div>
-
         </div>
 
         {/* Bottom verification badge */}

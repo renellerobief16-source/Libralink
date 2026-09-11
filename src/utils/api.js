@@ -130,7 +130,7 @@ export async function signUp(email, password, metadata = {}) {
       ...metadata,
     });
     
-    return { data: response.data, error: null };
+    return { data: response?.data || response, error: null };
   } catch (error) {
     return { data: null, error };
   }
