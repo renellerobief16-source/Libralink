@@ -297,6 +297,10 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
       if (signUpError) throw signUpError;
 
       const emailDispatched = sendCredentialsToGmail && !!registerForm.personal_email.trim() && data?.emailSent !== false;
+      const claimToken = data?.claim_token || '';
+      const claimUrl = claimToken 
+        ? `${window.location.origin}/claim-account?token=${encodeURIComponent(claimToken)}` 
+        : `${window.location.origin}/claim-account`;
 
       setRegisteredStudent({
         name: formattedStudentName,
@@ -315,7 +319,9 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
         school_name: schoolInfo.name,
         school_code: schoolInfo.code,
         email_sent: emailDispatched,
-        email_skipped: !sendCredentialsToGmail || !registerForm.personal_email.trim()
+        email_skipped: !sendCredentialsToGmail || !registerForm.personal_email.trim(),
+        claim_token: claimToken,
+        claim_url: claimUrl
       });
 
       // Reset form to clean state for next student
@@ -514,6 +520,12 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
               <div><strong>Username:</strong> <code style="color:#0369a1;">${registeredStudent.portal_email}</code></div>
               <div><strong>Initial Password:</strong> <code style="color:#059669;">${registeredStudent.temporary_password}</code></div>
             </div>
+            ${registeredStudent.claim_url ? `
+              <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #bae6fd; font-size: 11px;">
+                <strong style="color: #0369a1;">Account Unlock Link:</strong><br/>
+                <span style="color: #0284c7; word-break: break-all; font-family: monospace;">${registeredStudent.claim_url}</span>
+              </div>
+            ` : ''}
           </div>
 
           <div class="barcode">
@@ -1295,6 +1307,57 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
                   ) : (
                     <span className="truncate">Account active in Libralink system. Ready for circulation and physical slip printing.</span>
                   )}
+                </div>
+              </div>
+
+              {/* Student Single-Use Unlock Link (Immediate Online Access) */}
+              <div className={`p-4 rounded-2xl border ${
+                darkMode ? "bg-amber-950/20 border-amber-800/60" : "bg-amber-50/80 border-amber-200"
+              }`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🔐</span>
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                      Student Single-Use Unlock Link
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                    Direct Unlock
+                  </span>
+                </div>
+                
+                <p className="text-xs text-amber-900/80 dark:text-amber-200/80 mb-3 leading-relaxed">
+                  Give this link to the student via chat, Messenger, or SMS. They only need to enter their <strong>{registeredStudent.academic_level === 'College' ? 'Student Number' : 'DepEd LRN'} ({registeredStudent.student_number})</strong> to unlock their account.
+                </p>
+
+                <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
+                  darkMode ? "bg-slate-900 border-amber-900/40" : "bg-white border-amber-200/80"
+                }`}>
+                  <p className="font-mono text-xs text-blue-600 dark:text-blue-400 truncate flex-1 select-all">
+                    {registeredStudent.claim_url}
+                  </p>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyText(registeredStudent.claim_url, "unlock_link")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                        copiedField === "unlock_link"
+                          ? "bg-emerald-600 text-white"
+                          : "bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                      }`}
+                    >
+                      {copiedField === "unlock_link" ? <FiCheck className="w-3.5 h-3.5" /> : <FiCopy className="w-3.5 h-3.5" />}
+                      <span>{copiedField === "unlock_link" ? "Copied Link!" : "Copy Link"}</span>
+                    </button>
+                    <a
+                      href={registeredStudent.claim_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
+                    >
+                      Open ↗
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
