@@ -89,13 +89,13 @@ const sendEmailWithFallbacks = async ({ to, subject, html }) => {
         user: process.env.EMAIL_USER || process.env.GMAIL_USER || 'libralink1620@gmail.com',
         pass: process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD || 'ignklmhlitookgsz'
       },
-      connectionTimeout: 8000,
-      greetingTimeout: 6000,
-      socketTimeout: 8000
+      connectionTimeout: 7000,
+      greetingTimeout: 5000,
+      socketTimeout: 7000
     });
 
     const info = await transporter.sendMail({
-      from: process.env.EMAIL_USER || process.env.GMAIL_USER || 'libralink1620@gmail.com',
+      from: `"Libralink" <${process.env.EMAIL_USER || process.env.GMAIL_USER || 'libralink1620@gmail.com'}>`,
       to: to,
       subject: subject,
       html: html
@@ -103,8 +103,32 @@ const sendEmailWithFallbacks = async ({ to, subject, html }) => {
     console.log(`[EMAIL] Successfully sent via Gmail SMTP:`, info.messageId);
     return { success: true, messageId: info.messageId, provider: 'gmail_smtp' };
   } catch (smtpErr) {
-    console.error(`[EMAIL] Gmail SMTP failed:`, smtpErr.message);
-    return { success: false, error: smtpErr.message };
+    console.warn(`[EMAIL] Gmail default failed (${smtpErr.message}), trying port 587 STARTTLS...`);
+    try {
+      const transporter587 = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        auth: {
+          user: process.env.EMAIL_USER || process.env.GMAIL_USER || 'libralink1620@gmail.com',
+          pass: process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD || 'ignklmhlitookgsz'
+        },
+        connectionTimeout: 7000,
+        greetingTimeout: 5000,
+        socketTimeout: 7000
+      });
+      const info587 = await transporter587.sendMail({
+        from: `"Libralink" <${process.env.EMAIL_USER || process.env.GMAIL_USER || 'libralink1620@gmail.com'}>`,
+        to: to,
+        subject: subject,
+        html: html
+      });
+      console.log(`[EMAIL] Successfully sent via Gmail port 587:`, info587.messageId);
+      return { success: true, messageId: info587.messageId, provider: 'gmail_smtp_587' };
+    } catch (err587) {
+      console.error(`[EMAIL] All Gmail SMTP dispatches failed:`, err587.message);
+      return { success: false, error: `SMTP 465 (${smtpErr.message}) / SMTP 587 (${err587.message})` };
+    }
   }
 };
 
@@ -139,48 +163,48 @@ const sendVerificationEmail = async (email, code) => {
   });
 };
 
+const createTransporter = () => {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER || process.env.GMAIL_USER || 'libralink1620@gmail.com',
+      pass: process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD || 'ignklmhlitookgsz'
+    },
+    connectionTimeout: 8000,
+    greetingTimeout: 6000,
+    socketTimeout: 8000
+  });
+};
+
 // Send password reset email
 const sendPasswordResetEmail = async (email, resetLink) => {
-  try {
-    const transporter = createTransporter();
-    
-    const mailOptions = {
-      from: process.env.EMAIL_USER || process.env.GMAIL_USER,
-      to: email,
-      subject: 'Libralink - Password Reset',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #0077B6 0%, #023E8A 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">Libralink</h1>
-            <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0;">Connected Libraries</p>
-          </div>
-          <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef;">
-            <h2 style="color: #0F172A; margin-top: 0;">Reset Your Password</h2>
-            <p style="color: #64748B; line-height: 1.6;">We received a request to reset your password. Click the button below to reset it:</p>
-            
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${resetLink}" style="background: #0077B6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">Reset Password</a>
-            </div>
-            
-            <p style="color: #64748B; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:</p>
-            <p style="color: #0077B6; word-break: break-all; font-size: 12px;">${resetLink}</p>
-            
-            <p style="color: #64748B; font-size: 14px; margin-top: 20px;">If you didn't request this password reset, please ignore this email.</p>
-          </div>
-          <div style="text-align: center; margin-top: 20px; color: #94A3B8; font-size: 12px;">
-            <p>© 2024 Libralink. All rights reserved.</p>
-          </div>
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #0077B6 0%, #023E8A 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">Libralink</h1>
+        <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0;">Connected Libraries</p>
+      </div>
+      <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef;">
+        <h2 style="color: #0F172A; margin-top: 0;">Reset Your Password</h2>
+        <p style="color: #64748B; line-height: 1.6;">We received a request to reset your password. Click the button below to reset it:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetLink}" style="background: #0077B6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">Reset Password</a>
         </div>
-      `
-    };
+        <p style="color: #64748B; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:</p>
+        <p style="color: #0077B6; word-break: break-all; font-size: 12px;">${resetLink}</p>
+        <p style="color: #64748B; font-size: 14px; margin-top: 20px;">If you didn't request this password reset, please ignore this email.</p>
+      </div>
+      <div style="text-align: center; margin-top: 20px; color: #94A3B8; font-size: 12px;">
+        <p>© 2026 Libralink. All rights reserved.</p>
+      </div>
+    </div>
+  `;
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`[EMAIL] Password reset email sent to ${email}:`, info.messageId);
-    return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error('[EMAIL] Error sending password reset email:', error);
-    return { success: false, error: error.message };
-  }
+  return await sendEmailWithFallbacks({
+    to: email,
+    subject: 'Libralink - Password Reset',
+    html
+  });
 };
 
 // Send student welcome & library portal credentials email with School Code Security Gate
@@ -197,7 +221,6 @@ const sendStudentCredentialsEmail = async ({
   courseOrGrade = 'Enrolled Student'
 }) => {
   try {
-    const transporter = createTransporter();
     const baseUrl = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.replace(/\/$/, '') : 'http://localhost:5173';
     const claimUrl = claimToken ? `${baseUrl}/claim-account?token=${encodeURIComponent(claimToken)}` : `${baseUrl}/claim-account`;
     
@@ -288,8 +311,6 @@ const sendDirectLibrarianEmail = async ({
   schoolName = 'Library Institution'
 }) => {
   try {
-    const transporter = createTransporter();
-
     const formattedBody = messageBody
       .split('\n')
       .filter(line => line.trim())
