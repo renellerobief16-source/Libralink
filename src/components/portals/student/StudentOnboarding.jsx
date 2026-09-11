@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiArrowRight, FiCamera, FiCheckCircle, FiCheck } from 'react-icons/fi';
+import { FiArrowRight, FiCamera, FiCheck } from 'react-icons/fi';
 import api, { updateProfilePicture, updateUserProfile, getBackendAssetUrl, API_BASE_URL } from '../../../utils/api';
 import { STUDENT_COURSES, STUDENT_TOPICS, saveStudentPreferences } from '../../../utils/studentRecommendations';
 
@@ -33,103 +33,7 @@ function StudentOnboarding() {
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [schoolInfo, setSchoolInfo] = useState(null);
-  const [emailVerified, setEmailVerified] = useState(false);
-  const [verificationCode, setVerificationCode] = useState('');
-  const [codeSent, setCodeSent] = useState(false);
-  const [sendingCode, setSendingCode] = useState(false);
-  const [verifyingCode, setVerifyingCode] = useState(false);
-  const [verificationError, setVerificationError] = useState('');
-  const [codeSuccessMessage, setCodeSuccessMessage] = useState('');
-  const [verifySuccessMessage, setVerifySuccessMessage] = useState('');
-
-  const handleSendVerificationCode = async () => {
-    if (!form.recoveryEmail.trim()) {
-      setVerificationError('Please enter your Gmail account first.');
-      return;
-    }
-
-    setSendingCode(true);
-    setVerificationError('');
-    setCodeSuccessMessage('');
-
-    try {
-      const token = localStorage.getItem('token');
-      const normalizedEmail = form.recoveryEmail.trim().toLowerCase();
-      const response = await fetch(`${API_BASE_URL}/auth/send-verification-code`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ recovery_email: normalizedEmail }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setCodeSent(true);
-        setVerificationError('');
-        if (data.code) {
-          console.log('Verification code:', data.code);
-        }
-        setCodeSuccessMessage('Verification code sent to your email!');
-      } else {
-        setVerificationError(data.message || 'Failed to send verification code');
-      }
-    } catch (err) {
-      setVerificationError('Network error. Please check your connection.');
-    } finally {
-      setSendingCode(false);
-    }
-  };
-
-  const handleVerifyCode = async () => {
-    if (verificationCode.length !== 6) {
-      setVerificationError('Please enter a valid 6-digit code.');
-      return;
-    }
-
-    setVerifyingCode(true);
-    setVerificationError('');
-    setVerifySuccessMessage('');
-
-    try {
-      const token = localStorage.getItem('token');
-      const normalizedEmail = form.recoveryEmail.trim().toLowerCase();
-      const normalizedCode = verificationCode.trim();
-      const response = await fetch(`${API_BASE_URL}/auth/verify-code`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ 
-          recovery_email: normalizedEmail,
-          code: normalizedCode 
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setEmailVerified(true);
-        setVerificationError('');
-        setVerificationCode('');
-        setCodeSent(false);
-        setVerifySuccessMessage('Gmail account Verified!');
-        // Auto-advance to photo step after a short delay
-        setTimeout(() => {
-          setCurrentStep(6);
-        }, 1500);
-      } else {
-        setVerificationError(data.message || 'Invalid verification code');
-      }
-    } catch (err) {
-      setVerificationError('Network error. Please check your connection.');
-    } finally {
-      setVerifyingCode(false);
-    }
-  };
+  // No OTP verification needed - Gmail is saved directly as recovery email
 
   const steps = [
     { key: 'welcome', label: 'Welcome' },
@@ -334,16 +238,7 @@ function StudentOnboarding() {
     }
 
     if (currentStep === 5 && !form.recoveryEmail.trim()) {
-      alert('Please enter your Gmail account.');
-      return;
-    }
-
-    if (currentStep === 5 && !emailVerified) {
-      if (!codeSent) {
-        handleSendVerificationCode();
-      } else {
-        alert('Please verify your Gmail account before continuing.');
-      }
+      alert('Please enter your Gmail account for password recovery.');
       return;
     }
 
@@ -579,7 +474,7 @@ function StudentOnboarding() {
       );
     }
 
-    // STEP 5: Gmail Account & Verification
+    // STEP 5: Gmail Recovery Email (simple input, no OTP)
     if (currentStep === 5) {
       return (
         <div className="space-y-4">
@@ -587,105 +482,18 @@ function StudentOnboarding() {
             {reminders.email}
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Gmail Account</label>
-            <div className="flex gap-2">
-              <input
-                type="email"
-                value={form.recoveryEmail}
-                onChange={(e) => {
-                  setForm({ ...form, recoveryEmail: e.target.value });
-                  setEmailVerified(false);
-                  setCodeSent(false);
-                  setVerificationCode('');
-                  setVerificationError('');
-                  setCodeSuccessMessage('');
-                }}
-                placeholder="you@gmail.com"
-                className="min-h-12 flex-1 rounded-xl border border-slate-300 bg-slate-50 px-3 text-base outline-none transition focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
-                disabled={emailVerified}
-              />
-              {emailVerified && (
-                <div className="flex items-center justify-center px-3 text-green-600">
-                  <FiCheck className="w-5 h-5" />
-                </div>
-              )}
-            </div>
-            {form.recoveryEmail && !emailVerified && (
-              <button
-                type="button"
-                onClick={handleSendVerificationCode}
-                disabled={sendingCode}
-                className={`mt-2 flex items-center gap-2 text-sm font-semibold transition-all duration-200 ${
-                  sendingCode 
-                    ? 'text-gray-400 cursor-not-allowed' 
-                    : 'text-[#0077B6] hover:underline hover:text-[#00669d]'
-                }`}
-              >
-                {sendingCode ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-[#0077B6] border-t-transparent rounded-full animate-spin" />
-                    Sending...
-                  </>
-                ) : codeSent ? (
-                  'Resend code'
-                ) : (
-                  'Send verification code'
-                )}
-              </button>
-            )}
-            {codeSent && !emailVerified && (
-              <div className="mt-4 space-y-3">
-                {codeSuccessMessage && (
-                  <div className="border-l-4 border-green-500 bg-green-50 p-3 animate-in slide-in-from-left-2 duration-300">
-                    <div className="flex items-center gap-2">
-                      <FiCheckCircle className="w-5 h-5 text-green-600" />
-                      <p className="text-sm font-medium text-green-800">{codeSuccessMessage}</p>
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Enter verification code</label>
-                  <input
-                    type="text"
-                    value={verificationCode}
-                    onChange={(e) => {
-                      setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6));
-                      setVerificationError('');
-                    }}
-                    placeholder="123456"
-                    className="min-h-12 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-center text-lg font-mono tracking-widest outline-none transition placeholder:text-slate-400 focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
-                    maxLength={6}
-                    disabled={verifyingCode}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleVerifyCode}
-                  disabled={verificationCode.length !== 6 || verifyingCode}
-                  className="w-full min-h-11 rounded-xl bg-[#0077B6] px-4 text-sm font-semibold text-white transition hover:bg-[#00669d] disabled:cursor-wait disabled:opacity-60 sm:min-h-12"
-                >
-                  {verifyingCode ? 'Verifying...' : 'Verify code'}
-                </button>
-                {verifySuccessMessage && (
-                  <div className="border-l-4 border-green-500 bg-green-50 p-3 animate-in slide-in-from-left-2 duration-300">
-                    <div className="flex items-center gap-2">
-                      <FiCheckCircle className="w-5 h-5 text-green-600" />
-                      <p className="text-sm font-medium text-green-800">{verifySuccessMessage}</p>
-                    </div>
-                  </div>
-                )}
-                {verificationError && (
-                  <div className="border-l-4 border-red-500 bg-red-50 p-3">
-                    <p className="text-sm font-medium text-red-800">{verificationError}</p>
-                  </div>
-                )}
-              </div>
-            )}
-            {emailVerified && (
-              <div className="mt-3 border-l-4 border-green-500 bg-green-50 p-3">
-                <p className="text-sm font-medium text-green-800">Your Gmail is verified and you can continue to the next step.</p>
-              </div>
-            )}
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Gmail Account (Recovery Email)</label>
+            <input
+              type="email"
+              value={form.recoveryEmail}
+              onChange={(e) => setForm({ ...form, recoveryEmail: e.target.value })}
+              placeholder="you@gmail.com"
+              className="min-h-12 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-base outline-none transition focus:border-[#0077B6] focus:ring-4 focus:ring-[#0077B6]/10 sm:text-sm"
+              autoComplete="email"
+            />
+            <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+              This Gmail will be used for <strong>password recovery</strong>. When you forget your password, a reset code will be sent here.
+            </p>
           </div>
         </div>
       );
