@@ -23,13 +23,17 @@ export default function ClaimAccount() {
 
   const tokenFromUrl = searchParams.get('token') || '';
   const [studentIdInput, setStudentIdInput] = useState('');
+  const [gmailInput, setGmailInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [gmailError, setGmailError] = useState('');
   
   // School & One-time status
   const [schoolInfo, setSchoolInfo] = useState(null);
   const [alreadyClaimed, setAlreadyClaimed] = useState(false);
   const [fetchingInfo, setFetchingInfo] = useState(true);
+  const [maskedEmail, setMaskedEmail] = useState('');
+  const [requiresGmail, setRequiresGmail] = useState(false);
 
   // Unlocked account state
   const [unlockedAccount, setUnlockedAccount] = useState(null);
@@ -55,6 +59,11 @@ export default function ClaimAccount() {
           if (result.data.already_claimed) {
             setAlreadyClaimed(true);
           }
+          // If masked_email is returned, this token is Gmail-locked
+          if (result.data.masked_email) {
+            setMaskedEmail(result.data.masked_email);
+            setRequiresGmail(true);
+          }
         }
       })
       .catch(() => {})
@@ -64,14 +73,21 @@ export default function ClaimAccount() {
   const handleUnlockAccount = async (e) => {
     e?.preventDefault();
     const rawStudentId = String(studentIdInput || '').trim();
+    const rawGmail = String(gmailInput || '').trim().toLowerCase();
 
     if (!rawStudentId) {
       setError('Please enter your Student Number or LRN to unlock your account.');
       return;
     }
 
+    if (requiresGmail && !rawGmail) {
+      setGmailError('Please enter the Gmail address this link was sent to.');
+      return;
+    }
+
     setLoading(true);
     setError('');
+    setGmailError('');
 
     try {
       const response = await fetch(`${API_BASE_URL}/auth/claim-credentials`, {
@@ -81,7 +97,8 @@ export default function ClaimAccount() {
         },
         body: JSON.stringify({
           token: tokenFromUrl || null,
-          student_id: rawStudentId
+          student_id: rawStudentId,
+          submitted_gmail: rawGmail || undefined
         })
       });
 
@@ -95,6 +112,10 @@ export default function ClaimAccount() {
       } else if (result?.already_claimed) {
         setAlreadyClaimed(true);
         setError(result.message);
+      } else if (result?.gmail_mismatch) {
+        setGmailError(result.message);
+      } else if (result?.gmail_required) {
+        setGmailError(result.message);
       } else {
         setError(
           result?.message || 
@@ -260,6 +281,44 @@ export default function ClaimAccount() {
 
             {/* Verification Form */}
             <form onSubmit={handleUnlockAccount} className="space-y-4">
+
+              {/* Gmail Verification Field — shown only when link is Gmail-locked */}
+              {requiresGmail && (
+                <div>
+                  <label 
+                    htmlFor="gmailInput" 
+                    className="mb-1.5 block text-xs font-bold uppercase tracking-[.14em] text-[#0077B6]"
+                  >
+                    Your Gmail Address
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="gmailInput"
+                      type="email"
+                      placeholder={maskedEmail ? `e.g. ${maskedEmail}` : "you@gmail.com"}
+                      value={gmailInput}
+                      onChange={(e) => {
+                        setGmailInput(e.target.value);
+                        setGmailError('');
+                      }}
+                      className="min-h-12 w-full border-2 border-[#0077B6]/70 bg-white px-4 text-base font-semibold text-[#0F172A] outline-none transition placeholder:text-slate-400 focus:border-[#0077B6] focus:ring-2 focus:ring-[#0077B6]/20 shadow-xs"
+                      autoFocus
+                      autoComplete="email"
+                    />
+                  </div>
+                  {maskedEmail && (
+                    <p className="mt-1.5 text-[11px] text-slate-500 leading-normal">
+                      Enter the Gmail that received this link: <strong className="text-[#0077B6]">{maskedEmail}</strong>
+                    </p>
+                  )}
+                  {gmailError && (
+                    <div className="mt-2 border-l-4 border-red-500 bg-red-50 p-3 rounded-r-md">
+                      <p className="text-xs font-medium text-red-800 leading-relaxed">{gmailError}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div>
                 <label 
                   htmlFor="studentId" 
@@ -278,7 +337,6 @@ export default function ClaimAccount() {
                       setError('');
                     }}
                     className="min-h-12 w-full border-2 border-[#0077B6] bg-white px-4 text-base font-semibold text-[#0F172A] outline-none transition placeholder:text-slate-400 focus:ring-2 focus:ring-[#0077B6]/20 shadow-xs"
-                    autoFocus
                     required
                   />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[#0077B6]">

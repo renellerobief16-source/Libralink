@@ -139,7 +139,8 @@ router.post('/register', auth, requireRole(['Librarian Admin', 'Librarian']), as
           type: 'claim_credentials',
           user_id,
           school_id,
-          temp_pass: password
+          temp_pass: password,
+          sent_to_email: recipientEmail  // Lock: link only works for this Gmail
         },
         process.env.JWT_SECRET || 'libralink_fallback_secret',
         { expiresIn: '30d' }
@@ -620,6 +621,12 @@ router.get('/claim-info', async (req, res) => {
 
     const alreadyClaimed = !!userRecord.account_claimed_at;
 
+    // Build masked email hint for the UI
+    const sentToEmail = decoded.sent_to_email || null;
+    const maskedSentTo = sentToEmail
+      ? sentToEmail.replace(/^(.{2})(.*)(@.*)$/, (_, a, b, c) => a + '*'.repeat(Math.max(2, b.length)) + c)
+      : null;
+
     return res.json({
       success: true,
       already_claimed: alreadyClaimed,
@@ -627,7 +634,8 @@ router.get('/claim-info', async (req, res) => {
         school_id: userRecord.school_id,
         school_name: userRecord.school_name || 'Library Institution',
         school_code: userRecord.school_code || 'SRC',
-        already_claimed: alreadyClaimed
+        already_claimed: alreadyClaimed,
+        masked_email: maskedSentTo  // Show hint of which Gmail to use
       }
     });
   } catch (err) {
@@ -663,6 +671,29 @@ router.post('/claim-credentials', async (req, res) => {
         if (decoded.user_id) {
           userRecord = await User.getById(decoded.user_id, true);
           tempPass = decoded.temp_pass || userRecord?.initial_temp_password || null;
+
+          // Gmail Lock: if token has sent_to_email, submitted Gmail must match exactly
+          const sentToEmail = decoded.sent_to_email || null;
+          if (sentToEmail) {
+            const submittedGmail = String(req.body.submitted_gmail || '').trim().toLowerCase();
+            const normalizedSentTo = sentToEmail.trim().toLowerCase();
+
+            if (!submittedGmail) {
+              return res.status(400).json({
+                success: false,
+                gmail_required: true,
+                message: 'Please enter the Gmail address this link was sent to in order to unlock your account.'
+              });
+            }
+
+            if (submittedGmail !== normalizedSentTo) {
+              return res.status(403).json({
+                success: false,
+                gmail_mismatch: true,
+                message: 'This link was sent to a different Gmail address. Please use the correct Gmail account that received this email.'
+              });
+            }
+          }
         }
       } catch (tokenErr) {
         return res.status(400).json({
