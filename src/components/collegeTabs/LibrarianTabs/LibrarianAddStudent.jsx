@@ -520,12 +520,7 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
               <div><strong>Username:</strong> <code style="color:#0369a1;">${registeredStudent.portal_email}</code></div>
               <div><strong>Initial Password:</strong> <code style="color:#059669;">${registeredStudent.temporary_password}</code></div>
             </div>
-            ${registeredStudent.claim_url ? `
-              <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #bae6fd; font-size: 11px;">
-                <strong style="color: #0369a1;">Account Unlock Link:</strong><br/>
-                <span style="color: #0284c7; word-break: break-all; font-family: monospace;">${registeredStudent.claim_url}</span>
-              </div>
-            ` : ''}
+
           </div>
 
           <div class="barcode">
@@ -1310,56 +1305,33 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
                 </div>
               </div>
 
-              {/* Student Single-Use Unlock Link (Immediate Online Access) */}
-              <div className={`p-4 rounded-2xl border ${
-                darkMode ? "bg-amber-950/20 border-amber-800/60" : "bg-amber-50/80 border-amber-200"
-              }`}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🔐</span>
-                    <span className="text-xs font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300">
-                      Student Single-Use Unlock Link
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
-                    Direct Unlock
-                  </span>
-                </div>
-                
-                <p className="text-xs text-amber-900/80 dark:text-amber-200/80 mb-3 leading-relaxed">
-                  Give this link to the student via chat, Messenger, or SMS. They only need to enter their <strong>{registeredStudent.academic_level === 'College' ? 'Student Number' : 'DepEd LRN'} ({registeredStudent.student_number})</strong> to unlock their account.
-                </p>
-
-                <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
-                  darkMode ? "bg-slate-900 border-amber-900/40" : "bg-white border-amber-200/80"
+              {/* Security Notice: Unlock link is delivered via Gmail only */}
+              {registeredStudent.email_sent && (
+                <div className={`p-3.5 rounded-2xl border flex items-start gap-3 ${
+                  darkMode ? "bg-emerald-950/30 border-emerald-800/50" : "bg-emerald-50 border-emerald-200"
                 }`}>
-                  <p className="font-mono text-xs text-blue-600 dark:text-blue-400 truncate flex-1 select-all">
-                    {registeredStudent.claim_url}
-                  </p>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleCopyText(registeredStudent.claim_url, "unlock_link")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
-                        copiedField === "unlock_link"
-                          ? "bg-emerald-600 text-white"
-                          : "bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                      }`}
-                    >
-                      {copiedField === "unlock_link" ? <FiCheck className="w-3.5 h-3.5" /> : <FiCopy className="w-3.5 h-3.5" />}
-                      <span>{copiedField === "unlock_link" ? "Copied Link!" : "Copy Link"}</span>
-                    </button>
-                    <a
-                      href={registeredStudent.claim_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
-                    >
-                      Open ↗
-                    </a>
+                  <FiShield className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 block">Secure Account Unlock Link Sent</span>
+                    <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80 mt-0.5 leading-relaxed">
+                      A one-time account unlock link was emailed to <strong>{registeredStudent.personal_email}</strong>. For security, this link is only accessible via the student's Gmail inbox.
+                    </p>
                   </div>
                 </div>
-              </div>
+              )}
+              {!registeredStudent.email_sent && (
+                <div className={`p-3.5 rounded-2xl border flex items-start gap-3 ${
+                  darkMode ? "bg-slate-800/60 border-slate-700" : "bg-slate-50 border-slate-200"
+                }`}>
+                  <FiMail className="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">No Email Provided</span>
+                    <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                      No Gmail was entered, so no unlock link was sent. The student can visit the library counter to access their credentials.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Modal Footer Actions */}
