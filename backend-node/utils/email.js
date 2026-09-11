@@ -40,6 +40,35 @@ const sendEmailWithFallbacks = async ({ to, subject, html }) => {
     }
   }
 
+  // 1.5 Brevo HTTPS API (Port 443 - free 300 emails/day to ANY recipient without domain verification)
+  if (process.env.BREVO_API_KEY) {
+    try {
+      console.log(`[EMAIL] Attempting dispatch via Brevo HTTPS API to ${to}...`);
+      const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': process.env.BREVO_API_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sender: { name: 'Libralink', email: process.env.EMAIL_USER || 'libralink1620@gmail.com' },
+          to: [{ email: to }],
+          subject: subject,
+          htmlContent: html
+        })
+      });
+      const brevoData = await brevoRes.json();
+      if (brevoRes.ok && brevoData.messageId) {
+        console.log(`[EMAIL] Successfully sent via Brevo HTTPS API:`, brevoData.messageId);
+        return { success: true, messageId: brevoData.messageId, provider: 'brevo' };
+      } else {
+        console.warn(`[EMAIL] Brevo error notice:`, brevoData);
+      }
+    } catch (brevoErr) {
+      console.warn(`[EMAIL] Brevo request exception:`, brevoErr.message);
+    }
+  }
+
   // 2. SendGrid HTTPS API (Port 443)
   if (process.env.SENDGRID_API_KEY) {
     try {
