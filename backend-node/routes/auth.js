@@ -772,4 +772,46 @@ router.post('/claim-credentials', async (req, res) => {
   }
 });
 
+// @route   GET /api/auth/test-email
+// @desc    Diagnostic route to test email dispatch from server
+// @access  Public
+router.get('/test-email', async (req, res) => {
+  try {
+    const to = req.query.to || 'nellelopez1605@gmail.com';
+    const emailConfig = {
+      has_user: !!process.env.EMAIL_USER,
+      user_name: process.env.EMAIL_USER ? process.env.EMAIL_USER.replace(/(.{3})(.*)(@.*)/, '$1***$3') : 'none',
+      has_pass: !!process.env.EMAIL_PASSWORD,
+      frontend_url: process.env.FRONTEND_URL || 'not set'
+    };
+
+    const { sendStudentCredentialsEmail } = require('../utils/email');
+    const result = await sendStudentCredentialsEmail({
+      toEmail: to,
+      studentName: 'Test Student Patron',
+      studentId: '20-99999',
+      portalEmail: 'test.student@libralink.com',
+      temporaryPassword: 'TestPassword123!',
+      schoolName: 'Santa Rita College',
+      schoolCode: 'SRC',
+      claimToken: 'diagnostic_test_token',
+      academicLevel: 'College',
+      courseOrGrade: 'BS Information Technology'
+    });
+
+    return res.json({
+      success: result.success,
+      email_config: emailConfig,
+      recipient: to,
+      result
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: err.message,
+      stack: err.stack
+    });
+  }
+});
+
 module.exports = router;
