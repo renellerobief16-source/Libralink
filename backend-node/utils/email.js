@@ -9,133 +9,134 @@ try {
   console.warn('[EMAIL] mailgun-js not installed or failed to load, Mailgun fallback disabled.');
 }
 
-// Create transporter using Gmail SMTP with fallback to alternative
-const createTransporter = () => {
-  // Try using SendGrid if configured
-  console.log('[EMAIL] SENDGRID_API_KEY configured:', !!process.env.SENDGRID_API_KEY);
-  if (process.env.SENDGRID_API_KEY) {
-    console.log('[EMAIL] Using SendGrid for email sending');
-    return nodemailer.createTransport({
-      host: 'smtp.sendgrid.net',
-      port: 587,
-      secure: false,
-      auth: {
-        user: 'apikey',
-        pass: process.env.SENDGRID_API_KEY
-      },
-      // Add timeout settings for cloud environments
-      connectionTimeout: 15000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000
-    });
+// Unified multi-provider dispatcher: Resend (HTTPS 443) -> SendGrid (HTTPS 443) -> Mailgun -> Gmail SMTP
+const sendEmailWithFallbacks = async ({ to, subject, html }) => {
+  // 1. Resend HTTPS API (Port 443 - 100% unblocked on Render and Vercel)
+  if (process.env.RESEND_API_KEY) {
+    try {
+      console.log(`[EMAIL] Attempting dispatch via Resend HTTPS API to ${to}...`);
+      const resendRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: process.env.RESEND_FROM || 'Libralink <onboarding@resend.dev>',
+          to: [to],
+          subject: subject,
+          html: html
+        })
+      });
+      const resendData = await resendRes.json();
+      if (resendRes.ok && resendData.id) {
+        console.log(`[EMAIL] Successfully sent via Resend API:`, resendData.id);
+        return { success: true, messageId: resendData.id, provider: 'resend' };
+      } else {
+        console.warn(`[EMAIL] Resend error notice:`, resendData);
+      }
+    } catch (resendErr) {
+      console.warn(`[EMAIL] Resend request exception:`, resendErr.message);
+    }
   }
 
-  // Fallback to Gmail SMTP (port 465 SSL for high reliability)
-  console.log('[EMAIL] Using Gmail SMTP SSL (smtp.gmail.com:465) for email sending');
-  return nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
-    auth: {
-      user: process.env.EMAIL_USER || process.env.GMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD
-    },
-    connectionTimeout: 15000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000
-  });
+  // 2. SendGrid HTTPS API (Port 443)
+  if (process.env.SENDGRID_API_KEY) {
+    try {
+      console.log(`[EMAIL] Attempting dispatch via SendGrid HTTPS API to ${to}...`);
+      const sgRes = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          personalizations: [{ to: [{ email: to }] }],
+          from: { email: process.env.SENDGRID_FROM_EMAIL || 'libralink1620@gmail.com', name: 'Libralink' },
+          subject: subject,
+          content: [{ type: 'text/html', value: html }]
+        })
+      });
+      if (sgRes.status === 202 || sgRes.ok) {
+        console.log(`[EMAIL] Successfully sent via SendGrid HTTPS API`);
+        return { success: true, messageId: 'sendgrid_api_ok', provider: 'sendgrid' };
+      }
+    } catch (sgErr) {
+      console.warn(`[EMAIL] SendGrid request exception:`, sgErr.message);
+    }
+  }
+
+  // 3. Mailgun API (if configured)
+  if (mailgun && process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
+    try {
+      console.log(`[EMAIL] Attempting dispatch via Mailgun API to ${to}...`);
+      const mg = mailgun({ apiKey: process.env.MAILGUN_API_KEY, domain: process.env.MAILGUN_DOMAIN });
+      const senderEmail = process.env.MAILGUN_FROM_EMAIL || 'libralink1620@gmail.com';
+      const body = await mg.messages().send({ from: senderEmail, to, subject, html });
+      console.log(`[EMAIL] Successfully sent via Mailgun:`, body.id);
+      return { success: true, messageId: body.id, provider: 'mailgun' };
+    } catch (mgErr) {
+      console.warn(`[EMAIL] Mailgun error:`, mgErr.message);
+    }
+  }
+
+  // 4. Nodemailer Gmail SMTP fallback (for local dev / environments with open ports)
+  try {
+    console.log(`[EMAIL] Attempting dispatch via Gmail SMTP to ${to}...`);
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER || process.env.GMAIL_USER || 'libralink1620@gmail.com',
+        pass: process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD || 'ignklmhlitookgsz'
+      },
+      connectionTimeout: 8000,
+      greetingTimeout: 6000,
+      socketTimeout: 8000
+    });
+
+    const info = await transporter.sendMail({
+      from: process.env.EMAIL_USER || process.env.GMAIL_USER || 'libralink1620@gmail.com',
+      to: to,
+      subject: subject,
+      html: html
+    });
+    console.log(`[EMAIL] Successfully sent via Gmail SMTP:`, info.messageId);
+    return { success: true, messageId: info.messageId, provider: 'gmail_smtp' };
+  } catch (smtpErr) {
+    console.error(`[EMAIL] Gmail SMTP failed:`, smtpErr.message);
+    return { success: false, error: smtpErr.message };
+  }
 };
 
 // Send verification code email
 const sendVerificationEmail = async (email, code) => {
-  try {
-    console.log('[EMAIL] Starting email send process to:', email);
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #0077B6 0%, #023E8A 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">Libralink</h1>
+        <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0;">Connected Libraries</p>
+      </div>
+      <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef;">
+        <h2 style="color: #0F172A; margin-top: 0;">Verify Your Email</h2>
+        <p style="color: #64748B; line-height: 1.6;">Thank you for using Libralink. Please use the following verification code to complete your email verification:</p>
 
-    // Use Mailgun if API key is configured and library is loaded
-    if (mailgun && process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
-      console.log('[EMAIL] Using Mailgun for email sending');
-      const mg = mailgun({
-        apiKey: process.env.MAILGUN_API_KEY,
-        domain: process.env.MAILGUN_DOMAIN
-      });
-
-      const senderEmail = process.env.MAILGUN_FROM_EMAIL || 'renellerobieF16@gmail.com';
-      console.log('[EMAIL] Sender email:', senderEmail);
-
-      const data = {
-        from: senderEmail,
-        to: email,
-        subject: 'Libralink - Email Verification Code',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #0077B6 0%, #023E8A 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 24px;">Libralink</h1>
-              <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0;">Connected Libraries</p>
-            </div>
-            <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef;">
-              <h2 style="color: #0F172A; margin-top: 0;">Verify Your Email</h2>
-              <p style="color: #64748B; line-height: 1.6;">Thank you for using Libralink. Please use the following verification code to complete your email verification:</p>
-
-              <div style="background: white; border: 2px solid #0077B6; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
-                <span style="font-size: 32px; font-weight: bold; color: #0077B6; letter-spacing: 5px;">${code}</span>
-              </div>
-
-              <p style="color: #64748B; font-size: 14px; margin-bottom: 0;">This code will expire in 15 minutes. If you didn't request this code, please ignore this email.</p>
-            </div>
-            <div style="text-align: center; margin-top: 20px; color: #94A3B8; font-size: 12px;">
-              <p>© 2024 Libralink. All rights reserved.</p>
-            </div>
-          </div>
-        `
-      };
-
-      console.log('[EMAIL] Sending via Mailgun...');
-      const body = await mg.messages().send(data);
-      console.log(`[EMAIL] Verification email sent successfully to ${email} via Mailgun`);
-      return { success: true, messageId: body.id };
-    }
-
-    // Fallback to nodemailer
-    console.log('[EMAIL] Using nodemailer for email sending');
-    const transporter = createTransporter();
-    console.log('[EMAIL] Transporter created, preparing to send...');
-
-    const mailOptions = {
-      from: process.env.EMAIL_USER || process.env.GMAIL_USER,
-      to: email,
-      subject: 'Libralink - Email Verification Code',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #0077B6 0%, #023E8A 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">Libralink</h1>
-            <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0;">Connected Libraries</p>
-          </div>
-          <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef;">
-            <h2 style="color: #0F172A; margin-top: 0;">Verify Your Email</h2>
-            <p style="color: #64748B; line-height: 1.6;">Thank you for using Libralink. Please use the following verification code to complete your email verification:</p>
-
-            <div style="background: white; border: 2px solid #0077B6; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
-              <span style="font-size: 32px; font-weight: bold; color: #0077B6; letter-spacing: 5px;">${code}</span>
-            </div>
-
-            <p style="color: #64748B; font-size: 14px; margin-bottom: 0;">This code will expire in 15 minutes. If you didn't request this code, please ignore this email.</p>
-          </div>
-          <div style="text-align: center; margin-top: 20px; color: #94A3B8; font-size: 12px;">
-            <p>© 2024 Libralink. All rights reserved.</p>
-          </div>
+        <div style="background: white; border: 2px solid #0077B6; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
+          <span style="font-size: 32px; font-weight: bold; color: #0077B6; letter-spacing: 5px;">${code}</span>
         </div>
-      `
-    };
 
-    console.log('[EMAIL] Calling transporter.sendMail...');
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`[EMAIL] Verification email sent successfully to ${email}, messageId: ${info.messageId}`);
-    return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error('[EMAIL] Error sending verification email:', error.message);
-    console.error('[EMAIL] Full error:', error);
-    return { success: false, error: error.message };
-  }
+        <p style="color: #64748B; font-size: 14px; margin-bottom: 0;">This code will expire in 15 minutes. If you didn't request this code, please ignore this email.</p>
+      </div>
+      <div style="text-align: center; margin-top: 20px; color: #94A3B8; font-size: 12px;">
+        <p>© 2026 Libralink. All rights reserved.</p>
+      </div>
+    </div>
+  `;
+
+  return await sendEmailWithFallbacks({
+    to: email,
+    subject: 'Libralink - Email Verification Code',
+    html
+  });
 };
 
 // Send password reset email
@@ -266,9 +267,11 @@ const sendStudentCredentialsEmail = async ({
       `
     };
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`[EMAIL] Student credentials invitation successfully dispatched to ${toEmail}:`, info.messageId);
-    return { success: true, messageId: info.messageId };
+    return await sendEmailWithFallbacks({
+      to: toEmail,
+      subject: mailOptions.subject,
+      html: mailOptions.html
+    });
   } catch (error) {
     console.warn('[EMAIL] Notice: Could not send student credentials email:', error.message);
     return { success: false, error: error.message };
@@ -334,9 +337,11 @@ const sendDirectLibrarianEmail = async ({
       `
     };
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`[EMAIL] Direct librarian message sent to ${toEmail}:`, info.messageId);
-    return { success: true, messageId: info.messageId };
+    return await sendEmailWithFallbacks({
+      to: toEmail,
+      subject: mailOptions.subject,
+      html: mailOptions.html
+    });
   } catch (error) {
     console.warn('[EMAIL] Error sending direct message:', error.message);
     return { success: false, error: error.message };
