@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiArrowRight, FiCamera, FiCheck } from 'react-icons/fi';
+import { FiArrowRight, FiCamera, FiCheck, FiCheckCircle } from 'react-icons/fi';
 import api, { updateProfilePicture, updateUserProfile, getBackendAssetUrl, API_BASE_URL } from '../../../utils/api';
 import { STUDENT_COURSES, STUDENT_TOPICS, saveStudentPreferences } from '../../../utils/studentRecommendations';
 
