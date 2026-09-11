@@ -3,7 +3,7 @@
  * Comprehensive topics, academic courses, and recommendation engine
  * for the LibraLink Student Portal.
  */
-import { updateUserProfile } from './api';
+import { updateUserProfile, getBackendAssetUrl } from './api';
 
 export const STUDENT_TOPICS = [
   {
@@ -207,18 +207,7 @@ export function getTopicBookCover(book) {
   const isDummySpiderCover = typeof rawCover === 'string' && rawCover.includes('book-cover-17888');
 
   if (rawCover && !isDummySpiderCover) {
-    if (
-      rawCover.startsWith('http://') ||
-      rawCover.startsWith('https://') ||
-      rawCover.startsWith('data:') ||
-      rawCover.startsWith('blob:')
-    ) {
-      return rawCover;
-    }
-    const origin = (typeof window !== 'undefined' && window.location.port === '5173')
-      ? 'http://localhost:5000'
-      : (import.meta.env?.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api$/, '') : 'http://localhost:5000');
-    return `${origin}/${rawCover.replace(/^\//, '')}`;
+    return getBackendAssetUrl(rawCover);
   }
 
   return null;

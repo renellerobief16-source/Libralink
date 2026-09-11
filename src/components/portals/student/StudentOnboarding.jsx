@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiArrowRight, FiCamera, FiCheckCircle, FiCheck } from 'react-icons/fi';
-import api, { updateProfilePicture, updateUserProfile, getBackendAssetUrl } from '../../../utils/api';
+import api, { updateProfilePicture, updateUserProfile, getBackendAssetUrl, API_BASE_URL } from '../../../utils/api';
 import { STUDENT_COURSES, STUDENT_TOPICS, saveStudentPreferences } from '../../../utils/studentRecommendations';
 
 function isOnboardingComplete(user) {
@@ -55,7 +55,7 @@ function StudentOnboarding() {
     try {
       const token = localStorage.getItem('token');
       const normalizedEmail = form.recoveryEmail.trim().toLowerCase();
-      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000'}/api/auth/send-verification-code`, {
+      const response = await fetch(`${API_BASE_URL}/auth/send-verification-code`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -97,7 +97,7 @@ function StudentOnboarding() {
       const token = localStorage.getItem('token');
       const normalizedEmail = form.recoveryEmail.trim().toLowerCase();
       const normalizedCode = verificationCode.trim();
-      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000'}/api/auth/verify-code`, {
+      const response = await fetch(`${API_BASE_URL}/auth/verify-code`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

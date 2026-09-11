@@ -1,12 +1,35 @@
 import axios from 'axios';
 
-const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
-export const API_BASE_URL = configuredApiUrl || (
-  import.meta.env.DEV
-    ? 'http://localhost:5000/api'
-    : 'https://libralink-50ig.onrender.com/api'
-);
-export const API_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, '');
+export function getApiBaseUrl() {
+  if (typeof window !== 'undefined' && window.location) {
+    const hostname = window.location.hostname;
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+
+    // When deployed on Vercel or any remote production domain, NEVER use localhost
+    if (!isLocalhost) {
+      const envUrl = (import.meta.env.VITE_API_URL || '').trim();
+      if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+        return envUrl;
+      }
+      return 'https://libralink-50ig.onrender.com/api';
+    }
+
+    // On local machine
+    const envUrl = (import.meta.env.VITE_API_URL || '').trim();
+    if (envUrl) return envUrl;
+    return 'http://localhost:5000/api';
+  }
+
+  // Fallback during static build
+  return 'https://libralink-50ig.onrender.com/api';
+}
+
+export function getApiOrigin() {
+  return getApiBaseUrl().replace(/\/api\/?$/, '');
+}
+
+export const API_BASE_URL = getApiBaseUrl();
+export const API_ORIGIN = getApiOrigin();
 
 export const getBackendAssetUrl = (assetPath) => {
   if (!assetPath) return '';
@@ -18,8 +41,9 @@ export const getBackendAssetUrl = (assetPath) => {
   ) {
     return assetPath;
   }
-  if (assetPath.startsWith('/')) return `${API_ORIGIN}${assetPath}`;
-  return `${API_ORIGIN}/${assetPath}`;
+  const origin = getApiOrigin();
+  if (assetPath.startsWith('/')) return `${origin}${assetPath}`;
+  return `${origin}/${assetPath}`;
 };
 
 // Create axios instance with default config
@@ -30,9 +54,17 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to add JWT token
+// Request interceptor to add JWT token and dynamic base URL protection
 api.interceptors.request.use(
   (config) => {
+    // Dynamic guard to guarantee remote host never hits localhost
+    if (typeof window !== 'undefined' && window.location) {
+      const hostname = window.location.hostname;
+      const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+      if (!isLocalhost && (!config.baseURL || config.baseURL.includes('localhost') || config.baseURL.includes('127.0.0.1'))) {
+        config.baseURL = 'https://libralink-50ig.onrender.com/api';
+      }
+    }
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

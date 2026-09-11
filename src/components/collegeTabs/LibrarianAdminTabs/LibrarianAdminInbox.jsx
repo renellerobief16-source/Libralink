@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getStudentNotifications, markNotificationAsRead, getAnnouncements } from '../../../utils/api';
+import { getStudentNotifications, markNotificationAsRead, getAnnouncements, getBackendAssetUrl } from '../../../utils/api';
 import Card from "../../ui/Card";
 import EmptyState from "../../ui/EmptyState";
 import Button from "../../ui/Button";
@@ -182,7 +182,7 @@ function LibrarianAdminInbox() {
                   <div className="relative flex-shrink-0">
                     {notification.sender_profile_picture ? (
                       <img
-                        src={notification.sender_profile_picture.startsWith('http') ? notification.sender_profile_picture : `${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api$/, '') : 'http://localhost:5000'}${notification.sender_profile_picture.startsWith('/') ? '' : '/'}${notification.sender_profile_picture}`}
+                        src={getBackendAssetUrl(notification.sender_profile_picture)}
                         alt={notification.sender_name || 'Staff'}
                         className="w-10 h-10 rounded-full object-cover border border-[#E2E8F0]"
                         onError={(e) => {

@@ -54,7 +54,7 @@ import {
   Zap,
 } from "lucide-react";
 
-import api, { getLibraryPolicy } from "../../../utils/api";
+import api, { getLibraryPolicy, getBackendAssetUrl } from "../../../utils/api";
 import { subscribeToBookCopies } from "../../../utils/realtime";
 import { 
   getStudentPreferences, 

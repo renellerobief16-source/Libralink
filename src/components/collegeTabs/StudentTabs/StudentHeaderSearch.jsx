@@ -31,7 +31,7 @@ import {
   SlidersHorizontal,
   Layers,
 } from "lucide-react";
-import api from "../../../utils/api";
+import api, { getBackendAssetUrl } from "../../../utils/api";
 
 function HighlightMatch({ text = "", query = "" }) {
   if (!text) return null;
@@ -907,7 +907,7 @@ export function StudentHeaderSearch({ className = "" }) {
                           <div className="relative flex h-10 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 border border-slate-200/80 shadow-2xs overflow-hidden select-none">
                             {book.cover_image ? (
                               <img
-                                src={book.cover_image.startsWith("http") ? book.cover_image : `http://localhost:5000${book.cover_image.startsWith("/") ? "" : "/"}${book.cover_image}`}
+                                src={getBackendAssetUrl(book.cover_image)}
                                 alt={book.title}
                                 className="absolute inset-0 h-full w-full object-cover z-[1]"
                                 onError={(e) => {
