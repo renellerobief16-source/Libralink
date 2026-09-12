@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+scratch/
+backend-node/test_*.js
+backend-node/test_*.cjs
+backend-node/debug_*.cjs
+backend-node/check_*.js
+backend-node/inspect_*.js
+backend-node/uploads/

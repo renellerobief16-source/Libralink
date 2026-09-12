@@ -89,17 +89,20 @@ class BorrowTransaction {
         .from('borrow_transactions')
         .select(`
           *,
-          student:student_id(firstname, lastname, student_number),
-          book_copies(accession_number, books(title, isbn, book_id, schools(school_name)))
+          student:student_id(firstname, lastname, student_number, email, contact_number),
+          book_copies(copy_id, accession_number, books(book_id, title, author, isbn, cover_image, school_id, schools(school_id, school_name)))
         `)
         .eq('status', 'active')
         .order('borrow_date', { ascending: false });
       
       if (error) throw error;
       
-      // Filter by school_id in JavaScript to avoid Supabase nested filter issues
+      // Filter by school_id in JavaScript to match book owner school
+      const parsedSchoolId = parseInt(school_id);
       const filtered = (data || []).filter(
-        borrow => borrow.book_copies?.books?.school_id === parseInt(school_id)
+        borrow => 
+          borrow.book_copies?.books?.school_id === parsedSchoolId ||
+          borrow.book_copies?.books?.schools?.school_id === parsedSchoolId
       );
       
       return filtered;
@@ -115,8 +118,8 @@ class BorrowTransaction {
         .from('borrow_transactions')
         .select(`
           *,
-          student:student_id(firstname, lastname, student_number),
-          book_copies(accession_number, books(title, isbn, book_id, schools(school_name)))
+          student:student_id(firstname, lastname, student_number, email, contact_number),
+          book_copies(copy_id, accession_number, books(book_id, title, author, isbn, cover_image, school_id, schools(school_id, school_name)))
         `)
         .eq('status', 'active')
         .order('borrow_date', { ascending: false });
@@ -257,7 +260,7 @@ class BorrowTransaction {
         .select(`
           *,
           student:student_id(firstname, lastname, student_number, email, contact_number),
-          book_copies(accession_number, books(title, isbn, school_id, schools(school_id, school_name)))
+          book_copies(copy_id, accession_number, books(book_id, title, author, isbn, cover_image, school_id, schools(school_id, school_name)))
         `)
         .eq('status', 'active')
         .lt('due_date', today.toISOString())
@@ -268,9 +271,10 @@ class BorrowTransaction {
       // Filter by school if provided
       let filtered = data || [];
       if (school_id) {
+        const parsedSchoolId = parseInt(school_id);
         filtered = filtered.filter(
-          b => b.book_copies?.books?.school_id === parseInt(school_id) ||
-               b.book_copies?.books?.schools?.school_id === parseInt(school_id)
+          b => b.book_copies?.books?.school_id === parsedSchoolId ||
+               b.book_copies?.books?.schools?.school_id === parsedSchoolId
         );
       }
 

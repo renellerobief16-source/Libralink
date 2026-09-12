@@ -43,16 +43,28 @@ function LibrarianPortal() {
   const [libraryPolicy, setLibraryPolicy] = useState(null);
 
   useEffect(() => {
-    const userRole = localStorage.getItem("userRole");
+    const rawRole = (localStorage.getItem("userRole") || '').toLowerCase().replace(/[-_]/g, ' ').trim();
+    const roleId = Number(localStorage.getItem("roleId") || 0);
+    const token = localStorage.getItem("token");
     const schoolId = localStorage.getItem("schoolId");
-    if (userRole !== "librarian" || !schoolId) {
+
+    const isLibrarianRole =
+      rawRole.includes('librarian') ||
+      rawRole.includes('admin') ||
+      roleId === 1 ||
+      roleId === 2 ||
+      roleId === 3;
+
+    if (!token || !isLibrarianRole) {
       navigate("/login");
       return;
     }
 
+    const effectiveSchoolId = schoolId && schoolId !== 'null' && schoolId !== 'undefined' ? schoolId : '1';
+
     const fetchSchool = async () => {
       try {
-        const res = await api.get(`/schools/${schoolId}`);
+        const res = await api.get(`/schools/${effectiveSchoolId}`);
         setSchoolInfo(res.data);
       } catch (err) {
         console.error(err);

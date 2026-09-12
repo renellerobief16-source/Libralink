@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { 
   FiBook, FiUser, FiCalendar, FiMapPin, FiPhone, FiCheckCircle, FiXCircle, 
   FiClock, FiEye, FiChevronDown, FiChevronUp, FiRefreshCw, FiAlertTriangle, 
-  FiGlobe, FiMail, FiHash, FiMaximize2, FiArrowRight, FiShield, FiX 
+  FiGlobe, FiMail, FiHash, FiMaximize2, FiArrowRight, FiShield, FiX, FiLock,
+  FiPackage, FiZap, FiSearch, FiFilter, FiCheck, FiLayers, FiInbox, FiExternalLink,
+  FiSettings, FiSliders, FiTag, FiHelpCircle, FiCheckSquare
 } from "react-icons/fi";
 import {
   getBorrowRequests,
@@ -13,6 +15,9 @@ import {
   returnBook,
   confirmBorrowCancellation,
   declineBorrowCancellation,
+  releaseBookItem,
+  getLibraryPolicy,
+  updateLibraryPolicy,
 } from "../../../utils/api";
 import api from "../../../utils/api";
 import { useNotifications } from "../../../context/NotificationContext";
@@ -35,6 +40,22 @@ const animationStyles = `
       stroke-dashoffset: 0;
     }
   }
+
+  @keyframes slideUpScale {
+    from {
+      opacity: 0;
+      transform: translateY(24px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes fadeInOverlay {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
 `;
 
 if (typeof document !== 'undefined' && !document.getElementById('approve-animation-styles')) {
@@ -56,8 +77,21 @@ function getStoredUserId() {
   }
 }
 
+function getStoredUserRole() {
+  const rawUser = localStorage.getItem('currentUser');
+  if (!rawUser) return '';
+  try {
+    const parsed = JSON.parse(rawUser);
+    return String(parsed?.role || parsed?.role_name || parsed?.role_id || '').toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
 function AdminBorrowRequests() {
   const { addNotification } = useNotifications();
+  const userRole = getStoredUserRole();
+  const isAdminLibrarian = userRole.includes('admin') || userRole === '2' || userRole === 'librarian_admin';
   const [borrowRequests, setBorrowRequests] = useState([]);
   const [borrowRequestsLoading, setBorrowRequestsLoading] = useState(false);
   const [interSchoolRequests, setInterSchoolRequests] = useState([]);
@@ -72,10 +106,13 @@ function AdminBorrowRequests() {
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [requestToProcess, setRequestToProcess] = useState(null);
+  const [declineReason, setDeclineReason] = useState('');
   const [processingRequest, setProcessingRequest] = useState(null);
   const [approvedRequest, setApprovedRequest] = useState(null);
   const [returningBookId, setReturningBookId] = useState(null);
-  const [activeRequestTab, setActiveRequestTab] = useState('home-school'); // 'home-school' | 'inter-school' | 'cancellations'
+  const [activeRequestTab, setActiveRequestTab] = useState('home-school');
+  // Toast notification state
+  const [actionToast, setActionToast] = useState(null); // { type: 'approve'|'decline', message: string }
 
   // Cancellation handling states
   const [showConfirmCancelModal, setShowConfirmCancelModal] = useState(false);
@@ -85,10 +122,77 @@ function AdminBorrowRequests() {
   const [cancellationProcessing, setCancellationProcessing] = useState(false);
   const [activeLoansSearch, setActiveLoansSearch] = useState('');
   const [activeLoansFilter, setActiveLoansFilter] = useState('all'); // 'all' | 'due-soon' | 'overdue'
+  const [isLoansOverlayOpen, setIsLoansOverlayOpen] = useState(false);
+  const [overlaySearch, setOverlaySearch] = useState('');
+  const [overlayFilter, setOverlayFilter] = useState('all'); // 'all' | 'due-soon' | 'overdue'
+  const [overlayViewMode, setOverlayViewMode] = useState('table'); // 'table' | 'grid'
+  const [selectedActiveLoan, setSelectedActiveLoan] = useState(null);
   const [schoolsMap, setSchoolsMap] = useState({});
   const [zoomIdImage, setZoomIdImage] = useState(false);
 
+  // Ready for Pickup & Direct Release States
+  const [pickupSearchQuery, setPickupSearchQuery] = useState('');
+  const [pickupFilter, setPickupFilter] = useState('all'); // 'all' | 'expiring-soon' | 'expired'
+  const [showReleaseModal, setShowReleaseModal] = useState(false);
+  const [requestToRelease, setRequestToRelease] = useState(null);
+  const [releaseDueDate, setReleaseDueDate] = useState('');
+  const [releaseProcessing, setReleaseProcessing] = useState(false);
+
+  // Policy & Hold Window States
+  const [pickupHoldDays, setPickupHoldDays] = useState(3);
+  const [homeBorrowingDays, setHomeBorrowingDays] = useState(7);
+  const [isHoldSettingsOpen, setIsHoldSettingsOpen] = useState(false);
+  const [savingHoldSettings, setSavingHoldSettings] = useState(false);
+  const [tempHoldDays, setTempHoldDays] = useState(3);
+
+  // Helper to trigger toast notification
+  const showToast = (type, message) => {
+    setActionToast({ type, message });
+    setTimeout(() => {
+      setActionToast((prev) => (prev?.message === message ? null : prev));
+    }, 4500);
+  };
+
+  const fetchLibraryPolicy = async () => {
+    const schoolId = localStorage.getItem('schoolId');
+    if (!schoolId) return;
+    try {
+      const { data } = await getLibraryPolicy(schoolId);
+      if (data) {
+        if (data.pickup_hold_days) {
+          setPickupHoldDays(Number(data.pickup_hold_days));
+          setTempHoldDays(Number(data.pickup_hold_days));
+        }
+        if (data.home_borrowing_days) {
+          setHomeBorrowingDays(Number(data.home_borrowing_days));
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch library policy:', e);
+    }
+  };
+
+  const handleSaveHoldDays = async (newDays) => {
+    const schoolId = localStorage.getItem('schoolId');
+    if (!schoolId) return;
+    const daysNum = Math.max(1, parseInt(newDays) || 3);
+    setSavingHoldSettings(true);
+    try {
+      await updateLibraryPolicy(schoolId, { pickup_hold_days: daysNum });
+      setPickupHoldDays(daysNum);
+      setTempHoldDays(daysNum);
+      setIsHoldSettingsOpen(false);
+      showToast('success', `Pickup hold window successfully updated to ${daysNum} day(s)!`);
+    } catch (err) {
+      console.error('Error updating hold policy:', err);
+      showToast('error', 'Failed to update hold window. Please try again.');
+    } finally {
+      setSavingHoldSettings(false);
+    }
+  };
+
   useEffect(() => {
+    fetchLibraryPolicy();
     api.get('/schools/public')
       .catch(() => api.get('/schools'))
       .then(res => {
@@ -102,22 +206,30 @@ function AdminBorrowRequests() {
       .catch(() => {});
   }, []);
 
-  const handleReturnBook = async (borrowId) => {
+  const handleReturnBook = async (borrowId, bookTitle = 'Book', studentName = 'Student') => {
+    if (!window.confirm(`Confirm return / check-in for "${bookTitle}" borrowed by ${studentName}?`)) {
+      return;
+    }
     try {
       setReturningBookId(borrowId);
-      const { error } = await returnBook(borrowId);
-      if (error) {
-        console.error('Error returning book:', error);
-        alert('Failed to return book. Please try again.');
-        return;
-      }
-      // Remove from active borrows list
-      setActiveBorrows(prev => prev.filter(b => b.borrow_id !== borrowId));
-      // Refresh stats
+      const { data, error } = await returnBook(borrowId);
+      if (error) throw error;
+
+      showToast('approve', `"${bookTitle}" successfully returned and checked back into the library catalog!`);
+      
+      addNotification({
+        type: 'BOOK_RETURNED',
+        title: 'Book Returned & Checked In',
+        message: `"${bookTitle}" borrowed by ${studentName} was checked in successfully.`,
+        student_name: studentName,
+      });
+
+      await fetchActiveBorrows();
+      await fetchBorrowRequests();
       window.dispatchEvent(new CustomEvent('refreshStats'));
     } catch (err) {
       console.error('Error returning book:', err);
-      alert('Failed to return book. Please try again.');
+      alert(err?.response?.data?.message || err.message || 'Failed to check in returned book. Please try again.');
     } finally {
       setReturningBookId(null);
     }
@@ -395,19 +507,21 @@ function AdminBorrowRequests() {
         }
       }
       
-      // Show approved checkmark
+      // Show approved checkmark on list row
       setApprovedRequest(requestId);
       setProcessingRequest(null);
-      
+      setShowApproveConfirm(false);
+      setRequestToProcess(null);
+
+      // 🎉 Show success toast
+      showToast('approve', `Request ${requestId} has been successfully approved!`);
+
       // Clear checkmark after 2 seconds and refresh
       setTimeout(() => {
         setApprovedRequest(null);
         fetchBorrowRequests();
         fetchInterSchoolRequests();
       }, 2000);
-      
-      setShowApproveConfirm(false);
-      setRequestToProcess(null);
     } catch (err) {
       console.error('Error approving request:', err);
       setProcessingRequest(null);
@@ -415,7 +529,7 @@ function AdminBorrowRequests() {
     }
   };
 
-  const handleRejectRequest = async (requestId) => {
+  const handleRejectRequest = async (requestId, reason = '') => {
     try {
       setProcessingRequest(requestId);
       const adminId = getStoredUserId();
@@ -423,7 +537,7 @@ function AdminBorrowRequests() {
         throw new Error('Admin session is missing. Please log in again.');
       }
 
-      const { data, error } = await updateBorrowRequestStatus(requestId, 'rejected', adminId);
+      const { data, error } = await updateBorrowRequestStatus(requestId, 'rejected', adminId, reason);
       if (error) throw error;
       
       // Add notification for rejection
@@ -445,8 +559,8 @@ function AdminBorrowRequests() {
           
           addNotification({
             type: 'BORROW_REQUEST_REJECTED',
-            title: 'Borrow Request Rejected - Partner School',
-            message: `Your borrow request ${requestId} for books from ${partnerSchools.join(', ')} has been rejected. Please contact the library for more information.`,
+            title: 'Borrow Request Declined - Partner School',
+            message: `Your borrow request ${requestId} for books from ${partnerSchools.join(', ')} has been declined.${reason ? ` Reason: "${reason}"` : ' Please contact the library for more information.'}`,
             related_request_id: requestId,
             senderName: studentIdentity.name,
             senderProfilePicture: studentIdentity.profilePicture,
@@ -457,8 +571,8 @@ function AdminBorrowRequests() {
           // Home school request
           addNotification({
             type: 'BORROW_REQUEST_REJECTED',
-            title: 'Borrow Request Rejected',
-            message: `Your borrow request ${requestId} has been rejected. Please contact the library for more information.`,
+            title: 'Borrow Request Declined',
+            message: `Your borrow request ${requestId} has been declined.${reason ? ` Reason: "${reason}"` : ' Please contact the library for more information.'}`,
             related_request_id: requestId,
             senderName: studentIdentity.name,
             senderProfilePicture: studentIdentity.profilePicture,
@@ -472,7 +586,11 @@ function AdminBorrowRequests() {
       await fetchInterSchoolRequests();
       setShowRejectConfirm(false);
       setRequestToProcess(null);
+      setDeclineReason('');
       setProcessingRequest(null);
+
+      // ❌ Show decline toast
+      showToast('decline', `Request ${requestId} has been successfully declined.`);
     } catch (err) {
       console.error('Error rejecting request:', err);
       setProcessingRequest(null);
@@ -573,6 +691,8 @@ function AdminBorrowRequests() {
         setShowDetailModal(false);
       }
 
+      showToast('approve', `Cancellation for request #${requestId} confirmed.`);
+
       await fetchBorrowRequests();
       await fetchInterSchoolRequests();
       window.dispatchEvent(new CustomEvent('refreshStats'));
@@ -609,6 +729,8 @@ function AdminBorrowRequests() {
         setShowDetailModal(false);
       }
 
+      showToast('decline', `Cancellation for request #${requestId} declined.`);
+
       await fetchBorrowRequests();
       await fetchInterSchoolRequests();
     } catch (err) {
@@ -619,8 +741,214 @@ function AdminBorrowRequests() {
     }
   };
 
+  // ═══════════════════════════════════════════════════════════════════
+  // READY FOR PICKUP (APPROVED) DATA & HELPERS
+  // ═══════════════════════════════════════════════════════════════════
+  const isUnreleasedApproved = (item) => {
+    const s = String(item?.item_status || item?.status || '').toLowerCase();
+    return s === 'approved' || s === 'ready_for_pickup' || s === 'ready for pickup';
+  };
+
+  const readyForPickupRequests = [
+    ...borrowRequests
+      .filter(r => {
+        const s = String(r.status || '').toLowerCase();
+        if (s !== 'approved' && s !== 'ready_for_pickup') return false;
+        const items = r.items || [];
+        if (items.length > 0) {
+          return items.some(isUnreleasedApproved);
+        }
+        return true;
+      })
+      .map(r => ({ ...r, _queueType: 'home' })),
+    ...interSchoolRequests
+      .filter(r => {
+        const parentStatus = String(r.borrow_request?.status || r.status || '').toLowerCase();
+        if (parentStatus !== 'approved' && parentStatus !== 'ready_for_pickup') return false;
+        const selfStatus = String(r.item_status || r.status || '').toLowerCase();
+        if (selfStatus === 'borrowed' || selfStatus === 'released' || selfStatus === 'returned' || selfStatus === 'cancelled' || selfStatus === 'rejected') {
+          return false;
+        }
+        const items = r.borrow_request?.items || r.items || [];
+        if (items.length > 0) {
+          return items.some(isUnreleasedApproved);
+        }
+        return true;
+      })
+      .map(r => {
+        const base = r.borrow_request || r;
+        return {
+          ...base,
+          _queueType: 'inter-school',
+          rawInterSchool: r
+        };
+      })
+  ].reduce((acc, curr) => {
+    if (!acc.some(item => item.request_id === curr.request_id)) {
+      acc.push(curr);
+    }
+    return acc;
+  }, []);
+
+  const getPickupCountdown = (approvedDateStr, createdDateStr) => {
+    const baseDate = new Date(approvedDateStr || createdDateStr || Date.now());
+    const holdDays = pickupHoldDays || 3;
+    if (isNaN(baseDate.getTime())) {
+      return { 
+        label: `${holdDays} days left`, 
+        detail: 'Standard Pickup Window',
+        colorClass: 'bg-emerald-50 text-emerald-700 border-emerald-200', 
+        badgeBg: 'emerald',
+        isExpired: false 
+      };
+    }
+    // Dynamic Configurable Pickup Window
+    const expiresAt = new Date(baseDate.getTime() + (holdDays * 24 * 60 * 60 * 1000));
+    const now = new Date();
+    const diffMs = expiresAt.getTime() - now.getTime();
+
+    if (diffMs <= 0) {
+      const daysOverdue = Math.max(1, Math.floor(Math.abs(diffMs) / (24 * 60 * 60 * 1000)));
+      return {
+        label: `Expired (${daysOverdue}d ago)`,
+        detail: 'Unclaimed Hold Reservation',
+        colorClass: 'bg-rose-50 text-rose-700 border-rose-200',
+        badgeBg: 'rose',
+        isExpired: true,
+        expiresAt
+      };
+    }
+
+    const hoursLeft = Math.floor(diffMs / (60 * 60 * 1000));
+    const daysLeft = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+
+    if (hoursLeft < 24) {
+      return {
+        label: `Expires in ${hoursLeft}h`,
+        detail: 'Expiring today!',
+        colorClass: 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse',
+        badgeBg: 'amber',
+        isExpired: false,
+        isDueToday: true,
+        expiresAt
+      };
+    }
+
+    return {
+      label: `${daysLeft} days left to claim`,
+      detail: `Hold until ${formatPhilippineDate(expiresAt)}`,
+      colorClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      badgeBg: 'emerald',
+      isExpired: false,
+      expiresAt
+    };
+  };
+
+  const handleOpenReleaseModal = (request) => {
+    setRequestToRelease(request);
+    const loanDays = homeBorrowingDays || 7;
+    const d = new Date();
+    d.setDate(d.getDate() + loanDays);
+    const defaultDueDate = d.toISOString().split('T')[0];
+    setReleaseDueDate(defaultDueDate);
+    setShowReleaseModal(true);
+  };
+
+  const confirmDirectRelease = async () => {
+    if (!requestToRelease) return;
+    setReleaseProcessing(true);
+    try {
+      const items = requestToRelease.items || [];
+      const adminId = getStoredUserId();
+      
+      if (items.length > 0) {
+        for (const item of items) {
+          if (item.item_id && item.item_status !== 'borrowed') {
+            await releaseBookItem(item.item_id, item.copy_id || null);
+          }
+        }
+      } else {
+        await updateBorrowRequestStatus(requestToRelease.request_id, 'borrowed', adminId);
+      }
+
+      const studentIdentity = getRequestStudentIdentity(requestToRelease);
+      
+      addNotification({
+        type: 'BOOK_RELEASED',
+        title: 'Books Picked Up & Loan Active',
+        message: `Your requested books for ${requestToRelease.request_id} have been released. Due date is ${formatPhilippineDate(releaseDueDate)}. Please return books on time to avoid fines.`,
+        related_request_id: requestToRelease.request_id,
+        student_name: studentIdentity.name,
+      });
+
+      showToast('approve', `Books for Request #${requestToRelease.request_id} successfully released to ${studentIdentity.name}! Moved to Active Loans.`);
+      
+      setShowReleaseModal(false);
+      setRequestToRelease(null);
+
+      await fetchBorrowRequests();
+      await fetchInterSchoolRequests();
+      await fetchActiveBorrows();
+      window.dispatchEvent(new CustomEvent('refreshStats'));
+    } catch (err) {
+      console.error('Error releasing book:', err);
+      alert(err?.response?.data?.message || err.message || 'Failed to release book. Please try again.');
+    } finally {
+      setReleaseProcessing(false);
+    }
+  };
+
   return (
     <div className="animate-slide-up space-y-6">
+      {/* Action Toast Notification (Approve / Decline success feedback) */}
+      {actionToast && (
+        <div className="fixed top-6 right-6 z-[100] max-w-md w-full animate-slide-up pointer-events-auto shadow-2xl">
+          <div
+            className={`flex items-start gap-3.5 p-4 rounded-2xl border backdrop-blur-xl transition-all duration-300 ${
+              actionToast.type === 'approve'
+                ? 'bg-slate-900/95 border-emerald-500/40 text-white shadow-emerald-950/40'
+                : 'bg-slate-900/95 border-rose-500/40 text-white shadow-rose-950/40'
+            }`}
+          >
+            <div
+              className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                actionToast.type === 'approve'
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+              }`}
+            >
+              {actionToast.type === 'approve' ? (
+                <FiCheckCircle className="w-5 h-5 text-emerald-400" />
+              ) : (
+                <FiXCircle className="w-5 h-5 text-rose-400" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`inline-block w-2 h-2 rounded-full ${
+                    actionToast.type === 'approve' ? 'bg-emerald-400' : 'bg-rose-400'
+                  }`}
+                />
+                <h4 className="text-sm font-bold tracking-tight text-white">
+                  {actionToast.type === 'approve' ? 'Request Approved' : 'Request Declined'}
+                </h4>
+              </div>
+              <p className="text-xs text-slate-300 mt-1 leading-relaxed font-medium">
+                {actionToast.message}
+              </p>
+            </div>
+            <button
+              onClick={() => setActionToast(null)}
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 -mr-1 -mt-1"
+              aria-label="Close notification"
+            >
+              <FiX className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Modern Academic & Glassmorphism Header */}
       <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-r from-white via-blue-50/20 to-white p-5 sm:p-6 shadow-xs backdrop-blur-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -631,11 +959,11 @@ function AdminBorrowRequests() {
                 PHT Philippine Time (UTC+8)
               </span>
               <span className="text-slate-300">•</span>
-              <span className="text-xs text-slate-500 font-medium">Auto-synced</span>
+              <span className="text-xs text-slate-500 font-medium">Auto-synced Circulation Counter</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">Borrow Requests Counter</h2>
             <p className="text-slate-500 text-xs sm:text-sm mt-0.5 max-w-2xl">
-              Process campus book reservations, approve cross-library inter-school loans, and handle hold cancellations with precise timestamps.
+              Process campus book reservations, monitor approved holds ready for pickup, release loans, and handle cancellations in real-time.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -654,6 +982,179 @@ function AdminBorrowRequests() {
           </div>
         </div>
       </div>
+
+      {/* ══════════════════════════════════════════════════════════════
+           4 REAL-TIME KPI SUMMARY METRIC CARDS
+          ══════════════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* Card 1: Pending Approvals */}
+        <div
+          onClick={() => setActiveRequestTab('home-school')}
+          className={`cursor-pointer p-4 rounded-2xl border transition-all duration-200 ${
+            activeRequestTab === 'home-school' || activeRequestTab === 'inter-school'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 border-blue-600'
+              : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200/90 shadow-2xs'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+              activeRequestTab === 'home-school' || activeRequestTab === 'inter-school'
+                ? 'bg-white/20 text-white'
+                : 'bg-blue-50 text-blue-600 border border-blue-100'
+            }`}>
+              <FiClock className="w-4 h-4" />
+            </div>
+            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+              activeRequestTab === 'home-school' || activeRequestTab === 'inter-school'
+                ? 'bg-white/20 text-white'
+                : 'bg-blue-100 text-blue-700'
+            }`}>
+              Queue
+            </span>
+          </div>
+          <div className="text-2xl font-black tracking-tight">
+            {borrowRequests.filter(r => r.status === 'pending').length + interSchoolRequests.filter(r => r.status === 'pending').length}
+          </div>
+          <p className={`text-xs font-medium mt-0.5 ${
+            activeRequestTab === 'home-school' || activeRequestTab === 'inter-school'
+              ? 'text-blue-100'
+              : 'text-slate-500'
+          }`}>
+            Pending Review
+          </p>
+        </div>
+
+        {/* Card 2: Ready for Pickup (Approved) */}
+        <div
+          onClick={() => setActiveRequestTab('ready-for-pickup')}
+          className={`cursor-pointer p-4 rounded-2xl border transition-all duration-200 group relative ${
+            activeRequestTab === 'ready-for-pickup'
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 border-emerald-600'
+              : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200/90 shadow-2xs'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+              activeRequestTab === 'ready-for-pickup'
+                ? 'bg-white/20 text-white'
+                : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+            }`}>
+              <FiPackage className="w-4 h-4" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                activeRequestTab === 'ready-for-pickup'
+                  ? 'bg-white/20 text-white'
+                  : 'bg-emerald-100 text-emerald-700'
+              }`}>
+                {pickupHoldDays}-Day Hold
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setTempHoldDays(pickupHoldDays);
+                  setIsHoldSettingsOpen(true);
+                }}
+                className={`p-1 rounded-lg transition-colors ${
+                  activeRequestTab === 'ready-for-pickup'
+                    ? 'text-white/80 hover:text-white hover:bg-white/20'
+                    : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
+                }`}
+                title="Adjust Pickup Hold Window (Days)"
+              >
+                <FiSettings className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+          <div className="text-2xl font-black tracking-tight">
+            {readyForPickupRequests.length}
+          </div>
+          <p className={`text-xs font-medium mt-0.5 ${
+            activeRequestTab === 'ready-for-pickup'
+              ? 'text-emerald-100'
+              : 'text-slate-500'
+          }`}>
+            Ready for Pickup
+          </p>
+        </div>
+
+        {/* Card 3: Active Loans */}
+        <div
+          onClick={() => setActiveRequestTab('active-loans')}
+          className={`cursor-pointer p-4 rounded-2xl border transition-all duration-200 ${
+            activeRequestTab === 'active-loans'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 border-indigo-600'
+              : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200/90 shadow-2xs'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+              activeRequestTab === 'active-loans'
+                ? 'bg-white/20 text-white'
+                : 'bg-indigo-50 text-indigo-600 border border-indigo-100'
+            }`}>
+              <FiBook className="w-4 h-4" />
+            </div>
+            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+              activeRequestTab === 'active-loans'
+                ? 'bg-white/20 text-white'
+                : 'bg-indigo-100 text-indigo-700'
+            }`}>
+              Borrowed
+            </span>
+          </div>
+          <div className="text-2xl font-black tracking-tight">
+            {activeBorrows.length}
+          </div>
+          <p className={`text-xs font-medium mt-0.5 ${
+            activeRequestTab === 'active-loans'
+              ? 'text-indigo-100'
+              : 'text-slate-500'
+          }`}>
+            Active Loans
+          </p>
+        </div>
+
+        {/* Card 4: Hold Cancellations */}
+        <div
+          onClick={() => setActiveRequestTab('cancellations')}
+          className={`cursor-pointer p-4 rounded-2xl border transition-all duration-200 ${
+            activeRequestTab === 'cancellations'
+              ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/20 border-amber-600'
+              : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200/90 shadow-2xs'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+              activeRequestTab === 'cancellations'
+                ? 'bg-white/20 text-white'
+                : 'bg-amber-50 text-amber-600 border border-amber-100'
+            }`}>
+              <FiAlertTriangle className="w-4 h-4" />
+            </div>
+            {cancellationRequests.length > 0 ? (
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white animate-pulse">
+                Action Req.
+              </span>
+            ) : (
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                Clear
+              </span>
+            )}
+          </div>
+          <div className="text-2xl font-black tracking-tight">
+            {cancellationRequests.length}
+          </div>
+          <p className={`text-xs font-medium mt-0.5 ${
+            activeRequestTab === 'cancellations'
+              ? 'text-amber-100'
+              : 'text-slate-500'
+          }`}>
+            Hold Cancellations
+          </p>
+        </div>
+      </div>
       
       {/* Modern Pill Switcher */}
       <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-slate-100/90 border border-slate-200/80 w-fit">
@@ -666,7 +1167,7 @@ function AdminBorrowRequests() {
           }`}
         >
           <FiBook className="w-4 h-4" />
-          <span>Home School Requests</span>
+          <span>Home School (Pending)</span>
           <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
             activeRequestTab === 'home-school' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600'
           }`}>
@@ -683,11 +1184,29 @@ function AdminBorrowRequests() {
           }`}
         >
           <FiGlobe className="w-4 h-4" />
-          <span>Inter-School Requests</span>
+          <span>Inter-School (Pending)</span>
           <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
             activeRequestTab === 'inter-school' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600'
           }`}>
             {interSchoolRequests.filter(r => r.status === 'pending').length}
+          </span>
+        </button>
+
+        {/* 📦 NEW TAB: Ready for Pickup (Approved) */}
+        <button
+          onClick={() => setActiveRequestTab('ready-for-pickup')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all ${
+            activeRequestTab === 'ready-for-pickup'
+              ? 'bg-white text-emerald-700 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+          }`}
+        >
+          <FiPackage className="w-4 h-4 text-emerald-600" />
+          <span>Ready for Pickup</span>
+          <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+            activeRequestTab === 'ready-for-pickup' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+          }`}>
+            {readyForPickupRequests.length}
           </span>
         </button>
 
@@ -712,14 +1231,14 @@ function AdminBorrowRequests() {
           onClick={() => setActiveRequestTab('active-loans')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all ${
             activeRequestTab === 'active-loans'
-              ? 'bg-white text-blue-700 shadow-sm'
+              ? 'bg-white text-indigo-700 shadow-sm'
               : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
           }`}
         >
           <FiBook className="w-4 h-4" />
           <span>Active Loans</span>
           <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
-            activeRequestTab === 'active-loans' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600'
+            activeRequestTab === 'active-loans' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-600'
           }`}>
             {activeBorrows.length}
           </span>
@@ -836,6 +1355,322 @@ function AdminBorrowRequests() {
           </div>
         )}
       </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
+           READY FOR PICKUP (APPROVED) QUEUE TABLE & CARDS
+          ══════════════════════════════════════════════════════════════ */}
+      {activeRequestTab === 'ready-for-pickup' && (
+        <div className="rounded-2xl border border-slate-200/90 bg-white shadow-xs overflow-hidden">
+          {/* Section Header with Search & Filter */}
+          <div className="p-5 border-b border-slate-100 bg-slate-50/50 space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <FiPackage className="w-5 h-5 text-emerald-600" />
+                  <span>Ready for Pickup Queue</span>
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    {readyForPickupRequests.length} approved holds
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Approved book holds waiting for student collection at the counter. Students have a 3-day pickup window.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    fetchBorrowRequests();
+                    fetchInterSchoolRequests();
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition shrink-0"
+                >
+                  <FiRefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${borrowRequestsLoading ? 'animate-spin' : ''}`} />
+                  <span>Refresh</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Search and Filters Bar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
+              <div className="relative flex-1">
+                <FiSearch className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search by student name, ID number, request ID, book title..."
+                  value={pickupSearchQuery}
+                  onChange={(e) => setPickupSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all"
+                />
+                {pickupSearchQuery && (
+                  <button
+                    onClick={() => setPickupSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <FiX className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Status Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                <button
+                  type="button"
+                  onClick={() => setPickupFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                    pickupFilter === 'all'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  All ({readyForPickupRequests.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPickupFilter('expiring-soon')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+                    pickupFilter === 'expiring-soon'
+                      ? 'bg-amber-600 text-white shadow-2xs'
+                      : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200/60'
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  Expiring Soon
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPickupFilter('expired')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+                    pickupFilter === 'expired'
+                      ? 'bg-rose-600 text-white shadow-2xs'
+                      : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/60'
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                  Unclaimed / Expired
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {borrowRequestsLoading ? (
+            <div className="text-center py-16 text-slate-500">
+              <div className="w-7 h-7 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+              <p className="text-xs font-medium">Loading pickup queue...</p>
+            </div>
+          ) : readyForPickupRequests.length === 0 ? (
+            <div className="py-16 px-6 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center mx-auto mb-3 text-emerald-600">
+                <FiPackage className="w-8 h-8" />
+              </div>
+              <h4 className="text-base font-bold text-slate-800">No Approved Holds Waiting</h4>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+                There are currently no approved requests waiting for student pickup. When you approve a borrow request, it will appear here with a 3-day hold window.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="py-3 px-4">Request & Pass</th>
+                    <th className="py-3 px-4">Borrower Student</th>
+                    <th className="py-3 px-4">Reserved Book(s)</th>
+                    <th className="py-3 px-4">Approved At</th>
+                    <th className="py-3 px-4">Pickup Deadline ({pickupHoldDays} Days)</th>
+                    <th className="py-3 px-4 text-right">Counter Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {readyForPickupRequests
+                    .filter((request) => {
+                      const countdown = getPickupCountdown(request.updated_at || request.approval_date, request.created_at);
+                      if (pickupFilter === 'expired' && !countdown.isExpired) return false;
+                      if (pickupFilter === 'expiring-soon' && !countdown.isDueToday) return false;
+
+                      if (!pickupSearchQuery.trim()) return true;
+                      const q = pickupSearchQuery.toLowerCase();
+                      const student = request.student || {};
+                      const studentName = `${student.firstname || request.first_name || ''} ${student.lastname || request.last_name || ''}`.toLowerCase();
+                      const studentId = (student.student_number || request.student_id || '').toLowerCase();
+                      const reqId = (request.request_id || '').toLowerCase();
+                      const qrToken = (request.qr_token || '').toLowerCase();
+                      const bookTitles = (request.items?.map(i => i.title || i.book_title || '').join(' ') || '').toLowerCase();
+
+                      return (
+                        studentName.includes(q) ||
+                        studentId.includes(q) ||
+                        reqId.includes(q) ||
+                        qrToken.includes(q) ||
+                        bookTitles.includes(q)
+                      );
+                    })
+                    .map((request) => {
+                      const student = request.student || {};
+                      const studentIdentity = getRequestStudentIdentity(request);
+                      const items = request.items || [];
+                      const bookCount = items.length || 1;
+                      const countdown = getPickupCountdown(request.updated_at || request.approval_date, request.created_at);
+                      const firstItem = items[0] || {};
+                      const firstBookData = booksData[firstItem.book_id] || firstItem.book || {};
+                      const bookCover = firstItem.cover_image || firstBookData.cover_image;
+
+                      return (
+                        <tr key={request.request_id} className="hover:bg-emerald-50/20 transition-colors">
+                          {/* Request ID + QR Pass Token */}
+                          <td className="py-3.5 px-4">
+                            <div className="space-y-1">
+                              <span className="text-xs font-mono font-bold text-blue-600 block">
+                                {request.request_id}
+                              </span>
+                              {request.qr_token ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px] font-mono text-slate-700 font-semibold" title="QR Code Claim Token">
+                                  <FiHash className="w-3 h-3 text-slate-400" />
+                                  {request.qr_token}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 font-mono">Token: Auto-QR</span>
+                              )}
+                              {request._queueType === 'inter-school' && (
+                                <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                  Inter-School
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Student Identity with Profile Picture */}
+                          <td className="py-3.5 px-4 text-sm text-slate-700">
+                            <div className="flex items-center gap-3">
+                              {studentIdentity.profilePicture ? (
+                                <img
+                                  src={getBackendAssetUrl(studentIdentity.profilePicture)}
+                                  alt={studentIdentity.name}
+                                  className="w-10 h-10 rounded-full object-cover border-2 border-emerald-200 shadow-xs shrink-0"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.nextSibling.style.display = 'flex';
+                                  }}
+                                />
+                              ) : null}
+                              <div className={`w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs border-2 border-white ${studentIdentity.profilePicture ? 'hidden' : 'flex'}`}>
+                                {(studentIdentity.name || 'S').charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <div className="font-bold text-xs text-slate-900 leading-snug">
+                                  {studentIdentity.name}
+                                </div>
+                                <div className="text-[11px] text-slate-500 font-mono font-semibold">
+                                  {student.student_number || request.student_id || 'ID N/A'}
+                                </div>
+                                {(student.department || student.college) && (
+                                  <div className="text-[10px] text-slate-400">
+                                    {student.department || student.college}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Reserved Books with Cover */}
+                          <td className="py-3.5 px-4 text-xs text-slate-700">
+                            <div className="flex items-center gap-2.5">
+                              {bookCover ? (
+                                <div className="w-8 h-12 rounded overflow-hidden shrink-0 shadow-xs border border-slate-200">
+                                  <img
+                                    src={getBackendAssetUrl(bookCover)}
+                                    alt={firstBookData.title || 'Book'}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => { e.target.style.display = 'none'; }}
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-8 h-12 rounded bg-gradient-to-br from-emerald-500 to-slate-700 flex items-center justify-center text-white shrink-0 shadow-xs">
+                                  <FiBook className="w-4 h-4" />
+                                </div>
+                              )}
+                              <div className="min-w-0 max-w-[200px]">
+                                <p className="font-bold text-xs text-slate-900 truncate" title={items.map(i => i.title || i.book_title || firstBookData.title).join(', ')}>
+                                  {firstBookData.title || firstItem.title || firstItem.book_title || 'Reserved Book'}
+                                </p>
+                                {bookCount > 1 && (
+                                  <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    +{bookCount - 1} more book{bookCount > 2 ? 's' : ''}
+                                  </span>
+                                )}
+                                {(firstBookData.isbn || firstItem.isbn) && (
+                                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                    ISBN: {firstBookData.isbn || firstItem.isbn}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Approved Timestamp */}
+                          <td className="py-3.5 px-4 text-xs text-slate-600 whitespace-nowrap font-medium">
+                            <div className="flex items-center gap-1 text-slate-700">
+                              <FiClock className="w-3 h-3 text-slate-400" />
+                              <span className="font-semibold">{formatPhilippineDateTime(request.updated_at || request.approval_date || request.created_at)}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block mt-0.5">
+                              {formatDateTimeWithRelative(request.updated_at || request.approval_date || request.created_at)}
+                            </span>
+                          </td>
+
+                          {/* Pickup Window & Loan Period */}
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <div className="space-y-1">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${countdown.colorClass}`}>
+                                <span className={`w-2 h-2 rounded-full ${
+                                  countdown.badgeBg === 'rose'
+                                    ? 'bg-rose-500'
+                                    : countdown.badgeBg === 'amber'
+                                      ? 'bg-amber-500 animate-ping'
+                                      : 'bg-emerald-500'
+                                }`} />
+                                <span>{countdown.label}</span>
+                              </span>
+                              <p className="text-[10px] text-slate-500 font-medium">
+                                {countdown.detail}
+                              </p>
+                              <p className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
+                                <FiCalendar className="w-2.5 h-2.5" />
+                                <span>{homeBorrowingDays}-day loan upon release</span>
+                              </p>
+                            </div>
+                          </td>
+
+                          {/* Action Buttons */}
+                          <td className="py-3.5 px-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleViewDetails(request)}
+                                className="p-2 hover:bg-slate-100 rounded-xl transition text-slate-600 hover:text-slate-900 border border-slate-200"
+                                title="Review Full Details"
+                              >
+                                <FiEye className="w-4 h-4" />
+                              </button>
+
+                              <button
+                                onClick={() => handleOpenReleaseModal(request)}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white text-xs font-bold shadow-sm shadow-emerald-500/20 transition active:scale-95"
+                                title="Direct Release Books to Student"
+                              >
+                                <FiZap className="w-3.5 h-3.5" />
+                                <span>Release Books</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Inter-School Requests Table */}
@@ -1418,6 +2253,17 @@ function AdminBorrowRequests() {
                       Approve Request
                     </button>
                   </>
+                ) : selectedRequest.status === 'approved' ? (
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      handleOpenReleaseModal(selectedRequest);
+                    }}
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white text-xs font-bold shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5"
+                  >
+                    <FiZap className="w-4 h-4" />
+                    Direct Release Books
+                  </button>
                 ) : (
                   <span className="text-xs font-medium text-slate-500 px-3 py-1 bg-white border border-slate-200 rounded-lg">
                     Request is already {selectedRequest.status}
@@ -1454,85 +2300,354 @@ function AdminBorrowRequests() {
         </div>
       )}
 
-      {/* Approve Confirmation Modal */}
+      {/* ══════════════════════════════════════════════════════════
+           APPROVE CONFIRMATION MODAL — Premium Redesign
+          ══════════════════════════════════════════════════════════ */}
       {showApproveConfirm && requestToProcess && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 p-4 flex items-center justify-center animate-fade-in" onClick={() => setShowApproveConfirm(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                <FiCheckCircle className="w-6 h-6 text-green-600" />
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+          style={{ animation: 'fadeInOverlay 0.2s ease-out' }}
+          onClick={() => { setShowApproveConfirm(false); setRequestToProcess(null); }}
+        >
+          {/* Blurred dark overlay */}
+          <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-md" />
+
+          {/* Modal Card */}
+          <div
+            className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+            style={{ animation: 'slideUpScale 0.25s cubic-bezier(0.34,1.56,0.64,1)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Green gradient header bar */}
+            <div className="h-1.5 w-full bg-gradient-to-r from-emerald-400 via-green-500 to-teal-400" />
+
+            <div className="px-7 pt-7 pb-6">
+              {/* Icon + Title */}
+              <div className="flex items-center gap-4 mb-5">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shadow-sm flex-shrink-0">
+                  <svg className="w-7 h-7 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 leading-tight">Approve Request</h3>
+                  <p className="text-xs text-slate-500 font-mono mt-0.5">{requestToProcess}</p>
+                </div>
               </div>
-              <h3 className="text-xl font-semibold text-slate-900">Approve Request</h3>
-            </div>
-            <p className="text-slate-600 mb-6">
-              Are you sure you want to approve borrow request {requestToProcess}? This action will allow the student to proceed with borrowing the requested books.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  setShowApproveConfirm(false);
-                  setRequestToProcess(null);
-                }}
-                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleApproveRequest(requestToProcess)}
-                disabled={processingRequest === requestToProcess}
-                className="px-4 py-2 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                {processingRequest === requestToProcess ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    Processing...
-                  </>
-                ) : (
-                  'Approve'
-                )}
-              </button>
+
+              {/* Context message */}
+              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mb-6">
+                <p className="text-sm text-emerald-900 leading-relaxed">
+                  You are about to <span className="font-bold">approve</span> this borrow request. The student will be notified and allowed to proceed with picking up the requested books from the library.
+                </p>
+              </div>
+
+              {/* Info row */}
+              <div className="flex items-center gap-2 text-xs text-slate-500 mb-6 px-1">
+                <svg className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                A QR access token will be generated automatically for the student.
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowApproveConfirm(false); setRequestToProcess(null); }}
+                  className="flex-1 px-4 py-3 rounded-xl border-2 border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50 hover:border-slate-300 transition-all duration-150"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleApproveRequest(requestToProcess)}
+                  disabled={processingRequest === requestToProcess}
+                  className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white text-sm font-bold hover:from-emerald-600 hover:to-green-700 transition-all duration-150 shadow-lg shadow-emerald-500/30 disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {processingRequest === requestToProcess ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      Approving...
+                    </>
+                  ) : (
+                    <>
+                      <FiCheckCircle className="w-4 h-4" />
+                      Approve Request
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Reject Confirmation Modal */}
+      {/* ══════════════════════════════════════════════════════════
+           DECLINE CONFIRMATION MODAL — Premium Redesign
+          ══════════════════════════════════════════════════════════ */}
       {showRejectConfirm && requestToProcess && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 p-4 flex items-center justify-center animate-fade-in" onClick={() => setShowRejectConfirm(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                <FiXCircle className="w-6 h-6 text-red-600" />
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+          style={{ animation: 'fadeInOverlay 0.2s ease-out' }}
+          onClick={() => { setShowRejectConfirm(false); setRequestToProcess(null); setDeclineReason(''); }}
+        >
+          {/* Blurred dark overlay */}
+          <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-md" />
+
+          {/* Modal Card */}
+          <div
+            className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+            style={{ animation: 'slideUpScale 0.25s cubic-bezier(0.34,1.56,0.64,1)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Red gradient header bar */}
+            <div className="h-1.5 w-full bg-gradient-to-r from-rose-400 via-red-500 to-orange-400" />
+
+            <div className="px-7 pt-7 pb-6">
+              {/* Icon + Title */}
+              <div className="flex items-center gap-4 mb-5">
+                <div className="w-14 h-14 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center shadow-sm flex-shrink-0">
+                  <svg className="w-7 h-7 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 leading-tight">Decline Request</h3>
+                  <p className="text-xs text-slate-500 font-mono mt-0.5">{requestToProcess}</p>
+                </div>
               </div>
-              <h3 className="text-xl font-semibold text-slate-900">Reject Request</h3>
+
+              {/* Warning message */}
+              <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 mb-5">
+                <p className="text-sm text-rose-900 leading-relaxed">
+                  You are about to <span className="font-bold">decline</span> this request. The student will be notified and may need to resubmit a new borrow request.
+                </p>
+              </div>
+
+              {/* Reason textarea — required */}
+              <div className="mb-5">
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
+                  Reason for Declining <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  value={declineReason}
+                  onChange={(e) => setDeclineReason(e.target.value.slice(0, 300))}
+                  placeholder="e.g. Book is currently reserved for another borrower, insufficient identification, policy violation..."
+                  rows={3}
+                  className="w-full rounded-xl border-2 border-slate-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none text-sm text-slate-800 placeholder:text-slate-400 px-3.5 py-3 resize-none transition-all duration-150"
+                />
+                <div className="flex justify-between items-center mt-1.5">
+                  <p className="text-[11px] text-slate-400">This message will be sent to the student as notification.</p>
+                  <span className={`text-[11px] font-mono ${declineReason.length > 260 ? 'text-rose-500' : 'text-slate-400'}`}>
+                    {declineReason.length}/300
+                  </span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowRejectConfirm(false); setRequestToProcess(null); setDeclineReason(''); }}
+                  className="flex-1 px-4 py-3 rounded-xl border-2 border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50 hover:border-slate-300 transition-all duration-150"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleRejectRequest(requestToProcess, declineReason)}
+                  disabled={processingRequest === requestToProcess || declineReason.trim().length < 5}
+                  className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 text-white text-sm font-bold hover:from-rose-600 hover:to-red-700 transition-all duration-150 shadow-lg shadow-rose-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {processingRequest === requestToProcess ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      Declining...
+                    </>
+                  ) : (
+                    <>
+                      <FiXCircle className="w-4 h-4" />
+                      Confirm Decline
+                    </>
+                  )}
+                </button>
+              </div>
+              {declineReason.trim().length > 0 && declineReason.trim().length < 5 && (
+                <p className="text-xs text-rose-500 mt-2 text-center">Please enter at least 5 characters for the reason.</p>
+              )}
             </div>
-            <p className="text-slate-600 mb-6">
-              Are you sure you want to reject borrow request {requestToProcess}? This action cannot be undone and the student will need to submit a new request.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  setShowRejectConfirm(false);
-                  setRequestToProcess(null);
-                }}
-                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleRejectRequest(requestToProcess)}
-                disabled={processingRequest === requestToProcess}
-                className="px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                {processingRequest === requestToProcess ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    Processing...
-                  </>
-                ) : (
-                  'Reject'
-                )}
-              </button>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
+           DIRECT RELEASE CONFIRMATION MODAL — Counter Handover
+          ══════════════════════════════════════════════════════════════ */}
+      {showReleaseModal && requestToRelease && (
+        <div
+          className="fixed inset-0 z-[75] flex items-center justify-center p-4"
+          style={{ animation: 'fadeInOverlay 0.2s ease-out' }}
+          onClick={() => { if (!releaseProcessing) { setShowReleaseModal(false); setRequestToRelease(null); } }}
+        >
+          {/* Blurred dark overlay */}
+          <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-md" />
+
+          {/* Modal Card */}
+          <div
+            className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden"
+            style={{ animation: 'slideUpScale 0.25s cubic-bezier(0.34,1.56,0.64,1)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top Header Accent */}
+            <div className="h-2 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-green-500" />
+
+            <div className="p-6 sm:p-7">
+              {/* Title + Request info */}
+              <div className="flex items-start justify-between gap-4 mb-5">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 shadow-2xs">
+                    <FiZap className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900 leading-tight">Release Books to Student</h3>
+                    <p className="text-xs text-slate-500 font-mono mt-0.5">Request #{requestToRelease.request_id}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setShowReleaseModal(false); setRequestToRelease(null); }}
+                  disabled={releaseProcessing}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 transition"
+                >
+                  <FiX className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Borrower Verification Summary Card */}
+              {(() => {
+                const s = requestToRelease.student || {};
+                const ident = getRequestStudentIdentity(requestToRelease);
+                return (
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-50 to-emerald-50/30 border border-slate-200/80 mb-5">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
+                      Borrower Verification
+                    </span>
+                    <div className="flex items-center gap-3">
+                      {ident.profilePicture ? (
+                        <img
+                          src={getBackendAssetUrl(ident.profilePicture)}
+                          alt={ident.name}
+                          className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center font-bold text-emerald-800 text-sm shrink-0">
+                          {(ident.name || 'S').charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-sm font-bold text-slate-900 truncate">{ident.name}</h4>
+                        <p className="text-xs text-slate-500 font-mono">ID: {s.student_number || requestToRelease.student_id || 'N/A'}</p>
+                        <p className="text-xs text-slate-500 truncate">{s.department || s.college || s.school_name || 'Student Borrower'}</p>
+                      </div>
+                      <div className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold border border-emerald-200 shrink-0 flex items-center gap-1">
+                        <FiCheckCircle className="w-3 h-3" />
+                        Verified
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Reserved Items to Handover */}
+              <div className="mb-5">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">
+                  Items to Handover ({requestToRelease.items?.length || 1})
+                </label>
+                <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                  {(requestToRelease.items || [{ title: 'Requested Book Item', book_id: requestToRelease.book_id }]).map((item, idx) => (
+                    <div key={idx} className="p-2.5 rounded-xl border border-slate-200 bg-white flex items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <FiBook className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span className="font-semibold text-slate-800 truncate">
+                          {item.title || item.book_title || `Book ID: ${item.book_id || 'N/A'}`}
+                        </span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 shrink-0">
+                        Ready
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Official Loan Due Date Policy (Set by Admin-Librarian) */}
+              <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-slate-50 to-blue-50/30 border border-slate-200">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                    <FiShield className="w-3.5 h-3.5 text-blue-600" />
+                    Official Loan Due Date
+                  </label>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                    <FiLock className="w-2.5 h-2.5" />
+                    Admin-Librarian Policy
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={releaseDueDate}
+                    disabled={!isAdminLibrarian}
+                    onChange={(e) => {
+                      if (isAdminLibrarian) {
+                        setReleaseDueDate(e.target.value);
+                      }
+                    }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+                      isAdminLibrarian
+                        ? 'border-slate-300 bg-white text-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 cursor-pointer'
+                        : 'border-slate-200 bg-slate-100 text-slate-700 cursor-not-allowed select-none'
+                    }`}
+                  />
+                  {!isAdminLibrarian && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] font-bold text-slate-500 pointer-events-none">
+                      <FiLock className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Policy Locked</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-start gap-2 mt-2 pt-2 border-t border-slate-200/60 text-[11px] text-slate-600">
+                  <FiAlertTriangle className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
+                  <p className="leading-relaxed">
+                    Ang loan duration na ito ay <span className="font-bold text-slate-800">opisyal na itinakda ng Admin-Librarian</span> ayon sa institutional borrowing rules. Hindi ito mababago ng regular circulation staff para maiwasan ang tampering.
+                  </p>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowReleaseModal(false); setRequestToRelease(null); }}
+                  disabled={releaseProcessing}
+                  className="flex-1 px-4 py-3 rounded-xl border-2 border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDirectRelease}
+                  disabled={releaseProcessing}
+                  className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white text-xs font-bold shadow-lg shadow-emerald-500/25 transition flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  {releaseProcessing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      <span>Releasing Books...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FiCheckCircle className="w-4 h-4" />
+                      <span>Confirm & Handover</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1663,42 +2778,59 @@ function AdminBorrowRequests() {
       {/* Active Borrows - Rendered conditionally when Active Loans tab is selected */}
       {activeRequestTab === 'active-loans' && (
         <Card padding="none">
-          <div className="p-6 border-b border-[#E2E8F0] space-y-4">
+          <div className="p-4 sm:p-5 border-b border-[#E2E8F0] space-y-3.5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
                   <FiBook className="w-5 h-5 text-blue-600" />
                   Active Loans Directory
                 </h3>
-                <p className="text-sm text-slate-500 mt-0.5">Currently borrowed books across all students</p>
+                <p className="text-xs text-slate-500 mt-0.5">Currently borrowed books across all students</p>
               </div>
-              <button
-                onClick={fetchActiveBorrows}
-                disabled={activeBorrowsLoading}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E2E8F0] text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50 self-start sm:self-center"
-                title="Refresh"
-              >
-                <FiRefreshCw className={`w-3.5 h-3.5 ${activeBorrowsLoading ? 'animate-spin' : ''}`} />
-                <span>Refresh Loans</span>
-              </button>
+
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                {/* 🌟 VIEW ALL OVERLAY BUTTON */}
+                <button
+                  type="button"
+                  onClick={() => setIsLoansOverlayOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs hover:shadow-md transition-all active:scale-95"
+                  title="Open full-screen active loans overlay"
+                >
+                  <FiMaximize2 className="w-3.5 h-3.5" />
+                  <span>View All (Overlay)</span>
+                </button>
+
+                <button
+                  onClick={fetchActiveBorrows}
+                  disabled={activeBorrowsLoading}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#E2E8F0] text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                  title="Refresh active loans list"
+                >
+                  <FiRefreshCw className={`w-3.5 h-3.5 ${activeBorrowsLoading ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
+              </div>
             </div>
 
             {/* Instant Search and Filters */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <input
-                type="text"
-                placeholder="Search active loans by book title, student name, ID number, accession..."
-                value={activeLoansSearch}
-                onChange={(e) => setActiveLoansSearch(e.target.value)}
-                className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500"
-              />
-              <div className="flex items-center gap-1.5">
+            <div className="flex flex-col sm:flex-row gap-2.5">
+              <div className="relative flex-1">
+                <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search active loans by title, student, ID, accession..."
+                  value={activeLoansSearch}
+                  onChange={(e) => setActiveLoansSearch(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500 bg-slate-50/50 focus:bg-white transition"
+                />
+              </div>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:pb-0">
                 <button
                   type="button"
                   onClick={() => setActiveLoansFilter('all')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
                     activeLoansFilter === 'all'
-                      ? 'bg-slate-900 text-white'
+                      ? 'bg-slate-900 text-white shadow-xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
@@ -1707,9 +2839,9 @@ function AdminBorrowRequests() {
                 <button
                   type="button"
                   onClick={() => setActiveLoansFilter('due-soon')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
                     activeLoansFilter === 'due-soon'
-                      ? 'bg-amber-600 text-white'
+                      ? 'bg-amber-600 text-white shadow-xs'
                       : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
                   }`}
                 >
@@ -1718,9 +2850,9 @@ function AdminBorrowRequests() {
                 <button
                   type="button"
                   onClick={() => setActiveLoansFilter('overdue')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
                     activeLoansFilter === 'overdue'
-                      ? 'bg-rose-600 text-white'
+                      ? 'bg-rose-600 text-white shadow-xs'
                       : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
                   }`}
                 >
@@ -1731,151 +2863,886 @@ function AdminBorrowRequests() {
           </div>
           
           {activeBorrowsLoading ? (
-            <div className="text-center py-12 text-slate-600">Loading active borrows...</div>
+            <div className="text-center py-10 text-slate-500 text-xs">Loading active loans...</div>
           ) : activeBorrows.length === 0 ? (
-            <div className="p-12">
+            <div className="p-8">
               <EmptyState
                 title="No Active Borrows"
                 description="There are no active book borrows at the moment."
               />
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-[#E2E8F0] bg-slate-50/50">
-                    <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Book</th>
-                    <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Student</th>
-                    <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Borrowed</th>
-                    <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Due Date</th>
-                    <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                    <th className="text-right px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#E2E8F0]">
-                  {activeBorrows
-                    .filter((borrow) => {
-                      const dueDate = new Date(borrow.due_date);
-                      const today = new Date();
-                      const isOverdue = dueDate < today;
-                      const isDueSoon = !isOverdue && (dueDate.getTime() - today.getTime()) <= (2 * 24 * 60 * 60 * 1000);
+            <div className="w-full overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full table-auto text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-[#E2E8F0] bg-slate-50/60 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      <th className="px-3.5 py-2.5">Book</th>
+                      <th className="px-3 py-2.5">Student</th>
+                      <th className="px-3 py-2.5">Borrowed</th>
+                      <th className="px-3 py-2.5">Due Date</th>
+                      <th className="px-2.5 py-2.5">Status</th>
+                      <th className="px-3.5 py-2.5 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E2E8F0] text-xs">
+                    {activeBorrows
+                      .filter((borrow) => {
+                        const dueDate = new Date(borrow.due_date);
+                        const today = new Date();
+                        const isOverdue = dueDate < today;
+                        const isDueSoon = !isOverdue && (dueDate.getTime() - today.getTime()) <= (2 * 24 * 60 * 60 * 1000);
 
-                      if (activeLoansFilter === 'overdue' && !isOverdue) return false;
-                      if (activeLoansFilter === 'due-soon' && !isDueSoon) return false;
+                        if (activeLoansFilter === 'overdue' && !isOverdue) return false;
+                        if (activeLoansFilter === 'due-soon' && !isDueSoon) return false;
 
-                      if (!activeLoansSearch.trim()) return true;
+                        if (!activeLoansSearch.trim()) return true;
 
-                      const q = activeLoansSearch.toLowerCase();
-                      const b = booksData[borrow.book_id] || borrow.book_copies?.books || {};
-                      const s = studentsData[borrow.student_id] || borrow.student || {};
-                      const title = (b.title || '').toLowerCase();
-                      const author = (b.author || '').toLowerCase();
-                      const studentName = `${s.firstname || ''} ${s.lastname || ''} ${s.name || ''}`.toLowerCase();
-                      const studentNumber = (s.student_number || '').toLowerCase();
-                      const acc = (borrow.book_copies?.accession_number || '').toLowerCase();
+                        const q = activeLoansSearch.toLowerCase();
+                        const b = booksData[borrow.book_id] || borrow.book_copies?.books || {};
+                        const s = studentsData[borrow.student_id] || borrow.student || {};
+                        const title = (b.title || '').toLowerCase();
+                        const author = (b.author || '').toLowerCase();
+                        const studentName = `${s.firstname || ''} ${s.lastname || ''} ${s.name || ''}`.toLowerCase();
+                        const studentNumber = (s.student_number || '').toLowerCase();
+                        const acc = (borrow.book_copies?.accession_number || '').toLowerCase();
 
-                      return (
-                        title.includes(q) ||
-                        author.includes(q) ||
-                        studentName.includes(q) ||
-                        studentNumber.includes(q) ||
-                        acc.includes(q)
-                      );
+                        return (
+                          title.includes(q) ||
+                          author.includes(q) ||
+                          studentName.includes(q) ||
+                          studentNumber.includes(q) ||
+                          acc.includes(q)
+                        );
+                      })
+                      .map((borrow) => {
+                        const book = booksData[borrow.book_id] || borrow.book_copies?.books || {};
+                        const student = studentsData[borrow.student_id] || borrow.student || {};
+                        const bookCover = book.cover_image || booksData[borrow.book_id]?.cover_image || borrow.book_copies?.books?.cover_image;
+                        const studentAvatar = student.profile_image || student.avatar_url || studentsData[borrow.student_id]?.profile_image;
+                        const schoolName = book.schools?.school_name || schoolsMap[book.school_id]?.school_name || '';
+                        const dueDate = new Date(borrow.due_date);
+                        const today = new Date();
+                        const isOverdue = dueDate < today;
+                        const isDueSoon = !isOverdue && (dueDate.getTime() - today.getTime()) <= (2 * 24 * 60 * 60 * 1000);
+                        const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+                        const studentFullName = student.firstname ? `${student.firstname} ${student.lastname}` : (student.name || 'Student Borrower');
+                        
+                        return (
+                          <tr key={borrow.borrow_id} className="hover:bg-slate-50/80 transition-colors group">
+                            {/* Book Column with Compact Cover */}
+                            <td className="px-3.5 py-2.5">
+                              <div className="flex items-center gap-2.5">
+                                {bookCover ? (
+                                  <div className="relative w-8 h-11 rounded overflow-hidden shrink-0 shadow-xs border border-slate-200">
+                                    <img
+                                      src={getBackendAssetUrl(bookCover)}
+                                      alt={book.title || 'Book Cover'}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                                      }}
+                                    />
+                                    <div className="hidden w-full h-full bg-gradient-to-br from-indigo-500 to-blue-700 items-center justify-center text-white text-[9px] font-black">
+                                      <FiBook className="w-3.5 h-3.5" />
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="w-8 h-11 rounded bg-gradient-to-br from-blue-500 via-indigo-600 to-slate-800 flex flex-col items-center justify-center text-white shrink-0 shadow-xs border border-slate-200">
+                                    <FiBook className="w-3.5 h-3.5 opacity-90" />
+                                  </div>
+                                )}
+                                <div className="min-w-0 max-w-[170px] sm:max-w-[240px] xl:max-w-[300px]">
+                                  <p className="text-xs font-bold text-slate-900 truncate leading-tight" title={book.title}>
+                                    {book.title || 'Unknown Title'}
+                                  </p>
+                                  {book.author && (
+                                    <p className="text-[11px] text-slate-500 truncate leading-tight mt-0.5">
+                                      by {book.author}
+                                    </p>
+                                  )}
+                                  <div className="flex flex-wrap items-center gap-1 mt-1">
+                                    {borrow.book_copies?.accession_number && (
+                                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-blue-50 border border-blue-200/60 text-[9px] font-mono text-blue-700 font-bold">
+                                        <FiTag className="w-2 h-2 text-blue-500" />
+                                        {borrow.book_copies.accession_number}
+                                      </span>
+                                    )}
+                                    {schoolName && (
+                                      <span className="inline-block px-1.5 py-0.2 rounded text-[9px] font-medium bg-slate-50 text-slate-500 border border-slate-200 truncate max-w-[100px]">
+                                        {schoolName}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Student Column with Profile */}
+                            <td className="px-3 py-2.5">
+                              <div className="flex items-center gap-2">
+                                {studentAvatar ? (
+                                  <img
+                                    src={getBackendAssetUrl(studentAvatar)}
+                                    alt={student.firstname || 'Student'}
+                                    className="w-7 h-7 rounded-full object-cover border border-indigo-100 shadow-2xs shrink-0"
+                                    onError={(e) => {
+                                      e.target.style.display = 'none';
+                                      if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                                    }}
+                                  />
+                                ) : null}
+                                <div className={`w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-[10px] flex items-center justify-center shrink-0 border border-white shadow-2xs ${studentAvatar ? 'hidden' : 'flex'}`}>
+                                  {((student.firstname || student.name || 'S').charAt(0) + (student.lastname || '').charAt(0)).toUpperCase()}
+                                </div>
+                                <div className="min-w-0 max-w-[130px] sm:max-w-[170px]">
+                                  <p className="text-xs font-bold text-slate-900 truncate leading-tight" title={studentFullName}>
+                                    {studentFullName}
+                                  </p>
+                                  <p className="font-mono text-[10px] text-slate-500 truncate mt-0.5">
+                                    {student.student_number || `ID: ${borrow.student_id}`}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Borrowed Date */}
+                            <td className="px-3 py-2.5 whitespace-nowrap">
+                              <p className="text-xs font-semibold text-slate-800">
+                                {formatPhilippineDate(borrow.borrow_date)}
+                              </p>
+                              <p className="text-[10px] text-slate-400">
+                                {formatDateTimeWithRelative(borrow.borrow_date)}
+                              </p>
+                            </td>
+
+                            {/* Due Date Column */}
+                            <td className="px-3 py-2.5 whitespace-nowrap">
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-1">
+                                  <FiClock className={`w-3 h-3 ${isOverdue ? 'text-rose-500' : (isDueSoon ? 'text-amber-500' : 'text-slate-400')}`} />
+                                  <span className={`text-xs font-bold ${isOverdue ? 'text-rose-600' : (isDueSoon ? 'text-amber-600' : 'text-slate-900')}`}>
+                                    {formatPhilippineDate(dueDate)}
+                                  </span>
+                                </div>
+                                {isOverdue ? (
+                                  <span className="inline-block px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-50 border border-rose-200 text-rose-700">
+                                    {daysOverdue}d Overdue
+                                  </span>
+                                ) : isDueSoon ? (
+                                  <span className="inline-block px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 border border-amber-200 text-amber-700">
+                                    Due Soon
+                                  </span>
+                                ) : (
+                                  <span className="inline-block px-1.5 py-0.2 rounded text-[9px] font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700">
+                                    Active
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Status */}
+                            <td className="px-2.5 py-2.5 whitespace-nowrap">
+                              <StatusBadge status={isOverdue ? 'overdue' : (isDueSoon ? 'due soon' : 'active')} />
+                            </td>
+
+                            {/* Action */}
+                            <td className="px-3.5 py-2.5 text-right whitespace-nowrap">
+                              <Button
+                                size="sm"
+                                onClick={() => handleReturnBook(borrow.borrow_id, book.title || 'Book', studentFullName)}
+                                disabled={returningBookId === borrow.borrow_id}
+                                className="text-xs px-2.5 py-1 font-bold shadow-xs hover:shadow-sm transition-all active:scale-95 whitespace-nowrap"
+                              >
+                                {returningBookId === borrow.borrow_id ? (
+                                  <>
+                                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1" />
+                                    <span>Returning...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <FiCheckCircle className="w-3.5 h-3.5 mr-1" />
+                                    <span>Return</span>
+                                  </>
+                                )}
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* ⚙️ ADJUST PICKUP HOLD DURATION SETTINGS MODAL */}
+      {isHoldSettingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden transform transition-all animate-scaleUp">
+            {/* Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                  <FiPackage className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">Adjust Pickup Hold Window</h3>
+                  <p className="text-[11px] text-emerald-100">Set reservation expiration period for students</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsHoldSettingsOpen(false)}
+                className="p-1 rounded-lg text-white/80 hover:text-white hover:bg-white/20 transition"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-5">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Choose how many days an approved book reservation is held at the counter before the reservation expires and returns to available inventory.
+              </p>
+
+              {/* Preset Buttons */}
+              <div className="grid grid-cols-3 gap-2.5">
+                {[1, 2, 3, 5, 7, 10].map((days) => (
+                  <button
+                    key={days}
+                    type="button"
+                    onClick={() => setTempHoldDays(days)}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center gap-0.5 border ${
+                      tempHoldDays === days
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/20'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span className="text-base font-black">{days} {days === 1 ? 'Day' : 'Days'}</span>
+                    <span className={`text-[10px] ${tempHoldDays === days ? 'text-emerald-100' : 'text-slate-400'}`}>
+                      {days === 3 ? 'Standard' : (days === 7 ? '1 Week' : `${days * 24} hours`)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom Input */}
+              <div className="space-y-1.5 pt-1">
+                <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span>Custom Hold Duration (Days)</span>
+                  <span className="text-[11px] text-emerald-600 font-mono font-semibold">{tempHoldDays} day{tempHoldDays !== 1 ? 's' : ''} ({tempHoldDays * 24}h)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="1"
+                    max="30"
+                    value={tempHoldDays}
+                    onChange={(e) => setTempHoldDays(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"
+                  />
+                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">Days</span>
+                </div>
+              </div>
+
+              {/* Info Callout */}
+              <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-100 flex items-start gap-2.5 text-xs text-emerald-800">
+                <FiHelpCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <p className="leading-snug text-[11px]">
+                  <strong>Automatic Real-Time Sync:</strong> The Ready for Pickup Queue countdown timers and student claim deadlines will instantly adjust to <strong>{tempHoldDays} days</strong>.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsHoldSettingsOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/70 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveHoldDays(tempHoldDays)}
+                disabled={savingHoldSettings}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {savingHoldSettings ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Saving Policy...
+                  </>
+                ) : (
+                  <>
+                    <FiCheck className="w-4 h-4" />
+                    Apply {tempHoldDays}-Day Hold
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 FULLSCREEN ACTIVE LOANS DIRECTORY OVERLAY MODAL */}
+      {isLoansOverlayOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/75 backdrop-blur-md animate-fadeIn">
+          <div className="w-full max-w-6xl h-[92vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200/80 animate-scaleUp">
+            
+            {/* Modal Header */}
+            <div className="px-6 py-4.5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                  <FiBook className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <h2 className="text-base sm:text-lg font-black tracking-tight">Active Loans Directory</h2>
+                    <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 font-bold text-xs">
+                      {activeBorrows.length} Active {activeBorrows.length === 1 ? 'Loan' : 'Loans'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-0.5">Comprehensive overview and instant check-in for all active book circulations</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={fetchActiveBorrows}
+                  disabled={activeBorrowsLoading}
+                  className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition disabled:opacity-50"
+                  title="Refresh Active Loans"
+                >
+                  <FiRefreshCw className={`w-4 h-4 ${activeBorrowsLoading ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsLoansOverlayOpen(false)}
+                  className="p-2 rounded-xl bg-white/10 hover:bg-rose-500/80 text-white transition"
+                  title="Close Overlay"
+                >
+                  <FiX className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Search, Filters & View Toggle Bar */}
+            <div className="p-4 bg-slate-50 border-b border-slate-200/90 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+              {/* Search Bar */}
+              <div className="relative w-full sm:w-80 md:w-96">
+                <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by book title, student, ID, accession..."
+                  value={overlaySearch}
+                  onChange={(e) => setOverlaySearch(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
+                />
+                {overlaySearch && (
+                  <button
+                    onClick={() => setOverlaySearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <FiX className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Quick Status Filters */}
+              <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto justify-between sm:justify-start">
+                <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setOverlayFilter('all')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                      overlayFilter === 'all'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    All ({activeBorrows.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOverlayFilter('due-soon')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                      overlayFilter === 'due-soon'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'text-amber-700 hover:bg-amber-100/60'
+                    }`}
+                  >
+                    Due Soon ({
+                      activeBorrows.filter(b => {
+                        const d = new Date(b.due_date);
+                        const now = new Date();
+                        return d >= now && (d.getTime() - now.getTime()) <= (2 * 24 * 60 * 60 * 1000);
+                      }).length
                     })
-                    .map((borrow) => {
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOverlayFilter('overdue')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                      overlayFilter === 'overdue'
+                        ? 'bg-rose-600 text-white shadow-xs'
+                        : 'text-rose-700 hover:bg-rose-100/60'
+                    }`}
+                  >
+                    Overdue ({
+                      activeBorrows.filter(b => new Date(b.due_date) < new Date()).length
+                    })
+                  </button>
+                </div>
+
+                {/* View Switcher (Table vs Grid) */}
+                <div className="flex items-center gap-1 p-1 bg-slate-200/60 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setOverlayViewMode('table')}
+                    className={`p-1.5 rounded-lg text-xs font-bold transition ${
+                      overlayViewMode === 'table' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Table View"
+                  >
+                    <FiLayers className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOverlayViewMode('grid')}
+                    className={`p-1.5 rounded-lg text-xs font-bold transition ${
+                      overlayViewMode === 'grid' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Card Grid View"
+                  >
+                    <FiZap className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Body - Scrollable Content Area */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/40">
+              {(() => {
+                const filteredLoans = activeBorrows.filter((borrow) => {
+                  const dueDate = new Date(borrow.due_date);
+                  const today = new Date();
+                  const isOverdue = dueDate < today;
+                  const isDueSoon = !isOverdue && (dueDate.getTime() - today.getTime()) <= (2 * 24 * 60 * 60 * 1000);
+
+                  if (overlayFilter === 'overdue' && !isOverdue) return false;
+                  if (overlayFilter === 'due-soon' && !isDueSoon) return false;
+
+                  if (!overlaySearch.trim()) return true;
+
+                  const q = overlaySearch.toLowerCase();
+                  const b = booksData[borrow.book_id] || borrow.book_copies?.books || {};
+                  const s = studentsData[borrow.student_id] || borrow.student || {};
+                  const title = (b.title || '').toLowerCase();
+                  const author = (b.author || '').toLowerCase();
+                  const studentName = `${s.firstname || ''} ${s.lastname || ''} ${s.name || ''}`.toLowerCase();
+                  const studentNumber = (s.student_number || '').toLowerCase();
+                  const acc = (borrow.book_copies?.accession_number || '').toLowerCase();
+
+                  return (
+                    title.includes(q) ||
+                    author.includes(q) ||
+                    studentName.includes(q) ||
+                    studentNumber.includes(q) ||
+                    acc.includes(q)
+                  );
+                });
+
+                if (filteredLoans.length === 0) {
+                  return (
+                    <div className="py-16 text-center">
+                      <div className="w-16 h-16 rounded-3xl bg-slate-100 flex items-center justify-center mx-auto text-slate-400 mb-3">
+                        <FiBook className="w-8 h-8" />
+                      </div>
+                      <h4 className="text-base font-bold text-slate-700">No active loans found</h4>
+                      <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                        {overlaySearch ? `No results match "${overlaySearch}"` : 'There are currently no active book loans in this filter.'}
+                      </p>
+                    </div>
+                  );
+                }
+
+                if (overlayViewMode === 'table') {
+                  return (
+                    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full table-auto text-left border-collapse">
+                          <thead>
+                            <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                              <th className="px-5 py-3.5">Book Title & Details</th>
+                              <th className="px-4 py-3.5">Student Borrower</th>
+                              <th className="px-4 py-3.5">Borrowed Date</th>
+                              <th className="px-4 py-3.5">Due Date & Timeline</th>
+                              <th className="px-3 py-3.5">Status</th>
+                              <th className="px-5 py-3.5 text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-xs">
+                            {filteredLoans.map((borrow) => {
+                              const book = booksData[borrow.book_id] || borrow.book_copies?.books || {};
+                              const student = studentsData[borrow.student_id] || borrow.student || {};
+                              const bookCover = book.cover_image || booksData[borrow.book_id]?.cover_image || borrow.book_copies?.books?.cover_image;
+                              const studentAvatar = student.profile_image || student.avatar_url || studentsData[borrow.student_id]?.profile_image;
+                              const schoolName = book.schools?.school_name || schoolsMap[book.school_id]?.school_name || '';
+                              const dueDate = new Date(borrow.due_date);
+                              const today = new Date();
+                              const isOverdue = dueDate < today;
+                              const isDueSoon = !isOverdue && (dueDate.getTime() - today.getTime()) <= (2 * 24 * 60 * 60 * 1000);
+                              const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+                              const studentFullName = student.firstname ? `${student.firstname} ${student.lastname}` : (student.name || 'Student Borrower');
+
+                              return (
+                                <tr key={borrow.borrow_id} className="hover:bg-blue-50/40 transition-colors group">
+                                  {/* Book Info */}
+                                  <td className="px-5 py-4">
+                                    <div className="flex items-center gap-3.5">
+                                      {bookCover ? (
+                                        <div className="relative w-11 h-16 rounded-lg overflow-hidden shrink-0 shadow-md border border-slate-200 group-hover:scale-105 transition-transform">
+                                          <img
+                                            src={getBackendAssetUrl(bookCover)}
+                                            alt={book.title || 'Book Cover'}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                              e.target.style.display = 'none';
+                                              if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                                            }}
+                                          />
+                                          <div className="hidden w-full h-full bg-gradient-to-br from-indigo-500 to-blue-700 items-center justify-center text-white text-xs font-black">
+                                            <FiBook className="w-5 h-5" />
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="w-11 h-16 rounded-lg bg-gradient-to-br from-blue-500 via-indigo-600 to-slate-800 flex flex-col items-center justify-center text-white shrink-0 shadow-md border border-slate-200">
+                                          <FiBook className="w-5 h-5 mb-0.5 opacity-90" />
+                                          <span className="text-[9px] font-bold opacity-75 uppercase tracking-wider">Book</span>
+                                        </div>
+                                      )}
+                                      <div className="min-w-0 max-w-sm">
+                                        <p className="text-sm font-bold text-slate-900 truncate" title={book.title}>
+                                          {book.title || 'Unknown Title'}
+                                        </p>
+                                        {book.author && (
+                                          <p className="text-xs text-slate-500 truncate mt-0.5">
+                                            by <span className="font-medium text-slate-700">{book.author}</span>
+                                          </p>
+                                        )}
+                                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                          {borrow.book_copies?.accession_number && (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 border border-blue-200/70 text-[10px] font-mono text-blue-700 font-bold">
+                                              <FiTag className="w-2.5 h-2.5 text-blue-500" />
+                                              {borrow.book_copies.accession_number}
+                                            </span>
+                                          )}
+                                          {book.isbn && (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px] font-mono text-slate-600 font-semibold">
+                                              <FiHash className="w-2.5 h-2.5 text-slate-400" />
+                                              {book.isbn}
+                                            </span>
+                                          )}
+                                          {schoolName && (
+                                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-50 text-slate-600 border border-slate-200 truncate max-w-[130px]">
+                                              {schoolName}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  {/* Student Info */}
+                                  <td className="px-4 py-4">
+                                    <div className="flex items-center gap-3">
+                                      {studentAvatar ? (
+                                        <img
+                                          src={getBackendAssetUrl(studentAvatar)}
+                                          alt={student.firstname || 'Student'}
+                                          className="w-10 h-10 rounded-full object-cover border-2 border-indigo-100 shadow-xs shrink-0"
+                                          onError={(e) => {
+                                            e.target.style.display = 'none';
+                                            if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                                          }}
+                                        />
+                                      ) : null}
+                                      <div className={`w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs border-2 border-white ${studentAvatar ? 'hidden' : 'flex'}`}>
+                                        {((student.firstname || student.name || 'S').charAt(0) + (student.lastname || '').charAt(0)).toUpperCase()}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-bold text-slate-900 truncate">
+                                          {studentFullName}
+                                        </p>
+                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                          <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                                            {student.student_number || `ID: ${borrow.student_id}`}
+                                          </span>
+                                        </div>
+                                        {student.email && (
+                                          <p className="text-[11px] text-slate-400 truncate max-w-[160px] mt-0.5">
+                                            {student.email}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  {/* Borrowed Date */}
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
+                                        <FiCalendar className="w-3.5 h-3.5" />
+                                      </div>
+                                      <div>
+                                        <p className="text-xs font-bold text-slate-800">
+                                          {formatPhilippineDate(borrow.borrow_date)}
+                                        </p>
+                                        <p className="text-[10px] text-slate-400">
+                                          {formatDateTimeWithRelative(borrow.borrow_date)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  {/* Due Date & Timeline */}
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-1.5">
+                                        <FiClock className={`w-3.5 h-3.5 ${isOverdue ? 'text-rose-500' : (isDueSoon ? 'text-amber-500' : 'text-slate-400')}`} />
+                                        <span className={`text-xs font-black ${isOverdue ? 'text-rose-600' : (isDueSoon ? 'text-amber-600' : 'text-slate-900')}`}>
+                                          {formatPhilippineDate(dueDate)}
+                                        </span>
+                                      </div>
+                                      {isOverdue ? (
+                                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-[10px] font-black text-rose-700">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                                          <span>{daysOverdue} day{daysOverdue !== 1 ? 's' : ''} Overdue</span>
+                                        </div>
+                                      ) : isDueSoon ? (
+                                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-black text-amber-700">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                                          <span>Due Soon</span>
+                                        </div>
+                                      ) : (
+                                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700">
+                                          <span>Active Loan</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  {/* Status */}
+                                  <td className="px-3 py-4 whitespace-nowrap">
+                                    <StatusBadge status={isOverdue ? 'overdue' : (isDueSoon ? 'due soon' : 'active')} />
+                                  </td>
+
+                                  {/* Action */}
+                                  <td className="px-5 py-4 text-right whitespace-nowrap">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleReturnBook(borrow.borrow_id, book.title || 'Book', studentFullName)}
+                                      disabled={returningBookId === borrow.borrow_id}
+                                      className="font-bold shadow-sm hover:shadow-md transition-all active:scale-95"
+                                    >
+                                      {returningBookId === borrow.borrow_id ? (
+                                        <>
+                                          <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" />
+                                          Returning...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <FiCheckCircle className="w-4 h-4 mr-1.5" />
+                                          Return / Check-In
+                                        </>
+                                      )}
+                                    </Button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Grid View Mode
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredLoans.map((borrow) => {
                       const book = booksData[borrow.book_id] || borrow.book_copies?.books || {};
                       const student = studentsData[borrow.student_id] || borrow.student || {};
+                      const bookCover = book.cover_image || booksData[borrow.book_id]?.cover_image || borrow.book_copies?.books?.cover_image;
+                      const studentAvatar = student.profile_image || student.avatar_url || studentsData[borrow.student_id]?.profile_image;
+                      const schoolName = book.schools?.school_name || schoolsMap[book.school_id]?.school_name || '';
                       const dueDate = new Date(borrow.due_date);
                       const today = new Date();
                       const isOverdue = dueDate < today;
                       const isDueSoon = !isOverdue && (dueDate.getTime() - today.getTime()) <= (2 * 24 * 60 * 60 * 1000);
                       const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
-                      
+                      const studentFullName = student.firstname ? `${student.firstname} ${student.lastname}` : (student.name || 'Student Borrower');
+
                       return (
-                        <tr key={borrow.borrow_id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="flex items-start gap-3">
-                              <div className="w-10 h-14 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-100">
-                                <FiBook className="w-5 h-5 text-blue-600" />
+                        <div
+                          key={borrow.borrow_id}
+                          className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-4 group"
+                        >
+                          {/* Book & Cover Info */}
+                          <div className="flex items-start gap-3.5">
+                            {bookCover ? (
+                              <div className="relative w-14 h-20 rounded-xl overflow-hidden shrink-0 shadow-md border border-slate-200 group-hover:scale-105 transition-transform">
+                                <img
+                                  src={getBackendAssetUrl(bookCover)}
+                                  alt={book.title || 'Book Cover'}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                                  }}
+                                />
+                                <div className="hidden w-full h-full bg-gradient-to-br from-indigo-500 to-blue-700 items-center justify-center text-white text-xs font-black">
+                                  <FiBook className="w-6 h-6" />
+                                </div>
                               </div>
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium text-slate-900 truncate max-w-xs">
-                                  {book?.title || 'Unknown Book'}
+                            ) : (
+                              <div className="w-14 h-20 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-600 to-slate-800 flex flex-col items-center justify-center text-white shrink-0 shadow-md border border-slate-200">
+                                <FiBook className="w-6 h-6 mb-1 opacity-90" />
+                                <span className="text-[9px] font-bold opacity-75 uppercase tracking-wider">Book</span>
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-bold text-slate-900 leading-snug line-clamp-2" title={book.title}>
+                                {book.title || 'Unknown Title'}
+                              </p>
+                              {book.author && (
+                                <p className="text-xs text-slate-500 truncate mt-1">
+                                  by <span className="font-semibold text-slate-700">{book.author}</span>
                                 </p>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                  {book?.isbn || 'No ISBN'}
-                                </p>
+                              )}
+                              <div className="flex flex-wrap items-center gap-1.5 mt-2">
                                 {borrow.book_copies?.accession_number && (
-                                  <p className="text-xs text-slate-400 mt-0.5">
-                                    Acc: {borrow.book_copies.accession_number}
-                                  </p>
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 border border-blue-200/70 text-[10px] font-mono text-blue-700 font-bold">
+                                    <FiTag className="w-2.5 h-2.5 text-blue-500" />
+                                    {borrow.book_copies.accession_number}
+                                  </span>
+                                )}
+                                {schoolName && (
+                                  <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-50 text-slate-500 border border-slate-200 truncate max-w-[120px]">
+                                    {schoolName}
+                                  </span>
                                 )}
                               </div>
                             </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div>
-                              <p className="text-sm font-medium text-slate-900">
-                                {student?.firstname ? `${student.firstname} ${student.lastname}` : (student?.name || 'Student')}
+                          </div>
+
+                          {/* Student Info Card */}
+                          <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100 flex items-center gap-3">
+                            {studentAvatar ? (
+                              <img
+                                src={getBackendAssetUrl(studentAvatar)}
+                                alt={studentFullName}
+                                className="w-9 h-9 rounded-full object-cover border border-indigo-100 shrink-0"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <div className={`w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-xs flex items-center justify-center shrink-0 ${studentAvatar ? 'hidden' : 'flex'}`}>
+                              {((student.firstname || student.name || 'S').charAt(0) + (student.lastname || '').charAt(0)).toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold text-slate-900 truncate">
+                                {studentFullName}
                               </p>
-                              <p className="text-xs text-slate-500 mt-0.5">
-                                {student?.student_number || `ID: ${borrow.student_id}`}
+                              <p className="text-[11px] font-mono text-slate-500 truncate">
+                                {student.student_number || `ID: ${borrow.student_id}`}
                               </p>
                             </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">
-                              {formatPhilippineDate(borrow.borrow_date)}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div>
-                              <span className={`text-xs font-bold whitespace-nowrap ${isOverdue ? 'text-red-600' : (isDueSoon ? 'text-amber-600' : 'text-slate-700')}`}>
+                          </div>
+
+                          {/* Dates & Timeline */}
+                          <div className="space-y-2 pt-1 border-t border-slate-100">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-slate-500">Borrowed:</span>
+                              <span className="font-semibold text-slate-800">{formatPhilippineDate(borrow.borrow_date)}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-slate-500">Due Date:</span>
+                              <span className={`font-black ${isOverdue ? 'text-rose-600' : (isDueSoon ? 'text-amber-600' : 'text-slate-900')}`}>
                                 {formatPhilippineDate(dueDate)}
                               </span>
-                              {isOverdue && (
-                                <p className="text-xs text-red-600 mt-0.5 font-medium">
-                                  {daysOverdue} day{daysOverdue !== 1 ? 's' : ''} overdue
-                                </p>
-                              )}
-                              {isDueSoon && (
-                                <p className="text-xs text-amber-600 mt-0.5 font-medium">
-                                  Due soon
-                                </p>
-                              )}
                             </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <StatusBadge status={isOverdue ? 'overdue' : (isDueSoon ? 'due soon' : 'active')} />
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <Button
-                              size="sm"
-                              onClick={() => handleReturnBook(borrow.borrow_id)}
-                              disabled={returningBookId === borrow.borrow_id}
-                              className="w-full sm:w-auto"
-                            >
-                              {returningBookId === borrow.borrow_id ? (
-                                <>
-                                  <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" />
-                                  Returning...
-                                </>
+                            <div className="flex items-center justify-between pt-1">
+                              {isOverdue ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-xs font-black text-rose-700">
+                                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                                  {daysOverdue} day{daysOverdue !== 1 ? 's' : ''} Overdue
+                                </span>
+                              ) : isDueSoon ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-black text-amber-700">
+                                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                                  Due Soon
+                                </span>
                               ) : (
-                                <>
-                                  <FiCheckCircle className="w-4 h-4 mr-1.5" />
-                                  Return
-                                </>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700">
+                                  Active Loan
+                                </span>
                               )}
-                            </Button>
-                          </td>
-                        </tr>
+                              <StatusBadge status={isOverdue ? 'overdue' : (isDueSoon ? 'due soon' : 'active')} />
+                            </div>
+                          </div>
+
+                          {/* Return Button */}
+                          <Button
+                            size="md"
+                            onClick={() => handleReturnBook(borrow.borrow_id, book.title || 'Book', studentFullName)}
+                            disabled={returningBookId === borrow.borrow_id}
+                            className="w-full font-bold shadow-xs hover:shadow-md transition-all active:scale-98"
+                          >
+                            {returningBookId === borrow.borrow_id ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" />
+                                Returning Book...
+                              </>
+                            ) : (
+                              <>
+                                <FiCheckCircle className="w-4 h-4 mr-1.5" />
+                                Return / Check-In
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       );
                     })}
-                </tbody>
-              </table>
+                  </div>
+                );
+              })()}
             </div>
-          )}
-        </Card>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-white border-t border-slate-200 flex items-center justify-between shrink-0">
+              <div className="text-xs text-slate-500">
+                Displaying <strong>{activeBorrows.length}</strong> active borrower circulation{activeBorrows.length !== 1 ? 's' : ''}
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLoansOverlayOpen(false)}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-xs transition"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

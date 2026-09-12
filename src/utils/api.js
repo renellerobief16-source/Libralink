@@ -5,19 +5,17 @@ export function getApiBaseUrl() {
     const hostname = window.location.hostname;
     const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
 
-    // When deployed on Vercel or any remote production domain, NEVER use localhost
-    if (!isLocalhost) {
-      const envUrl = (import.meta.env.VITE_API_URL || '').trim();
-      if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
-        return envUrl;
-      }
-      return 'https://libralink-50ig.onrender.com/api';
+    // On local machine / localhost development, ALWAYS connect to local backend on port 5000
+    if (isLocalhost) {
+      return 'http://localhost:5000/api';
     }
 
-    // On local machine
+    // When deployed on Vercel or any remote production domain, NEVER use localhost
     const envUrl = (import.meta.env.VITE_API_URL || '').trim();
-    if (envUrl) return envUrl;
-    return 'http://localhost:5000/api';
+    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+      return envUrl;
+    }
+    return 'https://libralink-50ig.onrender.com/api';
   }
 
   // Fallback during static build
@@ -69,6 +67,9 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
     return config;
   },
   (error) => {
@@ -98,6 +99,7 @@ api.interceptors.response.use(
         status: error.response.status,
         data: error.response.data,
       });
+
     } else if (error.request) {
       // Request made but no response
       return Promise.reject({
@@ -121,17 +123,17 @@ api.interceptors.response.use(
 export async function signIn(email, password) {
   try {
     const response = await api.post('/auth/login', { email, password });
-    
+
     if (response.success && response.token && response.user) {
       // Store JWT token
       localStorage.setItem('token', response.token);
-      
+
       // Normalize user data to match previous format
       const user = normalizeUser(response.user);
       const normalizedRole = normalizeRoleKey(user.role || user.role_name || '');
       const roleId = user.role_id ?? response.user?.role_id ?? null;
       const schoolId = user.school_id ?? response.user?.school_id ?? null;
-      
+
       // Store in localStorage for compatibility
       localStorage.setItem('currentUser', JSON.stringify(user));
       localStorage.setItem('currentUserId', user.user_id);
@@ -141,13 +143,13 @@ export async function signIn(email, password) {
       localStorage.setItem('userRoleName', user.role_name || '');
       localStorage.setItem('userCollege', user.school_code || '');
       window.dispatchEvent(new Event('libralink-user-changed'));
-      
+
       return {
         data: { user },
         error: null,
       };
     }
-    
+
     return { data: null, error: { message: response.message || 'Login failed' } };
   } catch (error) {
     return { data: null, error };
@@ -161,7 +163,7 @@ export async function signUp(email, password, metadata = {}) {
       password,
       ...metadata,
     });
-    
+
     return { data: response?.data || response, error: null };
   } catch (error) {
     return { data: null, error };
@@ -194,11 +196,11 @@ export async function signOut() {
 export async function getCurrentUser() {
   try {
     const response = await api.get('/auth/me');
-    
+
     if (response.success && response.data) {
       return { data: normalizeUser(response.data), error: null };
     }
-    
+
     return { data: null, error: { message: 'Failed to get user' } };
   } catch (error) {
     return { data: null, error };
@@ -209,13 +211,13 @@ export async function updateProfilePicture(file) {
   try {
     const formData = new FormData();
     formData.append('profile_picture', file);
-    
+
     const response = await api.post('/users/profile-picture', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
 
     const profilePicture = response?.profile_picture || response?.profile_image || null;
-    
+
     return {
       data: {
         ...(response || {}),
@@ -244,7 +246,7 @@ export async function changePassword(currentPassword, newPassword) {
       current_password: currentPassword,
       new_password: newPassword,
     });
-    
+
     return { data: response, error: null };
   } catch (error) {
     return { data: null, error };
@@ -261,9 +263,9 @@ export async function searchBooks(query, userSchoolId = null) {
     if (userSchoolId) {
       params.user_school_id = userSchoolId;
     }
-    
+
     const response = await api.get('/books/search', { params });
-    
+
     return { data: response.data || [], error: null };
   } catch (error) {
     return { data: [], error };
@@ -273,7 +275,7 @@ export async function searchBooks(query, userSchoolId = null) {
 export async function getBookById(bookId) {
   try {
     const response = await api.get(`/books/${bookId}`);
-    
+
     return { data: response.data, error: null };
   } catch (error) {
     return { data: null, error };
@@ -283,7 +285,7 @@ export async function getBookById(bookId) {
 export async function getBooksBySchool(schoolId) {
   try {
     const response = await api.get('/books/school', { params: { school_id: schoolId } });
-    
+
     return { data: response.data || [], error: null };
   } catch (error) {
     return { data: [], error };
@@ -317,7 +319,7 @@ export async function createBasicBorrow(
     };
 
     const response = await api.post('/borrow', payload);
-    
+
     return { data: response.data, error: null };
   } catch (error) {
     return { data: null, error };
@@ -327,7 +329,7 @@ export async function createBasicBorrow(
 export async function getBorrowRequests(schoolId) {
   try {
     const response = await api.get(`/borrow-requests/school/${schoolId}`);
-    
+
     return { data: response.data || [], error: null };
   } catch (error) {
     return { data: [], error };
@@ -343,7 +345,7 @@ export async function updateBorrowRequestStatus(requestId, status, adminId) {
       const response = await api.put(`/borrow-requests/${requestId}/reject`, { remarks: 'Rejected by librarian' });
       return { data: response.data, error: null };
     }
-    
+
     return { data: null, error: { message: 'Invalid status' } };
   } catch (error) {
     return { data: null, error };
@@ -353,7 +355,7 @@ export async function updateBorrowRequestStatus(requestId, status, adminId) {
 export async function getActiveBorrows(studentId) {
   try {
     const response = await api.get('/borrow/active');
-    
+
     return { data: response.data || [], error: null };
   } catch (error) {
     return { data: [], error };
@@ -363,7 +365,7 @@ export async function getActiveBorrows(studentId) {
 export async function getStudentBorrowHistory(studentId) {
   try {
     const response = await api.get('/borrow/history');
-    
+
     return { data: response.data || [], error: null };
   } catch (error) {
     return { data: [], error };
@@ -378,7 +380,7 @@ export async function createActiveBorrow(studentId, bookId, college, requestId, 
 export async function returnBook(borrowId) {
   try {
     const response = await api.post('/borrow/return', { borrow_id: borrowId });
-    
+
     return { data: response.data, error: null };
   } catch (error) {
     return { data: null, error };
@@ -426,7 +428,7 @@ export async function createInterlibraryRequest(studentId, copyId, toSchoolId, r
       to_school_id: toSchoolId,
       remarks,
     });
-    
+
     return { data: response.data, error: null };
   } catch (error) {
     return { data: null, error };
@@ -436,7 +438,7 @@ export async function createInterlibraryRequest(studentId, copyId, toSchoolId, r
 export async function getPendingInterlibraryRequests() {
   try {
     const response = await api.get('/interlibrary/pending');
-    
+
     return { data: response.data || [], error: null };
   } catch (error) {
     return { data: [], error };
@@ -446,7 +448,7 @@ export async function getPendingInterlibraryRequests() {
 export async function getMyInterlibraryRequests() {
   try {
     const response = await api.get('/interlibrary/my-requests');
-    
+
     return { data: response.data || [], error: null };
   } catch (error) {
     return { data: [], error };
@@ -456,7 +458,7 @@ export async function getMyInterlibraryRequests() {
 export async function approveInterlibraryRequest(requestId) {
   try {
     const response = await api.post('/interlibrary/approve', { request_id: requestId });
-    
+
     return { data: response.data, error: null };
   } catch (error) {
     return { data: null, error };
@@ -465,11 +467,11 @@ export async function approveInterlibraryRequest(requestId) {
 
 export async function rejectInterlibraryRequest(requestId, remarks = '') {
   try {
-    const response = await api.post('/interlibrary/reject', { 
+    const response = await api.post('/interlibrary/reject', {
       request_id: requestId,
       remarks,
     });
-    
+
     return { data: response.data, error: null };
   } catch (error) {
     return { data: null, error };
@@ -559,7 +561,8 @@ export async function generatePermissionLetter(requestId, letterUrl) {
 export async function scanQRToken(qrToken) {
   try {
     const response = await api.post('/borrow-requests/scan', { qr_token: qrToken });
-    return { data: response.data, error: null };
+    const payload = response.data?.data !== undefined ? response.data.data : response.data;
+    return { data: payload, error: null };
   } catch (error) {
     return { data: null, error };
   }
@@ -568,16 +571,18 @@ export async function scanQRToken(qrToken) {
 export async function releaseBookItem(itemId, copyId = null) {
   try {
     const response = await api.put(`/borrow-requests/items/${itemId}/release`, { copy_id: copyId });
-    return { data: response.data, error: null };
+    const payload = response.data?.data !== undefined ? response.data.data : response.data;
+    return { data: payload, error: null };
   } catch (error) {
     return { data: null, error };
   }
 }
 
-export async function returnBookItem(itemId) {
+export async function returnBookItem(itemId, options = {}) {
   try {
-    const response = await api.put(`/borrow-requests/items/${itemId}/return`);
-    return { data: response.data, error: null };
+    const response = await api.put(`/borrow-requests/items/${itemId}/return`, options);
+    const payload = response.data?.data !== undefined ? response.data.data : response.data;
+    return { data: payload, error: null };
   } catch (error) {
     return { data: null, error };
   }
@@ -645,7 +650,7 @@ export async function createAdminNotification(college, type, title, message, rel
 export async function getUserNotifications(userId) {
   try {
     const response = await api.get('/notifications');
-    
+
     return { data: response.data || [], error: null };
   } catch (error) {
     return { data: [], error };
@@ -655,7 +660,7 @@ export async function getUserNotifications(userId) {
 export async function getAdminNotifications(college) {
   try {
     const response = await api.get('/notifications/admin');
-    
+
     return { data: response.data || [], error: null };
   } catch (error) {
     return { data: [], error };
@@ -665,7 +670,7 @@ export async function getAdminNotifications(college) {
 export async function getUnreadNotificationCount(userId) {
   try {
     const response = await api.get('/notifications/unread-count');
-    
+
     return { count: response.data?.count || 0, error: null };
   } catch (error) {
     return { count: 0, error };
@@ -675,7 +680,7 @@ export async function getUnreadNotificationCount(userId) {
 export async function markNotificationAsRead(notificationId) {
   try {
     const response = await api.put(`/notifications/${notificationId}/read`);
-    
+
     return { data: response.data, error: null };
   } catch (error) {
     return { data: null, error };
@@ -685,7 +690,7 @@ export async function markNotificationAsRead(notificationId) {
 export async function deleteNotification(notificationId) {
   try {
     const response = await api.delete(`/notifications/${notificationId}`);
-    
+
     return { data: response.data, error: null };
   } catch (error) {
     return { data: null, error };
@@ -695,7 +700,7 @@ export async function deleteNotification(notificationId) {
 export async function deleteAllNotifications() {
   try {
     const response = await api.delete('/notifications/clear-all');
-    
+
     return { data: response.data, error: null };
   } catch (error) {
     return { data: null, error };

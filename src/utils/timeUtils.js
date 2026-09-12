@@ -6,12 +6,28 @@
 const MANILA_TZ = 'Asia/Manila';
 
 /**
- * Parses any incoming date representation safely
+ * Parses any incoming date representation safely and normalizes UTC database timestamps
  * @param {string|number|Date} dateInput 
  * @returns {Date|null}
  */
 export function safeParseDate(dateInput) {
   if (!dateInput) return null;
+  if (dateInput instanceof Date) return isNaN(dateInput.getTime()) ? null : dateInput;
+  if (typeof dateInput === 'string') {
+    let s = dateInput.trim();
+    if (!s) return null;
+    // If format is YYYY-MM-DD (date only), treat as midday to avoid UTC timezone rollback
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y, m, d] = s.split('-').map(Number);
+      return new Date(y, m - 1, d, 12, 0, 0);
+    }
+    // If format has timestamp but lacks timezone offset (e.g. from PostgreSQL '2026-09-12T03:26:07.793' or '2026-09-12 03:26:07.793')
+    if (/^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}/.test(s) && !/[Zz]|[+-]\d{2}(:?\d{2})?$/.test(s)) {
+      s = s.replace(' ', 'T') + 'Z';
+    }
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
   const d = new Date(dateInput);
   return isNaN(d.getTime()) ? null : d;
 }

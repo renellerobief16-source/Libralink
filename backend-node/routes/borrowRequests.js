@@ -362,20 +362,28 @@ router.post('/scan', auth, requireRole(['Librarian', 'Librarian Admin']), async 
 
     // QRCodeDisplay stores a JSON payload, while manual/device scanners may
     // provide only the token. Accept both formats for the same QR code.
+    let requestIdFallback = null;
     try {
       const qrPayload = JSON.parse(qrToken);
       const payloadToken = qrPayload?.token || qrPayload?.qr_token || qrPayload?.data?.token || qrPayload?.data?.qr_token;
-      if (typeof payloadToken === 'string') qrToken = payloadToken.trim();
+      requestIdFallback = qrPayload?.request_id || qrPayload?.data?.request_id || null;
+      if (typeof payloadToken === 'string' && payloadToken.trim()) {
+        qrToken = payloadToken.trim();
+      } else if (typeof requestIdFallback === 'string' && requestIdFallback.trim()) {
+        qrToken = requestIdFallback.trim();
+      }
     } catch {
-      // The input is already a raw token.
+      // The input is already a raw token or request id string.
     }
 
-    console.log('[SCAN QR] QR Token:', qrToken);
+    console.log('[SCAN QR] Resolved search key:', qrToken);
     let request;
     try {
       request = await BorrowRequest.getByQRToken(qrToken);
+      if (!request && requestIdFallback && requestIdFallback !== qrToken) {
+        request = await BorrowRequest.getByQRToken(requestIdFallback);
+      }
     } catch (error) {
-      // A missing token is a client scan error, not a server failure.
       if (error.code === 'PGRST116' || error.status === 406) {
         return res.status(404).json({ success: false, message: 'Invalid QR token or request not found' });
       }
@@ -407,7 +415,6 @@ router.post('/scan', auth, requireRole(['Librarian', 'Librarian Admin']), async 
 
     if (alreadyReleasedItems.length > 0) {
       console.log('[SCAN QR] Warning: Some items already released:', alreadyReleasedItems.map(i => i.item_id));
-      // Still return the request but with a warning
       return res.json({
         success: true,
         data: request,
@@ -415,19 +422,18 @@ router.post('/scan', auth, requireRole(['Librarian', 'Librarian Admin']), async 
       });
     }
 
-    // Check if librarian is authorized for either side of an inter-school request.
-    // The owning library (book owner) and the requesting school (student home school)
-    // are both involved in the request, so the scan should work for either side.
+    // Check school involvement authorization
     const involvedSchoolIds = new Set([
       String(request.home_school_id),
       ...(request.items || []).map(item => item.owner_school_id).filter(Boolean),
       ...(request.items || []).map(item => item.partner_school_id).filter(Boolean)
     ].map(String));
 
-    const isAuthorizedSchool = involvedSchoolIds.has(String(req.user.school_id));
+    const isSuperAdmin = req.user.role === 'Super Admin' || req.user.role_id === 1;
+    const isAuthorizedSchool = !req.user.school_id || isSuperAdmin || involvedSchoolIds.has(String(req.user.school_id));
 
     console.log('[SCAN QR] Involved schools:', [...involvedSchoolIds]);
-    console.log('[SCAN QR] Authorized school check:', isAuthorizedSchool);
+    console.log('[SCAN QR] Authorized check:', isAuthorizedSchool);
 
     if (!isAuthorizedSchool) {
       return res.status(403).json({ success: false, message: 'Unauthorized - Not involved in this request' });
@@ -455,62 +461,66 @@ router.put('/items/:item_id/release', auth, requireRole(['Librarian', 'Librarian
 
     const { copy_id } = req.body;
 
-    // Get request details for notification
+    // 1. Fetch item details
     const { data: itemDetails } = await supabase
       .from('borrow_request_items')
-      .select(`
-        request_id,
-        book_id,
-        borrow_request_items(
-          request_id,
-          student_id
-        )
-      `)
+      .select('request_id, book_id, item_id, owner_school_id')
       .eq('item_id', req.params.item_id)
       .single();
 
     const result = await BorrowRequest.releaseBook(req.params.item_id, req.user.user_id, copy_id);
 
-    // Notify student that book has been borrowed
-    if (itemDetails) {
-      const { data: request } = await supabase
-        .from('borrow_requests')
-        .select('student_id, request_id')
-        .eq('request_id', itemDetails.request_id)
-        .single();
-
-      if (request) {
-        const { data: book } = await supabase
-          .from('books')
-          .select('title')
-          .eq('book_id', itemDetails.book_id)
+    // 2. Notify student with due date and book title (wrapped in try/catch to never block release)
+    try {
+      if (itemDetails) {
+        const { data: request } = await supabase
+          .from('borrow_requests')
+          .select('student_id, request_id, due_date')
+          .eq('request_id', itemDetails.request_id)
           .single();
 
-        const librarianName = [req.user.firstname, req.user.lastname].filter(Boolean).join(' ') || 'Librarian';
+        if (request && request.student_id) {
+          const { data: book } = await supabase
+            .from('books')
+            .select('title')
+            .eq('book_id', itemDetails.book_id)
+            .single();
 
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: request.student_id,
-            school_id: req.user.school_id,
-            type: 'book_borrowed',
-            title: 'Book Borrowed Successfully 📚',
-            message: `You have successfully borrowed "${book?.title || 'the book'}". Please return it by the due date.`,
-            related_id: null,
-            is_read: false,
-            is_admin_notification: false,
-            created_at: new Date().toISOString(),
-          });
+          const rawDueDate = result?.due_date || request.due_date;
+          const formattedDueDate = rawDueDate
+            ? new Date(rawDueDate).toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })
+            : '7 days from release';
+
+          await supabase
+            .from('notifications')
+            .insert({
+              user_id: request.student_id,
+              school_id: req.user.school_id || itemDetails.owner_school_id || null,
+              type: 'book_borrowed',
+              title: `Book Released: "${book?.title || 'Book'}" 📚`,
+              message: `Your copy of "${book?.title || 'the book'}" has been released at the counter. Return Due Date: ${formattedDueDate}. Please return the book on or before the due date to avoid late fees.`,
+              related_id: parseInt(itemDetails.item_id, 10) || null,
+              is_read: false,
+              is_admin_notification: false,
+              created_at: new Date().toISOString(),
+            });
+
+          console.log('[RELEASE NOTIFICATION] Sent notification to student:', request.student_id, 'Due Date:', formattedDueDate);
+        }
       }
+    } catch (notifErr) {
+      console.warn('[RELEASE NOTIFICATION] Non-fatal notification error:', notifErr.message);
     }
 
     res.json({ success: true, data: result });
   } catch (error) {
     console.error('[BORROW REQUESTS] Error releasing book:', error);
-    console.error('[BORROW REQUESTS] Error details:', error.message);
-    console.error('[BORROW REQUESTS] Error stack:', error.stack);
-    console.error('[BORROW REQUESTS] Full error object:', JSON.stringify(error, null, 2));
-    res.status(500).json({ success: false, message: 'Server error', error: error.message, details: error.toString() });
+    res.status(500).json({ success: false, message: error.message || 'Server error releasing book', error: error.message });
   }
 });
 
@@ -565,44 +575,62 @@ router.put('/items/:item_id/return', auth, requireRole(['Librarian', 'Librarian 
       return res.status(403).json({ success: false, message: 'Unauthorized - You can only return books for your library' });
     }
 
-    const result = await BorrowRequest.returnBook(req.params.item_id, req.user.user_id);
+    const { condition = 'good', remarks = '', fine_amount = null, is_paid = true } = req.body || {};
+    const result = await BorrowRequest.returnBook(req.params.item_id, req.user.user_id, {
+      condition,
+      remarks,
+      fine_amount,
+      is_paid
+    });
 
-    // Notify student that book has been returned
-    if (request && request.student_id) {
-      const { data: book } = await supabase
-        .from('books')
-        .select('title')
-        .eq('book_id', itemDetails.book_id)
-        .single();
+    // Notify student that book has been returned (wrapped safely)
+    try {
+      if (request && request.student_id) {
+        const { data: book } = await supabase
+          .from('books')
+          .select('title')
+          .eq('book_id', itemDetails.book_id)
+          .single();
 
-      const bookTitle = book?.title || 'the book';
-      let notifTitle = 'Book Returned Successfully ✅';
-      let notifMessage = `You have successfully returned "${bookTitle}". Thank you for using the library.`;
+        const bookTitle = book?.title || 'the book';
+        const assessedFine = fine_amount !== null && fine_amount !== undefined ? fine_amount : (result?.fineAssessed || 0);
+        let notifTitle = 'Book Returned Successfully ✅';
+        let notifMessage = `You have successfully returned "${bookTitle}". Condition: ${condition.toUpperCase()}. Thank you for returning your library book on time!`;
 
-      if (result.fineAssessed > 0) {
-        notifTitle = 'Book Returned with Overdue Fine ⚠️';
-        notifMessage = `You returned "${bookTitle}" ${result.daysOverdue} day(s) late. An overdue fine of ₱${Number(result.fineAssessed).toFixed(2)} has been recorded. Please settle it at the library circulation desk.`;
+        if (assessedFine > 0) {
+          if (is_paid) {
+            notifTitle = 'Book Returned & Fine Cleared ✅';
+            notifMessage = `You returned "${bookTitle}". Fine of ₱${Number(assessedFine).toFixed(2)} was paid and cleared at the circulation desk.`;
+          } else {
+            notifTitle = 'Book Returned with Overdue Fine ⚠️';
+            notifMessage = `You returned "${bookTitle}". An overdue fine of ₱${Number(assessedFine).toFixed(2)} has been recorded on your account. Please settle it at the library circulation desk.`;
+          }
+        }
+
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: request.student_id,
+            school_id: req.user.school_id || itemDetails.owner_school_id || null,
+            type: 'book_returned',
+            title: notifTitle,
+            message: notifMessage,
+            related_id: parseInt(itemDetails.item_id, 10) || null,
+            is_read: false,
+            is_admin_notification: false,
+            created_at: new Date().toISOString(),
+          });
+
+        console.log('[RETURN NOTIFICATION] Sent return notification to student:', request.student_id);
       }
-
-      await supabase
-        .from('notifications')
-        .insert({
-          user_id: request.student_id,
-          school_id: req.user.school_id,
-          type: 'book_returned',
-          title: notifTitle,
-          message: notifMessage,
-          related_id: null,
-          is_read: false,
-          is_admin_notification: false,
-          created_at: new Date().toISOString(),
-        });
+    } catch (notifErr) {
+      console.warn('[RETURN NOTIFICATION] Non-fatal notification error:', notifErr.message);
     }
 
     res.json({ success: true, data: result });
   } catch (error) {
     console.error('[BORROW REQUESTS] Error returning book:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: error.message || 'Server error' });
   }
 });
 

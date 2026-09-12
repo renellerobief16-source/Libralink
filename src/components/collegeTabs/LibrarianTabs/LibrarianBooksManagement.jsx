@@ -107,7 +107,17 @@ function AdminBooksManagement({ darkMode, onNavigateTab }) {
   const fetchExistingAccessionNumbers = async (schoolId) => {
     try {
       const response = await api.get(`/books/school?school_id=${schoolId}`);
-      const accessionNumbers = response.data?.map(book => book.accession_number).filter(Boolean) || [];
+      let books = [];
+      if (Array.isArray(response)) {
+        books = response;
+      } else if (Array.isArray(response?.data?.books)) {
+        books = response.data.books;
+      } else if (Array.isArray(response?.books)) {
+        books = response.books;
+      } else if (Array.isArray(response?.data)) {
+        books = response.data;
+      }
+      const accessionNumbers = books.map(book => book.accession_number).filter(Boolean);
       setExistingAccessionNumbers(accessionNumbers);
     } catch (err) {
       console.error('Error fetching existing accession numbers:', err);

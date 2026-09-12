@@ -86,11 +86,23 @@ class LibrarySettings {
 
   static async getHomeBorrowingDays(school_id) {
     try {
+      if (!school_id) return 7;
       const setting = await this.getSetting(school_id, 'home_borrowing_days');
-      return parseInt(setting.setting_value) || 3; // Default to 3 days
+      const val = parseInt(setting?.setting_value);
+      if (val && !isNaN(val) && val > 0) return val;
+
+      const { data: school } = await supabase
+        .from('schools')
+        .select('default_borrow_days_student')
+        .eq('school_id', school_id)
+        .maybeSingle();
+      if (school?.default_borrow_days_student) {
+        return parseInt(school.default_borrow_days_student) || 7;
+      }
+      return 7;
     } catch (error) {
       console.error('[LIBRARY SETTINGS] Error getting home borrowing days:', error);
-      return 3; // Default fallback
+      return 7;
     }
   }
 
@@ -138,7 +150,8 @@ class LibrarySettings {
   static getDefaultValue(setting_key) {
     const defaults = {
       'max_borrow_limit': { setting_value: '5', setting_type: 'INTEGER' },
-      'home_borrowing_days': { setting_value: '3', setting_type: 'INTEGER' },
+      'home_borrowing_days': { setting_value: '7', setting_type: 'INTEGER' },
+      'pickup_hold_days': { setting_value: '3', setting_type: 'INTEGER' },
       'inter_school_library_use_only': { setting_value: 'true', setting_type: 'BOOLEAN' },
       'enable_fines': { setting_value: 'false', setting_type: 'BOOLEAN' },
       'fine_amount_per_day': { setting_value: '5.00', setting_type: 'DECIMAL' },
@@ -150,6 +163,16 @@ class LibrarySettings {
       'visiting_policy_notes': { setting_value: 'Visiting students from other consortium schools may review, read, and research this book on-site inside library premises.', setting_type: 'STRING' }
     };
     return defaults[setting_key] || { setting_value: '', setting_type: 'STRING' };
+  }
+
+  static async getPickupHoldDays(school_id) {
+    try {
+      const setting = await this.getSetting(school_id, 'pickup_hold_days');
+      return parseInt(setting.setting_value) || 3;
+    } catch (error) {
+      console.error('[LIBRARY SETTINGS] Error getting pickup hold days:', error);
+      return 3;
+    }
   }
 
   static async getFinePolicy(school_id) {
@@ -194,6 +217,7 @@ class LibrarySettings {
       const [
         limitSetting,
         daysSetting,
+        pickupHoldSetting,
         interSetting,
         visitingFeeSetting,
         visitingAmountSetting,
@@ -203,6 +227,7 @@ class LibrarySettings {
       ] = await Promise.all([
         this.getSetting(school_id, 'max_borrow_limit'),
         this.getSetting(school_id, 'home_borrowing_days'),
+        this.getSetting(school_id, 'pickup_hold_days'),
         this.getSetting(school_id, 'inter_school_library_use_only'),
         this.getSetting(school_id, 'enable_visiting_fee'),
         this.getSetting(school_id, 'visiting_fee_amount'),
@@ -215,6 +240,7 @@ class LibrarySettings {
         school_id: parseInt(school_id),
         max_borrow_limit: parseInt(limitSetting.setting_value) || 5,
         home_borrowing_days: parseInt(daysSetting.setting_value) || 3,
+        pickup_hold_days: parseInt(pickupHoldSetting.setting_value) || 3,
         inter_school_library_use_only: interSetting.setting_value === true || interSetting.setting_value === 'true',
         enable_visiting_fee: visitingFeeSetting.setting_value === true || visitingFeeSetting.setting_value === 'true',
         visiting_fee_amount: parseFloat(visitingAmountSetting.setting_value) || 0.00,
@@ -228,6 +254,7 @@ class LibrarySettings {
         school_id: parseInt(school_id),
         max_borrow_limit: 5,
         home_borrowing_days: 3,
+        pickup_hold_days: 3,
         inter_school_library_use_only: true,
         enable_visiting_fee: false,
         visiting_fee_amount: 0.00,
@@ -248,6 +275,9 @@ class LibrarySettings {
       }
       if (policy.home_borrowing_days !== undefined) {
         await this.updateSetting(school_id, 'home_borrowing_days', policy.home_borrowing_days);
+      }
+      if (policy.pickup_hold_days !== undefined) {
+        await this.updateSetting(school_id, 'pickup_hold_days', policy.pickup_hold_days);
       }
       if (policy.inter_school_library_use_only !== undefined) {
         await this.updateSetting(school_id, 'inter_school_library_use_only', policy.inter_school_library_use_only);

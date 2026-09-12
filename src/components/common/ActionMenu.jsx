@@ -19,26 +19,28 @@ function ActionMenu({ trigger, items }) {
   }, [open]);
 
   return (
-    <div className="relative" ref={menuRef}>
-      <div onClick={() => setOpen((prev) => !prev)}>{trigger}</div>
+    <div className="relative inline-block text-left" ref={menuRef}>
+      <div onClick={() => setOpen((prev) => !prev)} className="cursor-pointer">{trigger}</div>
 
       {open && (
-        <div className="absolute right-0 top-8 bg-white border border-[#E2E8F0] rounded-lg shadow-lg py-1 z-10 min-w-[160px]">
+        <div className="absolute right-0 bottom-full mb-2 sm:bottom-auto sm:top-full sm:mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl py-1.5 z-50 min-w-[165px] ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-150">
           {items.map((item) => (
             <button
               key={item.label}
-              onClick={() => {
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
                 item.onClick?.();
                 setOpen(false);
               }}
-              className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
+              className={`w-full px-3.5 py-2 text-left text-xs font-semibold flex items-center gap-2.5 transition-colors cursor-pointer ${
                 item.danger
-                  ? "text-red-600 hover:bg-red-50"
-                  : "text-[#0F172A] hover:bg-[#F8FAFC]"
+                  ? "text-rose-600 hover:bg-rose-50/80 active:bg-rose-100"
+                  : "text-slate-700 hover:bg-slate-50 active:bg-slate-100 hover:text-slate-900"
               }`}
             >
-              {item.icon && <span className="flex-shrink-0">{item.icon}</span>}
-              {item.label}
+              {item.icon && <span className="flex-shrink-0 text-current">{item.icon}</span>}
+              <span>{item.label}</span>
             </button>
           ))}
         </div>

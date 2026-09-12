@@ -154,18 +154,25 @@ router.post('/', auth, requireRole(['Student']), async (req, res) => {
   }
 });
 
-// @route   PUT /api/borrow/:id/return
+// @route   POST /api/borrow/return or PUT /api/borrow/:id/return
 // @desc    Return book
 // @access  Private (Librarian Admin, Librarian)
-router.put('/:id/return', auth, requireRole(['Librarian Admin', 'Librarian']), async (req, res) => {
+const handleReturnBookRoute = async (req, res) => {
   try {
-    const result = await BorrowTransaction.returnBook(req.params.id);
+    const borrowId = req.params.id || req.body.borrow_id || req.body.borrowId;
+    if (!borrowId) {
+      return res.status(400).json({ success: false, message: 'borrow_id is required' });
+    }
+    const result = await BorrowTransaction.returnBook(borrowId);
     res.json({ success: true, message: 'Book returned successfully', data: result });
   } catch (error) {
     console.error('Error returning book:', error);
     res.status(500).json({ success: false, message: error.message || 'Server error' });
   }
-});
+};
+
+router.put('/:id/return', auth, requireRole(['Librarian Admin', 'Librarian']), handleReturnBookRoute);
+router.post('/return', auth, requireRole(['Librarian Admin', 'Librarian']), handleReturnBookRoute);
 
 // @route   PUT /api/borrow/:id
 // @desc    Update borrow transaction

@@ -337,15 +337,39 @@ class BorrowRequest {
 
   static async getByQRToken(qr_token) {
     try {
-      // Look up the request first without nested relations. This keeps QR
-      // scanning reliable even when an optional school/book relation is absent.
-      const { data: request, error: requestError } = await supabase
+      const cleanToken = String(qr_token || '').trim();
+      if (!cleanToken) return null;
+
+      let request = null;
+      const { data: directReq, error: requestError } = await supabase
         .from('borrow_requests')
         .select('*')
-        .eq('qr_token', qr_token)
+        .or(`qr_token.eq."${cleanToken}",request_id.eq."${cleanToken}"`)
         .maybeSingle();
 
-      if (requestError) throw requestError;
+      if (directReq) {
+        request = directReq;
+      } else {
+        const { data: fallbackReq } = await supabase
+          .from('borrow_requests')
+          .select('*')
+          .eq('qr_token', cleanToken)
+          .maybeSingle();
+        
+        if (fallbackReq) {
+          request = fallbackReq;
+        } else {
+          const { data: reqById } = await supabase
+            .from('borrow_requests')
+            .select('*')
+            .eq('request_id', cleanToken)
+            .maybeSingle();
+          if (reqById) {
+            request = reqById;
+          }
+        }
+      }
+
       if (!request) return null;
 
       const { data: student, error: studentError } = await supabase
@@ -631,10 +655,52 @@ class BorrowRequest {
         throw new Error(`Item ${item_id} has already been released`);
       }
 
-      const actualCopyId = copy_id || existingItem.assigned_copy_id || existingItem.copy_id;
+      let actualCopyId = copy_id || existingItem.assigned_copy_id || existingItem.copy_id;
       
       if (!actualCopyId) {
-        throw new Error(`No copy assigned to item ${item_id}. Cannot release.`);
+        // Automatically find an available copy for this book
+        const { data: availableCopy } = await supabase
+          .from('book_copies')
+          .select('copy_id')
+          .eq('book_id', existingItem.book_id)
+          .eq('status', 'available')
+          .limit(1)
+          .maybeSingle();
+
+        if (availableCopy) {
+          actualCopyId = availableCopy.copy_id;
+        } else {
+          // If no copy is marked 'available', pick any existing copy for this book
+          const { data: anyCopy } = await supabase
+            .from('book_copies')
+            .select('copy_id')
+            .eq('book_id', existingItem.book_id)
+            .limit(1)
+            .maybeSingle();
+          if (anyCopy) {
+            actualCopyId = anyCopy.copy_id;
+          } else {
+            // Auto-create a tracked copy for this book copy inventory
+            const { data: newCopy } = await supabase
+              .from('book_copies')
+              .insert({
+                book_id: existingItem.book_id,
+                school_id: existingItem.owner_school_id || 1,
+                accession_number: `ACC-${Date.now().toString().slice(-6)}`,
+                status: 'borrowed',
+                condition: 'good'
+              })
+              .select('copy_id')
+              .single();
+            if (newCopy) {
+              actualCopyId = newCopy.copy_id;
+            }
+          }
+        }
+      }
+
+      if (!actualCopyId) {
+        throw new Error(`Unable to assign a book copy for item ${item_id}`);
       }
 
       // Update item status to borrowed with proper lifecycle
@@ -677,15 +743,15 @@ class BorrowRequest {
         .eq('request_id', existingItem.request_id)
         .single();
 
+      let computedDueDate = null;
+      const releaseTimestamp = new Date();
       if (parentRequest) {
-        let dueDate = parentRequest.due_date;
-        if (!dueDate) {
-          const schoolForDays = existingItem.owner_school_id || parentRequest.home_school_id;
-          const borrowingDays = await LibrarySettings.getHomeBorrowingDays(schoolForDays);
-          const d = new Date();
-          d.setDate(d.getDate() + borrowingDays);
-          dueDate = d.toISOString();
-        }
+        // Automatically calculate due date from the exact moment of librarian counter release
+        const schoolForDays = existingItem.owner_school_id || parentRequest.home_school_id;
+        const borrowingDays = await LibrarySettings.getHomeBorrowingDays(schoolForDays);
+        const d = new Date(releaseTimestamp);
+        d.setDate(d.getDate() + (borrowingDays || 7));
+        computedDueDate = d.toISOString().split('T')[0];
 
         // Check if an active transaction already exists for this copy & student
         const { data: existingTx } = await supabase
@@ -702,15 +768,15 @@ class BorrowRequest {
               student_id: parentRequest.student_id,
               copy_id: actualCopyId,
               librarian_id: released_by || null,
-              borrow_date: new Date().toISOString(),
-              due_date: dueDate,
+              borrow_date: releaseTimestamp.toISOString(),
+              due_date: computedDueDate,
               status: 'active'
             });
 
           if (insertTxError) {
             console.warn('[BORROW REQUEST] Error inserting borrow_transaction sync:', insertTxError);
           } else {
-            console.log('[BORROW REQUEST] Synchronized active loan to borrow_transactions');
+            console.log('[BORROW REQUEST] Synchronized active loan to borrow_transactions with due date:', computedDueDate);
           }
         }
 
@@ -719,14 +785,14 @@ class BorrowRequest {
           .from('borrow_requests')
           .update({
             status: 'borrowed',
-            borrowed_at: new Date().toISOString(),
-            due_date: dueDate
+            borrow_date: releaseTimestamp.toISOString(),
+            due_date: computedDueDate
           })
           .eq('request_id', existingItem.request_id);
       }
 
-      console.log('[BORROW REQUEST] Book released successfully:', item_id, 'copy:', actualCopyId);
-      return { success: true, copy_id: actualCopyId };
+      console.log('[BORROW REQUEST] Book released successfully:', item_id, 'copy:', actualCopyId, 'due:', computedDueDate);
+      return { success: true, copy_id: actualCopyId, due_date: computedDueDate };
     } catch (error) {
       console.error('[BORROW REQUEST] Error releasing book:', error);
       throw error;
@@ -833,7 +899,7 @@ class BorrowRequest {
           .from('borrow_requests')
           .update({
             status: 'returned',
-            returned_at: returnTime
+            return_date: returnTime
           })
           .eq('request_id', existingItem.request_id);
       }

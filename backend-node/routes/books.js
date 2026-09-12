@@ -229,7 +229,18 @@ router.get('/school', auth, async (req, res) => {
           call_number,
           school_id,
           cover_image,
-          categories(category_name),
+          quantity,
+          available_quantity,
+          borrowed_quantity,
+          publisher,
+          edition,
+          copyright_year,
+          physical_description,
+          series_title,
+          general_note,
+          remarks,
+          condition,
+          categories(category_id, category_name),
           schools(school_id, school_name, address, latitude, longitude),
           book_copies(copy_id, status)
         `)
@@ -284,7 +295,8 @@ router.get('/school', auth, async (req, res) => {
       const bookMap = new Map();
 
       for (const book of books) {
-        const key = `${book.title}-${book.author}-${book.isbn || ''}`;
+        const clean = (s) => String(s || '').trim().toLowerCase();
+        const key = `${clean(book.title)}:::${clean(book.author)}`;
         
         if (!bookMap.has(key)) {
           bookMap.set(key, {
@@ -292,11 +304,18 @@ router.get('/school', auth, async (req, res) => {
             grouped_book_ids: [book.book_id],
             total_copies: 0,
             available_copies: 0,
-            borrowed_copies: 0
+            borrowed_copies: 0,
+            all_copies: [...(Array.isArray(book.book_copies) ? book.book_copies : [])]
           });
         } else {
           const grouped = bookMap.get(key);
           grouped.grouped_book_ids.push(book.book_id);
+          if (Array.isArray(book.book_copies)) {
+            grouped.all_copies.push(...book.book_copies);
+          }
+          if (!grouped.cover_image && book.cover_image) grouped.cover_image = book.cover_image;
+          if (!grouped.isbn && book.isbn) grouped.isbn = book.isbn;
+          if (!grouped.call_number && book.call_number) grouped.call_number = book.call_number;
         }
       }
 
@@ -313,29 +332,37 @@ router.get('/school', auth, async (req, res) => {
           // Aggregate copies from all grouped books
           for (const bookId of groupedBook.grouped_book_ids) {
             const book = books.find(b => b.book_id === bookId);
-            if (book && book.book_copies) {
-              totalCopies += book.book_copies.length || 0;
-              availableCopies += book.book_copies.filter(c => c.status === 'available').length || 0;
-              borrowedCopies += book.book_copies.filter(c => c.status === 'borrowed').length || 0;
+            if (book) {
+              const hasCopies = Array.isArray(book.book_copies) && book.book_copies.length > 0;
+              const bookTotal = hasCopies ? book.book_copies.length : (book.quantity ?? 1);
+              const bookAvail = hasCopies ? book.book_copies.filter(c => c.status === 'available').length : (book.available_quantity ?? book.quantity ?? 1);
+              const bookBorrowed = hasCopies ? book.book_copies.filter(c => c.status === 'borrowed').length : (book.borrowed_quantity ?? 0);
+              
+              totalCopies += bookTotal;
+              availableCopies += bookAvail;
+              borrowedCopies += bookBorrowed;
             }
           }
 
           // Also count pending and approved requests as reducing availability
           const pendingApprovedCount = borrowItemsForBook.filter(i => i.status === 'pending' || i.status === 'approved').length || 0;
-          availableCopies -= pendingApprovedCount;
+          availableCopies = Math.max(0, availableCopies - pendingApprovedCount);
 
+          groupedBook.quantity = totalCopies;
+          groupedBook.available_quantity = availableCopies;
           groupedBook.total_copies = totalCopies;
           groupedBook.available_copies = availableCopies;
           groupedBook.borrowed_copies = borrowedCopies;
+          groupedBook.book_copies = groupedBook.all_copies;
           groupedBook.availability_ratio = `${availableCopies}/${totalCopies}`;
           groupedBook.is_available = availableCopies > 0;
         } catch (err) {
           console.error('[SCHOOL BOOKS] Error getting availability for grouped book:', groupedBook.book_id, err);
-          groupedBook.total_copies = 0;
-          groupedBook.available_copies = 0;
+          groupedBook.total_copies = groupedBook.quantity || 1;
+          groupedBook.available_copies = groupedBook.available_quantity ?? groupedBook.quantity ?? 1;
           groupedBook.borrowed_copies = 0;
-          groupedBook.availability_ratio = '0/0';
-          groupedBook.is_available = false;
+          groupedBook.availability_ratio = `${groupedBook.available_copies}/${groupedBook.total_copies}`;
+          groupedBook.is_available = groupedBook.available_copies > 0;
         }
       }
 
@@ -348,30 +375,31 @@ router.get('/school', auth, async (req, res) => {
         ? borrowItems.filter(i => book.grouped_book_ids.includes(i.book_id))
         : (borrowStatusMap[book.book_id] || []);
       
-      const availableCopies = book.available_copies || (book.book_copies?.filter(c => c.status === 'available')?.length || 0);
-      const totalCopies = book.total_copies || (book.book_copies?.length || 0);
-      const borrowedCopies = book.borrowed_copies || (book.book_copies?.filter(c => c.status === 'borrowed')?.length || 0);
+      const hasCopies = Array.isArray(book.book_copies) && book.book_copies.length > 0;
+      const computedTotal = hasCopies ? book.book_copies.length : (book.quantity ?? 1);
+      const computedAvail = hasCopies ? book.book_copies.filter(c => c.status === 'available').length : (book.available_quantity ?? book.quantity ?? 1);
+      const computedBorrowed = hasCopies ? book.book_copies.filter(c => c.status === 'borrowed').length : (book.borrowed_quantity ?? 0);
+
+      const availableCopies = book.available_copies !== undefined ? book.available_copies : computedAvail;
+      const totalCopies = book.total_copies !== undefined ? book.total_copies : computedTotal;
+      const borrowedCopies = book.borrowed_copies !== undefined ? book.borrowed_copies : computedBorrowed;
       
       // Determine overall status
       let status = 'available';
       let statusDetails = null;
       let dueDate = null;
 
-      // FIX: Only mark as borrowed if ALL copies are borrowed, not if ANY copy is borrowed
       if (availableCopies === 0 && totalCopies > 0) {
         status = 'borrowed';
         statusDetails = 'All copies borrowed';
       } else if (borrowedCopies > 0 && availableCopies > 0) {
-        // Some copies borrowed, some available - still show as available
         status = 'available';
         statusDetails = `${availableCopies}/${totalCopies} available`;
       } else if (borrowItemsForBook.length > 0) {
-        // Check borrow request status as secondary indicator
         const hasPending = borrowItemsForBook.some(i => i.status === 'pending');
         const hasApproved = borrowItemsForBook.some(i => i.status === 'approved');
         const hasReleased = borrowItemsForBook.some(i => i.status === 'released');
 
-        // Only show detailed status if it's the current user's request
         const myPending = borrowItemsForBook.some(i => i.status === 'pending' && i.borrow_requests?.student_id === currentStudentId);
         const myApproved = borrowItemsForBook.some(i => i.status === 'approved' && i.borrow_requests?.student_id === currentStudentId);
         const myReleased = borrowItemsForBook.some(i => i.status === 'released' && i.borrow_requests?.student_id === currentStudentId);
@@ -406,11 +434,14 @@ router.get('/school', auth, async (req, res) => {
 
       return {
         ...book,
+        category: book.categories?.category_name || book.category || 'General Collection',
+        category_id: book.categories?.category_id || book.category_id || null,
         real_time_status: status,
         status_details: statusDetails,
         due_date: dueDate,
         available_copies: availableCopies,
         total_copies: totalCopies,
+        borrowed_copies: borrowedCopies,
         is_available: availableCopies > 0,
         current_borrowers: borrowItemsForBook
           .filter(i => i.status === 'released' || i.status === 'approved')
@@ -425,8 +456,8 @@ router.get('/school', auth, async (req, res) => {
       success: true, 
       data: {
         books: booksWithStatus,
-        total_books: count || 0, // Original total count before grouping
-        grouped_count: booksWithStatus.length // Count after grouping
+        total_books: count || 0,
+        grouped_count: booksWithStatus.length
       }
     });
   } catch (error) {
@@ -672,32 +703,28 @@ router.post('/', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBook
     console.log('[CREATE BOOK] Request body:', req.body);
     console.log('[CREATE BOOK] Request file:', req.file);
 
-    // Handle both JSON and FormData
-    let bookData;
-    if (req.body instanceof Object && !req.body.constructor.name.includes('FormData')) {
-      // JSON request
-      bookData = req.body;
-    } else {
-      // FormData request
-      bookData = {
-        title: req.body.title,
-        author: req.body.author,
-        school_id: req.body.school_id ? parseInt(req.body.school_id) : null,
-        quantity: req.body.quantity ? parseInt(req.body.quantity) : 1,
-        isbn: req.body.isbn || null,
-        call_number: req.body.call_number || null,
-        publisher: req.body.publisher || null,
-        edition: req.body.edition || null,
-        copyright_year: req.body.copyright_year ? parseInt(req.body.copyright_year) : null,
-        physical_description: req.body.physical_description || null,
-        series_title: req.body.series_title || null,
-        general_note: req.body.general_note || null,
-        shelf_location: req.body.shelf_location || null,
-        cover_image: req.file ? `/uploads/book-covers/${req.file.filename}` : null
-      };
-    }
+    const initialQty = parseInt(req.body.quantity, 10) > 0 ? parseInt(req.body.quantity, 10) : 1;
 
-    if (req.body.category && req.body.category.trim()) {
+    let bookData = {
+      title: (req.body.title || '').trim(),
+      author: (req.body.author || '').trim(),
+      school_id: req.body.school_id ? parseInt(req.body.school_id, 10) : null,
+      quantity: initialQty,
+      available_quantity: initialQty,
+      borrowed_quantity: 0,
+      isbn: req.body.isbn ? String(req.body.isbn).trim() : null,
+      call_number: req.body.call_number ? String(req.body.call_number).trim() : null,
+      publisher: req.body.publisher ? String(req.body.publisher).trim() : null,
+      edition: req.body.edition ? String(req.body.edition).trim() : null,
+      copyright_year: req.body.copyright_year ? parseInt(req.body.copyright_year, 10) : null,
+      physical_description: req.body.physical_description ? String(req.body.physical_description).trim() : null,
+      series_title: req.body.series_title ? String(req.body.series_title).trim() : (req.body.series ? String(req.body.series).trim() : null),
+      general_note: req.body.general_note ? String(req.body.general_note).trim() : (req.body.remarks ? String(req.body.remarks).trim() : null),
+      shelf_location: req.body.shelf_location ? String(req.body.shelf_location).trim() : 'Main Stacks',
+      cover_image: req.file ? `/uploads/book-covers/${req.file.filename}` : (typeof req.body.cover_image === 'string' && req.body.cover_image.trim() ? req.body.cover_image.trim() : null)
+    };
+
+    if (req.body.category && typeof req.body.category === 'string' && req.body.category.trim()) {
       try {
         const catName = req.body.category.trim();
         const { data: existingCat } = await supabase
@@ -721,7 +748,7 @@ router.post('/', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBook
       }
     }
 
-    const { title, school_id, quantity } = bookData;
+    const { title, school_id } = bookData;
     if (!title || !school_id) {
       console.log('[CREATE BOOK] Validation failed - title:', title, 'school_id:', school_id);
       return res.status(400).json({ success: false, message: 'Title and school_id are required' });
@@ -729,22 +756,23 @@ router.post('/', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBook
 
     const book_id = await Book.create(bookData);
     
-    // If quantity > 1, create book copies
-    if (quantity && quantity > 1) {
-      console.log('[CREATE BOOK] Creating', quantity, 'copies for book:', book_id);
+    // Create physical copies in book_copies
+    if (initialQty > 0) {
+      console.log('[CREATE BOOK] Creating', initialQty, 'copies for book:', book_id);
+      const copiesToInsert = Array.from({ length: initialQty }, (_, i) => ({
+        book_id: book_id,
+        status: 'available',
+        condition: 'good',
+        shelf_location: bookData.shelf_location || 'Main Stacks',
+        accession_number: `ACC-${book_id}-${String(i + 1).padStart(3, '0')}`
+      }));
+
       const { error: copiesError } = await supabase
         .from('book_copies')
-        .insert(
-          Array.from({ length: quantity }, (_, i) => ({
-            book_id: book_id,
-            status: 'available',
-            copy_number: i + 1
-          }))
-        );
+        .insert(copiesToInsert);
       
       if (copiesError) {
         console.error('[CREATE BOOK] Error creating copies:', copiesError);
-        // Don't fail the request if copies fail, just log it
       }
     }
 
@@ -760,34 +788,67 @@ router.post('/', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBook
 // @access  Private (Librarian Admin, Librarian)
 router.put('/:id', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBookCover.single('cover_image'), async (req, res) => {
   try {
+    const bookId = req.params.id;
     console.log('[UPDATE] User:', req.user);
-    console.log('[UPDATE] Book ID:', req.params.id);
+    console.log('[UPDATE] Book ID:', bookId);
     console.log('[UPDATE] Request body:', req.body);
     console.log('[UPDATE] Request file:', req.file);
 
-    // Handle FormData with file upload
-    let updateData;
+    let updateData = {};
+
     if (req.file) {
-      // FormData with file
-      updateData = {
-        title: req.body.title,
-        author: req.body.author,
-        isbn: req.body.isbn || null,
-        call_number: req.body.call_number || null,
-        shelf_location: req.body.shelf_location || null,
-        edition: req.body.edition || null,
-        copyright_year: req.body.copyright_year ? parseInt(req.body.copyright_year) : null,
-        physical_description: req.body.physical_description || null,
-        series_title: req.body.series_title || null,
-        general_note: req.body.general_note || null,
-        cover_image: `/uploads/book-covers/${req.file.filename}`
-      };
-    } else {
-      // Regular JSON or FormData without file
-      updateData = req.body;
+      updateData.cover_image = `/uploads/book-covers/${req.file.filename}`;
+    } else if (req.body.cover_image !== undefined) {
+      updateData.cover_image = req.body.cover_image ? String(req.body.cover_image).trim() : null;
     }
 
-    if (req.body.category && req.body.category.trim()) {
+    // Whitelist supported columns
+    const allowedText = [
+      'title', 'author', 'isbn', 'call_number', 'shelf_location', 'publisher',
+      'edition', 'physical_description', 'language', 'condition', 'remarks'
+    ];
+
+    allowedText.forEach(field => {
+      if (req.body[field] !== undefined) {
+        updateData[field] = req.body[field] ? String(req.body[field]).trim() : null;
+      }
+    });
+
+    if (req.body.callNumber !== undefined && updateData.call_number === undefined) {
+      updateData.call_number = req.body.callNumber ? String(req.body.callNumber).trim() : null;
+    }
+
+    if (req.body.location !== undefined && updateData.shelf_location === undefined) {
+      updateData.shelf_location = req.body.location ? String(req.body.location).trim() : 'Main Stacks';
+    }
+
+    if (req.body.series_title !== undefined || req.body.series !== undefined) {
+      updateData.series_title = (req.body.series_title || req.body.series || '').trim() || null;
+    }
+
+    if (req.body.general_note !== undefined || req.body.remarks !== undefined) {
+      updateData.general_note = (req.body.general_note || req.body.remarks || '').trim() || null;
+    }
+
+    if (req.body.copyright_year !== undefined && req.body.copyright_year !== '') {
+      const year = parseInt(req.body.copyright_year, 10);
+      updateData.copyright_year = !isNaN(year) ? year : null;
+    } else if (req.body.publication_year !== undefined && req.body.publication_year !== '') {
+      const year = parseInt(req.body.publication_year, 10);
+      updateData.copyright_year = !isNaN(year) ? year : null;
+    } else if (req.body.year !== undefined && req.body.year !== '') {
+      const year = parseInt(req.body.year, 10);
+      updateData.copyright_year = !isNaN(year) ? year : null;
+    }
+
+    if (req.body.quantity !== undefined && req.body.quantity !== '') {
+      const newQty = parseInt(req.body.quantity, 10);
+      if (!isNaN(newQty) && newQty > 0) {
+        updateData.quantity = newQty;
+      }
+    }
+
+    if (req.body.category && typeof req.body.category === 'string' && req.body.category.trim()) {
       try {
         const catName = req.body.category.trim();
         const { data: existingCat } = await supabase
@@ -811,8 +872,63 @@ router.put('/:id', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBo
       }
     }
 
-    console.log('[UPDATE] Update data:', updateData);
-    const result = await Book.update(req.params.id, updateData);
+    // Explicitly delete any non-column properties
+    delete updateData.category;
+    delete updateData.series;
+
+    console.log('[UPDATE] Sanitized update data:', updateData);
+    const result = await Book.update(bookId, updateData);
+
+    // If quantity was updated, ensure book_copies count matches accurately
+    if (updateData.quantity !== undefined && updateData.quantity !== null) {
+      const targetQty = Math.max(1, parseInt(updateData.quantity, 10));
+      updateData.quantity = targetQty;
+
+      const { data: currentCopies } = await supabase
+        .from('book_copies')
+        .select('copy_id, status')
+        .eq('book_id', bookId);
+
+      const existingCount = currentCopies?.length || 0;
+      if (existingCount < targetQty) {
+        const toAdd = targetQty - existingCount;
+        const newCopies = Array.from({ length: toAdd }, (_, i) => ({
+          book_id: parseInt(bookId, 10),
+          status: 'available',
+          condition: 'good',
+          shelf_location: updateData.shelf_location || 'Main Stacks',
+          accession_number: `ACC-${bookId}-${String(existingCount + i + 1).padStart(3, '0')}`
+        }));
+        await supabase.from('book_copies').insert(newCopies);
+      } else if (existingCount > targetQty) {
+        const toRemove = existingCount - targetQty;
+        const availableCopies = (currentCopies || []).filter(c => c.status === 'available');
+        const copiesToDelete = availableCopies.slice(0, toRemove).map(c => c.copy_id);
+        if (copiesToDelete.length > 0) {
+          await supabase
+            .from('book_copies')
+            .delete()
+            .in('copy_id', copiesToDelete);
+        }
+      }
+
+      // Re-calculate active available copies
+      const { count: availCount } = await supabase
+        .from('book_copies')
+        .select('*', { count: 'exact', head: true })
+        .eq('book_id', bookId)
+        .eq('status', 'available');
+
+      const finalAvail = availCount !== null && availCount !== undefined ? availCount : targetQty;
+      await supabase
+        .from('books')
+        .update({ 
+          quantity: targetQty,
+          available_quantity: finalAvail 
+        })
+        .eq('book_id', bookId);
+    }
+
     if (result) {
       res.json({ success: true, message: 'Book updated successfully' });
     } else {
@@ -1065,6 +1181,359 @@ router.get('/:id/borrowers', async (req, res) => {
     });
   } catch (error) {
     console.error('[BOOK BORROWERS] Error getting book borrowers:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
+// @route   GET /api/books/:id/borrow-summary
+// @desc    Get detailed current borrowers, pending/active requests, and historical borrow logs for a book
+// @access  Private
+router.get('/:id/borrow-summary', auth, async (req, res) => {
+  try {
+    const bookId = parseInt(req.params.id, 10);
+    if (!bookId) {
+      return res.status(400).json({ success: false, message: 'Invalid book ID' });
+    }
+
+    // Support comma-separated book_ids or single bookId
+    let bookIds = [bookId];
+    if (req.query.book_ids) {
+      const parsedIds = req.query.book_ids
+        .split(',')
+        .map(id => parseInt(id.trim(), 10))
+        .filter(Boolean);
+      if (parsedIds.length > 0) {
+        bookIds = Array.from(new Set([bookId, ...parsedIds]));
+      }
+    }
+
+    console.log(`[BORROW-SUMMARY] bookId=${bookId}, bookIds=${JSON.stringify(bookIds)}, query=${JSON.stringify(req.query)}`);
+
+
+    // 1. Fetch book information
+    const { data: bookData } = await supabase
+      .from('books')
+      .select(`
+        book_id,
+        title,
+        author,
+        isbn,
+        call_number,
+        shelf_location,
+        cover_image,
+        school_id,
+        schools (school_name, school_code)
+      `)
+      .in('book_id', bookIds);
+
+    const primaryBook = bookData?.[0] || null;
+
+    // 2. Fetch all physical copies for these book IDs
+    const { data: copies } = await supabase
+      .from('book_copies')
+      .select(`
+        copy_id,
+        book_id,
+        accession_number,
+        barcode,
+        shelf_location,
+        condition,
+        status
+      `)
+      .in('book_id', bookIds);
+
+    const copyIds = (copies || []).map(c => c.copy_id);
+    const copyMap = new Map();
+    (copies || []).forEach(c => copyMap.set(c.copy_id, c));
+
+    // 3. Fetch all borrow transactions for these copies
+    let allTransactions = [];
+    if (copyIds.length > 0) {
+      const { data: txList, error: txErr } = await supabase
+        .from('borrow_transactions')
+        .select(`
+          borrow_id,
+          copy_id,
+          student_id,
+          librarian_id,
+          borrow_date,
+          due_date,
+          return_date,
+          status,
+          remarks,
+          book_copies (
+            copy_id,
+            book_id,
+            accession_number,
+            barcode,
+            shelf_location
+          ),
+          student:student_id (
+            user_id,
+            firstname,
+            lastname,
+            student_number,
+            email,
+            contact_number,
+            profile_image,
+            position,
+            school_id,
+            schools:school_id (school_name, school_code)
+          )
+        `)
+        .in('copy_id', copyIds)
+        .order('borrow_date', { ascending: false });
+
+      if (txErr) console.error('[BORROW SUMMARY] Error fetching transactions:', txErr);
+      allTransactions = txList || [];
+    }
+
+    // 4. Fetch all requests for these book IDs (both pending, approved, and active/borrowed)
+    const { data: requestItems, error: reqErr } = await supabase
+      .from('borrow_request_items')
+      .select(`
+        item_id,
+        request_id,
+        book_id,
+        copy_id,
+        assigned_copy_id,
+        borrow_type,
+        status,
+        item_status,
+        created_at,
+        released_at,
+        returned_at,
+        borrow_requests (
+          request_id,
+          student_id,
+          home_school_id,
+          request_type,
+          status,
+          purpose,
+          contact_number,
+          address,
+          created_at,
+          due_date,
+          pickup_date,
+          borrow_date,
+          return_date,
+          student:student_id (
+            user_id,
+            firstname,
+            lastname,
+            student_number,
+            email,
+            contact_number,
+            profile_image,
+            position,
+            school_id,
+            schools:school_id (school_name, school_code)
+          )
+        )
+      `)
+      .in('book_id', bookIds)
+      .order('created_at', { ascending: false });
+
+    if (reqErr) console.error('[BORROW SUMMARY] Error fetching request items:', reqErr);
+    console.log(`[BORROW-SUMMARY] requestItems count=${(requestItems||[]).length}, statuses=${(requestItems||[]).map(i=>i.status||i.item_status).join(',')}`);
+    console.log(`[BORROW-SUMMARY] transactions count=${allTransactions.length}`);
+
+
+    const now = new Date();
+    const activeBorrowersList = [];
+    const seenStudentLoans = new Set();
+
+    // Direct active transactions
+    allTransactions
+      .filter(tx => tx.status === 'active')
+      .forEach(tx => {
+        const student = tx.student || {};
+        const copy = tx.book_copies || copyMap.get(tx.copy_id) || {};
+        const dueDate = tx.due_date ? new Date(tx.due_date) : null;
+        const isOverdue = dueDate && dueDate < now;
+        const diffDays = dueDate ? Math.ceil(Math.abs(dueDate - now) / (1000 * 60 * 60 * 24)) : null;
+        const studentId = student.user_id || tx.student_id;
+        seenStudentLoans.add(studentId);
+
+        activeBorrowersList.push({
+          borrow_id: tx.borrow_id,
+          copy_id: tx.copy_id,
+          accession_number: copy.accession_number || 'N/A',
+          barcode: copy.barcode || 'N/A',
+          shelf_location: copy.shelf_location || primaryBook?.shelf_location || 'General',
+          student_id: studentId,
+          student_name: student.firstname ? `${student.firstname} ${student.lastname || ''}`.trim() : (student.username || 'Unknown Student'),
+          student_number: student.student_number || 'N/A',
+          email: student.email || '',
+          contact_number: student.contact_number || '',
+          profile_image: student.profile_image || null,
+          school_name: student.schools?.school_name || 'Home Campus',
+          school_code: student.schools?.school_code || '',
+          borrow_date: tx.borrow_date,
+          due_date: tx.due_date,
+          is_overdue: Boolean(isOverdue),
+          days_label: isOverdue ? `${diffDays} day${diffDays === 1 ? '' : 's'} overdue` : `${diffDays} day${diffDays === 1 ? '' : 's'} remaining`,
+          status: isOverdue ? 'overdue' : 'active',
+          source: 'transaction',
+          remarks: tx.remarks || ''
+        });
+      });
+
+    // Request items that are currently active/borrowed
+    (requestItems || []).forEach(item => {
+      const rawStatus = (item.status || item.item_status || '').toLowerCase();
+      if (['borrowed', 'active', 'picked_up'].includes(rawStatus)) {
+        const reqInfo = item.borrow_requests || {};
+        const student = reqInfo.student || {};
+        const studentId = student.user_id || reqInfo.student_id;
+        if (!seenStudentLoans.has(studentId)) {
+          seenStudentLoans.add(studentId);
+          const assignedCopy = copyMap.get(item.assigned_copy_id || item.copy_id) || {};
+          const dueDate = reqInfo.due_date ? new Date(reqInfo.due_date) : null;
+          const isOverdue = dueDate && dueDate < now;
+          const diffDays = dueDate ? Math.ceil(Math.abs(dueDate - now) / (1000 * 60 * 60 * 24)) : null;
+
+          activeBorrowersList.push({
+            item_id: item.item_id,
+            request_id: reqInfo.request_id,
+            copy_id: item.assigned_copy_id || item.copy_id,
+            accession_number: assignedCopy.accession_number || 'Reserved Copy',
+            barcode: assignedCopy.barcode || 'N/A',
+            shelf_location: assignedCopy.shelf_location || primaryBook?.shelf_location || 'General',
+            student_id: studentId,
+            student_name: student.firstname ? `${student.firstname} ${student.lastname || ''}`.trim() : (student.username || 'Unknown Student'),
+            student_number: student.student_number || 'N/A',
+            email: student.email || '',
+            contact_number: student.contact_number || reqInfo.contact_number || '',
+            profile_image: student.profile_image || null,
+            school_name: student.schools?.school_name || 'Partner Library',
+            school_code: student.schools?.school_code || '',
+            borrow_date: item.released_at || reqInfo.borrow_date || item.created_at,
+            due_date: reqInfo.due_date,
+            is_overdue: Boolean(isOverdue),
+            days_label: diffDays ? (isOverdue ? `${diffDays} day${diffDays === 1 ? '' : 's'} overdue` : `${diffDays} day${diffDays === 1 ? '' : 's'} remaining`) : 'Active Loan',
+            status: isOverdue ? 'overdue' : 'active',
+            source: 'request_loan',
+            remarks: reqInfo.purpose || ''
+          });
+        }
+      }
+    });
+
+    // Format Pending / Approved Requests (Reservations)
+    const pendingApprovedRequests = (requestItems || [])
+      .filter(item => {
+        const rawStatus = (item.status || item.item_status || '').toLowerCase();
+        return ['pending', 'cancel_requested', 'approved', 'permission_ready', 'ready_for_pickup'].includes(rawStatus);
+      })
+      .map(item => {
+        const reqInfo = item.borrow_requests || {};
+        const student = reqInfo.student || {};
+        const assignedCopy = copyMap.get(item.assigned_copy_id || item.copy_id);
+
+        return {
+          item_id: item.item_id,
+          request_id: reqInfo.request_id || item.request_id,
+          book_id: item.book_id,
+          request_type: reqInfo.request_type || item.borrow_type || 'HOME',
+          status: item.status || reqInfo.status || 'pending',
+          created_at: item.created_at || reqInfo.created_at,
+          due_date: reqInfo.due_date,
+          pickup_date: reqInfo.pickup_date,
+          purpose: reqInfo.purpose,
+          assigned_accession: assignedCopy?.accession_number || null,
+          student_id: student.user_id || reqInfo.student_id,
+          student_name: student.firstname ? `${student.firstname} ${student.lastname || ''}`.trim() : (student.username || 'Unknown Student'),
+          student_number: student.student_number || 'N/A',
+          email: student.email || '',
+          contact_number: student.contact_number || reqInfo.contact_number || '',
+          profile_image: student.profile_image || null,
+          school_name: student.schools?.school_name || 'Home Campus',
+          school_code: student.schools?.school_code || ''
+        };
+      });
+
+    // Format Borrow History (Returned / Completed Loans from both transactions and requests)
+    const combinedHistory = [];
+
+    // From transactions
+    allTransactions
+      .filter(tx => tx.status !== 'active')
+      .forEach(tx => {
+        const student = tx.student || {};
+        const copy = tx.book_copies || copyMap.get(tx.copy_id) || {};
+
+        combinedHistory.push({
+          id: `tx-${tx.borrow_id}`,
+          borrow_id: tx.borrow_id,
+          copy_id: tx.copy_id,
+          accession_number: copy.accession_number || 'N/A',
+          barcode: copy.barcode || 'N/A',
+          student_id: student.user_id || tx.student_id,
+          student_name: student.firstname ? `${student.firstname} ${student.lastname || ''}`.trim() : (student.username || 'Unknown Student'),
+          student_number: student.student_number || 'N/A',
+          email: student.email || '',
+          school_name: student.schools?.school_name || 'Home Campus',
+          borrow_date: tx.borrow_date,
+          due_date: tx.due_date,
+          return_date: tx.return_date,
+          status: tx.status,
+          type: 'direct_loan',
+          remarks: tx.remarks || ''
+        });
+      });
+
+    // From request items (returned, cancelled, rejected, completed)
+    (requestItems || []).forEach(item => {
+      const rawStatus = (item.status || item.item_status || '').toLowerCase();
+      if (['returned', 'cancelled', 'rejected', 'completed'].includes(rawStatus)) {
+        const reqInfo = item.borrow_requests || {};
+        const student = reqInfo.student || {};
+        const assignedCopy = copyMap.get(item.assigned_copy_id || item.copy_id) || {};
+
+        combinedHistory.push({
+          id: `req-${item.item_id}`,
+          item_id: item.item_id,
+          request_id: reqInfo.request_id || item.request_id,
+          accession_number: assignedCopy.accession_number || 'N/A',
+          barcode: assignedCopy.barcode || 'N/A',
+          student_id: student.user_id || reqInfo.student_id,
+          student_name: student.firstname ? `${student.firstname} ${student.lastname || ''}`.trim() : (student.username || 'Unknown Student'),
+          student_number: student.student_number || 'N/A',
+          email: student.email || '',
+          school_name: student.schools?.school_name || 'Partner Library',
+          borrow_date: item.released_at || reqInfo.borrow_date || item.created_at,
+          due_date: reqInfo.due_date,
+          return_date: item.returned_at || reqInfo.return_date || reqInfo.updated_at,
+          status: rawStatus,
+          type: 'request',
+          remarks: reqInfo.cancellation_reason || reqInfo.rejection_reason || reqInfo.purpose || ''
+        });
+      }
+    });
+
+    // Sort history by date descending
+    combinedHistory.sort((a, b) => new Date(b.return_date || b.borrow_date || 0) - new Date(a.return_date || a.borrow_date || 0));
+
+    res.json({
+      success: true,
+      data: {
+        book: primaryBook,
+        total_copies: copies?.length || 0,
+        current_borrowers: activeBorrowersList,
+        requests: pendingApprovedRequests,
+        borrow_history: combinedHistory,
+        stats: {
+          active_loans: activeBorrowersList.length,
+          pending_requests: pendingApprovedRequests.filter(r => r.status === 'pending').length,
+          total_requests: pendingApprovedRequests.length,
+          history_count: combinedHistory.length
+        }
+      }
+    });
+    console.log(`[BORROW-SUMMARY RESPONSE] active_loans=${activeBorrowersList.length}, requests=${pendingApprovedRequests.length}, history=${combinedHistory.length}`);
+  } catch (error) {
+    console.error('[BOOK BORROW SUMMARY] Error getting summary:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
