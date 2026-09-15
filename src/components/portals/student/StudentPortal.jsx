@@ -71,11 +71,15 @@ function StudentPortal() {
   const [profileSetupLoading, setProfileSetupLoading] = useState(false);
 
   useEffect(() => {
-    const userCollege = localStorage.getItem('userCollege');
-    const userRole = localStorage.getItem('userRole');
+    const rawRole = (localStorage.getItem('userRole') || '').toLowerCase().replace(/[-_]/g, ' ').trim();
+    const roleId = String(localStorage.getItem('roleId') || '');
     const schoolId = localStorage.getItem('schoolId');
 
-    if (userRole !== 'student' || !schoolId) {
+    const isStudent = rawRole.includes('student') || roleId === '4';
+    const isAdminOrLibrarian = roleId === '1' || roleId === '2' || roleId === '3' || 
+                              rawRole.includes('admin') || rawRole.includes('librarian');
+
+    if ((!isStudent && !isAdminOrLibrarian) || !schoolId) {
       navigate('/login');
       return;
     }
@@ -114,7 +118,11 @@ function StudentPortal() {
             policyAccepted: hasPolicyAccepted,
           });
 
-          setShowProfileSetup(!hasUsername || !hasCellphone || !hasRecoveryEmail || !hasProfilePicture || !hasPolicyAccepted);
+          if (isAdminOrLibrarian) {
+            setShowProfileSetup(false);
+          } else {
+            setShowProfileSetup(!hasUsername || !hasCellphone || !hasRecoveryEmail || !hasProfilePicture || !hasPolicyAccepted);
+          }
         }
       } catch (err) {
         console.error('Error loading user info:', err);
@@ -277,8 +285,15 @@ function StudentPortal() {
     }
   };
 
+  const rawRole = (localStorage.getItem('userRole') || '').toLowerCase().replace(/[-_]/g, ' ').trim();
+  const roleId = String(localStorage.getItem('roleId') || '');
+  const isAdminOrLibrarian = roleId === '1' || roleId === '2' || roleId === '3' || 
+                            rawRole.includes('admin') || rawRole.includes('librarian');
+
   return (
     <>
+
+
       {showProfileSetup && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/35 p-4">
           <div className="w-full max-w-4xl min-w-[320px] md:min-w-[760px] lg:min-w-[820px] overflow-hidden rounded-[28px] border border-blue-100 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.18)]">
@@ -401,6 +416,9 @@ function StudentPortal() {
         schoolInfo={schoolInfo}
         userInfo={userInfo}
         onLogout={handleLogout}
+        isPreviewMode={isAdminOrLibrarian}
+        onReturnToAdmin={() => navigate(roleId === '2' || rawRole.includes('admin') ? '/librarian-admin' : '/librarian')}
+        adminRoleLabel={roleId === '2' || rawRole.includes('admin') ? 'Admin Console' : 'Librarian Desk'}
       >
         <Routes>
           <Route path="/" element={<StudentHome bookCount={bookCount} studentCount={studentCount} schoolInfo={schoolInfo} />} />

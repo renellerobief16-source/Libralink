@@ -4,7 +4,8 @@ import {
   FiMoreVertical, FiArchive, FiPlus, FiImage, FiX, FiCheckCircle, 
   FiAlertCircle, FiLayers, FiTag, FiCalendar, FiHash, FiUploadCloud,
   FiBookOpen, FiInfo, FiFolder, FiCheck, FiFileText, FiRefreshCw,
-  FiBookmark, FiClock, FiActivity, FiUsers
+  FiBookmark, FiClock, FiActivity, FiUsers, FiChevronLeft, FiChevronRight,
+  FiChevronsLeft, FiChevronsRight
 } from "react-icons/fi";
 import api, { getBackendAssetUrl } from "../../../utils/api";
 import Card from "../../ui/Card";
@@ -309,6 +310,20 @@ function AdminBooks() {
       return matchesSearch && matchesCat && matchesStock;
     });
   }, [books, searchTerm, selectedCategory, stockFilter]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(15);
+
+  const totalPages = Math.max(1, Math.ceil(filteredBooks.length / rowsPerPage));
+
+  const paginatedBooks = useMemo(() => {
+    const start = (currentPage - 1) * rowsPerPage;
+    return filteredBooks.slice(start, start + rowsPerPage);
+  }, [filteredBooks, currentPage, rowsPerPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCategory, stockFilter]);
 
   const handleEdit = (book) => {
     setEditingBook(book);
@@ -776,7 +791,7 @@ function AdminBooks() {
           {/* Redesigned 3D Book Spine Cards */}
           {viewMode === 'card' && (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {filteredBooks.map((book) => {
+              {paginatedBooks.map((book) => {
                 const isAvail = (book.available_copies ?? 0) > 0;
                 return (
                   <div 
@@ -821,7 +836,7 @@ function AdminBooks() {
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                 onError={(e) => {
                                   e.target.style.display = 'none';
-                                  const fallback = e.target.parentElement.querySelector('.card-fallback');
+                                  const fallback = e.target.parentElement?.querySelector('.card-fallback');
                                   if (fallback) fallback.style.display = 'flex';
                                 }}
                               />
@@ -960,30 +975,30 @@ function AdminBooks() {
             </div>
           )}
 
-          {/* Redesigned Normalized Table View */}
+          {/* Redesigned Normalized Table View with Fitted Column Grid */}
           {viewMode === 'table' && (
             <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse table-fixed min-w-[780px]">
                   <thead>
-                    <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                      <th className="py-3.5 px-4">Book Title & Info</th>
-                      <th className="py-3.5 px-4">Academic Category</th>
-                      <th className="py-3.5 px-4">Call Number / ISBN</th>
-                      <th className="py-3.5 px-4">Shelf Location</th>
-                      <th className="py-3.5 px-4 text-center">Stock & Copies</th>
-                      <th className="py-3.5 px-4 text-right">Actions</th>
+                    <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                      <th className="py-3 px-3.5 w-[32%]">Book Title & Info</th>
+                      <th className="py-3 px-3 w-[17%]">Academic Category</th>
+                      <th className="py-3 px-3 w-[14%]">Call / ISBN</th>
+                      <th className="py-3 px-3 w-[12%]">Shelf Location</th>
+                      <th className="py-3 px-3 w-[12%] text-center">Stock & Copies</th>
+                      <th className="py-3 px-3.5 w-[13%] text-right pr-4">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
-                    {filteredBooks.map((book) => {
+                    {paginatedBooks.map((book) => {
                       const isAvail = (book.available_copies ?? 0) > 0;
                       return (
-                        <tr key={book.id} className="hover:bg-blue-50/30 transition-colors group">
+                        <tr key={book.id} className="hover:bg-blue-50/40 transition-colors group">
                           {/* Title & Cover Cell */}
-                          <td className="py-3.5 px-4">
-                            <div className="flex items-center gap-3.5">
-                              <div className="relative w-11 h-14 rounded-lg overflow-hidden flex-shrink-0 shadow-sm border border-slate-200 bg-slate-900">
+                          <td className="py-2.5 px-3.5">
+                            <div className="flex items-center gap-3">
+                              <div className="relative w-9 h-12 rounded-lg overflow-hidden flex-shrink-0 shadow-2xs border border-slate-200 bg-slate-900">
                                 {book.cover_image ? (
                                   <>
                                     <img
@@ -992,72 +1007,73 @@ function AdminBooks() {
                                       className="w-full h-full object-cover"
                                       onError={(e) => {
                                         e.target.style.display = 'none';
-                                        const fb = e.target.parentElement.querySelector('.tbl-fallback');
+                                        const fb = e.target.parentElement?.querySelector('.tbl-fallback');
                                         if (fb) fb.style.display = 'flex';
                                       }}
                                     />
                                     <div className="hidden tbl-fallback absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-800 items-center justify-center text-white">
-                                      <FiBook className="w-5 h-5 text-white" />
+                                      <FiBook className="w-4 h-4 text-white" />
                                     </div>
                                   </>
                                 ) : (
                                   <div className="w-full h-full bg-gradient-to-br from-blue-600 to-indigo-800 flex items-center justify-center text-white">
-                                    <FiBook className="w-5 h-5 text-white" />
+                                    <FiBook className="w-4 h-4 text-white" />
                                   </div>
                                 )}
                               </div>
-                              <div className="min-w-0 max-w-xs sm:max-w-sm">
-                                <div className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate">
+                              <div className="min-w-0 flex-1">
+                                <div className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate text-xs" title={book.title}>
                                   {book.title || 'Untitled'}
                                 </div>
                                 <div className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
                                   by {book.author || 'Unknown Author'}
                                 </div>
                                 <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                                  ID: #{book.id} {book.year ? `• Year: ${book.year}` : ''}
+                                  ID: #{book.id} {book.year ? `• ${book.year}` : ''}
                                 </div>
                               </div>
                             </div>
                           </td>
 
                           {/* Category Cell */}
-                          <td className="py-3.5 px-4">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
-                              <FiTag className="w-3 h-3 text-blue-500 shrink-0" />
-                              <span className="truncate max-w-[130px]">{book.category}</span>
+                          <td className="py-2.5 px-3">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-100 max-w-full truncate" title={book.category}>
+                              <FiTag className="w-2.5 h-2.5 text-blue-500 shrink-0" />
+                              <span className="truncate">{book.category}</span>
                             </span>
                           </td>
 
                           {/* Call # & ISBN Cell */}
-                          <td className="py-3.5 px-4">
-                            <div className="space-y-1">
-                              {book.callNumber && (
-                                <div className="font-mono text-[11px] font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200/80 inline-block">
-                                  Call: {book.callNumber}
+                          <td className="py-2.5 px-3">
+                            <div className="space-y-0.5 truncate">
+                              {book.callNumber ? (
+                                <div className="font-mono text-[11px] font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80 inline-block truncate max-w-full" title={book.callNumber}>
+                                  {book.callNumber}
                                 </div>
-                              )}
-                              {book.isbn && (
-                                <div className="font-mono text-[11px] text-slate-500">
-                                  ISBN: {book.isbn}
+                              ) : book.isbn ? (
+                                <div className="font-mono text-[11px] text-slate-500 truncate" title={book.isbn}>
+                                  #{book.isbn}
                                 </div>
+                              ) : (
+                                <span className="text-[11px] text-slate-400">—</span>
                               )}
                             </div>
                           </td>
 
                           {/* Location Cell */}
-                          <td className="py-3.5 px-4">
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-100 border border-slate-200/80 px-2.5 py-1 rounded-lg">
-                              <FiMapPin className="w-3 h-3 text-blue-600 shrink-0" />
-                              <span>{book.location || 'Main Stacks'}</span>
+                          <td className="py-2.5 px-3">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-lg max-w-full truncate" title={book.location || 'Main Stacks'}>
+                              <FiMapPin className="w-2.5 h-2.5 text-blue-600 shrink-0" />
+                              <span className="truncate">{book.location || 'Main Stacks'}</span>
                             </span>
                           </td>
 
                           {/* Stock Pill Cell */}
-                          <td className="py-3.5 px-4 text-center">
+                          <td className="py-2.5 px-3 text-center">
                             <button
                               type="button"
                               onClick={() => !isAvail && setActiveBorrowersBook(book)}
-                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border transition-all ${
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all ${
                                 isAvail
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200 cursor-default'
                                   : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200 cursor-pointer shadow-2xs'
@@ -1065,52 +1081,56 @@ function AdminBooks() {
                               title={!isAvail ? "Click to view current borrower and loan details" : undefined}
                             >
                               <span className={`w-1.5 h-1.5 rounded-full ${isAvail ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-                              <span>{isAvail ? `${book.available_copies} / ${book.total_copies} Available` : `Currently Borrowed (0/${book.total_copies || 1})`}</span>
+                              <span>{isAvail ? `${book.available_copies}/${book.total_copies}` : `0/${book.total_copies || 1}`}</span>
+                              <span className="text-[10px] font-medium opacity-80">{isAvail ? 'Avail' : 'Loaned'}</span>
                             </button>
                           </td>
 
                           {/* Actions Cell */}
-                          <td className="py-3.5 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <Button
-                                variant="secondary"
-                                size="sm"
+                          <td className="py-2.5 px-3.5 text-right pr-4">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
                                 onClick={() => setActiveBorrowersBook(book)}
-                                className="px-2 py-1 text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-lg flex items-center gap-1 border border-slate-200 cursor-pointer"
+                                className="px-2 py-1 text-[11px] font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-lg flex items-center gap-1 border border-slate-200 cursor-pointer transition-colors shadow-2xs"
                                 title="View Borrowers & History"
                               >
-                                <FiUsers className="w-3.5 h-3.5 text-blue-600" />
-                                <span>Borrowers</span>
-                              </Button>
+                                <FiUsers className="w-3 h-3 text-blue-600" />
+                                <span className="hidden md:inline">Borrowers</span>
+                              </button>
 
-                              <Button
-                                variant="secondary"
-                                size="sm"
+                              <button
+                                type="button"
                                 onClick={() => handleEdit(book)}
-                                className="px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg flex items-center gap-1 border border-slate-200 cursor-pointer"
+                                className="px-2 py-1 text-[11px] font-semibold text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg flex items-center gap-1 border border-slate-200 cursor-pointer transition-colors shadow-2xs"
+                                title="Edit Book"
                               >
-                                <FiEdit className="w-3.5 h-3.5" />
-                                <span>Edit</span>
-                              </Button>
+                                <FiEdit className="w-3 h-3" />
+                                <span className="hidden md:inline">Edit</span>
+                              </button>
 
                               <ActionMenu
                                 trigger={
-                                  <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 cursor-pointer"
+                                  <button
+                                    type="button"
+                                    className="p-1 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer transition-colors shadow-2xs"
                                   >
                                     <FiMoreVertical className="w-3.5 h-3.5" />
-                                  </Button>
+                                  </button>
                                 }
                                 items={[
                                   {
-                                    label: "Archive",
+                                    label: "Borrowers & History",
+                                    icon: <FiUsers className="w-4 h-4 text-blue-600" />,
+                                    onClick: () => setActiveBorrowersBook(book),
+                                  },
+                                  {
+                                    label: "Archive Book",
                                     icon: <FiArchive className="w-4 h-4" />,
                                     onClick: () => handleArchive(book),
                                   },
                                   {
-                                    label: "Delete",
+                                    label: "Delete Record",
                                     icon: <FiTrash2 className="w-4 h-4" />,
                                     onClick: () => handleDelete(book),
                                     danger: true,
@@ -1127,6 +1147,108 @@ function AdminBooks() {
               </div>
             </div>
           )}
+
+          {/* Sleek Modern Sticky Translucent Glassmorphic Floating Island Pagination Toolbar */}
+          <div className="sticky bottom-4 z-20 rounded-2xl border border-slate-200/80 bg-white/75 backdrop-blur-md p-3 sm:p-3.5 shadow-xl shadow-slate-900/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs transition-all">
+            <div className="flex items-center gap-3 text-slate-600 font-medium">
+              <span>
+                Showing <strong className="text-slate-900 font-bold">{filteredBooks.length > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0}</strong> to <strong className="text-slate-900 font-bold">{Math.min(currentPage * rowsPerPage, filteredBooks.length)}</strong> of <strong className="text-slate-900 font-bold">{filteredBooks.length}</strong> books
+              </span>
+
+              <div className="flex items-center gap-1.5 border-l border-slate-300/70 pl-3">
+                <span className="text-slate-500">Rows:</span>
+                <select
+                  value={rowsPerPage}
+                  onChange={(e) => {
+                    setRowsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="bg-white/80 backdrop-blur-xs border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 cursor-pointer shadow-2xs"
+                >
+                  <option value={10}>10</option>
+                  <option value={15}>15</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Page navigation buttons */}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-slate-200/80 bg-white/60 hover:bg-white text-slate-600 disabled:opacity-35 disabled:hover:bg-white/40 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
+                title="First Page"
+              >
+                <FiChevronsLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-slate-200/80 bg-white/60 hover:bg-white text-slate-600 disabled:opacity-35 disabled:hover:bg-white/40 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
+                title="Previous Page"
+              >
+                <FiChevronLeft className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center gap-1 px-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(page => {
+                    return page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1;
+                  })
+                  .reduce((acc, page, idx, arr) => {
+                    if (idx > 0 && page - arr[idx - 1] > 1) {
+                      acc.push('ellipsis-' + page);
+                    }
+                    acc.push(page);
+                    return acc;
+                  }, [])
+                  .map((item) => {
+                    if (typeof item === 'string') {
+                      return <span key={item} className="px-1.5 text-slate-400 font-medium">...</span>;
+                    }
+                    const isCurrent = item === currentPage;
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => setCurrentPage(item)}
+                        className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          isCurrent
+                            ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30'
+                            : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    );
+                  })}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className="p-1.5 rounded-lg border border-slate-200/80 bg-white/60 hover:bg-white text-slate-600 disabled:opacity-35 disabled:hover:bg-white/40 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
+                title="Next Page"
+              >
+                <FiChevronRight className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className="p-1.5 rounded-lg border border-slate-200/80 bg-white/60 hover:bg-white text-slate-600 disabled:opacity-35 disabled:hover:bg-white/40 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
+                title="Last Page"
+              >
+                <FiChevronsRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         </>
       )}
 

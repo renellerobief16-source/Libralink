@@ -4,7 +4,7 @@ import {
   FiClock, FiEye, FiChevronDown, FiChevronUp, FiRefreshCw, FiAlertTriangle, 
   FiGlobe, FiMail, FiHash, FiMaximize2, FiArrowRight, FiShield, FiX, FiLock,
   FiPackage, FiZap, FiSearch, FiFilter, FiCheck, FiLayers, FiInbox, FiExternalLink,
-  FiSettings, FiSliders, FiTag, FiHelpCircle, FiCheckSquare
+  FiSettings, FiSliders, FiTag, FiHelpCircle, FiCheckSquare, FiBell
 } from "react-icons/fi";
 import {
   getBorrowRequests,
@@ -18,6 +18,7 @@ import {
   releaseBookItem,
   getLibraryPolicy,
   updateLibraryPolicy,
+  sendDueReminderNotification,
 } from "../../../utils/api";
 import api from "../../../utils/api";
 import { useNotifications } from "../../../context/NotificationContext";
@@ -235,6 +236,45 @@ function AdminBorrowRequests() {
     }
   };
 
+  const [sendingReminderId, setSendingReminderId] = useState(null);
+
+  const handleSendStudentReminder = async (borrow, book, student) => {
+    const studentId = borrow.student_id;
+    if (!studentId) {
+      alert('Cannot find student ID for this borrow record.');
+      return;
+    }
+
+    setSendingReminderId(borrow.borrow_id);
+    try {
+      const dueDate = new Date(borrow.due_date);
+      const today = new Date();
+      const isOverdue = dueDate < today;
+      const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+      const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const formattedDueDate = formatPhilippineDate(borrow.due_date);
+      const studentName = student.firstname ? `${student.firstname} ${student.lastname}` : (student.name || 'Student');
+
+      const { data, error } = await sendDueReminderNotification({
+        student_id: studentId,
+        book_title: book.title || 'Borrowed Book',
+        due_date: formattedDueDate,
+        reminder_type: isOverdue ? 'overdue' : 'due_soon',
+        days_left: isOverdue ? -daysOverdue : diffDays,
+        borrow_id: borrow.borrow_id,
+      });
+
+      if (error) throw error;
+
+      showToast('approve', `Due reminder notice sent to ${studentName}'s student notification inbox!`);
+    } catch (err) {
+      console.error('Error sending due reminder:', err);
+      alert(err?.response?.data?.message || err.message || 'Failed to send reminder to student.');
+    } finally {
+      setSendingReminderId(null);
+    }
+  };
+
   const fetchBorrowRequests = async () => {
     const schoolId = localStorage.getItem('schoolId');
     if (!schoolId) {
@@ -371,10 +411,11 @@ function AdminBorrowRequests() {
             for (const studentId of uniqueStudentIds) {
               const studentResponse = await api.get(`/users/${studentId}`);
               if (studentResponse.data) {
-                studentsMap[studentId] = studentResponse.data;
+                const userData = studentResponse.data.data || studentResponse.data;
+                studentsMap[studentId] = userData;
               }
             }
-            setStudentsData(studentsMap);
+            setStudentsData(prev => ({ ...prev, ...studentsMap }));
           } catch (err) {
             console.error('Error fetching students:', err);
           }
@@ -1290,6 +1331,7 @@ function AdminBorrowRequests() {
                 <tbody className="divide-y divide-slate-100">
                   {borrowRequests.filter(r => r.status === 'pending').map((request) => {
                     const student = request.student || {};
+                    const studentIdentity = getRequestStudentIdentity(request);
                     const homeSchool = request.home_school || request.school || {};
                     const bookCount = request.items?.length || 0;
                     return (
@@ -1297,11 +1339,22 @@ function AdminBorrowRequests() {
                         <td className="py-3.5 px-4 text-xs font-mono font-bold text-blue-600">{request.request_id}</td>
                         <td className="py-3.5 px-4 text-sm text-slate-700">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center font-bold text-xs text-blue-700 shrink-0">
-                              {(student.firstname || request.first_name || 'S').charAt(0).toUpperCase()}
+                            {studentIdentity.profilePicture ? (
+                              <img
+                                src={getBackendAssetUrl(studentIdentity.profilePicture)}
+                                alt={studentIdentity.name}
+                                className="w-9 h-9 rounded-xl object-cover border border-slate-200/80 shadow-2xs shrink-0"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <div className={`w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs border border-white/20 ${studentIdentity.profilePicture ? 'hidden' : 'flex'}`}>
+                              {(studentIdentity.name || 'S').charAt(0).toUpperCase()}
                             </div>
-                            <div>
-                              <div className="font-bold text-xs text-slate-900">{student.firstname || request.first_name || 'N/A'} {student.lastname || request.last_name || ''}</div>
+                            <div className="min-w-0">
+                              <div className="font-bold text-xs text-slate-900 truncate">{studentIdentity.name}</div>
                               <div className="text-[11px] text-slate-500 font-mono">{student.student_number || request.student_id || 'No ID'}</div>
                             </div>
                           </div>
@@ -1718,6 +1771,7 @@ function AdminBorrowRequests() {
                 <tbody className="divide-y divide-slate-100">
                   {interSchoolRequests.filter(r => r.status === 'pending').map((request) => {
                     const student = request.borrow_request?.student || request.student || {};
+                    const studentIdentity = getRequestStudentIdentity(request.borrow_request || request);
                     const homeSchool = request.borrow_request?.home_school || request.home_school || {};
                     const bookCount = request.borrow_request?.items?.length || request.items?.length || 0;
                     const requestId = request.borrow_request?.request_id || request.request_id;
@@ -1727,11 +1781,22 @@ function AdminBorrowRequests() {
                         <td className="py-3.5 px-4 text-xs font-mono font-bold text-blue-600">{requestId}</td>
                         <td className="py-3.5 px-4 text-sm text-slate-700">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center font-bold text-xs text-blue-700 shrink-0">
-                              {(student.firstname || 'S').charAt(0).toUpperCase()}
+                            {studentIdentity.profilePicture ? (
+                              <img
+                                src={getBackendAssetUrl(studentIdentity.profilePicture)}
+                                alt={studentIdentity.name}
+                                className="w-9 h-9 rounded-xl object-cover border border-slate-200/80 shadow-2xs shrink-0"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <div className={`w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs border border-white/20 ${studentIdentity.profilePicture ? 'hidden' : 'flex'}`}>
+                              {(studentIdentity.name || 'S').charAt(0).toUpperCase()}
                             </div>
-                            <div>
-                              <div className="font-bold text-xs text-slate-900">{student.firstname || 'N/A'} {student.lastname || ''}</div>
+                            <div className="min-w-0">
+                              <div className="font-bold text-xs text-slate-900 truncate">{studentIdentity.name}</div>
                               <div className="text-[11px] text-slate-500 font-mono">{student.student_number || request.student_id || 'No ID'}</div>
                             </div>
                           </div>
@@ -1835,6 +1900,7 @@ function AdminBorrowRequests() {
                 <tbody>
                   {cancellationRequests.map((request) => {
                     const student = request.student || request.borrow_request?.student || {};
+                    const studentIdentity = getRequestStudentIdentity(request);
                     const bookItems = request.items || request.borrow_request?.items || [];
                     const reason = request.cancellation_reason || 'No reason provided';
                     const isProcessing = cancellationProcessing && cancellationRequestToProcess?.request_id === request.request_id;
@@ -1850,15 +1916,26 @@ function AdminBorrowRequests() {
                           )}
                         </td>
                         <td className="py-4 px-4 text-sm text-slate-700">
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                              <FiUser className="w-4 h-4 text-blue-600" />
+                          <div className="flex items-center gap-2.5">
+                            {studentIdentity.profilePicture ? (
+                              <img
+                                src={getBackendAssetUrl(studentIdentity.profilePicture)}
+                                alt={studentIdentity.name}
+                                className="w-9 h-9 rounded-xl object-cover border border-slate-200/80 shadow-2xs shrink-0"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <div className={`w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs border border-white/20 ${studentIdentity.profilePicture ? 'hidden' : 'flex'}`}>
+                              {(studentIdentity.name || 'S').charAt(0).toUpperCase()}
                             </div>
-                            <div>
-                              <div className="font-medium text-slate-900">
-                                {student.firstname || student.first_name || 'N/A'} {student.lastname || student.last_name || ''}
+                            <div className="min-w-0">
+                              <div className="font-medium text-slate-900 truncate">
+                                {studentIdentity.name}
                               </div>
-                              <div className="text-xs text-slate-500">{student.student_number || student.student_id || ''}</div>
+                              <div className="text-xs text-slate-500 font-mono">{student.student_number || student.student_id || ''}</div>
                             </div>
                           </div>
                         </td>
@@ -2013,21 +2090,36 @@ function AdminBorrowRequests() {
                 <div className="md:col-span-5 space-y-4">
                   {/* Student Identity Card */}
                   <div className="bg-slate-50/70 rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
-                    <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
-                      <div className="w-12 h-12 rounded-xl bg-blue-600 text-white font-bold text-base flex items-center justify-center shadow-sm">
-                        {(selectedRequest.student?.firstname?.[0] || selectedRequest.first_name?.[0] || 'S')}
-                        {(selectedRequest.student?.lastname?.[0] || selectedRequest.last_name?.[0] || '')}
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="font-bold text-slate-900 text-sm truncate">
-                          {(selectedRequest.student?.firstname || selectedRequest.first_name || 'N/A')}{' '}
-                          {(selectedRequest.student?.lastname || selectedRequest.last_name || '')}
-                        </h3>
-                        <p className="text-xs font-mono text-slate-500">
-                          ID: {selectedRequest.student_id || selectedRequest.student?.student_number || 'N/A'}
-                        </p>
-                      </div>
-                    </div>
+                    {(() => {
+                      const studentIdentity = getRequestStudentIdentity(selectedRequest);
+                      return (
+                        <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
+                          {studentIdentity.profilePicture ? (
+                            <img
+                              src={getBackendAssetUrl(studentIdentity.profilePicture)}
+                              alt={studentIdentity.name}
+                              className="w-12 h-12 rounded-xl object-cover border border-slate-200 shadow-sm shrink-0"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div className={`w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-base flex items-center justify-center shadow-sm shrink-0 ${studentIdentity.profilePicture ? 'hidden' : 'flex'}`}>
+                            {(selectedRequest.student?.firstname?.[0] || selectedRequest.first_name?.[0] || 'S')}
+                            {(selectedRequest.student?.lastname?.[0] || selectedRequest.last_name?.[0] || '')}
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-slate-900 text-sm truncate">
+                              {studentIdentity.name}
+                            </h3>
+                            <p className="text-xs font-mono text-slate-500">
+                              ID: {selectedRequest.student_id || selectedRequest.student?.student_number || 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Institutional ID Preview Card */}
                     <div>
@@ -2919,7 +3011,7 @@ function AdminBorrowRequests() {
                         const book = booksData[borrow.book_id] || borrow.book_copies?.books || {};
                         const student = studentsData[borrow.student_id] || borrow.student || {};
                         const bookCover = book.cover_image || booksData[borrow.book_id]?.cover_image || borrow.book_copies?.books?.cover_image;
-                        const studentAvatar = student.profile_image || student.avatar_url || studentsData[borrow.student_id]?.profile_image;
+                        const studentAvatar = student.profile_image || student.profile_picture || student.avatar || student.avatar_url || studentsData[borrow.student_id]?.profile_image || studentsData[borrow.student_id]?.profile_picture;
                         const schoolName = book.schools?.school_name || schoolsMap[book.school_id]?.school_name || '';
                         const dueDate = new Date(borrow.due_date);
                         const today = new Date();
@@ -3049,24 +3141,47 @@ function AdminBorrowRequests() {
 
                             {/* Action */}
                             <td className="px-3.5 py-2.5 text-right whitespace-nowrap">
-                              <Button
-                                size="sm"
-                                onClick={() => handleReturnBook(borrow.borrow_id, book.title || 'Book', studentFullName)}
-                                disabled={returningBookId === borrow.borrow_id}
-                                className="text-xs px-2.5 py-1 font-bold shadow-xs hover:shadow-sm transition-all active:scale-95 whitespace-nowrap"
-                              >
-                                {returningBookId === borrow.borrow_id ? (
-                                  <>
-                                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1" />
-                                    <span>Returning...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <FiCheckCircle className="w-3.5 h-3.5 mr-1" />
-                                    <span>Return</span>
-                                  </>
-                                )}
-                              </Button>
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSendStudentReminder(borrow, book, student)}
+                                  disabled={sendingReminderId === borrow.borrow_id}
+                                  className={`text-[11px] px-2.5 py-1 font-bold rounded-lg border transition-all active:scale-95 flex items-center gap-1 shadow-2xs ${
+                                    isOverdue
+                                      ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                                      : isDueSoon
+                                      ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+                                      : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                                  }`}
+                                  title="Send instant due date reminder to student notification inbox"
+                                >
+                                  {sendingReminderId === borrow.borrow_id ? (
+                                    <div className="w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <FiBell className="w-3 h-3 text-amber-600" />
+                                  )}
+                                  <span>{isOverdue ? 'Notify Overdue' : 'Remind Due'}</span>
+                                </button>
+
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleReturnBook(borrow.borrow_id, book.title || 'Book', studentFullName)}
+                                  disabled={returningBookId === borrow.borrow_id}
+                                  className="text-xs px-2.5 py-1 font-bold shadow-xs hover:shadow-sm transition-all active:scale-95 whitespace-nowrap"
+                                >
+                                  {returningBookId === borrow.borrow_id ? (
+                                    <>
+                                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1" />
+                                      <span>Returning...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <FiCheckCircle className="w-3.5 h-3.5 mr-1" />
+                                      <span>Return</span>
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -3392,7 +3507,7 @@ function AdminBorrowRequests() {
                               const book = booksData[borrow.book_id] || borrow.book_copies?.books || {};
                               const student = studentsData[borrow.student_id] || borrow.student || {};
                               const bookCover = book.cover_image || booksData[borrow.book_id]?.cover_image || borrow.book_copies?.books?.cover_image;
-                              const studentAvatar = student.profile_image || student.avatar_url || studentsData[borrow.student_id]?.profile_image;
+                              const studentAvatar = student.profile_image || student.profile_picture || student.avatar || student.avatar_url || studentsData[borrow.student_id]?.profile_image || studentsData[borrow.student_id]?.profile_picture;
                               const schoolName = book.schools?.school_name || schoolsMap[book.school_id]?.school_name || '';
                               const dueDate = new Date(borrow.due_date);
                               const today = new Date();
@@ -3545,24 +3660,47 @@ function AdminBorrowRequests() {
 
                                   {/* Action */}
                                   <td className="px-5 py-4 text-right whitespace-nowrap">
-                                    <Button
-                                      size="sm"
-                                      onClick={() => handleReturnBook(borrow.borrow_id, book.title || 'Book', studentFullName)}
-                                      disabled={returningBookId === borrow.borrow_id}
-                                      className="font-bold shadow-sm hover:shadow-md transition-all active:scale-95"
-                                    >
-                                      {returningBookId === borrow.borrow_id ? (
-                                        <>
-                                          <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" />
-                                          Returning...
-                                        </>
-                                      ) : (
-                                        <>
-                                          <FiCheckCircle className="w-4 h-4 mr-1.5" />
-                                          Return / Check-In
-                                        </>
-                                      )}
-                                    </Button>
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSendStudentReminder(borrow, book, student)}
+                                        disabled={sendingReminderId === borrow.borrow_id}
+                                        className={`text-xs px-3 py-1.5 font-bold rounded-xl border transition-all active:scale-95 flex items-center gap-1.5 shadow-xs ${
+                                          isOverdue
+                                            ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                                            : isDueSoon
+                                            ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+                                            : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                                        }`}
+                                        title="Send instant due date reminder to student notification inbox"
+                                      >
+                                        {sendingReminderId === borrow.borrow_id ? (
+                                          <div className="w-3.5 h-3.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+                                        ) : (
+                                          <FiBell className="w-3.5 h-3.5 text-amber-600" />
+                                        )}
+                                        <span>{isOverdue ? 'Notify Overdue' : 'Remind Due'}</span>
+                                      </button>
+
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleReturnBook(borrow.borrow_id, book.title || 'Book', studentFullName)}
+                                        disabled={returningBookId === borrow.borrow_id}
+                                        className="font-bold shadow-sm hover:shadow-md transition-all active:scale-95"
+                                      >
+                                        {returningBookId === borrow.borrow_id ? (
+                                          <>
+                                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" />
+                                            Returning...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <FiCheckCircle className="w-4 h-4 mr-1.5" />
+                                            Return / Check-In
+                                          </>
+                                        )}
+                                      </Button>
+                                    </div>
                                   </td>
                                 </tr>
                               );
@@ -3581,7 +3719,7 @@ function AdminBorrowRequests() {
                       const book = booksData[borrow.book_id] || borrow.book_copies?.books || {};
                       const student = studentsData[borrow.student_id] || borrow.student || {};
                       const bookCover = book.cover_image || booksData[borrow.book_id]?.cover_image || borrow.book_copies?.books?.cover_image;
-                      const studentAvatar = student.profile_image || student.avatar_url || studentsData[borrow.student_id]?.profile_image;
+                      const studentAvatar = student.profile_image || student.profile_picture || student.avatar || student.avatar_url || studentsData[borrow.student_id]?.profile_image || studentsData[borrow.student_id]?.profile_picture;
                       const schoolName = book.schools?.school_name || schoolsMap[book.school_id]?.school_name || '';
                       const dueDate = new Date(borrow.due_date);
                       const today = new Date();

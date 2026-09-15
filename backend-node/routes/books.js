@@ -472,9 +472,22 @@ router.get('/school', auth, async (req, res) => {
 router.get('/school/:school_id', auth, async (req, res) => {
   try {
     const books = await Book.getBySchool(req.params.school_id);
-    res.json({ success: true, data: books });
+    res.json({ success: true, count: books.length, data: books });
   } catch (error) {
     console.error('Error getting books by school:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// @route   GET /api/books/school/:school_id/count
+// @desc    Get exact book count by school
+// @access  Private
+router.get('/school/:school_id/count', auth, async (req, res) => {
+  try {
+    const count = await Book.getCountBySchool(req.params.school_id);
+    res.json({ success: true, count });
+  } catch (error) {
+    console.error('Error getting book count by school:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });

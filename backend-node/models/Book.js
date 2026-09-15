@@ -72,9 +72,10 @@ class Book {
       let allBooks = [];
       let hasMore = true;
       let from = 0;
-      const to = 999;
+      const pageSize = 1000;
       
       while (hasMore) {
+        const to = from + pageSize - 1;
         console.log(`[BOOKS] Fetching batch ${from}-${to}...`);
         const { data, error } = await supabase
           .from('books')
@@ -91,6 +92,9 @@ class Book {
             general_note,
             status,
             school_id,
+            total_copies,
+            available_copies,
+            borrowed_copies,
             schools(school_name, school_code),
             categories(category_name)
           `)
@@ -102,8 +106,8 @@ class Book {
         if (data && data.length > 0) {
           allBooks = allBooks.concat(data);
           console.log(`[BOOKS] Batch fetched: ${data.length}, Total so far: ${allBooks.length}`);
-          from += 1000;
-          hasMore = data.length === 1000; // Continue if we got a full page
+          from += pageSize;
+          hasMore = data.length === pageSize; // Continue if we got a full page
         } else {
           hasMore = false;
         }
@@ -137,40 +141,75 @@ class Book {
       console.log('[BOOK COUNT] Result:', count);
       
       // Fallback: use getAll if count fails or returns null
-      if (!count || count === 0) {
-        console.log('[BOOK COUNT] Count returned null or 0, using getAll as fallback...');
+      if (count === null || count === undefined) {
+        console.log('[BOOK COUNT] Count returned null, using getAll as fallback...');
         const books = await this.getAll();
-        const fallbackCount = books?.length || 0;
-        console.log('[BOOK COUNT] Fallback count:', fallbackCount);
-        return fallbackCount;
+        return books?.length || 0;
       }
       
       return count;
     } catch (error) {
       console.error('[BOOK COUNT] Error:', error);
-      // Fallback to getAll on error
-      console.log('[BOOK COUNT] Error occurred, using getAll as fallback...');
       const books = await this.getAll();
-      const fallbackCount = books?.length || 0;
-      console.log('[BOOK COUNT] Fallback count:', fallbackCount);
-      return fallbackCount;
+      return books?.length || 0;
+    }
+  }
+
+  static async getCountBySchool(school_id) {
+    try {
+      const { count, error } = await supabase
+        .from('books')
+        .select('*', { count: 'exact', head: true })
+        .eq('school_id', school_id);
+
+      if (error) throw error;
+      return count !== null && count !== undefined ? count : 0;
+    } catch (error) {
+      console.error('Error getting book count by school:', error);
+      const books = await this.getBySchool(school_id);
+      return books?.length || 0;
     }
   }
 
   static async getBySchool(school_id) {
     try {
-      const { data, error } = await supabase
-        .from('books')
-        .select(`
-          *,
-          schools(school_name, school_code),
-          categories(category_name)
-        `)
-        .eq('school_id', school_id)
-        .order('title');
+      console.log(`[BOOKS] Fetching all books for school ${school_id} with pagination...`);
+      let allBooks = [];
+      let hasMore = true;
+      let from = 0;
+      const pageSize = 1000;
 
-      if (error) throw error;
-      return data;
+      while (hasMore) {
+        const to = from + pageSize - 1;
+        const { data, error } = await supabase
+          .from('books')
+          .select(`
+            *,
+            schools(school_name, school_code),
+            categories(category_name)
+          `)
+          .eq('school_id', school_id)
+          .order('title')
+          .range(from, to);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allBooks = allBooks.concat(data);
+          from += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+
+        if (allBooks.length >= 100000) {
+          console.log('[BOOKS] Reached safety limit for school books');
+          hasMore = false;
+        }
+      }
+
+      console.log(`[BOOKS] Total books for school ${school_id}: ${allBooks.length}`);
+      return allBooks;
     } catch (error) {
       console.error('Error getting books by school:', error);
       throw error;

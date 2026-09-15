@@ -23,49 +23,56 @@ function isSuperAdmin(req) {
  */
 async function broadcastAnnouncementNotifications(announcement, req) {
   const { announcement_id, title, content } = announcement;
+  const targetAudience = req.body?.target_audience || announcement.target_audience || 'all';
+  const priority = req.body?.priority || announcement.priority || 'normal';
   const scope = isSuperAdmin(req) ? 'global' : 'school';
 
-  let users = [];
-  if (scope === 'global') {
-    // All active users across every school
-    const { data, error } = await supabase
-      .from('users')
-      .select('user_id, school_id')
-      .eq('status', 'active');
-    if (error) {
-      console.error('[ANNOUNCEMENTS] Error fetching users for broadcast:', error);
-      return;
-    }
-    users = data || [];
-  } else {
-    // Only users within the librarian admin's school
+  let userQuery = supabase
+    .from('users')
+    .select('user_id, school_id, role_id, role')
+    .eq('status', 'active');
+
+  if (scope !== 'global') {
     const schoolId = req.user?.school_id;
     if (!schoolId) return;
-    const { data, error } = await supabase
-      .from('users')
-      .select('user_id, school_id')
-      .eq('school_id', schoolId)
-      .eq('status', 'active');
-    if (error) {
-      console.error('[ANNOUNCEMENTS] Error fetching school users:', error);
-      return;
-    }
-    users = data || [];
+    userQuery = userQuery.eq('school_id', schoolId);
   }
 
-  if (users.length === 0) return;
+  // Filter based on target_audience
+  if (targetAudience === 'students') {
+    // role_id 4 is student or role name includes student
+    userQuery = userQuery.or('role_id.eq.4,role.ilike.%student%');
+  } else if (targetAudience === 'librarians') {
+    // role_id 2 or 3 or role name includes librarian
+    userQuery = userQuery.or('role_id.eq.2,role_id.eq.3,role.ilike.%librarian%');
+  }
+
+  const { data: users, error } = await userQuery;
+  if (error) {
+    console.error('[ANNOUNCEMENTS] Error fetching users for broadcast:', error);
+    return;
+  }
+
+  if (!users || users.length === 0) return;
 
   const creatorName = [req.user?.firstname, req.user?.lastname]
     .filter(Boolean)
     .join(' ') || 'Administrator';
 
+  const isUrgent = priority === 'urgent';
+  const notifTitle = isUrgent
+    ? `🚨 URGENT: ${title}`
+    : (scope === 'global' ? '📢 Global Announcement' : '📢 School Announcement');
+
   const notifications = users.map((user) => ({
     user_id: user.user_id,
     school_id: user.school_id,
     type: 'announcement',
-    title: scope === 'global' ? '📢 Global Announcement' : '📢 School Announcement',
-    message: `New announcement from ${creatorName}: "${title}" — ${content}`,
-    related_id: null,
+    title: notifTitle,
+    message: isUrgent
+      ? `[URGENT] From ${creatorName}: "${title}" — ${content}`
+      : `From ${creatorName}: "${title}" — ${content}`,
+    related_id: announcement_id || null,
     is_read: false,
     is_global: scope === 'global',
     is_admin_notification: true,
@@ -75,13 +82,13 @@ async function broadcastAnnouncementNotifications(announcement, req) {
   const BATCH = 200;
   for (let i = 0; i < notifications.length; i += BATCH) {
     const batch = notifications.slice(i, i + BATCH);
-    const { error } = await supabase.from('notifications').insert(batch);
-    if (error) {
-      console.error('[ANNOUNCEMENTS] Error inserting notification batch:', error);
+    const { error: batchErr } = await supabase.from('notifications').insert(batch);
+    if (batchErr) {
+      console.error('[ANNOUNCEMENTS] Error inserting notification batch:', batchErr);
     }
   }
 
-  console.log(`[ANNOUNCEMENTS] Broadcast ${notifications.length} notifications (${scope}) for announcement ${announcement_id}`);
+  console.log(`[ANNOUNCEMENTS] Broadcast ${notifications.length} notifications (${scope}, audience: ${targetAudience}, priority: ${priority}) for announcement ${announcement_id}`);
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -99,10 +106,8 @@ router.get('/', auth, async (req, res) => {
     let query = supabase.from('announcements').select('*');
 
     if (isSuper) {
-      // Super admins see everything
       query = query.order('created_at', { ascending: false });
     } else if (schoolId) {
-      // Their school's announcements + global (school_id IS NULL)
       query = query.or(`school_id.eq.${schoolId},school_id.is.null`);
     } else {
       query = query.is('school_id', 'null');
@@ -110,7 +115,7 @@ router.get('/', auth, async (req, res) => {
 
     const { data, error } = await query
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(30);
 
     if (error) throw error;
     res.json({ success: true, data: data || [] });
@@ -119,6 +124,7 @@ router.get('/', auth, async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+
 // @route   GET /api/announcements/school/:school_id
 // @desc    Get announcements by school
 // @access  Private
@@ -129,7 +135,7 @@ router.get('/school/:school_id', auth, async (req, res) => {
       .select('*')
       .eq('school_id', req.params.school_id)
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(30);
 
     if (error) throw error;
     res.json({ success: true, data: data || [] });
@@ -141,39 +147,53 @@ router.get('/school/:school_id', auth, async (req, res) => {
 
 // @route   POST /api/announcements
 // @desc    Create announcement
-//          - Super Admin → global (school_id = null, visible to all schools)
-//          - Librarian Admin → school-scoped (their own school_id)
-//          Notification rows are broadcast to the appropriate audience.
 // @access  Private (Super Admin, Librarian Admin)
 router.post('/', auth, requireRole(['Super Admin', 'Librarian Admin']), async (req, res) => {
   try {
-    const { title, content } = req.body;
+    const { title, content, target_audience = 'all', priority = 'normal' } = req.body;
     if (!title || !content) {
       return res.status(400).json({ success: false, message: 'Title and content are required' });
     }
 
     const isSuper = isSuperAdmin(req);
-    // Super admin → school_id NULL (global); librarian admin → their school
     const schoolId = isSuper ? null : (req.user?.school_id || null);
 
-    const { data, error } = await supabase
+    // Try inserting with target_audience & priority, fallback gracefully if columns not present
+    let insertData = {
+      title,
+      content,
+      school_id: schoolId,
+      created_by: req.user?.user_id || req.user?.id,
+      created_at: new Date().toISOString(),
+    };
+
+    let result = await supabase
       .from('announcements')
       .insert({
-        title,
-        content,
-        school_id: schoolId,
-        created_by: req.user?.user_id || req.user?.id,
-        created_at: new Date().toISOString(),
+        ...insertData,
+        target_audience,
+        priority
       })
       .select()
-      .single();
+      .maybeSingle();
 
-    if (error) throw error;
+    if (result.error) {
+      // Fallback in case table doesn't have target_audience / priority columns yet
+      result = await supabase
+        .from('announcements')
+        .insert(insertData)
+        .select()
+        .single();
+    }
+
+    if (result.error) throw result.error;
+
+    const createdRecord = result.data || insertData;
 
     // Fan out notification rows to every relevant user
-    await broadcastAnnouncementNotifications(data, req);
+    await broadcastAnnouncementNotifications(createdRecord, req);
 
-    res.status(201).json({ success: true, data });
+    res.status(201).json({ success: true, data: createdRecord });
   } catch (error) {
     console.error('Error creating announcement:', error);
     res.status(500).json({ success: false, message: 'Server error' });

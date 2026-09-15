@@ -50,17 +50,47 @@ class ActivityLog {
     }
   }
 
-  static async getBySchool(school_id, limit = 50) {
+  static async getBySchool(school_id, limit = 100) {
     try {
       const { data, error } = await supabase
         .from('activity_logs')
-        .select('*, users(firstname, lastname, schools(school_name, school_code))')
-        .eq('users.school_id', school_id)
+        .select(`
+          *,
+          users (
+            user_id,
+            firstname,
+            lastname,
+            role,
+            role_id,
+            student_number,
+            employee_number,
+            profile_image,
+            email,
+            school_id
+          )
+        `)
         .order('created_at', { ascending: false })
         .limit(limit);
 
       if (error) throw error;
-      return data;
+      
+      const targetSchool = String(school_id);
+      const normalized = (data || []).map(log => {
+        const u = Array.isArray(log.users) ? log.users[0] : log.users;
+        return {
+          ...log,
+          users: u || null
+        };
+      });
+
+      const filtered = normalized.filter(log => {
+        if (log.school_id && String(log.school_id) === targetSchool) return true;
+        if (log.users?.school_id && String(log.users.school_id) === targetSchool) return true;
+        if (!log.school_id && !log.users?.school_id) return true;
+        return false;
+      });
+
+      return filtered;
     } catch (error) {
       console.error('Error getting activity logs by school:', error);
       throw error;

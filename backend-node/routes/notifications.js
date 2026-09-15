@@ -4,54 +4,109 @@ const { auth, requireRole } = require('../middleware/auth');
 const supabase = require('../config/database');
 
 async function enrichNotifications(notifications) {
+  if (!notifications || notifications.length === 0) return [];
+
   const requestIds = [...new Set((notifications || [])
     .map(notification => getNotificationRequestId(notification))
     .filter(Boolean))];
 
-  if (requestIds.length === 0) {
-    return (notifications || []).map(normalizeNotification);
+  // 1. Fetch borrow requests if any requestIds exist
+  let requests = [];
+  if (requestIds.length > 0) {
+    const { data, error: requestError } = await supabase
+      .from('borrow_requests')
+      .select('request_id, student_id')
+      .in('request_id', requestIds);
+    if (!requestError && data) requests = data;
   }
 
-  const { data: requests, error: requestError } = await supabase
-    .from('borrow_requests')
-    .select('request_id, student_id')
-    .in('request_id', requestIds);
+  // 2. Collect student user IDs from borrow requests and direct notification user_ids
+  const studentIdsFromRequests = requests.map(r => r.student_id).filter(Boolean);
+  const directUserIds = notifications.map(n => n.user_id || n.sender_id).filter(Boolean);
+  const allUserIds = [...new Set([...studentIdsFromRequests, ...directUserIds])];
 
-  if (requestError) throw requestError;
+  // 3. Fetch all potential student/user accounts
+  let usersList = [];
+  if (allUserIds.length > 0) {
+    const { data: usersData, error: usersError } = await supabase
+      .from('users')
+      .select('user_id, firstname, lastname, profile_image, school_id, role_id')
+      .in('user_id', allUserIds);
+    if (!usersError && usersData) usersList = usersData;
+  }
 
-  const studentIds = [...new Set((requests || []).map(request => request.student_id).filter(Boolean))];
-  const { data: students, error: studentError } = studentIds.length > 0
-    ? await supabase.from('users').select('user_id, firstname, lastname, profile_image, school_id').in('user_id', studentIds)
-    : { data: [], error: null };
+  // 4. Also fetch active students to help match by name if request lookup misses
+  const namesInMessages = notifications.map(n => {
+    const match = String(n.message || '').match(/^([A-Za-z\s.]+?)\s+(?:has\s+)?(?:submitted|requested|borrowed|canceled|cancelled|returned|claimed)/i);
+    return match ? match[1].trim() : null;
+  }).filter(Boolean);
 
-  if (studentError) throw studentError;
+  if (namesInMessages.length > 0) {
+    const { data: nameUsers } = await supabase
+      .from('users')
+      .select('user_id, firstname, lastname, profile_image, school_id, role_id')
+      .limit(100);
+    if (nameUsers) {
+      const existingIds = new Set(usersList.map(u => u.user_id));
+      nameUsers.forEach(nu => {
+        if (!existingIds.has(nu.user_id)) {
+          usersList.push(nu);
+          existingIds.add(nu.user_id);
+        }
+      });
+    }
+  }
 
-  // Get school codes for students
-  const schoolIds = [...new Set((students || []).map(s => s.school_id).filter(Boolean))];
-  const { data: schools, error: schoolError } = schoolIds.length > 0
-    ? await supabase.from('schools').select('school_id, school_code').in('school_id', schoolIds)
-    : { data: [], error: null };
+  // 5. Fetch school codes
+  const schoolIds = [...new Set(usersList.map(s => s.school_id).filter(Boolean))];
+  let schoolsList = [];
+  if (schoolIds.length > 0) {
+    const { data: schoolsData } = await supabase
+      .from('schools')
+      .select('school_id, school_code')
+      .in('school_id', schoolIds);
+    if (schoolsData) schoolsList = schoolsData;
+  }
 
-  if (schoolError) throw schoolError;
+  const requestsById = new Map(requests.map(request => [request.request_id, request]));
+  const studentsById = new Map(usersList.map(student => [student.user_id, student]));
+  const schoolsById = new Map(schoolsList.map(school => [school.school_id, school.school_code]));
 
-  const requestsById = new Map((requests || []).map(request => [request.request_id, request]));
-  const studentsById = new Map((students || []).map(student => [student.user_id, student]));
-  const schoolsById = new Map((schools || []).map(school => [school.school_id, school.school_code]));
-
-  return (notifications || []).map(notification => {
+  return notifications.map(notification => {
     const relatedRequestId = getNotificationRequestId(notification);
     const request = requestsById.get(relatedRequestId);
-    const student = request ? studentsById.get(request.student_id) : null;
+    let student = request ? studentsById.get(request.student_id) : null;
+
+    // If not found via request, check by notification.user_id / sender_id
+    if (!student && notification.user_id) {
+      student = studentsById.get(notification.user_id);
+    }
+
+    // If still not found, try matching by parsed name in message
+    const parsedNameMatch = String(notification.message || '').match(/^([A-Za-z\s.]+?)\s+(?:has\s+)?(?:submitted|requested|borrowed|canceled|cancelled|returned|claimed)/i);
+    const parsedName = parsedNameMatch ? parsedNameMatch[1].trim() : null;
+    if (!student && parsedName) {
+      student = usersList.find(u => {
+        const full = `${u.firstname || ''} ${u.lastname || ''}`.trim().toLowerCase();
+        return full === parsedName.toLowerCase() || full.includes(parsedName.toLowerCase()) || parsedName.toLowerCase().includes(full);
+      });
+    }
+
     const schoolCode = student ? schoolsById.get(student.school_id) : null;
-    
+    const finalName = student
+      ? [student.firstname, student.lastname].filter(Boolean).join(' ')
+      : (parsedName || notification.sender_name || notification.student_name || 'Library Patron');
+
+    const profilePic = student?.profile_image || notification.profile_picture || notification.student_profile_picture || null;
+
     return normalizeNotification({
       ...notification,
       related_request_id: relatedRequestId,
-      sender_name: student ? [student.firstname, student.lastname].filter(Boolean).join(' ') : null,
-      sender_role: student ? 'Student' : null,
-      profile_picture: student?.profile_image || null,
-      student_name: student ? [student.firstname, student.lastname].filter(Boolean).join(' ') : null,
-      student_profile_picture: student?.profile_image || null,
+      sender_name: finalName,
+      sender_role: student ? 'Student' : (notification.sender_role || 'User'),
+      profile_picture: profilePic,
+      student_name: finalName,
+      student_profile_picture: profilePic,
       school_code: schoolCode || notification.school_code || null,
     });
   });
@@ -387,6 +442,65 @@ router.post('/send-email', auth, requireRole(['Librarian Admin', 'Librarian']), 
     });
   } catch (err) {
     console.error('[NOTIFICATIONS] Error sending direct email:', err);
+    res.status(500).json({ success: false, message: err.message || 'Server error' });
+  }
+});
+
+// @route   POST /api/notifications/reminder
+// @desc    Send a due / overdue reminder notification to a student
+// @access  Private (Librarian/Admin)
+router.post('/reminder', auth, requireRole(['librarian', 'librarian admin', 'super admin', 'admin']), async (req, res) => {
+  try {
+    const { student_id, book_title, due_date, reminder_type = 'due_soon', days_left = 0, borrow_id = null } = req.body;
+
+    if (!student_id) {
+      return res.status(400).json({ success: false, message: 'student_id is required' });
+    }
+
+    // Resolve target user_id (checking if student_id is from students or users table)
+    let targetUserId = student_id;
+    const { data: studentRecord } = await supabase
+      .from('students')
+      .select('user_id, student_id')
+      .or(`student_id.eq.${student_id},user_id.eq.${student_id}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (studentRecord?.user_id) {
+      targetUserId = studentRecord.user_id;
+    }
+
+    const isOverdue = reminder_type === 'overdue' || Number(days_left) < 0;
+    const title = isOverdue
+      ? `⚠️ Overdue Notice: "${book_title || 'Book'}"`
+      : `⏰ Due Date Reminder: "${book_title || 'Book'}"`;
+
+    const message = isOverdue
+      ? `Your borrowed book "${book_title || 'Book'}" was due on ${due_date || 'recently'}. Please return it to the campus library circulation counter immediately to avoid fine accumulation.`
+      : `Friendly reminder: Your borrowed book "${book_title || 'Book'}" is due on ${due_date || 'soon'}. Please return or renew it at the library counter before the due date.`;
+
+    const notificationPayload = {
+      user_id: targetUserId,
+      type: isOverdue ? 'overdue_reminder' : 'due_reminder',
+      title,
+      message,
+      related_id: borrow_id ? String(borrow_id) : null,
+      is_read: false,
+      is_admin_notification: false,
+      created_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert([notificationPayload])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json({ success: true, data, message: 'Reminder notification sent successfully' });
+  } catch (err) {
+    console.error('[NOTIFICATIONS] Error sending reminder:', err);
     res.status(500).json({ success: false, message: err.message || 'Server error' });
   }
 });

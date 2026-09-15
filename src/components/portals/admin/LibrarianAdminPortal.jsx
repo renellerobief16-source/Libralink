@@ -172,7 +172,7 @@ function LibrarianAdminPortal() {
   const renderContent = () => {
     switch (activeTab) {
       case 'home':
-        return <LibrarianAdminDashboard />;
+        return <LibrarianAdminDashboard onNavigate={setActiveTab} />;
       case 'books':
         return <LibrarianAdminBooks />;
       case 'users':
@@ -197,7 +197,7 @@ function LibrarianAdminPortal() {
         handleLogout();
         return null;
       default:
-        return <LibrarianAdminDashboard />;
+        return <LibrarianAdminDashboard onNavigate={setActiveTab} />;
     }
   };
 
@@ -205,124 +205,111 @@ function LibrarianAdminPortal() {
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <div className="flex">
         {/* Sidebar - Desktop */}
-        <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 z-50 hidden lg:block">
+        <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-slate-200/70 z-50 hidden lg:block">
           <div className="flex flex-col h-full">
-            {/* Libralink System Branding */}
-            <div className="p-6 border-b border-gray-100">
+            {/* Minimalist Seamless Brand & Campus Header */}
+            <div className="p-5 border-b border-slate-100">
               <div className="flex items-center gap-3">
-                <img src="/L.png" alt="Libralink Logo" className="w-9 h-9 rounded-lg object-cover" />
-                <div>
-                  <span className="text-lg font-semibold text-gray-900">LibraLink</span>
-                  <p className="text-xs text-gray-500 mt-0.5">Administrator</p>
+                <img src="/L.png" alt="Libralink Logo" className="w-8 h-8 rounded-lg object-cover" />
+                <div className="min-w-0 flex-1">
+                  <span className="text-base font-bold tracking-tight text-slate-900 block leading-tight">LibraLink</span>
+                  {schoolInfo ? (
+                    <p className="text-[11px] font-medium text-slate-400 truncate mt-0.5" title={schoolInfo.school_name}>
+                      {schoolInfo.school_name} {schoolInfo.school_code ? `• ${schoolInfo.school_code}` : ''}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] font-medium text-slate-400">Administrator</p>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Current School Info */}
-            {schoolInfo && (
-              <div className="px-4 py-4 border-b border-gray-100">
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Current School</p>
-                <div className="flex items-center gap-3">
-                  {schoolInfo.logo && !schoolLogoError ? (
-                    <img 
-                      src={getBackendAssetUrl(schoolInfo.logo)} 
-                      alt={`${schoolInfo.school_name} Logo`} 
-                      className="w-10 h-10 rounded-lg object-contain bg-gray-50"
-                      onError={() => {
-                        console.error('School logo failed to load:', schoolInfo.logo, 'resolved URL:', getBackendAssetUrl(schoolInfo.logo));
-                        setSchoolLogoError(true);
-                      }}
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                      <FiGrid className="w-5 h-5 text-gray-400" />
-                    </div>
-                  )}
-                  <div>
-                    <div className="font-medium text-gray-900 text-sm">{schoolInfo.school_name}</div>
-                    <div className="text-xs text-gray-500">{schoolInfo.school_code}</div>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Navigation */}
-            <div className="flex-1 overflow-y-auto py-4 px-3">
-              <nav className="space-y-1">
-                {sidebarItems.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveTab(item.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all duration-150 group relative ${
-                      activeTab === item.id
-                        ? 'text-gray-900 font-semibold bg-slate-50 border-l-2 border-blue-600'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="relative flex-shrink-0">
-                      <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500'}`} />
+            <div className="flex-1 overflow-y-auto py-3 px-3 custom-scrollbar">
+              <nav className="space-y-0.5">
+                {sidebarItems.map((item) => {
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all duration-150 group cursor-pointer ${
+                        isActive
+                          ? 'bg-slate-100 text-slate-900 font-semibold'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <item.icon className={`w-4 h-4 shrink-0 transition-colors ${
+                          isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'
+                        }`} />
+                        <span className="truncate">{item.label}</span>
+                      </div>
                       {item.id === 'inbox' && unreadCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-medium">
+                        <span className={`px-1.5 py-0.2 text-[10px] font-bold rounded-full ${
+                          isActive ? 'bg-blue-600 text-white' : 'bg-rose-500 text-white'
+                        }`}>
                           {unreadCount > 9 ? '9+' : unreadCount}
                         </span>
                       )}
-                    </div>
-                    <span className="text-sm">{item.label}</span>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
 
                 {/* Settings Dropdown */}
-                <div className="mt-4">
+                <div className="pt-2 mt-2 border-t border-slate-100">
                   <button
                     onClick={() => setSettingsOpen(!settingsOpen)}
-                    className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-md transition-all duration-150 group ${
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all duration-150 group cursor-pointer ${
                       settingsOpen || activeTab === 'Library-Settings' || activeTab === 'profile' || activeTab === 'change-password'
-                        ? 'text-gray-900 font-semibold bg-slate-50 border-l-2 border-blue-600'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-slate-50'
+                        ? 'bg-slate-100 text-slate-900 font-semibold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <FiSettings className={`w-5 h-5 ${settingsOpen || activeTab === 'Library-Settings' || activeTab === 'profile' || activeTab === 'change-password' ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500'}`} />
-                      <span className="text-sm">Settings</span>
+                      <FiSettings className={`w-4 h-4 ${
+                        settingsOpen || activeTab === 'Library-Settings' || activeTab === 'profile' || activeTab === 'change-password' 
+                          ? 'text-blue-600' 
+                          : 'text-slate-400 group-hover:text-slate-600'
+                      }`} />
+                      <span>Settings</span>
                     </div>
-                    <FiChevronDown className={`w-4 h-4 transition-transform ${settingsOpen ? 'rotate-180' : ''}`} />
+                    <FiChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-150 ${settingsOpen ? 'rotate-180 text-slate-700' : ''}`} />
                   </button>
 
                   {/* Settings Submenu */}
-                  <div className={`ml-8 mt-1 space-y-1 overflow-hidden transition-all duration-300 ${settingsOpen ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-                    {settingsSubItems.map((subItem) => (
-                      <button
-                        key={subItem.id}
-                        onClick={() => {
-                          setActiveTab(subItem.id);
-                        }}
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-all duration-150 group ${
-                          activeTab === subItem.id
-                            ? 'text-gray-900 font-semibold bg-slate-50'
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-slate-50'
-                        }`}
-                      >
-                        <subItem.icon className={`w-4 h-4 ${activeTab === subItem.id ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500'}`} />
-                        <span className="text-sm">{subItem.label}</span>
-                      </button>
-                    ))}
+                  <div className={`mt-1 space-y-0.5 pl-3 overflow-hidden transition-all duration-200 ${settingsOpen ? 'max-h-40 opacity-100 py-1' : 'max-h-0 opacity-0'}`}>
+                    {settingsSubItems.map((subItem) => {
+                      const isSubActive = activeTab === subItem.id;
+                      return (
+                        <button
+                          key={subItem.id}
+                          onClick={() => setActiveTab(subItem.id)}
+                          className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
+                            isSubActive
+                              ? 'bg-blue-50 text-blue-600 font-semibold'
+                              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-medium'
+                          }`}
+                        >
+                          <subItem.icon className={`w-3.5 h-3.5 ${isSubActive ? 'text-blue-600' : 'text-slate-400'}`} />
+                          <span className="truncate">{subItem.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </nav>
             </div>
 
             {/* Bottom Section */}
-            <div className="p-4 border-t border-gray-100">
+            <div className="p-3 border-t border-slate-100">
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-red-600 hover:bg-red-50 transition-all duration-150"
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50/70 transition-all duration-150 cursor-pointer group"
               >
-                <FiLogOut className="w-5 h-5" />
-                <span className="text-sm">Logout</span>
+                <FiLogOut className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
+                <span>Sign Out</span>
               </button>
-              <div className="text-xs text-gray-500 text-center mt-4">
-                Libralink Library Management
-              </div>
             </div>
           </div>
         </aside>

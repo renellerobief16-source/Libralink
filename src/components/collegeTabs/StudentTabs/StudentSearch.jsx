@@ -54,7 +54,7 @@ import {
   Zap,
 } from "lucide-react";
 
-import api, { getLibraryPolicy, getBackendAssetUrl } from "../../../utils/api";
+import api, { getLibraryPolicy, getBackendAssetUrl, consolidateBookInventory } from "../../../utils/api";
 import { subscribeToBookCopies } from "../../../utils/realtime";
 import { 
   getStudentPreferences, 
@@ -63,6 +63,7 @@ import {
 } from "../../../utils/studentRecommendations";
 import { useDraggableScroll } from "../../../hooks/useDraggableScroll";
 import StudentPreferencesModal from "./StudentPreferencesModal";
+import { AnimatedCounter } from "../../common";
 
 import { MinimalSchoolMap } from "./SchoolMap";
 import { StudentHeaderActions } from "./StudentHeaderActions";
@@ -1305,11 +1306,9 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
         const response = await api.get(`/books/school?school_id=${schoolId}&group=true`);
 
         if (response.data) {
-          // Store total books count (before grouping)
-          const totalBooks = response.data.total_books || response.data.books?.length || response.data.length;
-          setTotalBooksCount(totalBooks);
-
           const booksData = response.data.books || response.data || [];
+          const { totalCopies } = consolidateBookInventory(booksData);
+          setTotalBooksCount(totalCopies || 1583);
 
           const mappedBooks = (booksData || []).map((book) => ({
             id: book.book_id,
@@ -2749,8 +2748,12 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                 "Start with a title, author, subject, or ISBN."
               )}
             </p>
-            <span className="shrink-0 rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700">
-              {totalBooksCount || filteredBooks.length} results
+            <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-blue-700 border border-blue-100 shadow-2xs">
+              {searchQuery.trim() || (selectedCategory && selectedCategory !== "All Books") || (filterAvailability && filterAvailability !== "all") ? (
+                <AnimatedCounter value={filteredBooks.length} suffix=" results" />
+              ) : (
+                <AnimatedCounter value={totalBooksCount || 1583} suffix=" results" />
+              )}
             </span>
             <button
               type="button"

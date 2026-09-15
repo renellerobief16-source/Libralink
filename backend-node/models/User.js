@@ -19,6 +19,8 @@ function normalizeUserCreateData(data = {}) {
     address: data.address?.trim() || null,
     email: data.email?.trim(),
     password: data.password,
+    position: data.position?.trim() || null,
+    profile_image: data.profile_image || data.profile_picture || null,
     status: data.status || 'active',
   };
 }
@@ -86,6 +88,8 @@ class User {
       address,
       email,
       password,
+      position,
+      profile_image,
       status = 'active'
     } = normalizedData;
 
@@ -112,6 +116,8 @@ class User {
       email,
       password: hashedPassword,
       initial_temp_password: password,
+      position: position || null,
+      profile_image: profile_image || null,
       status
     };
 

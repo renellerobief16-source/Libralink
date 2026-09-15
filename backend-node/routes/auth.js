@@ -42,6 +42,24 @@ router.post('/login', async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRE || '7d' }
     );
 
+    // Asynchronously log login event to activity_logs
+    try {
+      const ActivityLog = require('../models/ActivityLog');
+      const userFullName = [user.firstname, user.lastname].filter(Boolean).join(' ') || user.email;
+      const roleDisplayName = user.role_name || user.role || 'User';
+      
+      ActivityLog.create({
+        user_id: user.user_id,
+        school_id: user.school_id,
+        activity_type: 'login',
+        action: 'login',
+        description: `${userFullName} (${roleDisplayName}) signed into Libralink`,
+        created_at: new Date().toISOString()
+      }).catch(err => console.warn('[AUTH] Non-fatal login log warning:', err.message));
+    } catch (logErr) {
+      console.warn('[AUTH] Activity log catch:', logErr.message);
+    }
+
     res.json({
       success: true,
       token,

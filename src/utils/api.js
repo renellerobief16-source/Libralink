@@ -715,9 +715,14 @@ export async function getStudentNotifications(userId) {
 // ANNOUNCEMENT FUNCTIONS
 // ============================================
 
-export async function createAnnouncement(title, content) {
+export async function createAnnouncement(title, content, targetAudience = 'all', priority = 'normal') {
   try {
-    const response = await api.post('/announcements', { title, content });
+    const response = await api.post('/announcements', { 
+      title, 
+      content,
+      target_audience: targetAudience,
+      priority
+    });
     return { data: response.data, error: null };
   } catch (error) {
     return { data: null, error };
@@ -730,6 +735,15 @@ export async function getAnnouncements() {
     return { data: response.data || [], error: null };
   } catch (error) {
     return { data: [], error };
+  }
+}
+
+export async function deleteAnnouncement(announcementId) {
+  try {
+    const response = await api.delete(`/announcements/${announcementId}`);
+    return { data: response.data, error: null };
+  } catch (error) {
+    return { data: null, error };
   }
 }
 
@@ -806,5 +820,77 @@ function normalizeCampusKey(college) {
   return normalizedValue;
 }
 
+export function consolidateBookInventory(booksData) {
+  const booksArray = Array.isArray(booksData)
+    ? booksData
+    : (Array.isArray(booksData?.books) ? booksData.books : (Array.isArray(booksData?.data) ? booksData.data : []));
+
+  const clean = (s) => String(s || '').trim().toLowerCase();
+  const groupMap = new Map();
+
+  booksArray.forEach((book) => {
+    const key = `${clean(book.title)}:::${clean(book.author)}`;
+    const hasCopies = Array.isArray(book.book_copies) && book.book_copies.length > 0;
+    const total = book.quantity !== undefined && book.quantity !== null
+      ? Number(book.quantity)
+      : (book.total_copies !== undefined ? Number(book.total_copies) : (hasCopies ? book.book_copies.length : 1));
+    const avail = book.available_quantity !== undefined && book.available_quantity !== null
+      ? Number(book.available_quantity)
+      : (book.available_copies !== undefined ? Number(book.available_copies) : (hasCopies ? book.book_copies.filter(c => c.status === 'available').length : total));
+
+    if (!groupMap.has(key)) {
+      groupMap.set(key, {
+        ...book,
+        total_copies: total,
+        available_copies: avail,
+        grouped_book_ids: book.grouped_book_ids || [book.book_id || book.id]
+      });
+    } else {
+      const existing = groupMap.get(key);
+      existing.total_copies += total;
+      existing.available_copies += avail;
+    }
+  });
+
+  const consolidated = Array.from(groupMap.values());
+  const totalCopies = consolidated.reduce((acc, b) => acc + (Number(b.total_copies) || 1), 0);
+  const availableCopies = consolidated.reduce((acc, b) => acc + (Number(b.available_copies) ?? Number(b.total_copies) ?? 1), 0);
+  const totalTitles = consolidated.length;
+
+  return { consolidated, totalCopies, availableCopies, totalTitles };
+}
+
+// ============================================
+// NOTIFICATION & REMINDER FUNCTIONS
+// ============================================
+
+export async function markAllNotificationsAsRead() {
+  try {
+    const response = await api.put('/notifications/read-all');
+    return { data: response.data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+export async function deleteNotificationApi(id) {
+  try {
+    const response = await api.delete(`/notifications/${id}`);
+    return { data: response.data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+export async function sendDueReminderNotification(payload) {
+  try {
+    const response = await api.post('/notifications/reminder', payload);
+    return { data: response.data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
 // Export the api instance for custom requests
 export default api;
+

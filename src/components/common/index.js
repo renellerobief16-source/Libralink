@@ -13,3 +13,4 @@ export { default as WeatherWidget } from './WeatherWidget';
 export { default as DigitalClock } from './DigitalClock';
 export { default as DashboardRefreshButton } from './DashboardRefreshButton';
 export { default as GlobalHeader } from './GlobalHeader';
+export { default as AnimatedCounter } from './AnimatedCounter';

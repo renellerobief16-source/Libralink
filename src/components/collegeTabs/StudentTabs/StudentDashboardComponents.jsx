@@ -1094,7 +1094,15 @@ export function StudentHeader({ userInfo, onLogout, panelOpen = false }) {
   );
 }
 
-export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
+export function StudentLayout({
+  children,
+  schoolInfo,
+  userInfo,
+  onLogout,
+  isPreviewMode = false,
+  onReturnToAdmin,
+  adminRoleLabel,
+}) {
   const location = useLocation();
   const isSearchRoute = location.pathname.startsWith("/studentpage/search");
   const isHomeRoute = location.pathname === "/studentpage" || location.pathname === "/studentpage/";
@@ -1200,10 +1208,37 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
       data-panel-open={activePanel ? "true" : "false"}
       data-active-panel={activePanel || ""}
     >
+      {/* Top Student Preview Mode Banner */}
+      {isPreviewMode && (
+        <aside
+          aria-label="Student preview mode status"
+          className="fixed inset-x-0 top-0 h-[40px] z-[70] bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 text-white px-3 sm:px-4 text-xs flex items-center justify-between border-b border-indigo-900/60 shadow-md"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="flex h-2 w-2 relative shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span className="text-slate-200 font-medium truncate">
+              🎓 <strong className="text-white font-semibold">Student Preview Mode Active</strong>
+              <span className="text-slate-400 hidden sm:inline"> — Viewing library catalog and reader experience as a Student.</span>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onReturnToAdmin}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-all shadow-xs cursor-pointer shrink-0 ml-2"
+          >
+            <span>Return to {adminRoleLabel || 'Admin Console'} →</span>
+          </button>
+        </aside>
+      )}
+
       {/* LEFT SIDEBAR (Expandable w-[72px] to w-[240px]) */}
       <aside
-        className={`fixed left-0 top-0 bottom-0 z-40 hidden flex-col border-r border-[#E5E7EB] bg-white transition-all duration-300 ease-in-out lg:flex ${sidebarExpanded ? "w-[240px]" : "w-[72px]"
-          }`}
+        className={`fixed left-0 bottom-0 z-40 hidden flex-col border-r border-[#E5E7EB] bg-white transition-all duration-300 ease-in-out lg:flex ${
+          isPreviewMode ? "top-[40px]" : "top-0"
+        } ${sidebarExpanded ? "w-[240px]" : "w-[72px]"}`}
       >
         {/* Top Branding & Toggle */}
         <div className="flex h-[64px] shrink-0 items-center border-b border-slate-100 px-3.5">
@@ -1512,8 +1547,13 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
       {activePanel && (
         <section
           aria-label={`${activePanel} panel`}
-          className={`student-expanded-panel fixed inset-x-0 bottom-0 top-0 z-40 flex flex-col w-full min-w-0 border-r border-slate-300 bg-[#F7FAFC] md:top-[64px] md:w-[380px] lg:top-0 lg:h-dvh lg:w-[380px] overflow-hidden transition-all duration-300 ${sidebarExpanded ? "lg:left-[240px]" : "lg:left-[72px]"
-            }`}
+          className={`student-expanded-panel fixed inset-x-0 bottom-0 z-40 flex flex-col w-full min-w-0 border-r border-slate-300 bg-[#F7FAFC] overflow-hidden transition-all duration-300 ${
+            isPreviewMode
+              ? "top-[40px] md:top-[104px] lg:top-[40px] lg:h-[calc(100dvh-40px)]"
+              : "top-0 md:top-[64px] lg:top-0 lg:h-dvh"
+          } md:w-[380px] lg:w-[380px] ${
+            sidebarExpanded ? "lg:left-[240px]" : "lg:left-[72px]"
+          }`}
         >
           {/* Fixed Drawer Header - Never Scrolls */}
           <div className="flex h-[64px] shrink-0 items-center justify-between border-b border-slate-200/90 px-4 bg-white/95 backdrop-blur-md z-20">
@@ -1578,8 +1618,11 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
 
       {/* UNIFIED TOP HEADER (Consistent across ALL student routes) */}
       <header
-        className={`fixed inset-x-0 top-0 z-[35] flex h-[64px] items-center border-b border-[#E5E7EB] bg-[#F7FAFC]/95 backdrop-blur-md transition-all duration-300 ${sidebarExpanded ? "lg:left-[240px]" : "lg:left-[72px]"
-          } ${activePanel ? (sidebarExpanded ? "lg:left-[620px]" : "lg:left-[452px]") : ""}`}
+        className={`fixed inset-x-0 z-[35] flex h-[64px] items-center border-b border-[#E5E7EB] bg-[#F7FAFC]/95 backdrop-blur-md transition-all duration-300 ${
+          isPreviewMode ? "top-[40px]" : "top-0"
+        } ${sidebarExpanded ? "lg:left-[240px]" : "lg:left-[72px]"} ${
+          activePanel ? (sidebarExpanded ? "lg:left-[620px]" : "lg:left-[452px]") : ""
+        }`}
         aria-label="Student account toolbar"
       >
         <div className="flex w-full min-w-0 items-center gap-3 px-3 md:px-5">
@@ -1601,8 +1644,9 @@ export function StudentLayout({ children, schoolInfo, userInfo, onLogout }) {
           }`}
       >
         <main
-          className={`w-full min-w-0 overflow-x-visible bg-[#F7FAFC] pt-[64px] ${activePanel ? "lg:pl-[380px]" : ""
-            }`}
+          className={`w-full min-w-0 overflow-x-visible bg-[#F7FAFC] ${
+            isPreviewMode ? "pt-[104px]" : "pt-[64px]"
+          } ${activePanel ? "lg:pl-[380px]" : ""}`}
         >
           <div
             className={`box-border mx-auto min-w-0 w-full bg-[#F7FAFC] px-3 pb-28 sm:pb-24 sm:px-4 md:px-6 md:pb-6 lg:px-6 lg:pb-8 ${isSearchRoute ? "max-w-none" : "max-w-[1280px]"

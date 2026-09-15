@@ -1,647 +1,2153 @@
-import { useState, useEffect } from 'react';
-import { FiBook, FiEdit, FiTrash2, FiPlus, FiUpload, FiDownload, FiFilter, FiX } from 'react-icons/fi';
-import api from '../../../utils/api';
-import { ConfirmationOverlay, LoadingOverlay, AlertOverlay } from '../../common';
-import useAlert from '../../../hooks/useAlert';
+import { useState, useEffect, useMemo, useRef } from "react";
+import { 
+  FiSearch, FiBook, FiMapPin, FiEdit, FiTrash2, FiGrid, FiList, 
+  FiMoreVertical, FiArchive, FiPlus, FiImage, FiX, FiCheckCircle, 
+  FiAlertCircle, FiLayers, FiTag, FiCalendar, FiHash, FiUploadCloud,
+  FiBookOpen, FiInfo, FiFolder, FiCheck, FiFileText, FiRefreshCw,
+  FiBookmark, FiClock, FiActivity, FiUsers, FiChevronLeft, FiChevronRight,
+  FiChevronsLeft, FiChevronsRight
+} from "react-icons/fi";
+import api, { getBackendAssetUrl } from "../../../utils/api";
 import Card from "../../ui/Card";
-import Input from "../../ui/Input";
+import SearchBar from "../../ui/SearchBar";
+import EmptyState from "../../ui/EmptyState";
+import Button from "../../ui/Button";
+import ConfirmationOverlay from "../../common/ConfirmationOverlay";
+import ActionMenu from "../../common/ActionMenu";
+import UndoToast from "../../common/UndoToast";
+import BookBorrowersDrawer from "../LibrarianTabs/BookBorrowersDrawer";
+
+const CATEGORY_PRESETS = [
+  'General Collection',
+  'Computer Science & IT',
+  'Engineering & Technology',
+  'Nursing & Health Sciences',
+  'Business & Accountancy',
+  'Education & Teaching',
+  'Literature & Languages',
+  'Criminology & Law',
+  'Social Sciences & History',
+  'Mathematics & Natural Sciences',
+  'Hospitality & Tourism'
+];
+
+const LOCATION_PRESETS = [
+  'Main Stacks',
+  'Reference Section',
+  'Filipiniana',
+  'Reserve Desk',
+  'Periodicals',
+  'Circulation Desk'
+];
+
+function AnimatedNumber({ value, duration = 800 }) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    let startTimestamp = null;
+    const startVal = displayValue;
+    const targetVal = Number(value) || 0;
+    if (startVal === targetVal) return;
+
+    let frameId;
+    const step = (timestamp) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      const current = Math.round(startVal + (targetVal - startVal) * easeOut);
+      setDisplayValue(current);
+
+      if (progress < 1) {
+        frameId = requestAnimationFrame(step);
+      } else {
+        setDisplayValue(targetVal);
+      }
+    };
+
+    frameId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frameId);
+  }, [value, duration]);
+
+  return <span>{displayValue.toLocaleString()}</span>;
+}
 
 function LibrarianAdminBooks() {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [stockFilter, setStockFilter] = useState("all"); // 'all', 'in-stock', 'out-of-stock'
+  const [viewMode, setViewMode] = useState('card'); // 'card' or 'table'
   const [editingBook, setEditingBook] = useState(null);
-  const [formData, setFormData] = useState({ 
-    title: '', 
-    author: '', 
-    publisher: '', 
-    isbn: '', 
-    call_number: '', 
-    edition: '', 
-    publication_year: '', 
-    physical_description: '', 
-    series_title: '', 
-    general_note: '', 
-    shelf_location: '', 
-    remarks: '' 
+  const [activeBorrowersBook, setActiveBorrowersBook] = useState(null);
+  const [archiveConfirmation, setArchiveConfirmation] = useState(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState(null);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editFormData, setEditFormData] = useState({});
+  const [editLoading, setEditLoading] = useState(false);
+  const [lastAction, setLastAction] = useState(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addFormData, setAddFormData] = useState({
+    title: '',
+    author: '',
+    isbn: '',
+    call_number: '',
+    publisher: '',
+    edition: '',
+    copyright_year: '',
+    physical_description: '',
+    series: '',
+    remarks: '',
+    shelf_location: 'Main Stacks',
+    category: 'General Collection',
+    cover_image: null,
+    quantity: 1
   });
-  const { alert, showSuccess, showError, hideAlert } = useAlert();
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [bookToDelete, setBookToDelete] = useState(null);
-  
-  // Import state
-  const [importFile, setImportFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [importResult, setImportResult] = useState(null);
-  const [importError, setImportError] = useState('');
-  
-  const schoolId = localStorage.getItem('schoolId');
+  const [addLoading, setAddLoading] = useState(false);
+  const [coverImagePreview, setCoverImagePreview] = useState(null);
+  const [editCoverImagePreview, setEditCoverImagePreview] = useState(null);
+  const [editCoverImageFile, setEditCoverImageFile] = useState(null);
+  const [isDraggingAdd, setIsDraggingAdd] = useState(false);
+  const [isDraggingEdit, setIsDraggingEdit] = useState(false);
 
-  useEffect(() => {
-    fetchBooks();
-  }, []);
+  const addFileInputRef = useRef(null);
+  const editFileInputRef = useRef(null);
 
-  const fetchBooks = async () => {
-    try {
-      const response = await api.get(`/books/school/${schoolId}`);
-      setBooks(response.data || []);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching books:', error);
-      setLoading(false);
-    }
+  const handleArchive = async (book) => {
+    setArchiveConfirmation(book);
   };
 
-  const handleAddBook = async () => {
-    try {
-      const bookData = {
-        ...formData,
-        school_id: schoolId
-      };
-      await api.post('/books', bookData);
-      await fetchBooks();
-      setShowAddModal(false);
-      resetForm();
-      showSuccess('Book added successfully!');
-    } catch (error) {
-      console.error('Error adding book:', error);
-      showError('Failed to add book. Please try again.');
-    }
-  };
-
-  const handleEditBook = (book) => {
-    setEditingBook(book);
-    setFormData({
-      title: book.title,
-      author: book.author,
-      publisher: book.publisher,
-      isbn: book.isbn,
-      call_number: book.call_number,
-      edition: book.edition,
-      publication_year: book.publication_year,
-      physical_description: book.physical_description,
-      series_title: book.series_title,
-      general_note: book.general_note,
-      shelf_location: book.shelf_location,
-      remarks: book.remarks
-    });
-    setShowAddModal(true);
-  };
-
-  const handleUpdateBook = async () => {
-    try {
-      await api.put(`/books/${editingBook.id}`, formData);
-      await fetchBooks();
-      setShowAddModal(false);
-      setEditingBook(null);
-      resetForm();
-      showSuccess('Book updated successfully!');
-    } catch (error) {
-      console.error('Error updating book:', error);
-      showError('Failed to update book. Please try again.');
-    }
-  };
-
-  const handleDeleteBook = (book) => {
-    setBookToDelete(book);
-    setShowDeleteConfirm(true);
-  };
-
-  const confirmDeleteBook = async () => {
-    if (!bookToDelete) return;
+  const confirmArchive = async () => {
+    if (!archiveConfirmation) return;
     
-    try {
-      await api.delete(`/books/${bookToDelete.id}`);
-      await fetchBooks();
-      showSuccess('Book deleted successfully!');
-    } catch (error) {
-      console.error('Error deleting book:', error);
-      showError('Failed to delete book. Please try again.');
-    } finally {
-      setShowDeleteConfirm(false);
-      setBookToDelete(null);
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({ 
-      title: '', 
-      author: '', 
-      publisher: '', 
-      isbn: '', 
-      call_number: '', 
-      edition: '', 
-      publication_year: '', 
-      physical_description: '', 
-      series_title: '', 
-      general_note: '', 
-      shelf_location: '', 
-      remarks: '' 
+    const book = archiveConfirmation;
+    setArchiveConfirmation(null);
+    setLastAction({
+      type: 'archive',
+      book,
+      timeout: setTimeout(async () => {
+        try {
+          await api.put(`/books/${book.id}/archive`);
+          setBooks((prev) => prev.filter((b) => b.id !== book.id));
+        } catch (error) {
+          console.error('Error archiving book:', error);
+          alert('Failed to archive book');
+        } finally {
+          setLastAction(null);
+        }
+      }, 5000),
     });
   };
 
-  // Import functionality
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      const validExtensions = ['.csv', '.xlsx'];
-      const fileExtension = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
-      
-      if (!validExtensions.includes(fileExtension)) {
-        setImportError('Please upload a CSV or Excel (.xlsx) file');
-        setImportFile(null);
-        return;
-      }
-      setImportFile(selectedFile);
-      setImportError('');
-      setImportResult(null);
-    }
+  const handleDelete = async (book) => {
+    setDeleteConfirmation(book);
   };
 
-  const handleUpload = async () => {
-    if (!importFile) {
-      setImportError('Please select a file first');
+  const confirmDelete = async () => {
+    if (!deleteConfirmation) return;
+    
+    const book = deleteConfirmation;
+    setDeleteConfirmation(null);
+    setLastAction({
+      type: 'delete',
+      book,
+      timeout: setTimeout(async () => {
+        try {
+          await api.delete(`/books/${book.id}`);
+          setBooks((prev) => prev.filter((b) => b.id !== book.id));
+        } catch (error) {
+          console.error('Error deleting book:', error);
+          alert('Failed to delete book');
+        } finally {
+          setLastAction(null);
+        }
+      }, 5000),
+    });
+  };
+
+  const handleUndo = () => {
+    if (!lastAction) return;
+    clearTimeout(lastAction.timeout);
+    setLastAction(null);
+  };
+
+  const loadBooks = async () => {
+    const schoolId = localStorage.getItem('schoolId');
+    if (!schoolId) {
+      console.error('No schoolId found in localStorage');
+      setBooks([]);
+      setLoading(false);
       return;
     }
 
-    setUploading(true);
-    setImportError('');
-    setImportResult(null);
-
     try {
-      // Parse the file locally first
-      const { parseImportFile, detectColumnMapping, normalizeBookData, validateImportRow } = await import('../../../utils/bookImportUtils');
-      
-      const parsed = await parseImportFile(importFile);
-      
-      // Auto-detect column mappings
-      const autoMapping = {};
-      parsed.headers.forEach(header => {
-        const detectedField = detectColumnMapping(header);
-        if (detectedField) {
-          autoMapping[header] = detectedField;
-        }
-      });
-      
-      // Normalize data
-      const normalizedData = parsed.data.map((row, index) => {
-        const normalizedRow = normalizeBookData(row, autoMapping);
-        const validation = validateImportRow(normalizedRow, index, []);
+      const response = await api.get(`/books/school?school_id=${schoolId}&group=true`);
+
+      let booksData = [];
+      if (response.data && response.data.data && response.data.data.books) {
+        booksData = response.data.data.books;
+      } else if (response.data && response.data.books && Array.isArray(response.data.books)) {
+        booksData = response.data.books;
+      } else if (response.data && Array.isArray(response.data)) {
+        booksData = response.data;
+      } else if (response && response.books && Array.isArray(response.books)) {
+        booksData = response.books;
+      } else if (Array.isArray(response)) {
+        booksData = response;
+      }
+
+      const normalizedBooks = booksData.map((book) => {
+        const hasCopies = Array.isArray(book.book_copies) && book.book_copies.length > 0;
+        const total = book.quantity !== undefined && book.quantity !== null 
+          ? Number(book.quantity) 
+          : (book.total_copies !== undefined ? Number(book.total_copies) : (hasCopies ? book.book_copies.length : 1));
+        const avail = book.available_quantity !== undefined && book.available_quantity !== null
+          ? Number(book.available_quantity)
+          : (book.available_copies !== undefined ? Number(book.available_copies) : (hasCopies ? book.book_copies.filter(c => c.status === 'available').length : total));
+
         return {
-          normalized: normalizedRow,
-          validation: validation
+          id: book.book_id || book.id,
+          title: book.title || 'Untitled',
+          author: book.author || 'Unknown Author',
+          publisher: book.publisher || '',
+          callNumber: book.call_number && book.call_number !== 'Unknown' ? book.call_number : '',
+          isbn: book.isbn && book.isbn !== 'Unknown' ? book.isbn : '',
+          year: book.copyright_year || book.publication_year || '',
+          location: book.shelf_location && book.shelf_location !== 'Unknown' ? book.shelf_location : 'Main Stacks',
+          edition: book.edition || '',
+          physical_description: book.physical_description || '',
+          series: book.series_title || book.series || '',
+          remarks: book.general_note || book.remarks || '',
+          cover_image: book.cover_image || '',
+          category: book.categories?.category_name || book.category || 'General Collection',
+          available_copies: avail,
+          total_copies: total,
+          book_copies: book.book_copies || [],
+          grouped_book_ids: book.grouped_book_ids || [book.book_id || book.id]
         };
       });
-      
-      // Filter valid rows
-      const validRows = normalizedData.filter(r => r.validation.valid).map(r => r.normalized);
-      
-      if (validRows.length === 0) {
-        setImportError('No valid rows to import');
-        setUploading(false);
-        return;
-      }
 
-      const response = await api.post('/books/bulk-import', {
-        data: validRows,
-        column_mapping: autoMapping,
-        school_id: schoolId,
-        user_id: localStorage.getItem('currentUserId')
+      // Unified consolidation by title & author
+      const groupMap = new Map();
+      normalizedBooks.forEach((book) => {
+        const clean = (s) => String(s || '').trim().toLowerCase();
+        const key = `${clean(book.title)}:::${clean(book.author)}`;
+
+        if (!groupMap.has(key)) {
+          groupMap.set(key, {
+            ...book,
+            grouped_ids: [...(book.grouped_book_ids || [book.id])],
+            all_copies: [...(Array.isArray(book.book_copies) ? book.book_copies : [])]
+          });
+        } else {
+          const existing = groupMap.get(key);
+          const newIds = book.grouped_book_ids || [book.id];
+          newIds.forEach(id => {
+            if (!existing.grouped_ids.includes(id)) existing.grouped_ids.push(id);
+          });
+          existing.total_copies += book.total_copies;
+          existing.available_copies += book.available_copies;
+          if (Array.isArray(book.book_copies)) {
+            existing.all_copies.push(...book.book_copies);
+          }
+          if (!existing.cover_image && book.cover_image) existing.cover_image = book.cover_image;
+          if (!existing.isbn && book.isbn) existing.isbn = book.isbn;
+          if (!existing.callNumber && book.callNumber) existing.callNumber = book.callNumber;
+          if (!existing.year && book.year) existing.year = book.year;
+        }
       });
 
-      const data = await response.json();
-      
-      if (data.success) {
-        setImportResult({
-          imported: data.results?.successful || 0,
-          errors: data.results?.errors || [],
-          success: true
-        });
-        await fetchBooks();
-        showSuccess(`${data.results?.successful || 0} books imported successfully!`);
-      } else {
-        throw new Error(data.message || 'Import failed');
-      }
-    } catch (err) {
-      setImportError('Import failed: ' + err.message);
-      showError('Import failed. Please try again.');
-    } finally {
-      setUploading(false);
+      const finalBooks = Array.from(groupMap.values()).map(b => ({
+        ...b,
+        book_copies: b.all_copies
+      }));
+
+      setBooks(finalBooks);
+      setLoading(false);
+    } catch (error) {
+      console.error('Unable to load books:', error);
+      setBooks([]);
+      setLoading(false);
     }
   };
 
-  const downloadTemplate = (format = 'csv') => {
-    const headers = ['title', 'author', 'publisher', 'isbn', 'call_number', 'edition', 'publication_year', 'physical_description', 'series_title', 'general_note', 'shelf_location', 'remarks'];
-    const sampleData = [
-      ['Sample Book Title', 'John Doe', 'Sample Publisher', '978-0-123456-78-9', '123.45 SAM 2024', '1st', '2024', 'xii, 300 p. ; 23 cm.', 'Sample Series', 'General note about the book', 'A-101', 'Additional remarks'],
-      ['Another Book', 'Jane Smith', 'Another Publisher', '978-0-987654-32-1', '456.78 ANO 2024', '2nd', '2023', 'x, 250 p. ; 21 cm.', '', 'Another general note', 'B-201', '']
-    ];
+  useEffect(() => {
+    void loadBooks();
+  }, []);
+
+  const categories = useMemo(() => {
+    const set = new Set();
+    books.forEach(b => {
+      if (b.category) set.add(b.category);
+    });
+    return ['All', ...Array.from(set)];
+  }, [books]);
+
+  const totalCopiesCount = useMemo(() => {
+    return books.reduce((acc, b) => acc + (Number(b.total_copies) || 1), 0);
+  }, [books]);
+
+  const availableCopiesCount = useMemo(() => {
+    return books.reduce((acc, b) => acc + (Number(b.available_copies) ?? Number(b.total_copies) ?? 1), 0);
+  }, [books]);
+
+  const filteredBooks = useMemo(() => {
+    const q = searchTerm.toLowerCase().trim();
+    return books.filter(book => {
+      const matchesSearch = !q ||
+        (book.title || '').toLowerCase().includes(q) ||
+        (book.author || '').toLowerCase().includes(q) ||
+        (book.isbn || '').toLowerCase().includes(q) ||
+        (book.callNumber || '').toLowerCase().includes(q) ||
+        (book.location || '').toLowerCase().includes(q);
+
+      const matchesCategory = selectedCategory === 'All' || book.category === selectedCategory;
+
+      const avail = (book.available_copies ?? 0) > 0;
+      let matchesStock = true;
+      if (stockFilter === 'in-stock') matchesStock = avail;
+      if (stockFilter === 'out-of-stock') matchesStock = !avail;
+
+      return matchesSearch && matchesCategory && matchesStock;
+    });
+  }, [books, searchTerm, selectedCategory, stockFilter]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(15);
+
+  const totalPages = Math.max(1, Math.ceil(filteredBooks.length / rowsPerPage));
+
+  const paginatedBooks = useMemo(() => {
+    const start = (currentPage - 1) * rowsPerPage;
+    return filteredBooks.slice(start, start + rowsPerPage);
+  }, [filteredBooks, currentPage, rowsPerPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCategory, stockFilter]);
+
+  const handleEdit = (book) => {
+    setEditingBook(book);
+    setEditFormData({
+      title: book.title || '',
+      author: book.author || '',
+      isbn: book.isbn || '',
+      call_number: book.callNumber || '',
+      publisher: book.publisher || '',
+      edition: book.edition || '',
+      copyright_year: book.year || '',
+      physical_description: book.physical_description || '',
+      series: book.series || '',
+      remarks: book.remarks || '',
+      shelf_location: book.location || 'Main Stacks',
+      category: book.category || 'General Collection',
+      quantity: book.total_copies || 1,
+      cover_image: book.cover_image || null
+    });
+    const initialCover = book.cover_image && typeof book.cover_image === 'string' && book.cover_image.trim() !== ''
+      ? getBackendAssetUrl(book.cover_image.trim())
+      : null;
+    setEditCoverImagePreview(initialCover);
+    setEditCoverImageFile(null);
+    setIsDraggingEdit(false);
+    setShowEditForm(true);
+  };
+
+  const handleCoverDrop = (e, isEdit = false) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isEdit) setIsDraggingEdit(false);
+    else setIsDraggingAdd(false);
+
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (!file.type.startsWith('image/')) {
+        alert('Please upload an image file (PNG, JPG, or WebP).');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size exceeds 5MB limit.');
+        return;
+      }
+      const previewUrl = URL.createObjectURL(file);
+      if (isEdit) {
+        setEditCoverImageFile(file);
+        setEditCoverImagePreview(previewUrl);
+        setEditFormData(prev => ({ ...prev, cover_image: file }));
+      } else {
+        setAddFormData(prev => ({ ...prev, cover_image: file }));
+        setCoverImagePreview(previewUrl);
+      }
+    }
+  };
+
+  const handleCoverFileInputChange = (e, isEdit = false) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert('Please upload an image file (PNG, JPG, or WebP).');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size exceeds 5MB limit.');
+        return;
+      }
+      const previewUrl = URL.createObjectURL(file);
+      if (isEdit) {
+        setEditCoverImageFile(file);
+        setEditCoverImagePreview(previewUrl);
+        setEditFormData(prev => ({ ...prev, cover_image: file }));
+      } else {
+        setAddFormData(prev => ({ ...prev, cover_image: file }));
+        setCoverImagePreview(previewUrl);
+      }
+    }
+    e.target.value = '';
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!editingBook) return;
     
-    if (format === 'csv') {
-      const csvContent = [headers, ...sampleData].map(row => row.join(',')).join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'book_import_template.csv';
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } else {
-      const htmlContent = `
-        <table>
-          <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
-          ${sampleData.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}
-        </table>
-      `;
-      const blob = new Blob([htmlContent], { type: 'application/vnd.ms-excel' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'book_import_template.xls';
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+    setEditLoading(true);
+    try {
+      if (editCoverImageFile) {
+        const formData = new FormData();
+        formData.append('title', (editFormData.title || '').trim());
+        formData.append('author', (editFormData.author || '').trim());
+        if (editFormData.isbn) formData.append('isbn', editFormData.isbn.trim());
+        if (editFormData.call_number) formData.append('call_number', editFormData.call_number.trim());
+        if (editFormData.shelf_location) formData.append('shelf_location', editFormData.shelf_location.trim());
+        if (editFormData.category) formData.append('category', editFormData.category.trim());
+        if (editFormData.publisher) formData.append('publisher', editFormData.publisher.trim());
+        if (editFormData.edition) formData.append('edition', editFormData.edition.trim());
+        if (editFormData.copyright_year) formData.append('copyright_year', parseInt(editFormData.copyright_year, 10));
+        if (editFormData.physical_description) formData.append('physical_description', editFormData.physical_description.trim());
+        if (editFormData.series) formData.append('series_title', editFormData.series.trim());
+        if (editFormData.remarks) formData.append('general_note', editFormData.remarks.trim());
+        if (editFormData.quantity) formData.append('quantity', parseInt(editFormData.quantity, 10));
+        formData.append('cover_image', editCoverImageFile);
+        await api.put(`/books/${editingBook.id}`, formData);
+      } else {
+        const updateData = {
+          title: (editFormData.title || '').trim(),
+          author: (editFormData.author || '').trim(),
+          isbn: editFormData.isbn ? editFormData.isbn.trim() : null,
+          call_number: editFormData.call_number ? editFormData.call_number.trim() : null,
+          shelf_location: editFormData.shelf_location ? editFormData.shelf_location.trim() : 'Main Stacks',
+          category: editFormData.category ? editFormData.category.trim() : 'General Collection',
+          publisher: editFormData.publisher ? editFormData.publisher.trim() : null,
+          edition: editFormData.edition ? editFormData.edition.trim() : null,
+          copyright_year: editFormData.copyright_year ? parseInt(editFormData.copyright_year, 10) : null,
+          physical_description: editFormData.physical_description ? editFormData.physical_description.trim() : null,
+          series_title: editFormData.series ? editFormData.series.trim() : null,
+          general_note: editFormData.remarks ? editFormData.remarks.trim() : null,
+          quantity: editFormData.quantity ? parseInt(editFormData.quantity, 10) : 1,
+          cover_image: editCoverImagePreview ? editFormData.cover_image : null
+        };
+
+        await api.put(`/books/${editingBook.id}`, updateData);
+      }
+      
+      const newQty = editFormData.quantity ? parseInt(editFormData.quantity, 10) : 1;
+      setBooks(prevBooks => prevBooks.map(b => {
+        if (b.id === editingBook.id) {
+          const prevTotal = b.total_copies || 1;
+          const prevAvail = b.available_copies ?? prevTotal;
+          const borrowed = Math.max(0, prevTotal - prevAvail);
+          const newAvail = Math.max(0, newQty - borrowed);
+
+          return {
+            ...b,
+            title: (editFormData.title || b.title).trim(),
+            author: (editFormData.author || b.author).trim(),
+            isbn: editFormData.isbn !== undefined ? editFormData.isbn : b.isbn,
+            callNumber: editFormData.call_number !== undefined ? editFormData.call_number : b.callNumber,
+            publisher: editFormData.publisher !== undefined ? editFormData.publisher : b.publisher,
+            edition: editFormData.edition !== undefined ? editFormData.edition : b.edition,
+            year: editFormData.copyright_year || b.year,
+            physical_description: editFormData.physical_description !== undefined ? editFormData.physical_description : b.physical_description,
+            series: editFormData.series !== undefined ? editFormData.series : b.series,
+            remarks: editFormData.remarks !== undefined ? editFormData.remarks : b.remarks,
+            location: editFormData.shelf_location || b.location,
+            category: editFormData.category || b.category,
+            total_copies: newQty,
+            available_copies: newAvail,
+            cover_image: editCoverImagePreview || b.cover_image
+          };
+        }
+        return b;
+      }));
+
+      setShowEditForm(false);
+      setEditingBook(null);
+      setEditCoverImagePreview(null);
+      setEditCoverImageFile(null);
+      await loadBooks();
+    } catch (error) {
+      console.error('Error updating book:', error);
+      alert('Failed to update book: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleEditCancel = () => {
+    setShowEditForm(false);
+    setEditingBook(null);
+    setEditFormData({});
+    setEditCoverImagePreview(null);
+    setEditCoverImageFile(null);
+    setIsDraggingEdit(false);
+  };
+
+  const handleAddBook = () => {
+    setShowAddForm(true);
+    setAddFormData({
+      title: '',
+      author: '',
+      isbn: '',
+      call_number: '',
+      publisher: '',
+      edition: '',
+      copyright_year: '',
+      physical_description: '',
+      series: '',
+      remarks: '',
+      shelf_location: 'Main Stacks',
+      category: 'General Collection',
+      cover_image: null,
+      quantity: 1
+    });
+    setCoverImagePreview(null);
+    setIsDraggingAdd(false);
+  };
+
+  const handleAddCancel = () => {
+    setShowAddForm(false);
+    setAddFormData({
+      title: '',
+      author: '',
+      isbn: '',
+      call_number: '',
+      publisher: '',
+      edition: '',
+      copyright_year: '',
+      physical_description: '',
+      series: '',
+      remarks: '',
+      shelf_location: 'Main Stacks',
+      category: 'General Collection',
+      cover_image: null,
+      quantity: 1
+    });
+    setCoverImagePreview(null);
+    setIsDraggingAdd(false);
+  };
+
+  const handleAddSubmit = async (e) => {
+    e.preventDefault();
+    setAddLoading(true);
+    try {
+      const schoolId = localStorage.getItem('schoolId');
+      
+      if (!schoolId) {
+        alert('School ID not found. Please log in again.');
+        setAddLoading(false);
+        return;
+      }
+
+      if (!addFormData.title || !addFormData.title.trim()) {
+        alert('Title is required');
+        setAddLoading(false);
+        return;
+      }
+
+      if (!addFormData.author || !addFormData.author.trim()) {
+        alert('Author is required');
+        setAddLoading(false);
+        return;
+      }
+
+      const formData = new FormData();
+      
+      formData.append('title', addFormData.title.trim());
+      formData.append('author', addFormData.author.trim());
+      formData.append('school_id', parseInt(schoolId, 10));
+      formData.append('quantity', parseInt(addFormData.quantity, 10) || 1);
+      
+      if (addFormData.isbn) formData.append('isbn', addFormData.isbn.trim());
+      if (addFormData.call_number) formData.append('call_number', addFormData.call_number.trim());
+      if (addFormData.publisher) formData.append('publisher', addFormData.publisher.trim());
+      if (addFormData.edition) formData.append('edition', addFormData.edition.trim());
+      if (addFormData.copyright_year) formData.append('copyright_year', parseInt(addFormData.copyright_year, 10));
+      if (addFormData.physical_description) formData.append('physical_description', addFormData.physical_description.trim());
+      if (addFormData.series) formData.append('series_title', addFormData.series.trim());
+      if (addFormData.remarks) formData.append('general_note', addFormData.remarks.trim());
+      if (addFormData.shelf_location) formData.append('shelf_location', addFormData.shelf_location.trim());
+      if (addFormData.category) formData.append('category', addFormData.category.trim());
+      if (addFormData.cover_image) formData.append('cover_image', addFormData.cover_image);
+
+      await api.post('/books', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      await loadBooks();
+      setShowAddForm(false);
+      handleAddCancel();
+    } catch (error) {
+      console.error('Error adding book:', error);
+      alert('Failed to add book: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setAddLoading(false);
     }
   };
 
   return (
-    <div className="animate-slide-up">
-      <LoadingOverlay show={loading} text="Loading books..." />
-      
-      {/* Header Section */}
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 mb-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="animate-slide-up space-y-6">
+      {/* Header Banner without Import Books button */}
+      <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-r from-white via-blue-50/25 to-indigo-50/20 p-5 sm:p-6 shadow-xs backdrop-blur-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-[#0F172A] mb-1">Books Management</h2>
-            <p className="text-[#64748B] text-sm">Manage library books for your school</p>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100/80 border border-blue-200 text-blue-800">
+                <FiBook className="w-3 h-3 text-blue-600" />
+                Library Catalog & Inventory
+              </span>
+              <span className="text-slate-300">•</span>
+              <span className="text-xs text-slate-500 font-medium">Administrator Books Management</span>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">Books Management</h2>
+            <p className="text-slate-500 text-xs sm:text-sm mt-0.5 max-w-2xl">
+              Manage library shelf records, track copy availability, inspect accession numbers, and organize catalog classifications.
+            </p>
           </div>
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <button
-              onClick={() => setShowImportModal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-white border border-[#E2E8F0] text-[#2563EB] rounded-xl hover:bg-blue-50 transition-all duration-200 shadow-sm hover:shadow-md font-medium"
-            >
-              <FiUpload className="w-4 h-4" />
-              <span className="text-sm">Import Books</span>
-            </button>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#2563EB] text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md font-medium"
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Quick Stats Pills */}
+            <div className="flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/90 shadow-2xs">
+              <div className="px-3.5 py-1 text-center border-r border-slate-200/80">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Total Books</span>
+                <span className="text-sm font-black text-slate-900 tracking-tight"><AnimatedNumber value={totalCopiesCount} /></span>
+              </div>
+              <div className="px-3.5 py-1 text-center border-r border-slate-200/80">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Available</span>
+                <span className="text-sm font-black text-emerald-600 tracking-tight"><AnimatedNumber value={availableCopiesCount} /></span>
+              </div>
+              <div className="px-3.5 py-1 text-center border-r border-slate-200/80">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Unique Titles</span>
+                <span className="text-sm font-black text-blue-600 tracking-tight"><AnimatedNumber value={books.length} /></span>
+              </div>
+              <div className="px-3.5 py-1 text-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Categories</span>
+                <span className="text-sm font-black text-indigo-600 tracking-tight"><AnimatedNumber value={Math.max(1, categories.length - 1)} /></span>
+              </div>
+            </div>
+
+            <Button
+              variant="primary"
+              onClick={handleAddBook}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all active:scale-95 shrink-0 cursor-pointer"
             >
               <FiPlus className="w-4 h-4" />
-              <span className="text-sm">Add Book</span>
-            </button>
+              <span>Add New Book</span>
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Books Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {books.map((book) => (
-          <div
-            key={book.book_id || book.id || `${book.isbn}-${book.title}`}
-            className="rounded-xl p-5 shadow-sm hover:shadow-lg transition-all duration-300 border-2 bg-white border-[#E2E8F0] hover:border-[#2563EB] group"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-12 h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <FiBook className="w-6 h-6 text-blue-600" />
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleEditBook(book)}
-                  className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                >
-                  <FiEdit className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleDeleteBook(book)}
-                  className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                >
-                  <FiTrash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            <h3 className="font-semibold text-lg mb-2 line-clamp-2 text-[#0F172A]">{book.title}</h3>
-            <p className="text-sm mb-3 text-[#64748B]">by {book.author}</p>
-
-            <div className="flex flex-wrap gap-2 mb-3">
-              <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                {book.isbn || 'No ISBN'}
-              </span>
-              <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                {book.call_number || 'No Call Number'}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between pt-3 border-t border-[#E2E8F0]">
-              <span className="text-xs font-medium text-[#64748B]">
-                ID: {book.id}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {books.length === 0 && !loading && (
-        <Card>
-          <div className="rounded-xl p-12 text-center">
-            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <FiBook className="w-10 h-10 text-blue-600" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2 text-[#0F172A]">No books found</h3>
-            <p className="text-sm text-[#64748B]">Add your first book or import books in bulk</p>
-          </div>
-        </Card>
-      )}
-
-      {/* Add/Edit Book Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white">
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-t-2xl">
-              <h3 className="text-xl font-bold text-white">
-                {editingBook ? 'Edit Book' : 'Add New Book'}
-              </h3>
-              <p className="text-blue-100 text-sm mt-1">
-                {editingBook ? 'Update book information' : 'Fill in the book details below'}
-              </p>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-2 text-[#64748B]">Book Title *</label>
-                  <Input
-                    type="text"
-                    placeholder="Enter book title"
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-[#64748B]">Author *</label>
-                  <Input
-                    type="text"
-                    placeholder="Author name"
-                    value={formData.author}
-                    onChange={(e) => setFormData({ ...formData, author: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-[#64748B]">Publisher</label>
-                  <Input
-                    type="text"
-                    placeholder="Publisher name"
-                    value={formData.publisher}
-                    onChange={(e) => setFormData({ ...formData, publisher: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-[#64748B]">ISBN</label>
-                  <Input
-                    type="text"
-                    placeholder="ISBN number"
-                    value={formData.isbn}
-                    onChange={(e) => setFormData({ ...formData, isbn: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-[#64748B]">Call Number</label>
-                  <Input
-                    type="text"
-                    placeholder="Call number"
-                    value={formData.call_number}
-                    onChange={(e) => setFormData({ ...formData, call_number: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-[#64748B]">Edition</label>
-                  <Input
-                    type="text"
-                    placeholder="Edition"
-                    value={formData.edition}
-                    onChange={(e) => setFormData({ ...formData, edition: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-[#64748B]">Publication Year</label>
-                  <Input
-                    type="text"
-                    placeholder="Year"
-                    value={formData.publication_year}
-                    onChange={(e) => setFormData({ ...formData, publication_year: e.target.value })}
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-2 text-[#64748B]">Physical Description</label>
-                  <Input
-                    type="text"
-                    placeholder="e.g., xii, 300 p. ; 23 cm."
-                    value={formData.physical_description}
-                    onChange={(e) => setFormData({ ...formData, physical_description: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-[#64748B]">Series Title</label>
-                  <Input
-                    type="text"
-                    placeholder="Series title"
-                    value={formData.series_title}
-                    onChange={(e) => setFormData({ ...formData, series_title: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-[#64748B]">Shelf Location</label>
-                  <Input
-                    type="text"
-                    placeholder="e.g., A-101"
-                    value={formData.shelf_location}
-                    onChange={(e) => setFormData({ ...formData, shelf_location: e.target.value })}
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-2 text-[#64748B]">General Note</label>
-                  <Input
-                    type="text"
-                    placeholder="General notes about the book"
-                    value={formData.general_note}
-                    onChange={(e) => setFormData({ ...formData, general_note: e.target.value })}
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-2 text-[#64748B]">Remarks</label>
-                  <Input
-                    type="text"
-                    placeholder="Additional remarks"
-                    value={formData.remarks}
-                    onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-[#E2E8F0] flex justify-end gap-3">
+      {/* Filter and Search Toolbar */}
+      <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3.5">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="relative flex-1">
+            <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search books by title, author, ISBN, call number, or shelf location..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full h-10 pl-10 pr-9 rounded-xl text-xs sm:text-sm border border-slate-200 bg-slate-50/70 hover:bg-white focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+            />
+            {searchTerm && (
               <button
-                onClick={() => {
-                  setShowAddModal(false);
-                  setEditingBook(null);
-                  resetForm();
-                }}
-                className="px-6 py-2.5 rounded-xl border-2 border-[#E2E8F0] text-[#64748B] hover:bg-slate-50 transition-all font-medium"
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full cursor-pointer"
               >
-                Cancel
+                <FiX className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Stock Filter Pills & View Switcher */}
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs">
+              <button
+                onClick={() => setStockFilter('all')}
+                className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                  stockFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                All
               </button>
               <button
-                onClick={editingBook ? handleUpdateBook : handleAddBook}
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg transition-all font-medium"
+                onClick={() => setStockFilter('in-stock')}
+                className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                  stockFilter === 'in-stock' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
               >
-                {editingBook ? 'Update Book' : 'Add Book'}
+                Available
+              </button>
+              <button
+                onClick={() => setStockFilter('out-of-stock')}
+                className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                  stockFilter === 'out-of-stock' ? 'bg-white text-amber-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Currently Borrowed
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+              <button
+                onClick={() => setViewMode('card')}
+                className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                  viewMode === 'card'
+                    ? 'bg-blue-50 border-blue-200 text-blue-600 shadow-xs'
+                    : 'bg-white border-slate-200 text-slate-400 hover:text-slate-700'
+                }`}
+                title="Card Grid View"
+              >
+                <FiGrid className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                  viewMode === 'table'
+                    ? 'bg-blue-50 border-blue-200 text-blue-600 shadow-xs'
+                    : 'bg-white border-slate-200 text-slate-400 hover:text-slate-700'
+                }`}
+                title="Normalized Table List View"
+              >
+                <FiList className="w-4 h-4" />
               </button>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Import Books Modal */}
-      {showImportModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white">
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-t-2xl flex justify-between items-center">
-              <div>
-                <h3 className="text-xl font-bold text-white">Import Books</h3>
-                <p className="text-blue-100 text-sm mt-1">Bulk import books from CSV or Excel</p>
-              </div>
+        {/* Category Filter Pills */}
+        {categories.length > 2 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar text-xs">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 shrink-0 mr-1 flex items-center gap-1">
+              <FiTag className="w-3 h-3" /> Category:
+            </span>
+            {categories.map((cat) => (
               <button
-                onClick={() => setShowImportModal(false)}
-                className="text-white hover:text-blue-200 transition-colors"
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-3 py-1 rounded-full font-semibold shrink-0 transition-all text-xs cursor-pointer ${
+                  selectedCategory === cat
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                }`}
               >
-                <FiX className="w-6 h-6" />
+                {cat}
               </button>
-            </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-            <div className="p-6 space-y-6">
-              <div className="rounded-xl p-4 bg-[#F8FAFC]">
-                <h4 className="font-semibold mb-3 text-[#0F172A]">Instructions</h4>
-                <ol className="list-decimal list-inside space-y-2 text-sm text-[#64748B]">
-                  <li>Download the CSV or Excel template below</li>
-                  <li>Fill in the book data following the template format</li>
-                  <li>Upload the completed file (CSV or Excel)</li>
-                  <li>Review the import results</li>
-                </ol>
-              </div>
+      {/* Loading State */}
+      {loading ? (
+        <div className="text-center py-20 bg-white rounded-2xl border border-slate-200">
+          <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-3 text-blue-600 animate-pulse">
+            <FiBook className="w-8 h-8" />
+          </div>
+          <div className="text-base font-bold text-slate-900 mb-1">Loading Catalog...</div>
+          <p className="text-xs text-slate-500">Fetching book records from library database</p>
+        </div>
+      ) : filteredBooks.length === 0 ? (
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-12 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
+            <FiBook className="w-8 h-8" />
+          </div>
+          <h4 className="text-base font-bold text-slate-800">No Books Found</h4>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+            No library books match the current search or filters. Try adjusting your search query or reset the filters.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Results Count Bar */}
+          <div className="flex items-center justify-between text-xs text-slate-500 px-1 font-medium">
+            <span>
+              Showing <strong className="text-slate-900">{filteredBooks.length}</strong> of <strong className="text-slate-900">{books.length}</strong> catalog titles
+            </span>
+          </div>
 
-              <div className="rounded-xl p-4 bg-[#F8FAFC]">
-                <h4 className="font-semibold mb-3 text-[#0F172A]">Download Template</h4>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => downloadTemplate('csv')}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          {/* Redesigned 3D Book Spine Cards */}
+          {viewMode === 'card' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              {paginatedBooks.map((book) => {
+                const isAvail = (book.available_copies ?? 0) > 0;
+                return (
+                  <div 
+                    key={book.id} 
+                    className="group relative rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs hover:shadow-xl hover:border-blue-300 hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between hover:z-20"
                   >
-                    <FiDownload className="w-4 h-4" />
-                    <span className="text-sm font-medium">CSV Template</span>
-                  </button>
-                  <button
-                    onClick={() => downloadTemplate('excel')}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    <FiDownload className="w-4 h-4" />
-                    <span className="text-sm font-medium">Excel Template</span>
-                  </button>
-                </div>
-              </div>
+                    {/* Top ambient highlight gradient */}
+                    <div className="absolute top-0 inset-x-0 h-1 rounded-t-2xl bg-gradient-to-r from-blue-500 via-indigo-500 to-sky-400 opacity-0 group-hover:opacity-100 transition-opacity" />
 
-              <div className="rounded-xl p-4 bg-[#F8FAFC]">
-                <h4 className="font-semibold mb-3 text-[#0F172A]">Upload File</h4>
-                <input
-                  type="file"
-                  accept=".csv,.xlsx"
-                  onChange={handleFileChange}
-                  className="w-full px-4 py-3 rounded-xl border-2 border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all bg-white text-[#0F172A]"
-                />
-                
-                {importFile && (
-                  <div className="flex items-center gap-2 p-3 rounded-lg mt-3 bg-blue-50">
-                    <span className="text-sm text-[#0F172A]">{importFile.name}</span>
-                    <span className="text-xs text-[#64748B]">({(importFile.size / 1024).toFixed(2)} KB)</span>
-                  </div>
-                )}
-
-                {importError && (
-                  <div className="flex items-center gap-2 p-3 rounded-lg mt-3 bg-red-100 text-red-700">
-                    <span className="text-sm">{importError}</span>
-                  </div>
-                )}
-
-                <button
-                  onClick={handleUpload}
-                  disabled={!importFile || uploading}
-                  className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <FiUpload className="w-4 h-4" />
-                  <span className="text-sm font-medium">{uploading ? 'Importing...' : 'Import Books'}</span>
-                </button>
-              </div>
-
-              {importResult && (
-                <div className="rounded-xl p-4 bg-green-50">
-                  <h4 className="font-semibold mb-3 text-[#0F172A]">Import Results</h4>
-                  <p className="text-lg font-bold mb-2 text-green-700">
-                    {importResult.imported} books imported successfully
-                  </p>
-                  {importResult.errors.length > 0 && (
                     <div>
-                      <h5 className="text-sm font-semibold mb-2 text-[#0F172A]">
-                        Errors ({importResult.errors.length}):
-                      </h5>
-                      <ul className="list-disc list-inside space-y-1 text-red-700">
-                        {importResult.errors.map((error, index) => (
-                          <li key={index} className="text-sm">{error}</li>
-                        ))}
-                      </ul>
+                      {/* Top Bar: Category Pill & Stock Status Badge */}
+                      <div className="flex items-center justify-between gap-2 mb-4">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-100 truncate max-w-[150px]">
+                          <FiBookmark className="w-3 h-3 text-blue-500 shrink-0" />
+                          <span className="truncate">{book.category}</span>
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => !isAvail && setActiveBorrowersBook(book)}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shrink-0 transition-all ${
+                            isAvail
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 cursor-default'
+                              : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200 cursor-pointer shadow-2xs active:scale-95'
+                          }`}
+                          title={!isAvail ? "Click to view current borrower and loan details" : undefined}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${isAvail ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                          <span>{isAvail ? `${book.available_copies} of ${book.total_copies} Available` : `Currently Borrowed (0 of ${book.total_copies || 1} Avail)`}</span>
+                        </button>
+                      </div>
+
+                      {/* Header with 3D Book Cover Spine & Title */}
+                      <div className="flex items-start gap-4 mb-4">
+                        {/* 3D Styled Book Cover Artwork */}
+                        <div className="relative w-20 sm:w-22 h-28 sm:h-32 flex-shrink-0 rounded-xl overflow-hidden shadow-md shadow-slate-900/10 border border-slate-200/90 bg-slate-900 group-hover:shadow-lg transition-all duration-300">
+                          {book.cover_image ? (
+                            <>
+                              <img
+                                src={getBackendAssetUrl(book.cover_image)}
+                                alt={book.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  const fallback = e.target.parentElement.querySelector('.card-fallback');
+                                  if (fallback) fallback.style.display = 'flex';
+                                }}
+                              />
+                              {/* 3D Realistic Book Spine Reflection */}
+                              <div className="absolute inset-y-0 left-0 w-2 bg-gradient-to-r from-black/40 via-white/15 to-transparent pointer-events-none" />
+                              <div className="hidden card-fallback absolute inset-0 bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-900 items-center justify-center p-2 text-center text-white flex-col gap-1">
+                                <FiBook className="w-7 h-7 text-blue-200" />
+                                <span className="text-[9px] font-black uppercase tracking-wider text-blue-100 line-clamp-2">{book.title}</span>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="relative w-full h-full bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-900 flex flex-col items-center justify-center p-2 text-center text-white">
+                              {/* 3D Spine Overlay */}
+                              <div className="absolute inset-y-0 left-0 w-2 bg-gradient-to-r from-black/40 via-white/20 to-transparent" />
+                              <FiBook className="w-8 h-8 text-blue-200 mb-1" />
+                              <span className="text-[9px] font-black uppercase tracking-wider text-blue-100 line-clamp-2 leading-tight">
+                                {book.title}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-sm sm:text-base text-slate-900 leading-snug line-clamp-2 group-hover:text-blue-600 transition-colors">
+                            {book.title || 'Untitled'}
+                          </h3>
+                          <p className="text-xs text-slate-600 font-semibold mt-1 truncate">
+                            {book.author || 'Unknown Author'}
+                          </p>
+                          {book.publisher && (
+                            <p className="text-[11px] text-slate-400 truncate mt-0.5 font-medium">
+                              Pub: {book.publisher}
+                            </p>
+                          )}
+                          {book.edition && (
+                            <p className="text-[11px] text-slate-400 truncate font-medium">
+                              Ed: {book.edition}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Clean Metadata Badges */}
+                      <div className="flex flex-wrap gap-1.5 mb-4">
+                        {book.location && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-100 border border-slate-200/80 px-2.5 py-1 rounded-lg">
+                            <FiMapPin className="w-3 h-3 text-blue-600 shrink-0" />
+                            <span className="truncate max-w-[130px]">{book.location}</span>
+                          </span>
+                        )}
+
+                        {book.callNumber && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-1 rounded-lg">
+                            <FiHash className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>Call: {book.callNumber}</span>
+                          </span>
+                        )}
+
+                        {book.isbn && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-mono text-slate-600 bg-slate-100 border border-slate-200/80 px-2 py-1 rounded-lg">
+                            <span>#{book.isbn}</span>
+                          </span>
+                        )}
+
+                        {book.year && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-slate-600 bg-slate-100 border border-slate-200/80 px-2 py-1 rounded-lg">
+                            <FiCalendar className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{book.year}</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              )}
+
+                    {/* Footer Actions */}
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-400 font-mono font-medium">
+                        ID: #{book.id}
+                      </span>
+
+                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setActiveBorrowersBook(book)}
+                          className="px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-xl flex items-center gap-1.5 border border-slate-200 shadow-2xs transition-all cursor-pointer"
+                          title="View Active Borrowers, Requests & History"
+                        >
+                          <FiUsers className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Borrowers</span>
+                        </Button>
+
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleEdit(book)}
+                          className="px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded-xl flex items-center gap-1.5 border border-slate-200 shadow-2xs transition-all cursor-pointer"
+                        >
+                          <FiEdit className="w-3.5 h-3.5" />
+                          <span>Edit</span>
+                        </Button>
+
+                        <ActionMenu
+                          trigger={
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="p-1.5 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 shadow-2xs cursor-pointer"
+                            >
+                              <FiMoreVertical className="w-4 h-4" />
+                            </Button>
+                          }
+                          items={[
+                            {
+                              label: "Borrowers & History",
+                              icon: <FiUsers className="w-4 h-4 text-blue-600" />,
+                              onClick: () => setActiveBorrowersBook(book),
+                            },
+                            {
+                              label: "Archive Book",
+                              icon: <FiArchive className="w-4 h-4" />,
+                              onClick: () => handleArchive(book),
+                            },
+                            {
+                              label: "Delete Record",
+                              icon: <FiTrash2 className="w-4 h-4" />,
+                              onClick: () => handleDelete(book),
+                              danger: true,
+                            },
+                          ]}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+          )}
+
+          {/* Redesigned Normalized Table View with Fitted Column Grid */}
+          {viewMode === 'table' && (
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse table-fixed min-w-[780px]">
+                  <thead>
+                    <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                      <th className="py-3 px-3.5 w-[32%]">Book Title & Info</th>
+                      <th className="py-3 px-3 w-[17%]">Academic Category</th>
+                      <th className="py-3 px-3 w-[14%]">Call / ISBN</th>
+                      <th className="py-3 px-3 w-[12%]">Shelf Location</th>
+                      <th className="py-3 px-3 w-[12%] text-center">Stock & Copies</th>
+                      <th className="py-3 px-3.5 w-[13%] text-right pr-4">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {paginatedBooks.map((book) => {
+                      const isAvail = (book.available_copies ?? 0) > 0;
+                      return (
+                        <tr key={book.id} className="hover:bg-blue-50/40 transition-colors group">
+                          {/* Title & Cover Cell */}
+                          <td className="py-2.5 px-3.5">
+                            <div className="flex items-center gap-3">
+                              <div className="relative w-9 h-12 rounded-lg overflow-hidden flex-shrink-0 shadow-2xs border border-slate-200 bg-slate-900">
+                                {book.cover_image ? (
+                                  <>
+                                    <img
+                                      src={getBackendAssetUrl(book.cover_image)}
+                                      alt={book.title}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        const fb = e.target.parentElement?.querySelector('.tbl-fallback');
+                                        if (fb) fb.style.display = 'flex';
+                                      }}
+                                    />
+                                    <div className="hidden tbl-fallback absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-800 items-center justify-center text-white">
+                                      <FiBook className="w-4 h-4 text-white" />
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="w-full h-full bg-gradient-to-br from-blue-600 to-indigo-800 flex items-center justify-center text-white">
+                                    <FiBook className="w-4 h-4 text-white" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate text-xs" title={book.title}>
+                                  {book.title || 'Untitled'}
+                                </div>
+                                <div className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+                                  by {book.author || 'Unknown Author'}
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                  ID: #{book.id} {book.year ? `• ${book.year}` : ''}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Category Cell */}
+                          <td className="py-2.5 px-3">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-100 max-w-full truncate" title={book.category}>
+                              <FiTag className="w-2.5 h-2.5 text-blue-500 shrink-0" />
+                              <span className="truncate">{book.category}</span>
+                            </span>
+                          </td>
+
+                          {/* Call # & ISBN Cell */}
+                          <td className="py-2.5 px-3">
+                            <div className="space-y-0.5 truncate">
+                              {book.callNumber ? (
+                                <div className="font-mono text-[11px] font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80 inline-block truncate max-w-full" title={book.callNumber}>
+                                  {book.callNumber}
+                                </div>
+                              ) : book.isbn ? (
+                                <div className="font-mono text-[11px] text-slate-500 truncate" title={book.isbn}>
+                                  #{book.isbn}
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-slate-400">—</span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Location Cell */}
+                          <td className="py-2.5 px-3">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-lg max-w-full truncate" title={book.location || 'Main Stacks'}>
+                              <FiMapPin className="w-2.5 h-2.5 text-blue-600 shrink-0" />
+                              <span className="truncate">{book.location || 'Main Stacks'}</span>
+                            </span>
+                          </td>
+
+                          {/* Stock Pill Cell */}
+                          <td className="py-2.5 px-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => !isAvail && setActiveBorrowersBook(book)}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all ${
+                                isAvail
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 cursor-default'
+                                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200 cursor-pointer shadow-2xs'
+                              }`}
+                              title={!isAvail ? "Click to view current borrower and loan details" : undefined}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${isAvail ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                              <span>{isAvail ? `${book.available_copies}/${book.total_copies}` : `0/${book.total_copies || 1}`}</span>
+                              <span className="text-[10px] font-medium opacity-80">{isAvail ? 'Avail' : 'Loaned'}</span>
+                            </button>
+                          </td>
+
+                          {/* Actions Cell */}
+                          <td className="py-2.5 px-3.5 text-right pr-4">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setActiveBorrowersBook(book)}
+                                className="px-2 py-1 text-[11px] font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-lg flex items-center gap-1 border border-slate-200 cursor-pointer transition-colors shadow-2xs"
+                                title="View Borrowers & History"
+                              >
+                                <FiUsers className="w-3 h-3 text-blue-600" />
+                                <span className="hidden md:inline">Borrowers</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleEdit(book)}
+                                className="px-2 py-1 text-[11px] font-semibold text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg flex items-center gap-1 border border-slate-200 cursor-pointer transition-colors shadow-2xs"
+                                title="Edit Book"
+                              >
+                                <FiEdit className="w-3 h-3" />
+                                <span className="hidden md:inline">Edit</span>
+                              </button>
+
+                              <ActionMenu
+                                trigger={
+                                  <button
+                                    type="button"
+                                    className="p-1 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer transition-colors shadow-2xs"
+                                  >
+                                    <FiMoreVertical className="w-3.5 h-3.5" />
+                                  </button>
+                                }
+                                items={[
+                                  {
+                                    label: "Borrowers & History",
+                                    icon: <FiUsers className="w-4 h-4 text-blue-600" />,
+                                    onClick: () => setActiveBorrowersBook(book),
+                                  },
+                                  {
+                                    label: "Archive Book",
+                                    icon: <FiArchive className="w-4 h-4" />,
+                                    onClick: () => handleArchive(book),
+                                  },
+                                  {
+                                    label: "Delete Record",
+                                    icon: <FiTrash2 className="w-4 h-4" />,
+                                    onClick: () => handleDelete(book),
+                                    danger: true,
+                                  },
+                                ]}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Sleek Modern Sticky Translucent Glassmorphic Floating Island Pagination Toolbar */}
+          <div className="sticky bottom-4 z-20 rounded-2xl border border-slate-200/80 bg-white/75 backdrop-blur-md p-3 sm:p-3.5 shadow-xl shadow-slate-900/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs transition-all">
+            <div className="flex items-center gap-3 text-slate-600 font-medium">
+              <span>
+                Showing <strong className="text-slate-900 font-bold">{filteredBooks.length > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0}</strong> to <strong className="text-slate-900 font-bold">{Math.min(currentPage * rowsPerPage, filteredBooks.length)}</strong> of <strong className="text-slate-900 font-bold">{filteredBooks.length}</strong> books
+              </span>
+
+              <div className="flex items-center gap-1.5 border-l border-slate-300/70 pl-3">
+                <span className="text-slate-500">Rows:</span>
+                <select
+                  value={rowsPerPage}
+                  onChange={(e) => {
+                    setRowsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="bg-white/80 backdrop-blur-xs border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 cursor-pointer shadow-2xs"
+                >
+                  <option value={10}>10</option>
+                  <option value={15}>15</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Page navigation buttons */}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-slate-200/80 bg-white/60 hover:bg-white text-slate-600 disabled:opacity-35 disabled:hover:bg-white/40 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
+                title="First Page"
+              >
+                <FiChevronsLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-slate-200/80 bg-white/60 hover:bg-white text-slate-600 disabled:opacity-35 disabled:hover:bg-white/40 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
+                title="Previous Page"
+              >
+                <FiChevronLeft className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center gap-1 px-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(page => {
+                    return page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1;
+                  })
+                  .reduce((acc, page, idx, arr) => {
+                    if (idx > 0 && page - arr[idx - 1] > 1) {
+                      acc.push('ellipsis-' + page);
+                    }
+                    acc.push(page);
+                    return acc;
+                  }, [])
+                  .map((item) => {
+                    if (typeof item === 'string') {
+                      return <span key={item} className="px-1.5 text-slate-400 font-medium">...</span>;
+                    }
+                    const isCurrent = item === currentPage;
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => setCurrentPage(item)}
+                        className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          isCurrent
+                            ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30'
+                            : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    );
+                  })}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className="p-1.5 rounded-lg border border-slate-200/80 bg-white/60 hover:bg-white text-slate-600 disabled:opacity-35 disabled:hover:bg-white/40 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
+                title="Next Page"
+              >
+                <FiChevronRight className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className="p-1.5 rounded-lg border border-slate-200/80 bg-white/60 hover:bg-white text-slate-600 disabled:opacity-35 disabled:hover:bg-white/40 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
+                title="Last Page"
+              >
+                <FiChevronsRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Archive Confirmation Overlay */}
+      <ConfirmationOverlay
+        show={!!archiveConfirmation}
+        title="Archive Book"
+        message={`Are you sure you want to archive "${archiveConfirmation?.title}"? This will remove the book from the active list but preserve the data.`}
+        onConfirm={confirmArchive}
+        onCancel={() => setArchiveConfirmation(null)}
+      />
+
+      {/* Delete Confirmation Overlay */}
+      <ConfirmationOverlay
+        show={!!deleteConfirmation}
+        title="Delete Book"
+        message={`Are you sure you want to delete "${deleteConfirmation?.title}"? This action cannot be undone.`}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteConfirmation(null)}
+      />
+
+      {/* Add Book Form Studio Overlay */}
+      {showAddForm && (
+        <div className="fixed inset-0 bg-slate-950/65 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-5 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            
+            {/* Top Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-slate-50 via-white to-sky-50/40 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-blue-700 text-white flex items-center justify-center shadow-md shadow-sky-500/20">
+                  <FiBookOpen className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-slate-900 tracking-tight">Add New Book</h2>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-100/80 text-sky-800 border border-sky-200">
+                      Catalog Studio
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">Register an accession entry into the campus library holdings</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddCancel}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Close dialog"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Two-Column Studio Body */}
+            <form id="addBookForm" onSubmit={handleAddSubmit} className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                {/* Left Column: Book Cover Studio & Live Card Preview */}
+                <div className="lg:col-span-5 space-y-4">
+                  
+                  {/* Cover Upload Dropzone */}
+                  <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <FiImage className="w-3.5 h-3.5 text-sky-600" />
+                        Book Cover Art
+                      </span>
+                      <span className="text-[11px] text-slate-400">Max 5MB</span>
+                    </div>
+
+                    <input
+                      ref={addFileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/jpg"
+                      className="hidden"
+                      onChange={(e) => handleCoverFileInputChange(e, false)}
+                    />
+
+                    {coverImagePreview ? (
+                      <div className="space-y-3">
+                        <div className="relative group rounded-2xl overflow-hidden border-2 border-slate-200 bg-slate-900 shadow-md flex items-center justify-center h-64 w-full">
+                          <img
+                            src={coverImagePreview}
+                            alt="Book Cover Preview"
+                            className="w-full h-full object-contain p-2 transition-transform duration-300 group-hover:scale-105"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = '/uploads/book-covers/default.png';
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center p-3 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => addFileInputRef.current?.click()}
+                              className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-semibold shadow flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <FiEdit className="w-3.5 h-3.5" />
+                              Change Image
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCoverImagePreview(null);
+                                setAddFormData(prev => ({ ...prev, cover_image: null }));
+                              }}
+                              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <FiTrash2 className="w-3.5 h-3.5" />
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => addFileInputRef.current?.click()}
+                            className="flex-1 py-2 px-3 bg-white hover:bg-slate-50 border border-slate-300 hover:border-sky-400 text-slate-700 rounded-xl text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                          >
+                            <FiUploadCloud className="w-4 h-4 text-sky-600" />
+                            Upload Cover Image
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCoverImagePreview(null);
+                              setAddFormData(prev => ({ ...prev, cover_image: null }));
+                            }}
+                            className="py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                          >
+                            <FiTrash2 className="w-4 h-4" />
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        onDragOver={(e) => { e.preventDefault(); setIsDraggingAdd(true); }}
+                        onDragLeave={() => setIsDraggingAdd(false)}
+                        onDrop={(e) => handleCoverDrop(e, false)}
+                        onClick={() => addFileInputRef.current?.click()}
+                        className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-3 h-64 w-full ${
+                          isDraggingAdd 
+                            ? 'border-sky-500 bg-sky-50/70 scale-[0.99]' 
+                            : 'border-slate-300 hover:border-sky-400 hover:bg-sky-50/30 bg-slate-100/60'
+                        }`}
+                      >
+                        <div className="w-14 h-14 rounded-full bg-sky-100 text-sky-600 flex items-center justify-center shadow-inner">
+                          <FiUploadCloud className="w-7 h-7" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-700">
+                            Drag & drop book cover here
+                          </p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            or <span className="text-sky-600 font-medium underline">browse image files</span>
+                          </p>
+                        </div>
+                        <span className="text-[11px] text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200 shadow-2xs font-medium">
+                          Click to select image file
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quick Shelf Location Presets */}
+                  <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-3.5">
+                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">
+                      Quick Shelf Presets
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {LOCATION_PRESETS.map((loc) => (
+                        <button
+                          key={loc}
+                          type="button"
+                          onClick={() => setAddFormData(prev => ({ ...prev, shelf_location: loc }))}
+                          className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                            addFormData.shelf_location === loc
+                              ? 'bg-sky-600 text-white border-sky-600 font-semibold shadow-xs'
+                              : 'bg-white text-slate-600 border-slate-200 hover:border-sky-300 hover:text-sky-700'
+                          }`}
+                        >
+                          {loc}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Structured Metadata Form */}
+                <div className="lg:col-span-7 space-y-5">
+                  {/* Bibliographic Information */}
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3.5">
+                    <div className="border-b border-slate-100 pb-2 flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <FiBook className="w-3.5 h-3.5 text-sky-600" />
+                        Core Bibliographic Info
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Book Title <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={addFormData.title}
+                        onChange={(e) => setAddFormData({...addFormData, title: e.target.value})}
+                        className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all placeholder:text-slate-400"
+                        placeholder="e.g. Introduction to Computer Science & Algorithms"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Author(s) <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={addFormData.author}
+                          onChange={(e) => setAddFormData({...addFormData, author: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all placeholder:text-slate-400"
+                          placeholder="e.g. Alan Turing, Donald Knuth"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Academic Category
+                        </label>
+                        <select
+                          value={addFormData.category}
+                          onChange={(e) => setAddFormData({...addFormData, category: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all text-slate-700"
+                        >
+                          {CATEGORY_PRESETS.map((cat) => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Series Title (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={addFormData.series}
+                        onChange={(e) => setAddFormData({...addFormData, series: e.target.value})}
+                        className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all placeholder:text-slate-400"
+                        placeholder="e.g. Computer Science Monographs Series Vol. 4"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Classification & Publication */}
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3.5">
+                    <div className="border-b border-slate-100 pb-2 flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <FiHash className="w-3.5 h-3.5 text-blue-600" />
+                        Classification & Publication
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          ISBN
+                        </label>
+                        <input
+                          type="text"
+                          value={addFormData.isbn}
+                          onChange={(e) => setAddFormData({...addFormData, isbn: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all placeholder:text-slate-400 font-mono text-xs"
+                          placeholder="978-0-123456-47-2"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Call Number (DDC / Dewey)
+                        </label>
+                        <input
+                          type="text"
+                          value={addFormData.call_number}
+                          onChange={(e) => setAddFormData({...addFormData, call_number: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all placeholder:text-slate-400 font-mono text-xs"
+                          placeholder="QA 76.6 .T87 2024"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Publisher
+                        </label>
+                        <input
+                          type="text"
+                          value={addFormData.publisher}
+                          onChange={(e) => setAddFormData({...addFormData, publisher: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all placeholder:text-slate-400"
+                          placeholder="Pearson / McGraw-Hill"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Edition
+                        </label>
+                        <input
+                          type="text"
+                          value={addFormData.edition}
+                          onChange={(e) => setAddFormData({...addFormData, edition: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all placeholder:text-slate-400"
+                          placeholder="e.g. 3rd Global Ed."
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Copyright Year
+                        </label>
+                        <input
+                          type="number"
+                          min="1800"
+                          max="2100"
+                          value={addFormData.copyright_year}
+                          onChange={(e) => setAddFormData({...addFormData, copyright_year: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all placeholder:text-slate-400"
+                          placeholder="2024"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Inventory & Shelf Holdings */}
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3.5">
+                    <div className="border-b border-slate-100 pb-2 flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <FiMapPin className="w-3.5 h-3.5 text-emerald-600" />
+                        Holdings & Shelf Location
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Initial Copies / Quantity <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          max="1000"
+                          value={addFormData.quantity}
+                          onChange={(e) => setAddFormData({...addFormData, quantity: parseInt(e.target.value, 10) || 1})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all font-semibold text-slate-800"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Shelf Location
+                        </label>
+                        <input
+                          type="text"
+                          value={addFormData.shelf_location}
+                          onChange={(e) => setAddFormData({...addFormData, shelf_location: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all placeholder:text-slate-400"
+                          placeholder="e.g. Aisle 3, Shelf B-12"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Physical Description
+                      </label>
+                      <input
+                        type="text"
+                        value={addFormData.physical_description}
+                        onChange={(e) => setAddFormData({...addFormData, physical_description: e.target.value})}
+                        className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all placeholder:text-slate-400"
+                        placeholder="e.g. xxiv, 512 pages : illustrations, charts ; 25 cm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Accession Remarks & Notes
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={addFormData.remarks}
+                        onChange={(e) => setAddFormData({...addFormData, remarks: e.target.value})}
+                        className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all placeholder:text-slate-400 resize-none"
+                        placeholder="Special accession notes, donation references, or handling conditions..."
+                      />
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </form>
+
+            {/* Bottom Action Footer */}
+            <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50/90 backdrop-blur-sm flex flex-col sm:flex-row sm:justify-between items-center gap-3 flex-shrink-0">
+              <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                <FiInfo className="w-3.5 h-3.5 text-sky-600 flex-shrink-0" />
+                <span>Fields with <span className="text-rose-500 font-bold">*</span> are required for catalog registry</span>
+              </div>
+              <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={handleAddCancel}
+                  disabled={addLoading}
+                  className="flex-1 sm:flex-none px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  form="addBookForm"
+                  disabled={addLoading}
+                  className="flex-1 sm:flex-none px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 rounded-xl shadow-md shadow-sky-600/25 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  {addLoading ? (
+                    <>
+                      <FiRefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Creating Entry...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FiPlus className="w-4 h-4" />
+                      <span>Add Book to Catalog</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
 
-      <ConfirmationOverlay
-        show={showDeleteConfirm}
-        title="Delete Book"
-        message={`Are you sure you want to delete "${bookToDelete?.title}"? This action cannot be undone.`}
-        confirmText="Delete Book"
-        cancelText="Cancel"
-        type="danger"
-        onConfirm={confirmDeleteBook}
-        onCancel={() => {
-          setShowDeleteConfirm(false);
-          setBookToDelete(null);
-        }}
-      />
+      {/* Edit Book Form Studio Overlay */}
+      {showEditForm && (
+        <div className="fixed inset-0 bg-slate-950/65 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-5 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            
+            {/* Top Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-slate-50 via-white to-blue-50/40 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center shadow-md shadow-blue-600/20">
+                  <FiEdit className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-slate-900 tracking-tight">Edit Book Details</h2>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100/80 text-blue-800 border border-blue-200">
+                      Editor Studio
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">Update catalog metadata and holding information</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleEditCancel}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Close dialog"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
 
-      <AlertOverlay
-        show={alert.show}
-        type={alert.type}
-        message={alert.message}
-        onClose={hideAlert}
-      />
+            {/* Two-Column Studio Body */}
+            <form id="editBookForm" onSubmit={handleEditSubmit} className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                {/* Left Column: Cover Studio & Live Card Preview */}
+                <div className="lg:col-span-5 space-y-4">
+                  
+                  {/* Cover Upload Dropzone */}
+                  <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 shadow-xs">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <FiImage className="w-3.5 h-3.5 text-blue-600" />
+                        Book Cover Art
+                      </span>
+                      <span className="text-[11px] font-medium text-slate-400">PNG, JPG, WebP (Max 5MB)</span>
+                    </div>
+
+                    <input
+                      ref={editFileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/jpg"
+                      className="hidden"
+                      onChange={(e) => handleCoverFileInputChange(e, true)}
+                    />
+
+                    {editCoverImagePreview ? (
+                      <div className="space-y-3">
+                        <div className="relative group rounded-2xl overflow-hidden border-2 border-slate-200 bg-slate-900 shadow-md flex items-center justify-center h-64 w-full">
+                          <img
+                            src={editCoverImagePreview}
+                            alt="Book Cover Preview"
+                            className="w-full h-full object-contain p-2 transition-transform duration-300 group-hover:scale-105"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = '/uploads/book-covers/default.png';
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center p-3 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => editFileInputRef.current?.click()}
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <FiEdit className="w-3.5 h-3.5" />
+                              Change Image
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditCoverImagePreview(null);
+                                setEditCoverImageFile(null);
+                                setEditFormData(prev => ({ ...prev, cover_image: null }));
+                              }}
+                              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <FiTrash2 className="w-3.5 h-3.5" />
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Always visible quick action bar */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => editFileInputRef.current?.click()}
+                            className="flex-1 py-2 px-3 bg-white hover:bg-slate-50 border border-slate-300 hover:border-blue-400 text-slate-700 rounded-xl text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                          >
+                            <FiUploadCloud className="w-4 h-4 text-blue-600" />
+                            Upload New Cover
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditCoverImagePreview(null);
+                              setEditCoverImageFile(null);
+                              setEditFormData(prev => ({ ...prev, cover_image: null }));
+                            }}
+                            className="py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                          >
+                            <FiTrash2 className="w-4 h-4" />
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        onDragOver={(e) => { e.preventDefault(); setIsDraggingEdit(true); }}
+                        onDragLeave={() => setIsDraggingEdit(false)}
+                        onDrop={(e) => handleCoverDrop(e, true)}
+                        onClick={() => editFileInputRef.current?.click()}
+                        className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-3 h-64 w-full ${
+                          isDraggingEdit 
+                            ? 'border-blue-500 bg-blue-50/70 scale-[0.99]' 
+                            : 'border-slate-300 hover:border-blue-400 hover:bg-blue-50/30 bg-slate-100/60'
+                        }`}
+                      >
+                        <div className="w-14 h-14 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shadow-inner">
+                          <FiUploadCloud className="w-7 h-7" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-700">
+                            Drag & drop new book cover
+                          </p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            or <span className="text-blue-600 font-medium underline">browse image files</span>
+                          </p>
+                        </div>
+                        <span className="text-[11px] text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200 shadow-2xs font-medium">
+                          Click to select image file
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quick Shelf Location Presets */}
+                  <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-3.5">
+                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">
+                      Quick Shelf Presets
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {LOCATION_PRESETS.map((loc) => (
+                        <button
+                          key={loc}
+                          type="button"
+                          onClick={() => setEditFormData(prev => ({ ...prev, shelf_location: loc }))}
+                          className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                            editFormData.shelf_location === loc
+                              ? 'bg-blue-600 text-white border-blue-600 font-semibold shadow-xs'
+                              : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-700'
+                          }`}
+                        >
+                          {loc}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Structured Metadata Form */}
+                <div className="lg:col-span-7 space-y-5">
+                  {/* Bibliographic Information */}
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3.5">
+                    <div className="border-b border-slate-100 pb-2 flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <FiBook className="w-3.5 h-3.5 text-blue-600" />
+                        Core Bibliographic Info
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Book Title <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editFormData.title || ''}
+                        onChange={(e) => setEditFormData({...editFormData, title: e.target.value})}
+                        className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                        placeholder="e.g. Introduction to Computer Science & Algorithms"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Author(s) <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={editFormData.author || ''}
+                          onChange={(e) => setEditFormData({...editFormData, author: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                          placeholder="e.g. Alan Turing, Donald Knuth"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Academic Category
+                        </label>
+                        <select
+                          value={editFormData.category || 'General Collection'}
+                          onChange={(e) => setEditFormData({...editFormData, category: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-700"
+                        >
+                          {CATEGORY_PRESETS.map((cat) => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Series Title (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={editFormData.series || ''}
+                        onChange={(e) => setEditFormData({...editFormData, series: e.target.value})}
+                        className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                        placeholder="e.g. Computer Science Monographs Series Vol. 4"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Classification & Publication */}
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3.5">
+                    <div className="border-b border-slate-100 pb-2 flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <FiHash className="w-3.5 h-3.5 text-blue-600" />
+                        Classification & Publication
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          ISBN
+                        </label>
+                        <input
+                          type="text"
+                          value={editFormData.isbn || ''}
+                          onChange={(e) => setEditFormData({...editFormData, isbn: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder:text-slate-400 font-mono text-xs"
+                          placeholder="978-0-123456-47-2"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Call Number (DDC / Dewey)
+                        </label>
+                        <input
+                          type="text"
+                          value={editFormData.call_number || ''}
+                          onChange={(e) => setEditFormData({...editFormData, call_number: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder:text-slate-400 font-mono text-xs"
+                          placeholder="QA 76.6 .T87 2024"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Publisher
+                        </label>
+                        <input
+                          type="text"
+                          value={editFormData.publisher || ''}
+                          onChange={(e) => setEditFormData({...editFormData, publisher: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                          placeholder="Pearson / McGraw-Hill"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Edition
+                        </label>
+                        <input
+                          type="text"
+                          value={editFormData.edition || ''}
+                          onChange={(e) => setEditFormData({...editFormData, edition: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                          placeholder="e.g. 3rd Global Ed."
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Copyright Year
+                        </label>
+                        <input
+                          type="number"
+                          min="1800"
+                          max="2100"
+                          value={editFormData.copyright_year || ''}
+                          onChange={(e) => setEditFormData({...editFormData, copyright_year: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                          placeholder="2024"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Inventory & Shelf Holdings */}
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3.5">
+                    <div className="border-b border-slate-100 pb-2 flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <FiMapPin className="w-3.5 h-3.5 text-emerald-600" />
+                        Holdings & Shelf Location
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Total Copies / Quantity
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="1000"
+                          value={editFormData.quantity || 1}
+                          onChange={(e) => setEditFormData({...editFormData, quantity: parseInt(e.target.value, 10) || 1})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-semibold text-slate-800"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Shelf Location
+                        </label>
+                        <input
+                          type="text"
+                          value={editFormData.shelf_location || ''}
+                          onChange={(e) => setEditFormData({...editFormData, shelf_location: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                          placeholder="e.g. Aisle 3, Shelf B-12"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Physical Description
+                      </label>
+                      <input
+                        type="text"
+                        value={editFormData.physical_description || ''}
+                        onChange={(e) => setEditFormData({...editFormData, physical_description: e.target.value})}
+                        className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                        placeholder="e.g. xxiv, 512 pages : illustrations, charts ; 25 cm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Accession Remarks & Notes
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={editFormData.remarks || ''}
+                        onChange={(e) => setEditFormData({...editFormData, remarks: e.target.value})}
+                        className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder:text-slate-400 resize-none"
+                        placeholder="Special accession notes, condition notes, or edition updates..."
+                      />
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </form>
+
+            {/* Bottom Action Footer */}
+            <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50/90 backdrop-blur-sm flex flex-col sm:flex-row sm:justify-between items-center gap-3 flex-shrink-0">
+              <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                <FiInfo className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                <span>Modifying catalog entry for: <strong className="text-slate-700 font-semibold">{editingBook?.title}</strong></span>
+              </div>
+              <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={handleEditCancel}
+                  disabled={editLoading}
+                  className="flex-1 sm:flex-none px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  form="editBookForm"
+                  disabled={editLoading}
+                  className="flex-1 sm:flex-none px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 rounded-xl shadow-md shadow-blue-600/25 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  {editLoading ? (
+                    <>
+                      <FiRefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Saving Changes...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FiCheck className="w-4 h-4" />
+                      <span>Save Changes</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {lastAction && (
+        <UndoToast
+          message={
+            lastAction.type === 'archive'
+              ? `"${lastAction.book.title}" has been archived`
+              : `"${lastAction.book.title}" has been deleted`
+          }
+          onUndo={handleUndo}
+        />
+      )}
+
+      {/* Book Borrowers & History Drawer */}
+      {activeBorrowersBook && (
+        <BookBorrowersDrawer
+          book={activeBorrowersBook}
+          onClose={() => setActiveBorrowersBook(null)}
+          onBookUpdated={loadBooks}
+        />
+      )}
     </div>
   );
 }

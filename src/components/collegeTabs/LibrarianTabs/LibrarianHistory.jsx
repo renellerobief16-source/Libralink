@@ -4,7 +4,7 @@ import {
   FiSearch, FiBook, FiUser, FiCalendar, FiDownload, FiArrowRight, 
   FiFileText, FiLayers, FiEye, FiX, FiRefreshCw, FiCompass
 } from "react-icons/fi";
-import api from "../../../utils/api";
+import api, { getBackendAssetUrl } from "../../../utils/api";
 import { formatPhilippineDate, formatPhilippineDateTime, formatRelativeTime } from "../../../utils/timeUtils";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
@@ -363,12 +363,23 @@ function LibrarianHistory({ darkMode }) {
                     </td>
 
                     <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center flex-shrink-0">
-                          {item.student?.firstname?.[0] || 'S'}{item.student?.lastname?.[0] || ''}
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0 shadow-2xs overflow-hidden border border-slate-200/60">
+                          {item.student?.profile_image ? (
+                            <img
+                              src={getBackendAssetUrl(item.student.profile_image)}
+                              alt={`${item.student?.firstname || 'Student'}`}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <span>{item.student?.firstname?.[0] || 'S'}{item.student?.lastname?.[0] || ''}</span>
+                          )}
                         </div>
-                        <div>
-                          <p className="font-bold text-slate-900 text-xs leading-snug">
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 text-xs leading-snug truncate max-w-[160px]">
                             {item.student?.firstname} {item.student?.lastname}
                           </p>
                           <p className="text-[11px] text-slate-400 font-mono">
@@ -472,11 +483,35 @@ function LibrarianHistory({ darkMode }) {
               </div>
 
               {/* Borrower Details */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-3">
                 <h4 className="font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                   <FiUser className="w-3.5 h-3.5 text-blue-600" />
                   Borrower Identity
                 </h4>
+                <div className="flex items-center gap-3 pb-2 border-b border-slate-200/60">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-sm flex items-center justify-center flex-shrink-0 shadow-xs overflow-hidden border border-slate-200">
+                    {selectedRecord.student?.profile_image ? (
+                      <img 
+                        src={getBackendAssetUrl(selectedRecord.student.profile_image)} 
+                        alt={`${selectedRecord.student?.firstname || 'Student'}`}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <span>{selectedRecord.student?.firstname?.[0] || 'S'}{selectedRecord.student?.lastname?.[0] || ''}</span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-900 text-sm block">
+                      {selectedRecord.student?.firstname} {selectedRecord.student?.lastname}
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">
+                      {selectedRecord.student?.student_number || 'No ID'}
+                    </span>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-2 text-slate-700">
                   <div>
                     <span className="text-slate-400 block">Name:</span>

@@ -81,7 +81,7 @@ function LibrarianPortal() {
       const schoolId = localStorage.getItem("schoolId");
       if (!schoolId) return;
       try {
-        const booksRes = await api.get(`/books/school?school_id=${schoolId}`);
+        const booksRes = await api.get(`/books/school?school_id=${schoolId}&group=true`);
         const booksList = Array.isArray(booksRes.data) ? booksRes.data : (booksRes.data?.books || []);
         setBooks(booksList);
         const notRes = await getUserNotifications();
@@ -219,87 +219,87 @@ function LibrarianPortal() {
   return (
     <div className={`min-h-screen ${darkMode ? "bg-gray-900" : "bg-gray-50"}`}>
       <div className="flex">
-        <aside className={`fixed left-0 top-0 h-full w-64 z-50 hidden lg:block ${darkMode ? 'bg-gray-800 border-r border-gray-700' : 'bg-white border-r border-gray-200'}`}>
+        <aside className={`fixed left-0 top-0 h-full w-64 z-50 hidden lg:block ${darkMode ? 'bg-gray-900 border-r border-gray-800' : 'bg-white border-r border-slate-200/70'}`}>
           <div className="flex flex-col h-full">
-            <div className={`p-5 border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+            {/* Minimalist Seamless Brand & Campus Header */}
+            <div className={`p-5 border-b ${darkMode ? 'border-gray-800' : 'border-slate-100'}`}>
               <div className="flex items-center gap-3">
-                <img src="/L.png" alt="Libralink Logo" className="w-9 h-9 rounded-xl object-cover shadow-sm" />
-                <div>
-                  <span className={`text-lg font-bold tracking-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>LibraLink</span>
-                  <p className={`text-[11px] font-semibold text-blue-600`}>Librarian Counter</p>
+                <img src="/L.png" alt="Libralink Logo" className="w-8 h-8 rounded-lg object-cover" />
+                <div className="min-w-0 flex-1">
+                  <span className={`text-base font-bold tracking-tight block leading-tight ${darkMode ? 'text-white' : 'text-slate-900'}`}>LibraLink</span>
+                  {schoolInfo ? (
+                    <p className="text-[11px] font-medium text-slate-400 truncate mt-0.5" title={schoolInfo.school_name}>
+                      {schoolInfo.school_name} {schoolInfo.school_code ? `• ${schoolInfo.school_code}` : ''}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] font-medium text-slate-400">Librarian Counter</p>
+                  )}
                 </div>
               </div>
             </div>
 
-            {schoolInfo && (
-              <div className={`px-4 py-3 border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
-                <p className={`text-[10px] font-bold ${darkMode ? 'text-gray-400' : 'text-gray-400'} uppercase tracking-wider mb-1`}>Assigned Campus</p>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {schoolInfo.logo && !schoolLogoError ? (
-                      <img src={getBackendAssetUrl(schoolInfo.logo)} alt={`${schoolInfo.school_name} Logo`} className="w-full h-full object-contain" onError={() => setSchoolLogoError(true)} />
-                    ) : (
-                      <FiGrid className="w-4 h-4 text-slate-500" />
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <div className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} text-xs truncate`}>{schoolInfo.school_name}</div>
-                    <div className={`text-[10px] font-mono ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{schoolInfo.school_code}</div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex-1 overflow-y-auto py-3 px-3 space-y-4">
+            <div className="flex-1 overflow-y-auto py-3 px-3 space-y-3 custom-scrollbar">
               {sidebarGroups.map((group, gIdx) => (
                 <div key={gIdx}>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-3 mb-1.5">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-3 mb-1">
                     {group.title}
                   </div>
                   <nav className="space-y-0.5">
-                    {group.items.map((item) => (
-                      <button 
-                        key={item.id} 
-                        onClick={() => setActiveTab(item.id)} 
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 group relative ${
-                          activeTab === item.id 
-                            ? (darkMode ? 'text-white bg-blue-600 shadow-sm' : 'text-blue-700 bg-blue-50/90 border border-blue-100') 
-                            : (darkMode ? 'text-gray-300 hover:text-white hover:bg-gray-700' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')
-                        }`}
-                      >
-                        <div className="relative flex-shrink-0">
-                          <item.icon className={`w-4 h-4 ${
-                            activeTab === item.id 
-                              ? (darkMode ? 'text-white' : 'text-blue-600') 
-                              : (darkMode ? 'text-gray-400' : 'text-slate-400 group-hover:text-slate-600')
-                          }`} />
-                          {(item.id === 'inbox' && unreadCount > 0) && (
-                            <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] rounded-full w-3.5 h-3.5 flex items-center justify-center font-bold">
-                              {unreadCount > 9 ? '9+' : unreadCount}
-                            </span>
-                          )}
-                          {(item.id === 'borrow-requests' && pendingRequestsCount > 0) && (
-                            <span className="absolute -top-1.5 -right-1.5 bg-purple-600 text-white text-[9px] rounded-full w-3.5 h-3.5 flex items-center justify-center font-bold">
-                              {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
-                            </span>
-                          )}
-                        </div>
-                        <span className="truncate">{item.label}</span>
-                      </button>
-                    ))}
+                    {group.items.map((item) => {
+                      const isActive = activeTab === item.id;
+                      return (
+                        <button 
+                          key={item.id} 
+                          onClick={() => setActiveTab(item.id)} 
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all duration-150 group cursor-pointer ${
+                            isActive 
+                              ? (darkMode ? 'bg-gray-800 text-white font-semibold' : 'bg-slate-100 text-slate-900 font-semibold') 
+                              : (darkMode ? 'text-gray-400 hover:text-white hover:bg-gray-800/60 font-medium' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium')
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <item.icon className={`w-4 h-4 shrink-0 transition-colors ${
+                              isActive 
+                                ? 'text-blue-600' 
+                                : (darkMode ? 'text-gray-400 group-hover:text-gray-200' : 'text-slate-400 group-hover:text-slate-600')
+                            }`} />
+                            <span className="truncate">{item.label}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {(item.id === 'inbox' && unreadCount > 0) && (
+                              <span className={`px-1.5 py-0.2 text-[10px] font-bold rounded-full ${
+                                isActive ? 'bg-blue-600 text-white' : 'bg-rose-500 text-white'
+                              }`}>
+                                {unreadCount > 9 ? '9+' : unreadCount}
+                              </span>
+                            )}
+                            {(item.id === 'borrow-requests' && pendingRequestsCount > 0) && (
+                              <span className={`px-1.5 py-0.2 text-[10px] font-bold rounded-full ${
+                                isActive ? 'bg-indigo-600 text-white' : 'bg-purple-600 text-white'
+                              }`}>
+                                {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </nav>
                 </div>
               ))}
             </div>
 
-            <div className={`p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
-              <button onClick={() => setDarkMode(!darkMode)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all duration-150 mb-2 ${darkMode ? 'text-gray-300 hover:text-white hover:bg-gray-700' : 'text-gray-600 hover:text-gray-900 hover:bg-slate-50'}`}>
-                {darkMode ? <FiSun className="w-5 h-5 text-gray-400" /> : <FiMoon className="w-5 h-5 text-gray-400" />}
-                <span className="text-sm">{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+            <div className={`p-3 border-t ${darkMode ? 'border-gray-800' : 'border-slate-100'} space-y-1`}>
+              <button onClick={() => setDarkMode(!darkMode)} className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-slate-600 hover:bg-slate-50'}`}>
+                <div className="flex items-center gap-2.5">
+                  {darkMode ? <FiSun className="w-4 h-4 text-amber-400" /> : <FiMoon className="w-4 h-4 text-slate-500" />}
+                  <span>{darkMode ? 'Light Theme' : 'Dark Theme'}</span>
+                </div>
+                <span className="text-[10px] uppercase font-bold text-slate-400">{darkMode ? 'Dark' : 'Light'}</span>
               </button>
-              <button onClick={handleLogout} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all duration-150 ${darkMode ? 'text-red-400 hover:bg-red-900/20' : 'text-red-600 hover:bg-red-50'}`}>
-                <FiLogOut className="w-5 h-5" />
-                <span className="text-sm">Logout</span>
+              <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50/70 transition-all duration-150 cursor-pointer group">
+                <FiLogOut className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
+                <span>Sign Out</span>
               </button>
             </div>
           </div>
@@ -336,6 +336,37 @@ function LibrarianPortal() {
             onDeleteAllNotifications={handleDeleteAllNotifications}
             darkMode={darkMode}
           />
+
+          {/* Admin Librarian Counter Mode Notice Banner */}
+          {(() => {
+            const rawRole = (localStorage.getItem("userRole") || '').toLowerCase().replace(/[-_]/g, ' ').trim();
+            const roleId = Number(localStorage.getItem("roleId") || 0);
+            const isAdminLibrarian = rawRole.includes('admin') || roleId === 2 || roleId === 1;
+
+            if (!isAdminLibrarian) return null;
+
+            return (
+              <div className="bg-slate-900 text-white px-4 py-2.5 text-xs flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-slate-200">
+                    <strong className="text-white font-semibold">Circulation Desk Mode Active</strong>
+                    <span className="text-slate-400 hidden sm:inline"> — You are operating with Admin Librarian privileges.</span>
+                  </span>
+                </div>
+                <button
+                  onClick={() => navigate('/librarian-admin')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-all shadow-xs cursor-pointer"
+                >
+                  <FiShield className="w-3.5 h-3.5 text-blue-200" />
+                  <span>Return to Admin Console →</span>
+                </button>
+              </div>
+            );
+          })()}
 
           <div className="p-6 lg:p-8">
             <div className="mb-8">

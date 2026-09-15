@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   FiBell, FiUser, FiChevronDown, FiSettings, FiLogOut, FiCheck, FiX, 
   FiTrash2, FiClock, FiMoreVertical, FiSearch, FiBook, FiRotateCcw, 
   FiUserCheck, FiFileText, FiSun, FiMoon, FiShield, FiExternalLink, FiSliders
 } from 'react-icons/fi';
-import { getBackendAssetUrl } from '../../utils/api';
+import { getBackendAssetUrl, markAllNotificationsAsRead } from '../../utils/api';
 
 const DESK_SHORTCUTS = [
   { id: 'circulation-counter', title: 'Circulation Desk & Scan', description: 'Fast student check-in, QR scan & desk return', icon: FiRotateCcw, color: 'text-blue-600 bg-blue-50 border-blue-200' },
@@ -36,14 +37,34 @@ function GlobalHeader({
   onToggleDarkMode,
   onOpenStaffModal,
 }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const roleLower = (userRole || localStorage.getItem('userRole') || '').toLowerCase().trim();
+  const roleId = String(localStorage.getItem('roleId') || '');
+  const isAdminLibrarian = roleId === '2' || 
+                           roleLower === 'admin-librarian' || 
+                           roleLower === 'admin_librarian' || 
+                           roleLower === 'librarian_admin' || 
+                           roleLower === 'librarian admin';
+  
+  const isLibrarianAdminRoute = location.pathname.startsWith('/librarian-admin');
+  const isLibrarianRoute = location.pathname.startsWith('/librarian') && !isLibrarianAdminRoute;
+
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
+  const [localUnreadCount, setLocalUnreadCount] = useState(unreadCount || 0);
   const [notificationFilter, setNotificationFilter] = useState('all');
   const [deletingId, setDeletingId] = useState(null);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [markingAll, setMarkingAll] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [notificationToDelete, setNotificationToDelete] = useState(null);
+
+  useEffect(() => {
+    setLocalUnreadCount(unreadCount || 0);
+  }, [unreadCount]);
 
   // Search Bar State
   const [searchQuery, setSearchQuery] = useState('');
@@ -246,6 +267,40 @@ function GlobalHeader({
     }
   };
 
+  const handleMarkAllAsReadClick = async () => {
+    if (markingAll) return;
+    setMarkingAll(true);
+    try {
+      await markAllNotificationsAsRead();
+      if (Array.isArray(notifications)) {
+        notifications.forEach(n => { n.read = true; n.is_read = true; });
+      }
+      setLocalUnreadCount(0);
+    } catch (err) {
+      console.error('Error marking all read:', err);
+    } finally {
+      setMarkingAll(false);
+    }
+  };
+
+  const handleToggleNotificationDropdown = async () => {
+    const nextOpen = !notificationDropdownOpen;
+    setNotificationDropdownOpen(nextOpen);
+
+    // If opening with unread notifications, clear badge immediately (Facebook style!)
+    if (nextOpen && localUnreadCount > 0) {
+      setLocalUnreadCount(0);
+      try {
+        await markAllNotificationsAsRead();
+        if (Array.isArray(notifications)) {
+          notifications.forEach(n => { n.read = true; n.is_read = true; });
+        }
+      } catch (err) {
+        console.error('Error auto-marking notifications as seen:', err);
+      }
+    }
+  };
+
   return (
     <header className={`h-16 sticky top-0 z-30 border-b flex items-center justify-between px-3 sm:px-6 transition-all duration-200 ${darkMode ? 'bg-gray-900/95 border-gray-800 backdrop-blur-md shadow-xs' : 'bg-white/95 border-slate-200/90 backdrop-blur-md shadow-xs'}`}>
       {/* Left side - Campus indicator & Smart Search Bar (adapted from Student page) */}
@@ -435,62 +490,133 @@ function GlobalHeader({
       </div>
 
       {/* Right side - Notifications and Profile */}
-      <div className="flex items-center gap-4">
-        {/* Notification Bell */}
+      <div className="flex items-center gap-3">
+        {/* Role Switcher Pill for Admin Librarian */}
+        {isAdminLibrarian && isLibrarianAdminRoute && (
+          <button
+            onClick={() => navigate('/librarian')}
+            className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border shadow-xs cursor-pointer ${
+              darkMode
+                ? 'bg-blue-950/60 text-blue-300 border-blue-800 hover:bg-blue-900/80 hover:text-white'
+                : 'bg-blue-50/90 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300'
+            }`}
+            title="Switch to Librarian Circulation Counter"
+          >
+            <FiRotateCcw className="w-3.5 h-3.5 text-blue-600" />
+            <span>Circulation Desk</span>
+          </button>
+        )}
+
+        {isAdminLibrarian && isLibrarianRoute && (
+          <button
+            onClick={() => navigate('/librarian-admin')}
+            className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border shadow-xs cursor-pointer ${
+              darkMode
+                ? 'bg-purple-950/60 text-purple-300 border-purple-800 hover:bg-purple-900/80 hover:text-white'
+                : 'bg-purple-50/90 text-purple-700 border-purple-200 hover:bg-purple-100 hover:border-purple-300'
+            }`}
+            title="Return to Admin Management Console"
+          >
+            <FiShield className="w-3.5 h-3.5 text-purple-600" />
+            <span>Admin Console</span>
+          </button>
+        )}
+
+        {/* Switch to Student Preview */}
+        {isAdminLibrarian && (
+          <button
+            onClick={() => navigate('/studentpage')}
+            className={`hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border shadow-xs cursor-pointer ${
+              darkMode
+                ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800 hover:bg-emerald-900/80 hover:text-white'
+                : 'bg-emerald-50/90 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300'
+            }`}
+            title="Preview Student / Reader Experience"
+          >
+            <FiExternalLink className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Student View</span>
+          </button>
+        )}
+
+        {/* Notification Bell (Clean Light Style) */}
         <div className="notification-dropdown-container relative">
           <button
-            onClick={() => setNotificationDropdownOpen(!notificationDropdownOpen)}
-            className={`relative p-2 rounded-lg transition-colors ${darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100'}`}
+            onClick={handleToggleNotificationDropdown}
+            className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-xs active:scale-95 ${
+              notificationDropdownOpen
+                ? 'bg-blue-50 text-blue-600 border border-blue-200 ring-2 ring-blue-500/20'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-blue-600 border border-slate-200/80'
+            }`}
+            title="Notifications"
           >
-            <FiBell className="w-5 h-5" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
-                {unreadCount > 9 ? '9+' : unreadCount}
+            <FiBell className="w-4 h-4" />
+            {localUnreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-gradient-to-tr from-red-600 to-rose-500 text-white text-[10px] font-black min-w-[19px] h-[19px] px-1 rounded-full flex items-center justify-center ring-2 ring-white shadow-md animate-in zoom-in-75 duration-200">
+                {localUnreadCount > 99 ? '99+' : localUnreadCount}
               </span>
             )}
           </button>
 
-          {/* Notification Dropdown */}
+          {/* Compact Minimalist Notification Dropdown */}
           {notificationDropdownOpen && (
-            <div className="notification-dropdown absolute right-0 mt-2 w-96 bg-white rounded-2xl border border-gray-200 shadow-2xl z-50 max-h-[500px] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-white">
-                <div className="flex items-center justify-between mb-3">
+            <div className="notification-dropdown absolute right-0 mt-2 w-[320px] sm:w-[350px] max-h-[500px] flex flex-col rounded-2xl border border-slate-200/90 bg-white text-slate-900 shadow-2xl shadow-slate-200/60 z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+              {/* Minimal Header */}
+              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/90">
+                <div className="flex items-center justify-between mb-2.5">
                   <div className="flex items-center gap-2">
-                    <FiBell className="w-5 h-5 text-blue-600" />
-                    <h3 className="font-semibold text-gray-900">Notifications</h3>
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center bg-blue-100 text-blue-600">
+                      <FiBell className="w-3.5 h-3.5" />
+                    </div>
+                    <h3 className="font-bold text-xs tracking-tight text-slate-900">Notifications</h3>
                   </div>
-                  <span className="text-xs font-medium px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
-                    {unreadCount} unread
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {localUnreadCount > 0 && (
+                      <button
+                        onClick={handleMarkAllAsReadClick}
+                        disabled={markingAll}
+                        className="text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors px-1.5 py-0.5 rounded text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        title="Mark all as read"
+                      >
+                        <FiCheck className="w-3 h-3" />
+                        <span>{markingAll ? 'Marking...' : 'Mark all read'}</span>
+                      </button>
+                    )}
+                    {localUnreadCount > 0 && (
+                      <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                        {localUnreadCount}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                {/* Filter Tabs */}
-                <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+
+                {/* Minimal Segmented Tabs */}
+                <div className="flex gap-1 p-0.5 rounded-xl border bg-slate-200/70 border-slate-200/80">
                   <button
                     onClick={() => setNotificationFilter('all')}
-                    className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                    className={`flex-1 py-1 text-[11px] font-bold rounded-lg transition-all ${
                       notificationFilter === 'all'
-                        ? 'bg-white text-blue-600 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
+                        ? 'bg-white text-blue-600 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     All
                   </button>
                   <button
                     onClick={() => setNotificationFilter('unread')}
-                    className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                    className={`flex-1 py-1 text-[11px] font-bold rounded-lg transition-all ${
                       notificationFilter === 'unread'
-                        ? 'bg-white text-blue-600 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
+                        ? 'bg-white text-blue-600 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    Unread
+                    Unread {unreadCount > 0 && `(${unreadCount})`}
                   </button>
                   <button
                     onClick={() => setNotificationFilter('read')}
-                    className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                    className={`flex-1 py-1 text-[11px] font-bold rounded-lg transition-all ${
                       notificationFilter === 'read'
-                        ? 'bg-white text-blue-600 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
+                        ? 'bg-white text-blue-600 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     Read
@@ -498,7 +624,8 @@ function GlobalHeader({
                 </div>
               </div>
               
-              <div className="max-h-80 overflow-y-auto custom-scrollbar">
+              {/* Minimal Notification List */}
+              <div className="flex-1 overflow-y-auto max-h-[340px] divide-y divide-slate-100 custom-scrollbar bg-white">
                 {(() => {
                   const roleFilteredNotifications = getFilteredNotifications();
                   const filteredNotifications = roleFilteredNotifications.filter(n => {
@@ -509,95 +636,152 @@ function GlobalHeader({
                   });
 
                   return filteredNotifications.length > 0 ? (
-                    filteredNotifications.map((notification) => (
-                      <div
-                        key={notification.notification_id}
-                        className={`group relative p-4 border-b border-gray-100 hover:bg-gray-50 transition-all duration-200 ${!notification.read ? 'bg-blue-50/50' : ''} ${deletingId === notification.notification_id ? 'opacity-50 scale-95' : ''}`}
-                      >
-                        <div className="flex items-start gap-3">
-                          {/* Profile Picture */}
-                          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center flex-shrink-0 overflow-hidden ring-2 ring-white shadow-sm">
-                            {notification.profile_picture || notification.sender_profile_picture ? (
-                              <img 
-                                src={getBackendAssetUrl(notification.profile_picture || notification.sender_profile_picture)} 
-                                alt="Profile" 
-                                className="w-full h-full rounded-full object-cover"
-                              />
-                            ) : (
-                              <FiUser className="w-5 h-5 text-blue-600" />
-                            )}
-                          </div>
-                          <div 
-                            className="flex-1 min-w-0 cursor-pointer"
-                            onClick={() => {
-                              onNotificationClick(notification);
-                              setNotificationDropdownOpen(false);
-                            }}
-                          >
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <p className="text-sm font-semibold text-gray-900">
-                                {notification.sender_name || notification.firstname || notification.borrower_name || notification.student_name || 'Unknown'}
+                    filteredNotifications.map((notification) => {
+                      // Smart student name extraction from message (e.g. "Nelle Lopez submitted request...")
+                      const parsedNameMatch = String(notification.message || '').match(/^([A-Za-z\s.]+?)\s+(?:has\s+)?(?:submitted|requested|borrowed|canceled|cancelled|returned|claimed)/i);
+                      const msgName = parsedNameMatch ? parsedNameMatch[1].trim() : null;
+
+                      const isSchoolLike = (str) => {
+                        if (!str) return true;
+                        const s = str.toLowerCase();
+                        return s.includes('college') || s.includes('school') || s.includes('pampanga') || s.includes('gnc') || s.includes('src') || s.includes('desk') || s.includes('university');
+                      };
+
+                      const senderName = (msgName && isSchoolLike(notification.sender_name))
+                        ? msgName
+                        : (notification.student_name && !isSchoolLike(notification.student_name))
+                        ? notification.student_name
+                        : (notification.sender_name && !isSchoolLike(notification.sender_name))
+                        ? notification.sender_name
+                        : (msgName || notification.firstname || 'Student Borrower');
+
+                      const profilePic = notification.profile_picture || 
+                                         notification.sender_profile_picture || 
+                                         notification.student_profile_picture || 
+                                         notification.profile_image || 
+                                         null;
+
+                      const initials = senderName
+                        .split(' ')
+                        .filter(Boolean)
+                        .map(p => p[0])
+                        .slice(0, 2)
+                        .join('')
+                        .toUpperCase() || 'ST';
+
+                      const roleBadgeText = getRoleDisplay(notification.sender_role || notification.role || 'STUDENT', notification.school_code);
+                      const isUnread = !notification.read;
+
+                      return (
+                        <div
+                          key={notification.notification_id}
+                          className={`group relative px-3.5 py-3 transition-colors ${
+                            isUnread 
+                              ? 'bg-blue-50/60 hover:bg-blue-50' 
+                              : 'bg-white hover:bg-slate-50'
+                          } ${deletingId === notification.notification_id ? 'opacity-40' : ''}`}
+                        >
+                          <div className="flex items-start gap-3">
+                            {/* Compact Profile Avatar */}
+                            <div className="w-9 h-9 rounded-full text-white font-black text-[11px] flex items-center justify-center flex-shrink-0 overflow-hidden border border-slate-200 bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-xs relative">
+                              {profilePic ? (
+                                <img 
+                                  src={getBackendAssetUrl(profilePic)} 
+                                  alt={senderName} 
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    const fallback = e.currentTarget.parentElement.querySelector('.fallback-initials');
+                                    if (fallback) fallback.classList.remove('hidden');
+                                  }}
+                                />
+                              ) : null}
+                              <span className={`fallback-initials ${profilePic ? 'hidden' : 'flex items-center justify-center'}`}>
+                                {initials}
+                              </span>
+                            </div>
+
+                            {/* Info */}
+                            <div 
+                              className="flex-1 min-w-0 cursor-pointer"
+                              onClick={() => {
+                                notification.read = true;
+                                notification.is_read = true;
+                                onNotificationClick(notification);
+                                setNotificationDropdownOpen(false);
+                              }}
+                            >
+                              <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                                <p className="text-xs font-bold text-slate-900 truncate">
+                                  {senderName}
+                                </p>
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                                  roleBadgeText.includes('SUPER ADMIN') 
+                                    ? 'bg-purple-100 text-purple-800' 
+                                    : roleBadgeText.includes('ADMIN') 
+                                    ? 'bg-blue-100 text-blue-800' 
+                                    : roleBadgeText.includes('LIBRARIAN') 
+                                    ? 'bg-amber-100 text-amber-800' 
+                                    : 'bg-emerald-100 text-emerald-800'
+                                }`}>
+                                  {roleBadgeText}
+                                </span>
+                              </div>
+
+                              <p className="text-[11px] line-clamp-2 leading-relaxed font-normal text-slate-700">
+                                {notification.message || notification.title}
                               </p>
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                notification.sender_role === 'Super Admin' || notification.sender_role === 'SUPER ADMIN' ? 'bg-purple-100 text-purple-700' :
-                                notification.sender_role?.includes('Admin') || notification.sender_role?.includes('ADMIN') ? 'bg-blue-100 text-blue-700' :
-                                notification.sender_role === 'Student' || notification.sender_role === 'STUDENT' ? 'bg-green-100 text-green-700' :
-                                notification.sender_role === 'Librarian' || notification.sender_role === 'LIBRARIAN' ? 'bg-orange-100 text-orange-700' :
-                                'bg-gray-100 text-gray-600'
-                              }`}>
-                                {getRoleDisplay(notification.sender_role || notification.role, notification.school_code)}
-                              </span>
+
+                              <div className="flex items-center justify-between gap-1 mt-1.5">
+                                <span className="text-[10px] flex items-center gap-1 font-medium text-slate-500">
+                                  <FiClock className="w-2.5 h-2.5" />
+                                  {formatTimeAgo(notification.created_at)}
+                                </span>
+                                {isUnread && (
+                                  <span className="w-2 h-2 bg-blue-600 rounded-full ring-2 ring-blue-200" />
+                                )}
+                              </div>
                             </div>
-                            <p className="text-sm text-gray-700 line-clamp-2 leading-relaxed">{notification.message || notification.title}</p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <span className="text-xs text-gray-400 flex items-center gap-1">
-                                <FiClock className="w-3 h-3" />
-                                {formatTimeAgo(notification.created_at)}
-                              </span>
-                              {!notification.read && (
-                                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                              )}
-                            </div>
+
+                            {/* Delete icon */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setNotificationToDelete(notification);
+                                setShowDeleteConfirm(true);
+                              }}
+                              disabled={deletingId === notification.notification_id}
+                              className="p-1 rounded-md transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                              title="Delete"
+                            >
+                              <FiTrash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setNotificationToDelete(notification);
-                              setShowDeleteConfirm(true);
-                            }}
-                            disabled={deletingId === notification.notification_id}
-                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all duration-200 flex-shrink-0 opacity-0 group-hover:opacity-100 disabled:opacity-50"
-                            title="Delete notification"
-                          >
-                            {deletingId === notification.notification_id ? (
-                              <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <FiTrash2 className="w-4 h-4" />
-                            )}
-                          </button>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
-                    <div className="p-12 text-center">
-                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <FiBell className="w-8 h-8 text-gray-400" />
+                    <div className="p-8 text-center bg-white">
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2 bg-slate-100 text-slate-400">
+                        <FiBell className="w-5 h-5" />
                       </div>
-                      <p className="text-sm font-medium text-gray-900 mb-1">No notifications</p>
-                      <p className="text-xs text-gray-500">You're all caught up!</p>
+                      <p className="text-xs font-bold text-slate-800">No notifications</p>
+                      <p className="text-[10px] text-slate-500">You're all caught up!</p>
                     </div>
                   );
                 })()}
               </div>
 
+              {/* Minimal Footer */}
               {notifications && notifications.length > 0 && (
-                <div className="p-3 border-t border-gray-100 bg-gray-50 flex gap-2">
+                <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
                   <button
                     onClick={() => {
-                      onNotificationClick();
+                      if (onNotificationClick) onNotificationClick();
+                      else if (onNavigateTab) onNavigateTab('borrow-requests');
                       setNotificationDropdownOpen(false);
                     }}
-                    className="flex-1 px-4 py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    className="text-xs font-bold transition-colors text-blue-600 hover:text-blue-700"
                   >
                     View All
                   </button>
@@ -605,19 +789,10 @@ function GlobalHeader({
                     <button
                       onClick={() => setShowDeleteAllConfirm(true)}
                       disabled={deletingAll}
-                      className="flex-1 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                      className="text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 transition-colors"
                     >
-                      {deletingAll ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-                          Deleting...
-                        </>
-                      ) : (
-                        <>
-                          <FiTrash2 className="w-4 h-4" />
-                          Delete All
-                        </>
-                      )}
+                      <FiTrash2 className="w-3 h-3" />
+                      <span>Clear All</span>
                     </button>
                   )}
                 </div>
@@ -738,6 +913,53 @@ function GlobalHeader({
                   >
                     <FiSettings className="w-4 h-4 text-gray-500" />
                     <span>Account Settings</span>
+                  </button>
+                )}
+
+                {/* Role Switcher in Profile Menu */}
+                {isAdminLibrarian && isLibrarianAdminRoute && (
+                  <button
+                    onClick={() => {
+                      setProfileDropdownOpen(false);
+                      navigate('/librarian');
+                    }}
+                    className={`w-full px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center gap-2.5 transition-colors cursor-pointer ${
+                      darkMode ? 'text-blue-300 hover:bg-blue-950/50' : 'text-blue-700 hover:bg-blue-50'
+                    }`}
+                  >
+                    <FiRotateCcw className="w-4 h-4 text-blue-600" />
+                    <span>Switch to Circulation Desk</span>
+                  </button>
+                )}
+
+                {isAdminLibrarian && isLibrarianRoute && (
+                  <button
+                    onClick={() => {
+                      setProfileDropdownOpen(false);
+                      navigate('/librarian-admin');
+                    }}
+                    className={`w-full px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center gap-2.5 transition-colors cursor-pointer ${
+                      darkMode ? 'text-purple-300 hover:bg-purple-950/50' : 'text-purple-700 hover:bg-purple-50'
+                    }`}
+                  >
+                    <FiShield className="w-4 h-4 text-purple-600" />
+                    <span>Return to Admin Console</span>
+                  </button>
+                )}
+
+                {/* Switch to Student View */}
+                {isAdminLibrarian && (
+                  <button
+                    onClick={() => {
+                      setProfileDropdownOpen(false);
+                      navigate('/studentpage');
+                    }}
+                    className={`w-full px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center gap-2.5 transition-colors cursor-pointer ${
+                      darkMode ? 'text-emerald-300 hover:bg-emerald-950/50' : 'text-emerald-700 hover:bg-emerald-50'
+                    }`}
+                  >
+                    <FiExternalLink className="w-4 h-4 text-emerald-600" />
+                    <span>Switch to Student View</span>
                   </button>
                 )}
               </div>

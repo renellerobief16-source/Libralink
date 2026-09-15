@@ -190,7 +190,7 @@ router.get('/school/:school_id', auth, async (req, res) => {
 // @route   POST /api/users
 // @desc    Create new user
 // @access  Private (Super Admin, Librarian Admin for their school)
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, uploadProfile.single('profile_image'), async (req, res) => {
   try {
     const { role_id } = req.body;
     const userRole = req.user.role_name || req.user.role;
@@ -209,8 +209,13 @@ router.post('/', auth, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Unauthorized to create users' });
     }
 
-    const result = await User.create(req.body);
-    res.json({ success: true, data: result, message: 'User created successfully' });
+    const userData = { ...req.body };
+    if (req.file) {
+      userData.profile_image = `/uploads/profiles/${req.file.filename}`;
+    }
+
+    const result = await User.create(userData);
+    res.json({ success: true, data: result, message: 'User created successfully', profile_image: userData.profile_image });
   } catch (error) {
     console.error('Error creating user:', error);
     console.error('Error details:', error.message);
@@ -234,11 +239,16 @@ router.post('/', auth, async (req, res) => {
 // @route   PUT /api/users/:id
 // @desc    Update user
 // @access  Private
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth, uploadProfile.single('profile_image'), async (req, res) => {
   try {
-    const result = await User.update(req.params.id, req.body);
+    const updateData = { ...req.body };
+    if (req.file) {
+      updateData.profile_image = `/uploads/profiles/${req.file.filename}`;
+    }
+
+    const result = await User.update(req.params.id, updateData);
     if (result) {
-      res.json({ success: true, message: 'User updated successfully' });
+      res.json({ success: true, message: 'User updated successfully', profile_image: updateData.profile_image });
     } else {
       res.status(400).json({ success: false, message: 'No changes made' });
     }

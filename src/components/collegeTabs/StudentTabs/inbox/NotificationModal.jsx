@@ -25,6 +25,21 @@ function NotificationModal({ notification, requestDetails, loading, onClose }) {
             {notification.message}
           </p>
 
+          {/* Dedicated Alert Card for Due Reminders & Overdue */}
+          {(String(notification.type || '').toLowerCase().includes('due') || String(notification.type || '').toLowerCase().includes('overdue')) && (
+            <div className="mb-4 p-4 rounded-xl border bg-amber-50/80 border-amber-200 text-amber-950 space-y-2">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-amber-600" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800">Circulation Reminder Guidelines</h4>
+              </div>
+              <ul className="text-xs space-y-1.5 text-amber-900 list-disc list-inside">
+                <li>Visit the circulation desk at your campus library counter before the closing hours.</li>
+                <li>Bring your physical Student ID / Library Card when returning or requesting an extension/renewal.</li>
+                <li>Ensure the book is in good physical condition with intact barcode/accession tags.</li>
+              </ul>
+            </div>
+          )}
+
           {loading && (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
