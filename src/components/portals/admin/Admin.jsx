@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiHome, FiMail, FiLogOut, FiBook, FiUsers, FiList, FiCheckCircle, FiMoon, FiSun, FiSettings, FiGlobe, FiShield, FiDatabase, FiMonitor, FiSmartphone } from "react-icons/fi";
+import { FiHome, FiMail, FiLogOut, FiBook, FiUsers, FiList, FiCheckCircle, FiMoon, FiSun, FiSettings, FiGlobe, FiShield, FiDatabase, FiMonitor, FiSmartphone, FiChevronDown, FiActivity } from "react-icons/fi";
 import api, { getAdminNotifications, signOut } from "../../../utils/api";
 import { AlertOverlay, ConfirmationOverlay, GlobalHeader } from "../../common";
 import { SuperAdminDashboard, SuperAdminSchools, SuperAdminRoles, SuperAdminSettings, SuperAdminInbox, SuperAdminUsers, SuperAdminBooks, SuperAdminAnalytics } from "../../collegeTabs/SuperAdminTabs";
@@ -97,8 +97,7 @@ function Admin() {
   };
 
   const handleProfileClick = () => {
-    // SuperAdmin doesn't have a separate profile tab, could navigate to settings or show alert
-    alert('Profile feature coming soon');
+    alert('Super Admin profile management is synchronized with institutional credentials.');
   };
 
   const handleSettingsClick = () => {
@@ -165,35 +164,19 @@ function Admin() {
       {/* Mobile Access Blocked Screen */}
       {isMobile ? (
         <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-slate-100">
-          <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
-            <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <FiSmartphone className="w-10 h-10 text-red-500" />
+          <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center border border-slate-200">
+            <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-5 text-red-600">
+              <FiSmartphone className="w-8 h-8" />
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 mb-3">
-              Access Restricted
+            <h1 className="text-xl font-bold text-slate-900 mb-2">
+              Super Admin Console
             </h1>
-            <p className="text-slate-600 mb-6">
-              The Super Admin portal is only accessible on desktop computers, laptops, and tablets. Mobile devices are not supported.
+            <p className="text-xs text-slate-600 mb-6 leading-relaxed">
+              The Consortium Super Admin command console requires a larger display for operational monitoring, audit logs, and cross-campus analytics. Please use a desktop or laptop browser.
             </p>
-            <div className="bg-slate-50 rounded-xl p-4 mb-6">
-              <div className="flex items-center justify-center gap-4 text-slate-700">
-                <div className="flex flex-col items-center">
-                  <FiMonitor className="w-8 h-8 text-green-500 mb-2" />
-                  <span className="text-xs font-medium">Desktop</span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <FiMonitor className="w-8 h-8 text-green-500 mb-2" />
-                  <span className="text-xs font-medium">Laptop</span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <FiMonitor className="w-8 h-8 text-green-500 mb-2" />
-                  <span className="text-xs font-medium">Tablet</span>
-                </div>
-              </div>
-            </div>
             <button
               onClick={handleLogout}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition-colors shadow-sm"
             >
               Return to Login
             </button>
@@ -202,126 +185,126 @@ function Admin() {
       ) : (
         <div className="flex">
         {/* Sidebar - Desktop */}
-        <aside className={`fixed left-0 top-0 h-full w-64 z-50 hidden lg:block ${darkMode ? 'bg-gray-800 border-r border-gray-700' : 'bg-white border-r border-gray-200'}`}>
+        <aside className={`fixed left-0 top-0 h-full w-64 z-50 hidden lg:block ${darkMode ? 'bg-gray-800 border-r border-gray-700' : 'bg-white border-r border-slate-200/70'}`}>
           <div className="flex flex-col h-full">
-            {/* Brand Section */}
-            <div className={`p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+            {/* Minimalist Seamless Brand & Consortium Header */}
+            <div className="p-5 border-b border-slate-100">
               <div className="flex items-center gap-3">
-                <img src="/L.png" alt="Libralink Logo" className="w-9 h-9 rounded-lg object-cover" />
-                <div>
-                  <span className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>LibraLink</span>
-                  <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Super Admin</p>
+                <img src="/L.png" alt="Libralink Logo" className="w-8 h-8 rounded-lg object-cover shadow-xs" />
+                <div className="min-w-0 flex-1">
+                  <span className="text-base font-bold tracking-tight text-slate-900 block leading-tight">LibraLink</span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <p className="text-[11px] font-semibold text-emerald-600 truncate">Consortium Master</p>
+                  </div>
                 </div>
+              </div>
+              {/* Consortium Network Live Pulse */}
+              <div className="mt-3 px-2.5 py-1 rounded-lg bg-blue-50/80 border border-blue-100/80 flex items-center justify-between text-[10px]">
+                <span className="font-semibold text-blue-700 flex items-center gap-1">
+                  <FiActivity className="w-3 h-3 text-blue-600" />
+                  Network Status
+                </span>
+                <span className="font-bold text-blue-900">Multi-Campus Active</span>
               </div>
             </div>
 
             {/* Navigation */}
-            <div className="flex-1 overflow-y-auto py-4 px-3">
-              <nav className="space-y-1">
-                {sidebarItems.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveTab(item.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all duration-150 group relative ${
-                      activeTab === item.id
-                        ? darkMode
-                          ? 'text-white font-semibold bg-gray-700 border-l-2 border-blue-500'
-                          : 'text-gray-900 font-semibold bg-slate-50 border-l-2 border-blue-600'
-                        : darkMode
-                          ? 'text-gray-300 hover:text-white hover:bg-gray-700'
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="relative flex-shrink-0">
-                      <item.icon className={`w-5 h-5 ${activeTab === item.id ? (darkMode ? 'text-blue-400' : 'text-blue-600') : (darkMode ? 'text-gray-500 group-hover:text-gray-400' : 'text-gray-400 group-hover:text-gray-500')}`} />
+            <div className="flex-1 overflow-y-auto py-3 px-3 custom-scrollbar">
+              <nav className="space-y-0.5">
+                {sidebarItems.map((item) => {
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all duration-150 group cursor-pointer ${
+                        isActive
+                          ? 'bg-slate-100 text-slate-900 font-semibold shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <item.icon className={`w-4 h-4 shrink-0 transition-colors ${
+                          isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'
+                        }`} />
+                        <span className="truncate">{item.label}</span>
+                      </div>
                       {item.id === 'inbox' && unreadCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-medium">
+                        <span className={`px-1.5 py-0.2 text-[10px] font-bold rounded-full ${
+                          isActive ? 'bg-blue-600 text-white' : 'bg-rose-500 text-white'
+                        }`}>
                           {unreadCount > 9 ? '9+' : unreadCount}
                         </span>
                       )}
-                    </div>
-                    <span className="text-sm">{item.label}</span>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
 
                 {/* System Settings Dropdown */}
-                <div className="mt-2">
+                <div className="pt-2 mt-2 border-t border-slate-100">
                   <button
                     onClick={() => setSystemSettingsExpanded(!systemSettingsExpanded)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-md transition-all duration-150 group ${
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all duration-150 group cursor-pointer ${
                       systemSettingsExpanded || activeTab === 'system'
-                        ? darkMode
-                          ? 'text-white font-semibold bg-gray-700 border-l-2 border-blue-500'
-                          : 'text-gray-900 font-semibold bg-slate-50 border-l-2 border-blue-600'
-                        : darkMode
-                          ? 'text-gray-300 hover:text-white hover:bg-gray-700'
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-slate-50'
+                        ? 'bg-slate-100 text-slate-900 font-semibold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <FiSettings className={`w-5 h-5 ${systemSettingsExpanded || activeTab === 'system' ? (darkMode ? 'text-blue-400' : 'text-blue-600') : (darkMode ? 'text-gray-500 group-hover:text-gray-400' : 'text-gray-400 group-hover:text-gray-500')}`} />
-                      <span className="text-sm">System Settings</span>
+                      <FiSettings className={`w-4 h-4 ${
+                        systemSettingsExpanded || activeTab === 'system'
+                          ? 'text-blue-600'
+                          : 'text-slate-400 group-hover:text-slate-600'
+                      }`} />
+                      <span>System Settings</span>
                     </div>
-                    <svg
-                      className={`w-4 h-4 transition-transform ${systemSettingsExpanded ? 'rotate-180' : ''} ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
+                    <FiChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-150 ${systemSettingsExpanded ? 'rotate-180 text-slate-700' : ''}`} />
                   </button>
 
-                  {/* Dropdown Items */}
-                  {systemSettingsExpanded && (
-                    <div className="ml-6 mt-1 space-y-1 relative z-10 pointer-events-auto">
-                      {systemSettingsSections.map((section) => (
+                  {/* Dropdown Submenu */}
+                  <div className={`mt-1 space-y-0.5 pl-3 overflow-hidden transition-all duration-200 ${systemSettingsExpanded ? 'max-h-72 opacity-100 py-1' : 'max-h-0 opacity-0'}`}>
+                    {systemSettingsSections.map((section) => {
+                      const isSubActive = activeTab === 'system' && activeSystemSection === section.id;
+                      return (
                         <button
                           key={section.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
+                          onClick={() => {
                             setActiveSystemSection(section.id);
                             setActiveTab('system');
                           }}
-                          className={`w-full flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-150 text-sm cursor-pointer relative z-10 pointer-events-auto ${
-                            activeTab === 'system' && activeSystemSection === section.id
-                              ? darkMode
-                                ? 'text-blue-400 font-semibold bg-gray-700'
-                                : 'text-blue-600 font-semibold bg-blue-50'
-                              : darkMode
-                                ? 'text-gray-300 hover:text-white hover:bg-gray-700'
-                                : 'text-gray-600 hover:text-gray-900 hover:bg-slate-50'
+                          className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
+                            isSubActive
+                              ? 'bg-blue-50 text-blue-600 font-semibold'
+                              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-medium'
                           }`}
-                          style={{ pointerEvents: 'auto' }}
                         >
-                          {section.label}
+                          <span className="truncate">{section.label}</span>
                         </button>
-                      ))}
-                    </div>
-                  )}
+                      );
+                    })}
+                  </div>
                 </div>
               </nav>
             </div>
 
             {/* Bottom Section */}
-            <div className={`p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
-              {/* Dark Mode Toggle */}
+            <div className="p-3 border-t border-slate-100">
               <button
                 onClick={() => setDarkMode(!darkMode)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all duration-150 mb-2 ${darkMode ? 'text-gray-300 hover:text-white hover:bg-gray-700' : 'text-gray-600 hover:text-gray-900 hover:bg-slate-50'}`}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all mb-1"
               >
-                {darkMode ? <FiSun className="w-5 h-5 text-gray-400" /> : <FiMoon className="w-5 h-5 text-gray-400" />}
-                <span className="text-sm">{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                {darkMode ? <FiSun className="w-4 h-4 text-amber-500" /> : <FiMoon className="w-4 h-4 text-slate-400" />}
+                <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
               </button>
 
-            <button
-              onClick={handleLogout}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all duration-150 ${darkMode ? 'text-red-400 hover:bg-red-900/20' : 'text-red-600 hover:bg-red-50'}`}
-            >
-              <FiLogOut className="w-5 h-5" />
-              <span className="text-sm">Logout</span>
-            </button>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 hover:text-rose-700 transition-all"
+              >
+                <FiLogOut className="w-4 h-4 text-rose-500" />
+                <span>Logout</span>
+              </button>
             </div>
           </div>
         </aside>
@@ -402,14 +385,14 @@ function Admin() {
 
           {/* Page Content */}
           <div className="p-6 lg:p-8 pb-24 lg:pb-8">
-            {activeTab === 'home' && <SuperAdminDashboard darkMode={darkMode} onOpenInbox={() => setActiveTab('inbox')} />}
-            {activeTab === 'analytics' && <SuperAdminAnalytics darkMode={darkMode} />}
-            {activeTab === 'schools' && <SuperAdminSchools darkMode={darkMode} />}
-            {activeTab === 'roles' && <SuperAdminRoles darkMode={darkMode} />}
-            {activeTab === 'users' && <SuperAdminUsers darkMode={darkMode} />}
-            {activeTab === 'books' && <SuperAdminBooks darkMode={darkMode} />}
+            {activeTab === 'home' && <SuperAdminDashboard darkMode={darkMode} onNavigate={setActiveTab} onOpenInbox={() => setActiveTab('inbox')} />}
+            {activeTab === 'analytics' && <SuperAdminAnalytics darkMode={darkMode} onNavigate={setActiveTab} />}
+            {activeTab === 'schools' && <SuperAdminSchools darkMode={darkMode} onNavigate={setActiveTab} />}
+            {activeTab === 'roles' && <SuperAdminRoles darkMode={darkMode} onNavigate={setActiveTab} />}
+            {activeTab === 'users' && <SuperAdminUsers darkMode={darkMode} onNavigate={setActiveTab} />}
+            {activeTab === 'books' && <SuperAdminBooks darkMode={darkMode} onNavigate={setActiveTab} />}
             {activeTab === 'system' && <SuperAdminSettings darkMode={darkMode} initialSection={activeSystemSection} key={activeSystemSection} />}
-            {activeTab === 'inbox' && <SuperAdminInbox darkMode={darkMode} notifications={notifications} onNotificationsChange={handleNotificationsChange} />}
+            {activeTab === 'inbox' && <SuperAdminInbox darkMode={darkMode} notifications={notifications} onNotificationsChange={handleNotificationsChange} onNavigate={setActiveTab} />}
           </div>
         </main>
       </div>

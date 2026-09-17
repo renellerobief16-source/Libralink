@@ -17,6 +17,64 @@ router.get('/', auth, requireRole(['Super Admin', 'Librarian Admin', 'Librarian'
   }
 });
 
+// @route   GET /api/activity-logs/sessions
+// @desc    Get live login & logout authentication logs with user details
+// @access  Private (Super Admin, Librarian Admin, Librarian)
+router.get('/sessions', auth, requireRole(['Super Admin', 'Librarian Admin', 'Librarian']), async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit, 10) || 30;
+    const supabase = require('../config/database');
+
+    const { data, error } = await supabase
+      .from('activity_logs')
+      .select(`
+        log_id,
+        user_id,
+        school_id,
+        action,
+        activity_type,
+        description,
+        ip_address,
+        created_at,
+        users (
+          user_id,
+          firstname,
+          lastname,
+          email,
+          role,
+          role_name,
+          profile_image,
+          student_number,
+          employee_number,
+          schools (
+            school_id,
+            school_name,
+            school_code
+          )
+        )
+      `)
+      .or('activity_type.in.(login,logout),action.in.(login,logout),description.ilike.%signed in%,description.ilike.%signed out%')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.warn('[SESSIONS LOG] Query fallback due to error:', error.message);
+      const allLogs = await ActivityLog.getAll(limit);
+      const filtered = (allLogs || []).filter(l => 
+        l.activity_type === 'login' || l.activity_type === 'logout' ||
+        l.action === 'login' || l.action === 'logout' ||
+        (l.description && (l.description.toLowerCase().includes('signed in') || l.description.toLowerCase().includes('signed out') || l.description.toLowerCase().includes('login')))
+      );
+      return res.json({ success: true, data: filtered });
+    }
+
+    res.json({ success: true, data: data || [] });
+  } catch (error) {
+    console.error('Error fetching session logs:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // @route   GET /api/activity-logs/recent
 // @desc    Get recent activity logs
 // @access  Private

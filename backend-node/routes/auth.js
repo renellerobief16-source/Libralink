@@ -90,6 +90,37 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// @route   POST /api/auth/logout
+// @desc    Logout user and record logout event to activity_logs
+// @access  Private
+router.post('/logout', auth, async (req, res) => {
+  try {
+    const user = req.user;
+    if (user) {
+      try {
+        const ActivityLog = require('../models/ActivityLog');
+        const userFullName = [user.firstname, user.lastname].filter(Boolean).join(' ') || user.email || 'User';
+        const roleDisplayName = user.role_name || user.role || 'User';
+
+        await ActivityLog.create({
+          user_id: user.user_id,
+          school_id: user.school_id,
+          activity_type: 'logout',
+          action: 'logout',
+          description: `${userFullName} (${roleDisplayName}) signed out of Libralink`,
+          created_at: new Date().toISOString()
+        });
+      } catch (logErr) {
+        console.warn('[AUTH] Non-fatal logout log warning:', logErr.message);
+      }
+    }
+    res.json({ success: true, message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.json({ success: true });
+  }
+});
+
 // @route   POST /api/auth/register
 // @desc    Register new student under authenticated librarian's school
 // @access  Private (Librarian Admin, Librarian)

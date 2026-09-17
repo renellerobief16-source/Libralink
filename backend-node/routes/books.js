@@ -33,9 +33,9 @@ router.get('/', async (req, res) => {
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
     const searchTerm = String(req.query.q || '').trim().replace(/[(),]/g, ' ');
     const groupBooks = req.query.group === 'true'; // Enable grouping
-    
+
     console.log('[PUBLIC BOOKS] Fetching with limit:', limit, 'offset:', offset, 'group:', groupBooks);
-    
+
     let query = supabase
       .from('books')
       .select(`
@@ -52,34 +52,86 @@ router.get('/', async (req, res) => {
       `, { count: 'exact' })
       .order('title');
 
+    let data, error, count;
+
     if (searchTerm) {
-      const searchPattern = `%${searchTerm.replace(/[%_]/g, '')}%`;
-      query = query.or([
+      // Strip characters that break PostgREST .or() syntax like parentheses, commas, quotes
+      const sanitized = searchTerm.replace(/[(),"%_]/g, ' ').replace(/\s+/g, ' ').trim();
+      const searchPattern = `%${sanitized}%`;
+
+      const orExpr = [
         `title.ilike.${searchPattern}`,
         `author.ilike.${searchPattern}`,
         `isbn.ilike.${searchPattern}`,
         `call_number.ilike.${searchPattern}`,
         `shelf_location.ilike.${searchPattern}`,
-      ].join(','));
+      ].join(',');
+
+      const initialRes = await query.or(orExpr).range(offset, offset + limit - 1);
+      data = initialRes.data;
+      error = initialRes.error;
+      count = initialRes.count;
+
+      // Smart keyword fallback: if exact phrase has 0 results, try meaningful keyword tokens
+      if (!error && (!data || data.length === 0)) {
+        const stopWords = new Set(['and', 'the', 'for', 'with', 'from', 'into', 'about', 'standard', 'standards', 'edition', 'pfrs', 'ifrs']);
+        const tokens = sanitized
+          .split(/\s+/)
+          .filter(t => t.length >= 4 && !stopWords.has(t.toLowerCase()))
+          .slice(0, 3);
+
+        if (tokens.length > 0) {
+          const fallbackPatterns = tokens.map(t => `%${t}%`);
+          const tokenOrExpr = fallbackPatterns.flatMap(p => [
+            `title.ilike.${p}`,
+            `author.ilike.${p}`
+          ]).join(',');
+
+          let fallbackQuery = supabase
+            .from('books')
+            .select(`
+              book_id,
+              title,
+              author,
+              isbn,
+              shelf_location,
+              call_number,
+              school_id,
+              cover_image,
+              schools(school_name, school_code),
+              categories(category_name)
+            `, { count: 'exact' })
+            .order('title');
+
+          const fallbackRes = await fallbackQuery.or(tokenOrExpr).range(offset, offset + limit - 1);
+          if (!fallbackRes.error && fallbackRes.data && fallbackRes.data.length > 0) {
+            data = fallbackRes.data;
+            count = fallbackRes.count;
+          }
+        }
+      }
+    } else {
+      const res = await query.range(offset, offset + limit - 1);
+      data = res.data;
+      error = res.error;
+      count = res.count;
     }
 
-    const { data, error, count } = await query.range(offset, offset + limit - 1);
-    
     if (error) {
       console.error('[PUBLIC BOOKS] Supabase error:', error);
       throw error;
     }
-    
+
     console.log('[PUBLIC BOOKS] Books fetched:', data?.length || 0);
-    
+
     // If grouping is enabled, group books by title/author/ISBN and calculate availability
     let processedData = data || [];
     if (groupBooks && processedData.length > 0) {
       const bookMap = new Map();
-      
+
       for (const book of processedData) {
         const key = `${book.title}-${book.author || ''}-${book.isbn || ''}`;
-        
+
         if (!bookMap.has(key)) {
           bookMap.set(key, {
             ...book,
@@ -93,14 +145,14 @@ router.get('/', async (req, res) => {
           grouped.grouped_book_ids.push(book.book_id);
         }
       }
-      
+
       // Calculate availability for each grouped book
       for (const [key, groupedBook] of bookMap) {
         try {
           let availabilityData;
           try {
-            const result = await supabase.rpc('get_book_availability', { 
-              p_book_id: groupedBook.book_id 
+            const result = await supabase.rpc('get_book_availability', {
+              p_book_id: groupedBook.book_id
             });
             availabilityData = result.data;
           } catch (rpcError) {
@@ -109,18 +161,18 @@ router.get('/', async (req, res) => {
               .from('book_copies')
               .select('status')
               .eq('book_id', groupedBook.book_id);
-            
+
             const totalCopies = copies?.length || 0;
             const availableCopies = copies?.filter(c => c.status === 'available').length || 0;
             const borrowedCopies = copies?.filter(c => c.status === 'borrowed').length || 0;
-            
+
             availabilityData = [{
               total_copies: totalCopies,
               available_copies: availableCopies,
               borrowed_copies: borrowedCopies
             }];
           }
-          
+
           if (availabilityData && availabilityData.length > 0) {
             groupedBook.total_copies = availabilityData[0].total_copies;
             groupedBook.available_copies = availabilityData[0].available_copies;
@@ -137,10 +189,10 @@ router.get('/', async (req, res) => {
           groupedBook.is_available = false;
         }
       }
-      
+
       processedData = Array.from(bookMap.values());
     }
-    
+
     res.json({
       success: true,
       data: processedData,
@@ -196,7 +248,7 @@ router.get('/school', auth, async (req, res) => {
   const schoolId = req.query.school_id || req.query.schoolId || req.query.school;
   const currentStudentId = req.user?.student_id; // Get current logged-in student ID
   const groupBooks = req.query.group === 'true'; // Enable grouping
-  
+
   if (!schoolId) {
     return res.status(400).json({ success: false, message: 'school_id query parameter is required' });
   }
@@ -297,7 +349,7 @@ router.get('/school', auth, async (req, res) => {
       for (const book of books) {
         const clean = (s) => String(s || '').trim().toLowerCase();
         const key = `${clean(book.title)}:::${clean(book.author)}`;
-        
+
         if (!bookMap.has(key)) {
           bookMap.set(key, {
             ...book,
@@ -337,7 +389,7 @@ router.get('/school', auth, async (req, res) => {
               const bookTotal = hasCopies ? book.book_copies.length : (book.quantity ?? 1);
               const bookAvail = hasCopies ? book.book_copies.filter(c => c.status === 'available').length : (book.available_quantity ?? book.quantity ?? 1);
               const bookBorrowed = hasCopies ? book.book_copies.filter(c => c.status === 'borrowed').length : (book.borrowed_quantity ?? 0);
-              
+
               totalCopies += bookTotal;
               availableCopies += bookAvail;
               borrowedCopies += bookBorrowed;
@@ -371,10 +423,10 @@ router.get('/school', auth, async (req, res) => {
 
     // Add real-time status to each book (or grouped book)
     const booksWithStatus = processedData.map(book => {
-      const borrowItemsForBook = book.grouped_book_ids 
+      const borrowItemsForBook = book.grouped_book_ids
         ? borrowItems.filter(i => book.grouped_book_ids.includes(i.book_id))
         : (borrowStatusMap[book.book_id] || []);
-      
+
       const hasCopies = Array.isArray(book.book_copies) && book.book_copies.length > 0;
       const computedTotal = hasCopies ? book.book_copies.length : (book.quantity ?? 1);
       const computedAvail = hasCopies ? book.book_copies.filter(c => c.status === 'available').length : (book.available_quantity ?? book.quantity ?? 1);
@@ -383,7 +435,7 @@ router.get('/school', auth, async (req, res) => {
       const availableCopies = book.available_copies !== undefined ? book.available_copies : computedAvail;
       const totalCopies = book.total_copies !== undefined ? book.total_copies : computedTotal;
       const borrowedCopies = book.borrowed_copies !== undefined ? book.borrowed_copies : computedBorrowed;
-      
+
       // Determine overall status
       let status = 'available';
       let statusDetails = null;
@@ -452,8 +504,8 @@ router.get('/school', auth, async (req, res) => {
       };
     });
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: {
         books: booksWithStatus,
         total_books: count || 0,
@@ -508,7 +560,7 @@ router.get('/search-other-schools', auth, async (req, res) => {
 
     const normalizedTitle = String(title).trim();
     console.log('[INTER-SCHOOL SEARCH] Normalized title:', normalizedTitle);
-    
+
     if (!normalizedTitle) {
       console.log('[INTER-SCHOOL SEARCH] Empty normalized title');
       return res.json({ success: true, data: [] });
@@ -614,7 +666,7 @@ router.get('/search-other-schools', auth, async (req, res) => {
       const visitingFeeAmount = parseFloat(schoolSetting.visiting_fee_amount) || 0.00;
       const visitingFeeType = schoolSetting.visiting_fee_type || 'per_visit';
       const visitingPolicyNotes = schoolSetting.visiting_policy_notes || 'Visiting students from other consortium schools may review, read, and research this book on-site inside library premises.';
-      const interSchoolLibraryUseOnly = schoolSetting.inter_school_library_use_only !== undefined 
+      const interSchoolLibraryUseOnly = schoolSetting.inter_school_library_use_only !== undefined
         ? (schoolSetting.inter_school_library_use_only === true || schoolSetting.inter_school_library_use_only === 'true')
         : true;
 
@@ -670,6 +722,370 @@ router.get('/search-other-schools', auth, async (req, res) => {
     console.error('[INTER-SCHOOL SEARCH] Server error:', error);
     console.error('[INTER-SCHOOL SEARCH] Error stack:', error.stack);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
+// In-memory cache for aggregate consortium statistics (60s TTL)
+let consortiumStatsCache = null;
+let consortiumStatsExpiry = 0;
+
+async function getConsortiumStats() {
+  const now = Date.now();
+  if (consortiumStatsCache && now < consortiumStatsExpiry) {
+    return consortiumStatsCache;
+  }
+
+  try {
+    const { count: totalTitles } = await supabase
+      .from('books')
+      .select('*', { count: 'exact', head: true });
+
+    const { data: schoolBooks } = await supabase
+      .from('books')
+      .select('school_id, available_quantity, quantity, borrowed_quantity');
+
+    let totalCopies = 0;
+    let availableCopies = 0;
+    let borrowedCopies = 0;
+    const schoolCounts = {};
+
+    if (schoolBooks) {
+      for (const b of schoolBooks) {
+        const sid = String(b.school_id);
+        schoolCounts[sid] = (schoolCounts[sid] || 0) + 1;
+        const q = b.quantity ?? 1;
+        const aq = b.available_quantity ?? (q > 0 ? q : 1);
+        const bq = b.borrowed_quantity ?? Math.max(0, q - aq);
+        totalCopies += q;
+        availableCopies += aq;
+        borrowedCopies += bq;
+      }
+    }
+
+    const { data: allCats } = await supabase
+      .from('categories')
+      .select('*')
+      .order('category_name');
+
+    consortiumStatsCache = {
+      totalTitles: totalTitles || schoolBooks?.length || 0,
+      totalCopies,
+      availableCopies,
+      borrowedCopies,
+      schoolCounts,
+      categories: allCats || []
+    };
+    consortiumStatsExpiry = now + 60000;
+    return consortiumStatsCache;
+  } catch (err) {
+    console.error('[CONSORTIUM STATS] Error:', err);
+    return {
+      totalTitles: 0,
+      totalCopies: 0,
+      availableCopies: 0,
+      borrowedCopies: 0,
+      schoolCounts: {},
+      categories: []
+    };
+  }
+}
+
+// @route   GET /api/books/consortium-catalog
+// @desc    Consolidated multi-campus catalog with server-side pagination and filters (Super Admin)
+// @access  Private (Super Admin)
+router.get('/consortium-catalog', auth, requireRole(['Super Admin', 'Librarian Admin', 'Librarian']), async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const requestedLimit = parseInt(req.query.limit, 10) || 24;
+    const limit = Math.min(Math.max(requestedLimit, 6), 100);
+    const offset = (page - 1) * limit;
+
+    const schoolId = req.query.school_id && req.query.school_id !== 'all' ? req.query.school_id : null;
+    const categoryId = req.query.category_id && req.query.category_id !== 'all' ? req.query.category_id : null;
+    const status = req.query.status || 'all';
+    const searchTerm = String(req.query.q || req.query.search || '').trim();
+    const sort = req.query.sort || 'title_asc';
+
+    let query = supabase
+      .from('books')
+      .select(`
+        book_id,
+        title,
+        author,
+        isbn,
+        call_number,
+        shelf_location,
+        cover_image,
+        status,
+        school_id,
+        category_id,
+        quantity,
+        available_quantity,
+        borrowed_quantity,
+        created_at,
+        schools(school_id, school_name, school_code),
+        categories(category_id, category_name)
+      `, { count: 'exact' });
+
+    if (schoolId) {
+      query = query.eq('school_id', schoolId);
+    }
+
+    if (categoryId) {
+      query = query.eq('category_id', categoryId);
+    }
+
+    if (status === 'available') {
+      query = query.gt('available_quantity', 0);
+    } else if (status === 'borrowed') {
+      query = query.eq('available_quantity', 0);
+    } else if (status === 'low_stock') {
+      query = query.lte('available_quantity', 1).gt('available_quantity', 0);
+    } else if (status === 'archived') {
+      query = query.eq('status', 'archived');
+    }
+
+    if (searchTerm) {
+      const sanitized = searchTerm.replace(/[(),"%_]/g, ' ').replace(/\s+/g, ' ').trim();
+      const pattern = `%${sanitized}%`;
+      query = query.or(`title.ilike.${pattern},author.ilike.${pattern},isbn.ilike.${pattern},call_number.ilike.${pattern}`);
+    }
+
+    if (sort === 'title_desc') {
+      query = query.order('title', { ascending: false });
+    } else if (sort === 'newest') {
+      query = query.order('book_id', { ascending: false });
+    } else if (sort === 'copies_desc') {
+      query = query.order('available_quantity', { ascending: false });
+    } else if (sort === 'copies_asc') {
+      query = query.order('available_quantity', { ascending: true });
+    } else {
+      query = query.order('title', { ascending: true });
+    }
+
+    const groupBooks = req.query.group !== 'false';
+    const fetchLimit = groupBooks ? Math.min(limit * 3, 200) : limit;
+    const { data: books, count, error } = await query.range(offset, offset + fetchLimit - 1);
+
+    if (error) {
+      console.error('[CONSORTIUM CATALOG] Query error:', error);
+      return res.status(500).json({ success: false, message: 'Database query failed', error: error.message });
+    }
+
+    const stats = await getConsortiumStats();
+
+    let processedBooks = [];
+
+    if (groupBooks && books && books.length > 0) {
+      // Group by Title + School ID:
+      // Merges duplicate copies within the SAME school, while keeping different schools separate
+      const bookMap = new Map();
+
+      for (const b of books) {
+        const normalizedTitle = (b.title || '').trim().toLowerCase();
+        const groupKey = `${normalizedTitle}___${b.school_id}`;
+
+        const total = b.quantity ?? 1;
+        const avail = b.available_quantity ?? (total > 0 ? total : 1);
+        const borrowed = b.borrowed_quantity ?? Math.max(0, total - avail);
+
+        if (!bookMap.has(groupKey)) {
+          bookMap.set(groupKey, {
+            ...b,
+            available_copies: avail,
+            total_copies: total,
+            borrowed_copies: borrowed,
+            grouped_book_ids: [b.book_id],
+            copy_count: 1
+          });
+        } else {
+          const existing = bookMap.get(groupKey);
+          existing.total_copies += total;
+          existing.available_copies += avail;
+          existing.borrowed_copies += borrowed;
+          existing.grouped_book_ids.push(b.book_id);
+          existing.copy_count += 1;
+
+          if (!existing.cover_image && b.cover_image) {
+            existing.cover_image = b.cover_image;
+          }
+          if (!existing.isbn && b.isbn) {
+            existing.isbn = b.isbn;
+          }
+          if (!existing.call_number && b.call_number) {
+            existing.call_number = b.call_number;
+          }
+          if (!existing.shelf_location && b.shelf_location) {
+            existing.shelf_location = b.shelf_location;
+          }
+        }
+      }
+
+      processedBooks = Array.from(bookMap.values()).map(b => {
+        const isAvail = b.available_copies > 0;
+        return {
+          ...b,
+          status: isAvail ? 'Available' : 'Borrowed',
+          is_available: isAvail
+        };
+      }).slice(0, limit);
+    } else {
+      processedBooks = (books || []).map(b => {
+        const total = b.quantity ?? 1;
+        const avail = b.available_quantity ?? (total > 0 ? total : 1);
+        const borrowed = b.borrowed_quantity ?? Math.max(0, total - avail);
+        const isAvail = avail > 0;
+        return {
+          ...b,
+          available_copies: avail,
+          total_copies: total,
+          borrowed_copies: borrowed,
+          status: isAvail ? 'Available' : 'Borrowed',
+          is_available: isAvail,
+          grouped_book_ids: [b.book_id],
+          copy_count: 1
+        };
+      });
+    }
+
+    res.json({
+      success: true,
+      data: processedBooks,
+      pagination: {
+        total: count || 0,
+        page,
+        limit,
+        totalPages: Math.ceil((count || 0) / limit) || 1,
+        hasMore: offset + processedBooks.length < (count || 0)
+      },
+      stats
+    });
+  } catch (error) {
+    console.error('[CONSORTIUM CATALOG] Server error:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
+// @route   POST /api/books/consortium-transfer
+// @desc    Inter-Campus Book Transfer Dispatch (Super Admin only)
+// @access  Private (Super Admin)
+router.post('/consortium-transfer', auth, requireRole(['Super Admin']), async (req, res) => {
+  try {
+    const { source_book_id, from_school_id, to_school_id, quantity = 1, notes = '' } = req.body;
+    const transferQty = Math.max(parseInt(quantity, 10) || 1, 1);
+
+    if (!source_book_id || !from_school_id || !to_school_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Source book ID, source school ID, and destination school ID are required.'
+      });
+    }
+
+    if (String(from_school_id) === String(to_school_id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Source school and destination school cannot be the same.'
+      });
+    }
+
+    // 1. Fetch source book
+    const { data: sourceBook, error: srcErr } = await supabase
+      .from('books')
+      .select('*')
+      .eq('book_id', source_book_id)
+      .single();
+
+    if (srcErr || !sourceBook) {
+      return res.status(404).json({ success: false, message: 'Source book not found.' });
+    }
+
+    const currentAvail = sourceBook.available_copies ?? 1;
+    const currentTotal = sourceBook.total_copies ?? 1;
+
+    if (currentAvail < transferQty) {
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient available copies at source school. Available: ${currentAvail}, Requested: ${transferQty}`
+      });
+    }
+
+    // 2. Check if destination school already has a book with the same ISBN or Title
+    let destBookQuery = supabase
+      .from('books')
+      .select('*')
+      .eq('school_id', to_school_id);
+
+    if (sourceBook.isbn && sourceBook.isbn.trim()) {
+      destBookQuery = destBookQuery.eq('isbn', sourceBook.isbn.trim());
+    } else {
+      destBookQuery = destBookQuery.ilike('title', sourceBook.title.trim());
+    }
+
+    const { data: existingDestBooks } = await destBookQuery;
+    let targetBook = existingDestBooks && existingDestBooks.length > 0 ? existingDestBooks[0] : null;
+
+    // 3. Decrement source book copies
+    const newSrcAvail = Math.max(currentAvail - transferQty, 0);
+    const newSrcTotal = Math.max(currentTotal - transferQty, 0);
+    const srcStatus = newSrcAvail === 0 ? 'Borrowed' : sourceBook.status;
+
+    await supabase
+      .from('books')
+      .update({
+        available_quantity: newSrcAvail,
+        quantity: newSrcTotal,
+        status: srcStatus
+      })
+      .eq('book_id', source_book_id);
+
+    // 4. Update or Insert destination book
+    if (targetBook) {
+      const newDestAvail = (targetBook.available_quantity ?? targetBook.available_copies ?? 0) + transferQty;
+      const newDestTotal = (targetBook.quantity ?? targetBook.total_copies ?? 0) + transferQty;
+      await supabase
+        .from('books')
+        .update({
+          available_quantity: newDestAvail,
+          quantity: newDestTotal,
+          status: 'Available'
+        })
+        .eq('book_id', targetBook.book_id);
+    } else {
+      const newBookData = {
+        title: sourceBook.title,
+        author: sourceBook.author,
+        isbn: sourceBook.isbn,
+        call_number: sourceBook.call_number,
+        shelf_location: 'Inter-Library Receiving Shelf',
+        edition: sourceBook.edition,
+        category_id: sourceBook.category_id,
+        description: sourceBook.description,
+        cover_image: sourceBook.cover_image,
+        school_id: to_school_id,
+        available_quantity: transferQty,
+        quantity: transferQty,
+        status: 'Available',
+        created_at: new Date().toISOString()
+      };
+      await supabase
+        .from('books')
+        .insert(newBookData);
+    }
+
+    res.json({
+      success: true,
+      message: `Successfully transferred ${transferQty} copy/copies of "${sourceBook.title}" to target campus.`,
+      transfer: {
+        title: sourceBook.title,
+        quantity: transferQty,
+        from_school_id,
+        to_school_id,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('[CONSORTIUM TRANSFER] Server error:', error);
+    res.status(500).json({ success: false, message: 'Server error during transfer dispatch', error: error.message });
   }
 });
 
@@ -768,7 +1184,7 @@ router.post('/', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBook
     }
 
     const book_id = await Book.create(bookData);
-    
+
     // Create physical copies in book_copies
     if (initialQty > 0) {
       console.log('[CREATE BOOK] Creating', initialQty, 'copies for book:', book_id);
@@ -783,7 +1199,7 @@ router.post('/', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBook
       const { error: copiesError } = await supabase
         .from('book_copies')
         .insert(copiesToInsert);
-      
+
       if (copiesError) {
         console.error('[CREATE BOOK] Error creating copies:', copiesError);
       }
@@ -935,9 +1351,9 @@ router.put('/:id', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBo
       const finalAvail = availCount !== null && availCount !== undefined ? availCount : targetQty;
       await supabase
         .from('books')
-        .update({ 
+        .update({
           quantity: targetQty,
-          available_quantity: finalAvail 
+          available_quantity: finalAvail
         })
         .eq('book_id', bookId);
     }
@@ -978,7 +1394,7 @@ router.delete('/:id', auth, requireRole(['Super Admin', 'Librarian Admin', 'Libr
 router.get('/:id/availability', async (req, res) => {
   try {
     console.log('[AVAILABILITY] Getting availability for book:', req.params.id);
-    
+
     // Try to use the new availability function
     let data, error;
     try {
@@ -989,7 +1405,7 @@ router.get('/:id/availability', async (req, res) => {
       console.log('[AVAILABILITY] RPC function not available, using fallback');
       error = rpcError;
     }
-    
+
     // Fallback: Count copies directly if function doesn't exist
     if (error || !data || data.length === 0) {
       console.log('[AVAILABILITY] Using fallback method');
@@ -997,18 +1413,18 @@ router.get('/:id/availability', async (req, res) => {
         .from('book_copies')
         .select('status')
         .eq('book_id', req.params.id);
-      
+
       if (copiesError) {
         console.error('[AVAILABILITY] Fallback error:', copiesError);
         return res.status(500).json({ success: false, message: 'Server error', error: copiesError.message });
       }
-      
+
       const totalCopies = copies?.length || 0;
       const availableCopies = copies?.filter(c => c.status === 'available').length || 0;
       const borrowedCopies = copies?.filter(c => c.status === 'borrowed').length || 0;
-      
-      return res.json({ 
-        success: true, 
+
+      return res.json({
+        success: true,
         data: {
           total_copies: totalCopies,
           available_copies: availableCopies,
@@ -1020,13 +1436,13 @@ router.get('/:id/availability', async (req, res) => {
         }
       });
     }
-    
+
     const availability = data[0];
     const availabilityRatio = `${availability.available_copies}/${availability.total_copies}`;
     const isAvailable = availability.available_copies > 0;
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       data: {
         ...availability,
         availability_ratio: availabilityRatio,
@@ -1123,7 +1539,7 @@ router.get('/:id/borrowers', async (req, res) => {
       const studentId = student?.user_id || tx.student_id;
       const key = `user_${studentId}_borrowed`;
       const username = student?.username || (student?.firstname ? `${student.firstname} ${student.lastname || ''}`.trim() : 'Anonymous Student');
-      
+
       borrowerMap.set(key, {
         id: `tx-${tx.borrow_id}`,
         user_id: studentId,
@@ -1144,7 +1560,7 @@ router.get('/:id/borrowers', async (req, res) => {
       const reqInfo = item.borrow_requests;
       const student = reqInfo?.student;
       const studentId = student?.user_id || reqInfo?.student_id;
-      
+
       // Determine normalized status and label
       let normStatus = 'requested';
       let statusLabel = 'Requested';
@@ -1348,7 +1764,7 @@ router.get('/:id/borrow-summary', auth, async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (reqErr) console.error('[BORROW SUMMARY] Error fetching request items:', reqErr);
-    console.log(`[BORROW-SUMMARY] requestItems count=${(requestItems||[]).length}, statuses=${(requestItems||[]).map(i=>i.status||i.item_status).join(',')}`);
+    console.log(`[BORROW-SUMMARY] requestItems count=${(requestItems || []).length}, statuses=${(requestItems || []).map(i => i.status || i.item_status).join(',')}`);
     console.log(`[BORROW-SUMMARY] transactions count=${allTransactions.length}`);
 
 

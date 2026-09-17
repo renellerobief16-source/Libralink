@@ -183,6 +183,9 @@ export function clearAuthStorage() {
 
 export async function signOut() {
   try {
+    try {
+      await api.post('/auth/logout');
+    } catch (_) {}
     clearAuthStorage();
     window.dispatchEvent(new Event('libralink-user-changed'));
     return { data: null, error: null };

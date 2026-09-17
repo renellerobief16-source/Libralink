@@ -2427,6 +2427,36 @@ function AdminBorrowRequests() {
                 </div>
               </div>
 
+              {/* Target Student Identity with Profile Picture */}
+              {(() => {
+                const targetReq = borrowRequests.find(r => r.request_id === requestToProcess) || interSchoolRequests.find(r => (r.borrow_request?.request_id || r.request_id) === requestToProcess);
+                if (!targetReq) return null;
+                const ident = getRequestStudentIdentity(targetReq);
+                return (
+                  <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200/80 mb-5">
+                    {ident.profilePicture ? (
+                      <img
+                        src={getBackendAssetUrl(ident.profilePicture)}
+                        alt={ident.name}
+                        className="w-11 h-11 rounded-xl object-cover border border-slate-200 shrink-0 shadow-2xs"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs ${ident.profilePicture ? 'hidden' : 'flex'}`}>
+                      {(ident.name || 'S').charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xs font-bold text-slate-900 truncate">{ident.name}</h4>
+                      <p className="text-[11px] font-mono text-slate-500 truncate">ID: {targetReq.student?.student_number || targetReq.student_id || 'N/A'}</p>
+                      <p className="text-[10px] text-slate-400 truncate">{targetReq.student?.department || targetReq.student?.college || 'Student Borrower'}</p>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Context message */}
               <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mb-6">
                 <p className="text-sm text-emerald-900 leading-relaxed">
