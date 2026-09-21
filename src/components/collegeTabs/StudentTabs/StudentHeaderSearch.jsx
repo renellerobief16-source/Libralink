@@ -274,6 +274,12 @@ export function StudentHeaderSearch({ className = "" }) {
 
   // Fetch partner school books with debounce when query is typed (1-letter trigger)
   useEffect(() => {
+    if (isHomePage) {
+      setPartnerBooks([]);
+      setSearchingPartner(false);
+      return undefined;
+    }
+
     const trimmed = searchQuery.trim();
     if (trimmed.length < 1) {
       setPartnerBooks([]);
@@ -299,7 +305,7 @@ export function StudentHeaderSearch({ className = "" }) {
     }, 140);
 
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, isHomePage]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -590,8 +596,8 @@ export function StudentHeaderSearch({ className = "" }) {
         ref={inputRef}
         type="text"
         value={searchQuery}
-        placeholder={isHomePage ? "Search books, authors…" : "Search books, authors, ISBN…"}
-        aria-label="Search student portal"
+        placeholder={isHomePage ? "Search controls, tabs, and settings..." : "Search books, authors, ISBN…"}
+        aria-label={isHomePage ? "Search controls, tabs, and settings" : "Search student portal"}
         onChange={handleInputChange}
         onFocus={() => setIsOpen(true)}
         onKeyDown={(e) => {
