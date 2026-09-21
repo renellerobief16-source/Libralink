@@ -104,38 +104,18 @@ router.get('/my-requests', auth, requireRole(['Student']), async (req, res) => {
   }
 });
 
-// @route   GET /api/borrow-requests/:id
-// @desc    Get borrowing request by ID
+// @route   GET /api/borrow-requests/inter-school-status
+// @desc    Get all inter-school request statuses for badge checking
 // @access  Private
-router.get('/:id', auth, async (req, res) => {
+router.get('/inter-school-status', auth, async (req, res) => {
   try {
-    const request = await BorrowRequest.getById(req.params.id);
-    if (!request) {
-      return res.status(404).json({ success: false, message: 'Request not found' });
-    }
-
-    // Check authorization
-    const userRole = (req.user.role_name || req.user.role || '').toLowerCase();
-    const isStudent = userRole === 'student';
-    const isLibrarian = userRole === 'librarian' || userRole === 'librarian admin';
-    const isSuperAdmin = userRole === 'super admin';
-
-    if (isStudent && request.student_id !== req.user.user_id) {
-      return res.status(403).json({ success: false, message: 'Unauthorized' });
-    }
-
-    if (isLibrarian && request.home_school_id !== req.user.school_id) {
-      // Check if librarian is from partner school
-      const hasPartnerItems = request.items?.some(item => String(item.partner_school_id) === String(req.user.school_id));
-      if (!hasPartnerItems) {
-        return res.status(403).json({ success: false, message: 'Unauthorized' });
-      }
-    }
-
-    res.json({ success: true, data: request });
+    console.log('[BORROW REQUESTS] Fetching inter-school status for student:', req.user?.user_id);
+    const requests = await BorrowRequest.getInterSchoolStatusesByStudent(req.user.user_id);
+    res.json({ success: true, data: requests || [] });
   } catch (error) {
-    console.error('[BORROW REQUESTS] Error getting request:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('[BORROW REQUESTS] Error getting inter-school status:', error);
+    // Return empty array instead of 500 to prevent UI blocking
+    res.json({ success: true, data: [] });
   }
 });
 
@@ -167,20 +147,58 @@ router.get('/partner/:school_id', auth, requireRole(['Librarian', 'Librarian Adm
   }
 });
 
-// @route   GET /api/borrow-requests/inter-school-status
-// @desc    Get all inter-school request statuses for badge checking
-// @access  Private
-router.get('/inter-school-status', auth, async (req, res) => {
+// @route   GET /api/borrow-requests/partner-schools/:book_id
+// @desc    Get partner schools that have a specific book available
+// @access  Private (Student)
+router.get('/partner-schools/:book_id', auth, requireRole(['Student']), async (req, res) => {
   try {
-    console.log('[BORROW REQUESTS] Fetching inter-school status');
-    const requests = await BorrowRequest.getInterSchoolStatusesByStudent(req.user.user_id);
-    console.log('[BORROW REQUESTS] Inter-school status fetched:', requests);
-    res.json({ success: true, data: requests });
+    const home_school_id = req.user.school_id;
+    const schools = await BorrowRequest.getPartnerSchoolsForBook(req.params.book_id, home_school_id);
+    res.json({ success: true, data: schools });
   } catch (error) {
-    console.error('[BORROW REQUESTS] Error getting inter-school status:', error);
-    console.error('[BORROW REQUESTS] Error details:', error.message);
-    // Return empty array instead of 500 to prevent UI blocking
-    res.json({ success: true, data: [] });
+    console.error('[BORROW REQUESTS] Error getting partner schools:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// @route   GET /api/borrow-requests/:id
+// @desc    Get borrowing request by ID
+// @access  Private
+router.get('/:id', auth, async (req, res, next) => {
+  try {
+    // Guard against non-ID sub-paths
+    const reservedSubpaths = ['inter-school-status', 'school', 'partner', 'partner-schools', 'my-requests', 'student', 'scan'];
+    if (reservedSubpaths.includes(req.params.id)) {
+      return next();
+    }
+
+    const request = await BorrowRequest.getById(req.params.id);
+    if (!request) {
+      return res.status(404).json({ success: false, message: 'Request not found' });
+    }
+
+    // Check authorization
+    const userRole = (req.user.role_name || req.user.role || '').toLowerCase();
+    const isStudent = userRole === 'student';
+    const isLibrarian = userRole === 'librarian' || userRole === 'librarian admin';
+    const isSuperAdmin = userRole === 'super admin';
+
+    if (isStudent && request.student_id !== req.user.user_id) {
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+
+    if (isLibrarian && request.home_school_id !== req.user.school_id) {
+      // Check if librarian is from partner school
+      const hasPartnerItems = request.items?.some(item => String(item.partner_school_id) === String(req.user.school_id));
+      if (!hasPartnerItems) {
+        return res.status(403).json({ success: false, message: 'Unauthorized' });
+      }
+    }
+
+    res.json({ success: true, data: request });
+  } catch (error) {
+    console.error('[BORROW REQUESTS] Error getting request:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
@@ -830,20 +848,6 @@ router.put('/:id/decline-cancellation', auth, requireRole(['Librarian', 'Librari
     res.json({ success: true, message: 'Cancellation request declined, reservation remains active', data: result });
   } catch (error) {
     console.error('[BORROW REQUESTS] Error declining cancellation:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
-// @route   GET /api/borrow-requests/partner-schools/:book_id
-// @desc    Get partner schools that have a specific book available
-// @access  Private (Student)
-router.get('/partner-schools/:book_id', auth, requireRole(['Student']), async (req, res) => {
-  try {
-    const home_school_id = req.user.school_id;
-    const schools = await BorrowRequest.getPartnerSchoolsForBook(req.params.book_id, home_school_id);
-    res.json({ success: true, data: schools });
-  } catch (error) {
-    console.error('[BORROW REQUESTS] Error getting partner schools:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
