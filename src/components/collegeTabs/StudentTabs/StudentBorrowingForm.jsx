@@ -150,12 +150,22 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, com
       );
       const requestType = hasInterSchoolItems ? 'INTER_SCHOOL' : 'HOME';
 
-      const items = borrowingList.map((item) => ({
-        book_id: item.book_id,
-        owner_school_id: item.owner_school_id,
-        partner_school_id: item.partner_school_id || null,
-        borrow_type: item.borrow_type,
-      }));
+      const items = borrowingList.map((item) => {
+        const rawId = item.book_id ?? item.id ?? item.book?.id ?? item.book?.book_id;
+        const resolvedBookId = Number(rawId);
+        return {
+          book_id: resolvedBookId,
+          owner_school_id: Number(item.owner_school_id || item.school_id),
+          partner_school_id: item.partner_school_id ? Number(item.partner_school_id) : null,
+          borrow_type: item.borrow_type || 'HOME',
+        };
+      });
+
+      // Strict upfront check: ensure no null/NaN/0 book_id reaches the server
+      const hasInvalidItem = items.some((it) => !it.book_id || isNaN(it.book_id) || it.book_id <= 0);
+      if (hasInvalidItem) {
+        throw new Error('One or more selected books have invalid ID data. Please refresh and re-select the books.');
+      }
 
       const requestData = {
         request_type: requestType,

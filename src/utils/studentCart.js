@@ -3,11 +3,42 @@ import { useNavigate, useLocation } from "react-router-dom";
 
 /**
  * Returns current items from localStorage "borrowingList"
+ * with automatic cleansing of corrupted/missing book_id entries.
  */
 export function getBorrowingCartItems() {
   try {
-    const saved = JSON.parse(localStorage.getItem("borrowingList") || "[]");
-    return Array.isArray(saved) ? saved : [];
+    const raw = localStorage.getItem("borrowingList");
+    if (!raw) return [];
+    const saved = JSON.parse(raw);
+    if (!Array.isArray(saved)) return [];
+
+    let hasCorruptedItems = false;
+    const validItems = [];
+
+    for (const item of saved) {
+      if (!item || typeof item !== "object") {
+        hasCorruptedItems = true;
+        continue;
+      }
+      const rawId = item.book_id ?? item.id ?? item.book?.id ?? item.book?.book_id;
+      const numId = Number(rawId);
+      if (!numId || isNaN(numId)) {
+        hasCorruptedItems = true;
+        continue;
+      }
+      validItems.push({
+        ...item,
+        book_id: numId,
+      });
+    }
+
+    // Auto-heal localStorage if any corrupted/invalid items were found
+    if (hasCorruptedItems) {
+      localStorage.setItem("borrowingList", JSON.stringify(validItems));
+      window.dispatchEvent(new Event("borrowing-list-changed"));
+    }
+
+    return validItems;
   } catch {
     return [];
   }

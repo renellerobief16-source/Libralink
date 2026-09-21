@@ -67,7 +67,7 @@ export const STUDENT_NAVIGATION_CONTROLLERS = [
     path: "/studentpage/search",
     icon: BookOpen,
     badge: "Catalog",
-    badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
+    badgeColor: "bg-slate-100 text-slate-600 border-slate-200",
   },
   {
     id: "nav-home",
@@ -78,7 +78,7 @@ export const STUDENT_NAVIGATION_CONTROLLERS = [
     path: "/studentpage",
     icon: Home,
     badge: "Dashboard",
-    badgeColor: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    badgeColor: "bg-slate-100 text-slate-600 border-slate-200",
   },
   {
     id: "nav-favorites",
@@ -89,7 +89,7 @@ export const STUDENT_NAVIGATION_CONTROLLERS = [
     path: "/studentpage/favorites",
     icon: Heart,
     badge: "Saved",
-    badgeColor: "bg-rose-50 text-rose-700 border-rose-200",
+    badgeColor: "bg-slate-100 text-slate-600 border-slate-200",
   },
   {
     id: "nav-history",
@@ -100,7 +100,7 @@ export const STUDENT_NAVIGATION_CONTROLLERS = [
     path: "/studentpage/history",
     icon: Clock,
     badge: "History",
-    badgeColor: "bg-amber-50 text-amber-700 border-amber-200",
+    badgeColor: "bg-slate-100 text-slate-600 border-slate-200",
   },
   {
     id: "nav-inbox",
@@ -111,7 +111,7 @@ export const STUDENT_NAVIGATION_CONTROLLERS = [
     path: "/studentpage/inbox",
     icon: Mail,
     badge: "Alerts",
-    badgeColor: "bg-purple-50 text-purple-700 border-purple-200",
+    badgeColor: "bg-slate-100 text-slate-600 border-slate-200",
   },
   {
     id: "nav-cart",
@@ -123,7 +123,7 @@ export const STUDENT_NAVIGATION_CONTROLLERS = [
     path: "/studentpage/search?cart=open",
     icon: ShoppingCart,
     badge: "Borrow List",
-    badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    badgeColor: "bg-slate-100 text-slate-600 border-slate-200",
   },
   {
     id: "nav-profile",
@@ -134,7 +134,7 @@ export const STUDENT_NAVIGATION_CONTROLLERS = [
     path: "/studentpage/profile",
     icon: User,
     badge: "ID Card",
-    badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    badgeColor: "bg-slate-100 text-slate-600 border-slate-200",
   },
   {
     id: "nav-settings",
@@ -145,7 +145,7 @@ export const STUDENT_NAVIGATION_CONTROLLERS = [
     path: "/studentpage/settings",
     icon: Settings,
     badge: "Settings",
-    badgeColor: "bg-slate-100 text-slate-700 border-slate-300",
+    badgeColor: "bg-slate-100 text-slate-600 border-slate-200",
   },
   {
     id: "nav-password",
@@ -156,7 +156,7 @@ export const STUDENT_NAVIGATION_CONTROLLERS = [
     path: "/studentpage/change-password",
     icon: ShieldCheck,
     badge: "Security",
-    badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
+    badgeColor: "bg-slate-100 text-slate-600 border-slate-200",
   },
   {
     id: "nav-help",
@@ -167,7 +167,7 @@ export const STUDENT_NAVIGATION_CONTROLLERS = [
     path: "/studentpage/help",
     icon: HelpCircle,
     badge: "Help",
-    badgeColor: "bg-cyan-50 text-cyan-700 border-cyan-200",
+    badgeColor: "bg-slate-100 text-slate-600 border-slate-200",
   },
   {
     id: "nav-about",
@@ -205,12 +205,12 @@ export const STUDENT_NAVIGATION_CONTROLLERS = [
 ];
 
 const POPULAR_TOPICS = [
-  { name: "Nursing & Health", query: "Nursing", icon: Stethoscope, color: "text-rose-600 bg-rose-50 border-rose-200 hover:bg-rose-100" },
-  { name: "Technology & IT", query: "Technology", icon: Cpu, color: "text-blue-600 bg-blue-50 border-blue-200 hover:bg-blue-100" },
-  { name: "Business & Finance", query: "Business", icon: BriefcaseBusiness, color: "text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100" },
-  { name: "Literature & Fiction", query: "Literature", icon: Book, color: "text-emerald-600 bg-emerald-50 border-emerald-200 hover:bg-emerald-100" },
-  { name: "Law & Justice", query: "Law", icon: Scale, color: "text-purple-600 bg-purple-50 border-purple-200 hover:bg-purple-100" },
-  { name: "Science & Math", query: "Science", icon: FlaskConical, color: "text-teal-600 bg-teal-50 border-teal-200 hover:bg-teal-100" },
+  { name: "Nursing & Health", query: "Nursing", icon: Stethoscope, color: "text-slate-700 bg-slate-100/90 border-slate-200/80 hover:bg-slate-200/90" },
+  { name: "Technology & IT", query: "Technology", icon: Cpu, color: "text-slate-700 bg-slate-100/90 border-slate-200/80 hover:bg-slate-200/90" },
+  { name: "Business & Finance", query: "Business", icon: BriefcaseBusiness, color: "text-slate-700 bg-slate-100/90 border-slate-200/80 hover:bg-slate-200/90" },
+  { name: "Literature & Fiction", query: "Literature", icon: Book, color: "text-slate-700 bg-slate-100/90 border-slate-200/80 hover:bg-slate-200/90" },
+  { name: "Law & Justice", query: "Law", icon: Scale, color: "text-slate-700 bg-slate-100/90 border-slate-200/80 hover:bg-slate-200/90" },
+  { name: "Science & Math", query: "Science", icon: FlaskConical, color: "text-slate-700 bg-slate-100/90 border-slate-200/80 hover:bg-slate-200/90" },
 ];
 
 export function StudentHeaderSearch({ className = "" }) {
@@ -240,50 +240,6 @@ export function StudentHeaderSearch({ className = "" }) {
   const [searchingPartner, setSearchingPartner] = useState(false);
   const containerRef = useRef(null);
   const inputRef = useRef(null);
-  const [dropdownStyle, setDropdownStyle] = useState({});
-
-  // Recalculate dropdown position whenever open state or window size changes
-  useLayoutEffect(() => {
-    if (!isOpen || !containerRef.current) return;
-    const updatePosition = () => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-
-      if (viewportWidth < 640) {
-        // Full-width on mobile with 10px margins so content is never squished
-        const margin = 10;
-        setDropdownStyle({
-          position: 'fixed',
-          top: rect.bottom + 8,
-          left: margin,
-          width: viewportWidth - margin * 2,
-          maxHeight: `calc(100vh - ${rect.bottom + 16}px)`,
-          zIndex: 9999,
-        });
-      } else {
-        // Desktop/Tablet: generous width (at least 520px or rect.width)
-        const targetWidth = Math.max(rect.width, 520);
-        const margin = 16;
-        let left = rect.left;
-        if (left + targetWidth > viewportWidth - margin) {
-          left = Math.max(margin, viewportWidth - targetWidth - margin);
-        }
-        setDropdownStyle({
-          position: 'fixed',
-          top: rect.bottom + 8,
-          left: left,
-          width: Math.min(targetWidth, viewportWidth - margin * 2),
-          maxHeight: `calc(100vh - ${rect.bottom + 16}px)`,
-          zIndex: 9999,
-        });
-      }
-    };
-
-    updatePosition();
-    window.addEventListener('resize', updatePosition);
-    return () => window.removeEventListener('resize', updatePosition);
-  }, [isOpen]);
 
   // Sync searchQuery when navigating with state or query params
   useEffect(() => {
@@ -673,11 +629,10 @@ export function StudentHeaderSearch({ className = "" }) {
         </button>
       )}
 
-      {/* RICH SEARCH DROPDOWN — rendered with fixed position to escape header stacking context */}
+      {/* RICH SEARCH DROPDOWN — anchored cleanly beneath search input */}
       {isOpen && (
         <div
-          style={dropdownStyle}
-          className="max-h-[min(460px,70vh)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_20px_60px_-12px_rgba(15,23,42,0.28)] backdrop-blur-md"
+          className="absolute top-full left-0 right-0 mt-2 z-[60] max-h-[min(460px,70vh)] overflow-y-auto rounded-2xl border border-slate-200/90 bg-white p-2 shadow-xl backdrop-blur-md"
         >
           {isHomePage ? (
             /* ============================================================ */
@@ -827,69 +782,69 @@ export function StudentHeaderSearch({ className = "" }) {
                   {/* Recent Searches */}
                   {safeSearchHistory.length > 0 && (
                     <div>
-                      <div className="flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-slate-500 border-b border-slate-100 mb-1">
-                        <span className="flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
+                      <div className="flex items-center justify-between px-3 py-1.5 text-xs font-medium text-slate-500 border-b border-slate-100 mb-1">
+                        <span className="flex items-center gap-1.5 uppercase tracking-wider text-[11px] font-semibold text-slate-500">
                           <Clock className="h-3.5 w-3.5 text-slate-400" />
                           Recent Searches
-                    </span>
-                    <button
-                      type="button"
-                      onClick={clearAllHistory}
-                      className="text-red-500 hover:text-red-700 text-[11px] font-medium transition-colors"
-                    >
-                      Clear all
-                    </button>
-                  </div>
-                  <div className="space-y-0.5">
-                    {safeSearchHistory.map((item, idx) => (
-                      <div
-                        key={`${item}-${idx}`}
-                        onClick={() => handleHistoryClick(item)}
-                        className="group flex items-center justify-between px-3 py-2 rounded-xl text-sm text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                          <Clock className="h-4 w-4 text-slate-400 shrink-0 group-hover:text-blue-600 transition-colors" />
-                          <span className="truncate">{item}</span>
-                        </div>
+                        </span>
                         <button
                           type="button"
-                          onClick={(e) => deleteHistoryItem(item, e)}
-                          title="Remove from history"
-                          className="p-1 text-slate-300 hover:text-red-500 rounded-md transition-colors opacity-80 group-hover:opacity-100"
+                          onClick={clearAllHistory}
+                          className="text-slate-400 hover:text-rose-600 text-[11px] font-medium transition-colors"
                         >
-                          <X className="h-3.5 w-3.5" />
+                          Clear all
                         </button>
                       </div>
-                    ))}
+                      <div className="space-y-0.5">
+                        {safeSearchHistory.map((item, idx) => (
+                          <div
+                            key={`${item}-${idx}`}
+                            onClick={() => handleHistoryClick(item)}
+                            className="group flex items-center justify-between px-3 py-2 rounded-xl text-sm text-slate-700 hover:bg-slate-100/70 cursor-pointer transition-colors"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <Clock className="h-4 w-4 text-slate-400 shrink-0 group-hover:text-slate-600 transition-colors" />
+                              <span className="truncate">{item}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => deleteHistoryItem(item, e)}
+                              title="Remove from history"
+                              className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-colors opacity-70 group-hover:opacity-100"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Popular Topics Quick-Discovery Pills */}
+                  <div className="pt-1">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      <Sparkles className="h-3.5 w-3.5 text-slate-400" />
+                      Popular Topics
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 p-1">
+                      {POPULAR_TOPICS.map((topic) => {
+                        const TopicIcon = topic.icon;
+                        return (
+                          <button
+                            key={topic.name}
+                            type="button"
+                            onClick={() => handleTopicClick(topic.query)}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all active:scale-95 shadow-2xs ${topic.color}`}
+                          >
+                            <TopicIcon className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                            <span>{topic.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
-
-              {/* Popular Topics Quick-Discovery Pills */}
-              <div className="pt-1">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                  Popular Topics
-                </div>
-                <div className="flex flex-wrap gap-1.5 p-1.5">
-                  {POPULAR_TOPICS.map((topic) => {
-                    const TopicIcon = topic.icon;
-                    return (
-                      <button
-                        key={topic.name}
-                        type="button"
-                        onClick={() => handleTopicClick(topic.query)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all active:scale-95 shadow-2xs ${topic.color}`}
-                      >
-                        <TopicIcon className="h-3.5 w-3.5 shrink-0" />
-                        <span>{topic.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* ============================================================ */}
           {/* ACTIVE QUERY: PREDICTIONS + LOCAL MATCHES + PARTNER MATCHES */}

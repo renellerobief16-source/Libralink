@@ -6,8 +6,17 @@ import CartBookCover from './CartBookCover';
 const StudentBorrowingList = forwardRef(({ onCheckout, onContinueBrowsing }, ref) => {
   const [borrowingList, setBorrowingList] = useState(() => {
     try {
-      const saved = localStorage.getItem('borrowingList');
-      return saved ? JSON.parse(saved) : [];
+      const raw = localStorage.getItem('borrowingList');
+      if (!raw) return [];
+      const saved = JSON.parse(raw);
+      if (!Array.isArray(saved)) return [];
+      return saved
+        .filter(item => item && (item.book_id || item.id))
+        .map(item => ({
+          ...item,
+          book_id: Number(item.book_id || item.id),
+        }))
+        .filter(item => item.book_id && !isNaN(item.book_id));
     } catch (error) {
       console.error('Error loading borrowing list:', error);
       return [];
@@ -108,8 +117,15 @@ const StudentBorrowingList = forwardRef(({ onCheckout, onContinueBrowsing }, ref
       return;
     }
 
+    const resolvedBookId = Number(book.book_id || book.id);
+    if (!resolvedBookId || isNaN(resolvedBookId)) {
+      setError('Invalid book ID');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
     const borrowingItem = {
-      book_id: book.book_id,
+      book_id: resolvedBookId,
       title: book.title,
       author: book.author,
       isbn: book.isbn,

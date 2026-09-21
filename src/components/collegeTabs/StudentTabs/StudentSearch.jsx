@@ -635,9 +635,21 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
   const [isResizingBookDetails, setIsResizingBookDetails] = useState(false);
 
   const [borrowingList, setBorrowingList] = useState(() => {
-    const saved = localStorage.getItem("borrowingList");
-
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const raw = localStorage.getItem("borrowingList");
+      if (!raw) return [];
+      const saved = JSON.parse(raw);
+      if (!Array.isArray(saved)) return [];
+      return saved
+        .filter((b) => b && (b.book_id || b.id))
+        .map((b) => ({
+          ...b,
+          book_id: Number(b.book_id || b.id),
+        }))
+        .filter((b) => b.book_id && !isNaN(b.book_id));
+    } catch {
+      return [];
+    }
   });
 
   const [showBorrowingList, setShowBorrowingList] = useState(false);
@@ -2146,22 +2158,18 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
       const isInterSchool =
         selectedBook.school_id && selectedBook.school_id !== currentSchoolId;
 
+      const resolvedBookId = Number(selectedBook.book_id || selectedBook.id);
+      if (!resolvedBookId || isNaN(resolvedBookId)) return;
+
       setBorrowingFormList([
         {
-          book_id: selectedBook.id,
-
+          book_id: resolvedBookId,
           title: selectedBook.title,
-
           author: selectedBook.author,
-
           isbn: selectedBook.isbn,
-
           owner_school_id: selectedBook.school_id || currentSchoolId,
-
           owner_school_name: selectedBook.library || "Your Library",
-
           partner_school_id: isInterSchool ? currentSchoolId : null,
-
           borrow_type: isInterSchool ? "INTER_SCHOOL_LIBRARY_USE" : "HOME",
         },
       ]);
@@ -2270,12 +2278,15 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
     const currentSchoolId = parseInt(schoolId);
 
     setBorrowingList((prev) => {
-      const exists = prev.some((item) => item.book_id === book.id);
+      const resolvedBookId = Number(book.id || book.book_id);
+      if (!resolvedBookId || isNaN(resolvedBookId)) return prev;
+
+      const exists = prev.some((item) => Number(item.book_id) === resolvedBookId);
       if (exists) return prev;
 
       const rawCover = book.cover_image || book.image || book.cover || book.image_url || book.cover_url || '';
       const newItem = {
-        book_id: book.id || book.book_id,
+        book_id: resolvedBookId,
         title: book.title,
         author: book.author,
         isbn: book.isbn,
@@ -2323,7 +2334,14 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
   };
 
   const handleContinueToRequest = () => {
-    const selectedItems = borrowingList.filter((item) => selectedForBorrow.has(item.book_id));
+    const selectedItems = borrowingList
+      .filter((item) => selectedForBorrow.has(item.book_id))
+      .map((item) => ({
+        ...item,
+        book_id: Number(item.book_id || item.id),
+      }))
+      .filter((item) => item.book_id && !isNaN(item.book_id));
+
     if (selectedItems.length === 0) return;
     setBorrowingFormList(selectedItems);
     setSelectedForBorrow(new Set());
@@ -2996,37 +3014,32 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
 
                   {searchHistory.length > 0 && (
                     <div className="border-t border-[#EEF2F6] pt-5">
-                      <div className="mb-3">
-                        <h3 className="text-sm font-semibold text-[#64748B]">
+                      <div className="mb-2 flex items-center justify-between">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                           Recent searches
                         </h3>
                       </div>
 
-                      <div className="space-y-1.5">
+                      <div className="space-y-1">
                         {searchHistory.slice(0, 8).map((item, index) => (
                           <div
                             key={`${item}-${index}`}
-                            className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-3 py-2.5"
+                            className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50/50 px-3 py-2 transition-colors hover:bg-slate-100/70"
                           >
                             <button
                               onClick={() => {
                                 handleHistoryClick(item);
-
                                 setShowFilterPanel(false);
                               }}
-
-                              className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm text-[#334155] hover:text-[#0077B6]"
+                              className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm text-slate-700 hover:text-slate-900"
                             >
-                              <Clock className="w-4 h-4 shrink-0 text-[#94A3B8]" />
-
+                              <Clock className="w-4 h-4 shrink-0 text-slate-400" />
                               <span className="truncate">{item}</span>
                             </button>
 
                             <button
                               onClick={() => deleteFromHistory(item)}
-
-                              className="shrink-0 rounded-md p-1 text-[#94A3B8] hover:bg-red-50 hover:text-red-500"
-
+                              className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors"
                               aria-label={`Delete recent search ${item}`}
                             >
                               <X className="w-3.5 h-3.5" />
@@ -3232,7 +3245,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
 
                                     setBorrowingFormList([
                                       {
-                                        book_id: book.id,
+                                        book_id: Number(book.id || book.book_id),
 
                                         title: book.title,
 
@@ -3734,9 +3747,10 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                             );
 
                             const item = {
-                              book_id:
+                              book_id: Number(
                                 bookForOtherSchoolSearch.book_id ||
                                 bookForOtherSchoolSearch.id,
+                              ),
 
                               title: bookForOtherSchoolSearch.title,
 
@@ -3963,8 +3977,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
 
                               setBorrowingFormList([
                                 {
-                                  book_id: book.id,
-
+                                  book_id: Number(book.id || book.book_id),
                                   title: book.title,
 
                                   author: book.author,
@@ -5711,7 +5724,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                   const selected = selectedBook || {};
                   setBorrowingFormList([
                     {
-                      book_id: partner.book_id || partner.id || selected.id || selected.book_id,
+                      book_id: Number(partner.book_id || partner.id || selected.id || selected.book_id),
                       title: partner.title || selected.title || "Untitled Book",
                       author: partner.author || selected.author || "Unknown Author",
                       isbn: partner.isbn || selected.isbn || "N/A",

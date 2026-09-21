@@ -73,10 +73,11 @@ function BookDetail() {
 
   const handleBorrow = () => {
     if (book) {
-      const currentSchoolId = parseInt(localStorage.getItem('schoolId'));
-      const isInterSchool = book.school_id && book.school_id !== currentSchoolId;
+      const resolvedBookId = Number(book.book_id || book.id);
+      if (!resolvedBookId || isNaN(resolvedBookId)) return;
+
       setBorrowingFormList([{
-        book_id: book.book_id,
+        book_id: resolvedBookId,
         title: book.title,
         author: book.author,
         isbn: book.isbn,

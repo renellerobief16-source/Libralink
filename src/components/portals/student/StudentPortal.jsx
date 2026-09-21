@@ -270,11 +270,12 @@ function StudentPortal() {
 
   const handleBorrowClick = (book) => {
     console.log('Borrow clicked for book:', book);
-    // Handle borrow click - could open borrowing form
-    // For now, add to borrowing list
+    const resolvedBookId = Number(book.id || book.book_id);
+    if (!resolvedBookId || isNaN(resolvedBookId)) return;
+
     if (window.borrowingListRef?.current) {
       window.borrowingListRef.current.addToBorrowingList({
-        book_id: book.id || book.book_id,
+        book_id: resolvedBookId,
         title: book.title,
         author: book.author,
         isbn: book.isbn,

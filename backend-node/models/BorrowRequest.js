@@ -26,6 +26,20 @@ class BorrowRequest {
         permission_letter_generated: false,
       };
 
+      // Upfront validation of items before inserting borrow_requests record
+      if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
+        throw new Error('At least one book item is required to submit a borrow request.');
+      }
+
+      for (let i = 0; i < data.items.length; i++) {
+        const it = data.items[i];
+        const resolvedBookId = Number(it.book_id || it.id);
+        if (!resolvedBookId || isNaN(resolvedBookId) || resolvedBookId <= 0) {
+          throw new Error(`Invalid book item at index ${i}: book_id is missing or invalid.`);
+        }
+        it.book_id = resolvedBookId;
+      }
+
       const { data: result, error } = await supabase
         .from('borrow_requests')
         .insert(requestData)
@@ -53,11 +67,16 @@ class BorrowRequest {
 
   static async createItem(request_id, itemData) {
     try {
+      const book_id = Number(itemData.book_id || itemData.id);
+      if (!book_id || isNaN(book_id) || book_id <= 0) {
+        throw new Error('Invalid book item: book_id is required and must be a valid number');
+      }
+
       const item = {
         request_id,
-        book_id: itemData.book_id,
-        owner_school_id: itemData.owner_school_id,
-        partner_school_id: itemData.partner_school_id || null,
+        book_id,
+        owner_school_id: itemData.owner_school_id ? Number(itemData.owner_school_id) : null,
+        partner_school_id: itemData.partner_school_id ? Number(itemData.partner_school_id) : null,
         borrow_type: itemData.borrow_type || 'HOME',
         status: 'pending',
       };
