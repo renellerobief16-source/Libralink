@@ -627,7 +627,7 @@ router.get('/search-other-schools', auth, async (req, res) => {
     console.log('[INTER-SCHOOL SEARCH] Querying schools...');
     const { data: schools } = await supabase
       .from('schools')
-      .select('school_id, school_name, address, school_code, latitude, longitude')
+      .select('school_id, school_name, address, school_code, latitude, longitude, logo')
       .in('school_id', schoolIds);
 
     console.log('[INTER-SCHOOL SEARCH] Schools found:', schools?.length || 0);
@@ -685,6 +685,7 @@ router.get('/search-other-schools', auth, async (req, res) => {
         school_code: school?.school_code,
         latitude: school?.latitude || null,
         longitude: school?.longitude || null,
+        logo: school?.logo || null,
         book_id: book.book_id,
         title: book.title,
         author: book.author,

@@ -23,7 +23,7 @@ class Book {
         .from('books')
         .select(`
           *,
-          schools(school_id, school_name, school_code, address, latitude, longitude),
+          schools(school_id, school_name, school_code, address, latitude, longitude, logo),
           categories(category_name),
           book_copies(copy_id, status)
         `)

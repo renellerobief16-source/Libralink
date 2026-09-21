@@ -54,6 +54,7 @@ function SchoolMap({ school, onClose }) {
 function MinimalSchoolMap({ school, height = 280, onExpand }) {
   const [loading, setLoading] = useState(true);
   const [coords, setCoords] = useState(null);
+  const [extraSchoolInfo, setExtraSchoolInfo] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,11 +64,15 @@ function MinimalSchoolMap({ school, height = 280, onExpand }) {
     const run = async () => {
       let details = school;
 
-      // Fetch full details if only school_id is available
-      if (school?.school_id && !school?.latitude && !school?.longitude) {
+      // Fetch full details if school_id is available and logo or coords are missing
+      if (school?.school_id && (!school?.latitude || !school?.longitude || !school?.logo)) {
         try {
           const res = await api.get(`/schools/${school.school_id}`);
-          details = res.data || res;
+          const data = res?.data || res;
+          if (data) {
+            details = { ...school, ...data };
+            if (!cancelled) setExtraSchoolInfo(details);
+          }
         } catch {
           details = school;
         }
@@ -78,7 +83,10 @@ function MinimalSchoolMap({ school, height = 280, onExpand }) {
 
       // Use saved coords if present
       if (Number.isFinite(savedLat) && Number.isFinite(savedLng)) {
-        if (!cancelled) { setCoords([savedLat, savedLng]); setLoading(false); }
+        if (!cancelled) {
+          setCoords([savedLat, savedLng]);
+          setLoading(false);
+        }
         return;
       }
 
@@ -155,8 +163,10 @@ function MinimalSchoolMap({ school, height = 280, onExpand }) {
     <MapboxCampusMap
       school={{
         ...school,
+        ...extraSchoolInfo,
         latitude: coords[0],
         longitude: coords[1],
+        logo: school?.logo || extraSchoolInfo?.logo,
       }}
       height={resolvedHeight}
       onExpand={onExpand}

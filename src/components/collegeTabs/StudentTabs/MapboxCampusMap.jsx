@@ -79,51 +79,81 @@ function distanceLabel(lat1, lon1, lat2, lon2) {
   return d < 1 ? `${Math.round(d * 1000)} m away` : `${d.toFixed(1)} km away`;
 }
 
-/* ─── Campus Pin Icon ────────────────────────────────────────────────── */
-function makeCampusIcon(initial = 'L') {
+import { API_ORIGIN } from '../../../utils/api';
+
+/* ─── Logo URL Formatter ──────────────────────────────────────────────── */
+function getLogoUrl(logo) {
+  if (!logo) return '/L.png';
+  if (
+    logo.startsWith('http://') ||
+    logo.startsWith('https://') ||
+    logo.startsWith('data:') ||
+    logo.startsWith('blob:')
+  ) {
+    return logo;
+  }
+  if (logo.startsWith('/')) return `${API_ORIGIN}${logo}`;
+  return `${API_ORIGIN}/${logo}`;
+}
+
+/* ─── Campus Pin Icon with Official School Logo ────────────────────────── */
+function makeCampusIcon(logoUrl = '/L.png', schoolName = 'Campus Library') {
   return L.divIcon({
     className: '',
     html: `
       <div style="
         position:relative;
-        width:50px;height:62px;
+        width:54px;height:66px;
         display:flex;flex-direction:column;align-items:center;
         filter:drop-shadow(0 6px 18px rgba(14,165,233,.55));
       ">
         <!-- outer pulse ring -->
         <span style="
           position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
-          width:46px;height:20px;border-radius:50%;
+          width:50px;height:22px;border-radius:50%;
           background:rgba(14,165,233,.32);
           animation:campusPing 2.4s cubic-bezier(0,0,.2,1) infinite;
         "></span>
         <!-- inner ring -->
         <span style="
           position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
-          width:30px;height:13px;border-radius:50%;
+          width:34px;height:15px;border-radius:50%;
           background:rgba(14,165,233,.22);
           animation:campusPing 2.4s cubic-bezier(0,0,.2,1) infinite .4s;
         "></span>
         <!-- pin body -->
         <div style="
-          width:44px;height:44px;
+          width:46px;height:46px;
           border-radius:50% 50% 50% 0;
           background:linear-gradient(145deg,#0EA5E9,#0369A1);
           transform:rotate(-45deg);
           display:flex;align-items:center;justify-content:center;
           border:3px solid #fff;
           box-shadow:0 4px 16px rgba(14,165,233,.5),inset 0 1px 2px rgba(255,255,255,.3);
+          overflow:hidden;
         ">
-          <span style="
+          <!-- circular logo container counter-rotated 45deg so logo is upright -->
+          <div style="
+            width:34px;height:34px;
+            border-radius:50%;
+            overflow:hidden;
             transform:rotate(45deg);
-            color:#fff;font-size:16px;font-weight:900;
-            font-family:system-ui,-apple-system,sans-serif;
-            text-shadow:0 1px 3px rgba(0,0,0,.25);
-          ">${initial}</span>
+            display:flex;align-items:center;justify-content:center;
+            background:#ffffff;
+            border:1.5px solid #ffffff;
+            box-shadow:0 1px 4px rgba(0,0,0,0.2);
+          ">
+            <img
+              src="${logoUrl}"
+              alt="${schoolName}"
+              style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;"
+              onerror="this.onerror=null;this.src='/L.png';"
+            />
+          </div>
         </div>
         <!-- dot shadow -->
         <span style="
-          width:12px;height:5px;background:rgba(0,0,0,.18);
+          width:14px;height:5px;background:rgba(0,0,0,.18);
           border-radius:50%;margin-top:4px;
         "></span>
       </div>
@@ -135,9 +165,9 @@ function makeCampusIcon(initial = 'L') {
         }
       </style>
     `,
-    iconSize: [50, 62],
-    iconAnchor: [25, 58],
-    popupAnchor: [0, -54],
+    iconSize: [54, 66],
+    iconAnchor: [27, 62],
+    popupAnchor: [0, -58],
   });
 }
 
@@ -259,8 +289,10 @@ export default function MapboxCampusMap({ school, height = 340, onExpand }) {
   const valid = Number.isFinite(resolvedLat) && Number.isFinite(resolvedLng);
   const name = school?.school_name || 'Campus Library';
   const address = school?.address || 'Partner Campus';
+  const rawLogo = school?.logo || school?.school_logo || school?.logo_url;
+  const logoUrl = getLogoUrl(rawLogo);
   const center = useMemo(() => [resolvedLat || 14.9667, resolvedLng || 120.6353], [resolvedLat, resolvedLng]);
-  const campusIcon = useMemo(() => makeCampusIcon(name.charAt(0).toUpperCase()), [name]);
+  const campusIcon = useMemo(() => makeCampusIcon(logoUrl, name), [logoUrl, name]);
   const tile = TILES[tileKey] || TILES.map;
 
   /* ── Route animation ── */
@@ -484,14 +516,24 @@ export default function MapboxCampusMap({ school, height = 340, onExpand }) {
           {/* Campus Marker */}
           <Marker position={center} icon={campusIcon}>
             <Popup closeButton={false}>
-              <div className="px-3 py-2.5 min-w-[180px]">
-                <p className="text-[13px] font-bold text-slate-900 leading-tight">{name}</p>
-                <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{address}</p>
-                {routeInfo && (
-                  <div className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-sky-600">
-                    <Compass className="h-3 w-3" /> {routeInfo.dist} · {routeInfo.time}
-                  </div>
-                )}
+              <div className="flex items-start gap-2.5 p-2.5 min-w-[200px]">
+                <div className="h-9 w-9 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-0.5 shadow-2xs">
+                  <img
+                    src={logoUrl}
+                    alt={name}
+                    className="h-full w-full object-contain rounded-lg"
+                    onError={(e) => { e.currentTarget.src = '/L.png'; }}
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-bold text-slate-900 leading-tight">{name}</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{address}</p>
+                  {routeInfo && (
+                    <div className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
+                      <Compass className="h-3 w-3" /> {routeInfo.dist} · {routeInfo.time}
+                    </div>
+                  )}
+                </div>
               </div>
             </Popup>
           </Marker>
@@ -532,10 +574,15 @@ export default function MapboxCampusMap({ school, height = 340, onExpand }) {
         {/* ── Top HUD ── */}
         <div className="absolute inset-x-0 top-0 z-[800] pointer-events-none px-3 pt-3">
           <div className="flex items-start justify-between gap-2">
-            {/* Campus name badge */}
+            {/* Campus name badge with school logo */}
             <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/70 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm max-w-[calc(100%-120px)]">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-sky-100">
-                <Building2 className="h-3.5 w-3.5 text-sky-600" />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white p-0.5 shadow-2xs">
+                <img
+                  src={logoUrl}
+                  alt={name}
+                  className="h-full w-full object-contain rounded-lg"
+                  onError={(e) => { e.currentTarget.src = '/L.png'; }}
+                />
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] font-black text-slate-900 truncate leading-tight">{name}</p>
