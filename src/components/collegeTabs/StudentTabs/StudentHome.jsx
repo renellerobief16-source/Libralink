@@ -612,20 +612,20 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
   return (
     <div className="space-y-6">
       {/* 1. TOP SEGMENTED NAVIGATION BAR: Home | All Books | Participating Libraries (Beside each other, Mobile-Friendly) */}
-      <div className="sticky top-0 z-20 -mx-1 px-1 py-2 backdrop-blur-md bg-slate-50/95 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-200 transition-all">
+      <div className="sticky top-0 z-20 -mx-1 px-1 py-1.5 sm:py-2 backdrop-blur-md bg-slate-50/95 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 transition-all">
         {/* Responsive Horizontal Pill Container (Swipeable on Mobile) */}
         <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide py-0.5 max-w-full p-1 rounded-2xl bg-white border border-slate-200 shadow-2xs">
           {/* Home button */}
           <button
             type="button"
             onClick={() => setActiveTab("home")}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${
               activeTab === "home"
                 ? "bg-blue-600 text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
             }`}
           >
-            <Home className="h-4 w-4" />
+            <Home className="h-4 w-4 shrink-0" />
             <span>Home</span>
           </button>
 
@@ -633,17 +633,20 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
           <button
             type="button"
             onClick={() => setActiveTab("all")}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${
               activeTab === "all"
                 ? "bg-blue-600 text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
             }`}
           >
-            <Library className="h-4 w-4" />
-            <span>All Books</span>
+            <Library className="h-4 w-4 shrink-0" />
+            <span>
+              <span className="sm:hidden">Books</span>
+              <span className="hidden sm:inline">All Books</span>
+            </span>
             {allCatalogBooks.length > 0 && (
               <span
-                className={`ml-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                className={`ml-0.5 sm:ml-1 rounded-full px-1.5 sm:px-2 py-0.5 text-[10px] font-extrabold ${
                   activeTab === "all"
                     ? "bg-white/20 text-white"
                     : "bg-blue-50 text-blue-700"
@@ -658,17 +661,20 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
           <button
             type="button"
             onClick={() => setActiveTab("libraries")}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${
               activeTab === "libraries"
                 ? "bg-blue-600 text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
             }`}
           >
-            <Building2 className="h-4 w-4" />
-            <span>Participating Libraries</span>
+            <Building2 className="h-4 w-4 shrink-0" />
+            <span>
+              <span className="sm:hidden">Libraries</span>
+              <span className="hidden sm:inline">Participating Libraries</span>
+            </span>
             {partnerSchools.length > 0 && (
               <span
-                className={`ml-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                className={`ml-0.5 sm:ml-1 rounded-full px-1.5 sm:px-2 py-0.5 text-[10px] font-extrabold ${
                   activeTab === "libraries"
                     ? "bg-white/20 text-white"
                     : "bg-slate-100 text-slate-700"
@@ -687,7 +693,7 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
               type="button"
               onClick={handleShuffleAction}
               disabled={isShuffling || loadingAllBooks}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 sm:py-2 text-xs font-bold text-slate-700 shadow-xs hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/50 transition-all active:scale-95 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 sm:px-3.5 py-1.5 sm:py-2 text-xs font-bold text-slate-700 shadow-xs hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/50 transition-all active:scale-95 disabled:opacity-50"
               title="Shuffle all books across libraries"
             >
               <Shuffle className={`h-3.5 w-3.5 text-blue-600 ${isShuffling ? "animate-spin" : ""}`} />
@@ -695,7 +701,7 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
             </button>
           ) : (
             studentPrefs.course && (
-              <span className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs">
+              <span className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-semibold text-slate-700 shadow-2xs">
                 <GraduationCap className="h-3.5 w-3.5 text-blue-600" />
                 <span>{studentPrefs.course}</span>
               </span>
@@ -708,18 +714,18 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
       {/* TAB 1: HOME VIEW (Clean, Aesthetic, Solid White, No Gradients) */}
       {/* ========================================================= */}
       {activeTab === "home" && (
-        <div className="animate-in fade-in duration-200 space-y-6">
+        <div className="animate-in fade-in duration-200 space-y-4 sm:space-y-6">
           {/* Welcome Header with Official School Logo & Responsive Mobile Layout */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <section className="rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
               {/* Left: School Logo & Greeting */}
-              <div className="flex items-center gap-3.5 sm:gap-4">
+              <div className="flex items-center gap-3 sm:gap-4">
                 {/* Official School Logo */}
-                <div className="flex h-14 w-14 sm:h-16 sm:w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-slate-200 bg-white p-1 shadow-xs">
+                <div className="flex h-11 w-11 sm:h-16 sm:w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl sm:rounded-2xl border-2 border-slate-200 bg-white p-0.5 sm:p-1 shadow-xs">
                   <img
                     src={getSchoolLogoUrl(schoolInfo?.logo)}
                     alt={schoolInfo?.school_name || "School logo"}
-                    className="h-full w-full object-contain rounded-xl"
+                    className="h-full w-full object-contain rounded-lg sm:rounded-xl"
                     onError={(e) => {
                       e.target.src = "/L.png";
                     }}
@@ -727,35 +733,35 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
                 </div>
 
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700">
-                      <Building2 className="h-3 w-3 text-slate-500" />
+                  <div className="flex items-center gap-1.5 sm:gap-2 mb-0.5 sm:mb-1 flex-wrap">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-[11px] font-semibold text-slate-700">
+                      <Building2 className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-slate-500" />
                       <span className="truncate">{schoolInfo?.school_name || "Campus Library"}</span>
                     </span>
                     {studentPrefs.course && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700">
-                        <GraduationCap className="h-3 w-3" />
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-[11px] font-semibold text-blue-700">
+                        <GraduationCap className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                         <span>{studentPrefs.course}</span>
                       </span>
                     )}
                   </div>
-                  <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">
                     Welcome back, {displayName}
                   </h1>
-                  <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                  <p className="text-[11px] sm:text-sm text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">
                     Manage your active loans and discover academic resources across partner campus libraries.
                   </p>
                 </div>
               </div>
 
               {/* Right: Quick Action */}
-              <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+              <div className="flex items-center gap-2 self-stretch sm:self-center shrink-0 pt-1 sm:pt-0">
                 <button
                   type="button"
                   onClick={() => setActiveTab("all")}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs hover:bg-blue-700 transition active:scale-95"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-3.5 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs hover:bg-blue-700 transition active:scale-95"
                 >
-                  <BookOpen className="h-4 w-4" />
+                  <BookOpen className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span>Browse All Books</span>
                 </button>
               </div>
@@ -765,11 +771,11 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
           {/* ACTIVE ACCESS TOKEN PASS (Clean Solid Border, No Gradient) */}
           {approvedRequestsWithQR.length > 0 && (
             <section aria-label="Active Library Access Pass">
-              <div className="relative overflow-hidden rounded-2xl border-2 border-emerald-500 bg-white p-5 sm:p-6 shadow-xs">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-start gap-3.5">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-xs">
-                      <QrCode className="h-6 w-6" />
+              <div className="relative overflow-hidden rounded-2xl border-2 border-emerald-500 bg-white p-4 sm:p-6 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                  <div className="flex items-start gap-3 sm:gap-3.5">
+                    <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl bg-emerald-600 text-white shadow-xs">
+                      <QrCode className="h-5 w-5 sm:h-6 sm:w-6" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
@@ -780,7 +786,7 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
                           Pass ID: {approvedRequestsWithQR[0].request_id}
                         </span>
                       </div>
-                      <h3 className="mt-1 text-base sm:text-lg font-bold text-slate-900">
+                      <h3 className="mt-1 text-sm sm:text-lg font-bold text-slate-900">
                         Your Borrow Request Access Token is Active!
                       </h3>
                       <p className="text-xs sm:text-sm text-slate-600 mt-0.5 max-w-xl">
@@ -793,9 +799,9 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
                     <button
                       type="button"
                       onClick={() => setSelectedRequestForQR(approvedRequestsWithQR[0])}
-                      className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs sm:text-sm font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95"
+                      className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95"
                     >
-                      <QrCode className="h-4 w-4" />
+                      <QrCode className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                       Show Access Token
                     </button>
                     <button
@@ -807,7 +813,7 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
                           handleOpenCancellationModal(approvedRequestsWithQR[0]);
                         }
                       }}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 hover:border-rose-300 transition active:scale-95 shadow-xs"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 sm:px-3.5 py-1.5 sm:py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 hover:border-rose-300 transition active:scale-95 shadow-xs"
                       title="Cancel pickup hold"
                     >
                       <XCircle className="h-3.5 w-3.5 text-rose-500" />
@@ -818,7 +824,7 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
 
                 {/* Inline Cancellation Accordion (No Modal Overlay) */}
                 {cancellationModalItem && (
-                  <div className="mt-5 pt-5 border-t border-slate-200 animate-in slide-in-from-top-2 duration-200 text-left">
+                  <div className="mt-4 pt-4 border-t border-slate-200 animate-in slide-in-from-top-2 duration-200 text-left">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2 text-amber-800">
                         <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
@@ -922,19 +928,19 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
 
           {/* Overdue Urgent Alert (If any) */}
           {overdueCount > 0 && (
-            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              <AlertTriangle className="w-6 h-6 text-rose-600 shrink-0" />
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-2.5 sm:gap-3">
+              <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-rose-600 shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-rose-900">
+                <p className="font-semibold text-rose-900 text-xs sm:text-base">
                   You have {overdueCount} overdue book{overdueCount > 1 ? "s" : ""}
                 </p>
-                <p className="text-sm text-rose-700">
+                <p className="text-[11px] sm:text-sm text-rose-700">
                   Please return or renew immediately to avoid accumulated library fines.
                 </p>
               </div>
               <button
                 onClick={handleBorrowedClick}
-                className="w-full sm:w-auto px-4 py-2 min-h-[40px] bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition font-medium text-sm active:scale-95"
+                className="w-full sm:w-auto px-3.5 py-1.5 sm:px-4 sm:py-2 min-h-[36px] sm:min-h-[40px] bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition font-medium text-xs sm:text-sm active:scale-95"
               >
                 View Overdue Books
               </button>
@@ -943,101 +949,109 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
 
           {/* 4-METRIC SUMMARY CARDS (Responsive: 2 cols on mobile, 4 on desktop) */}
           <section aria-label="Library Summary">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
               {/* Active Loans */}
               <button
                 type="button"
                 onClick={handleBorrowedClick}
-                className="flex flex-col rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4 text-left shadow-xs transition hover:border-blue-400 hover:shadow-md active:scale-[0.98]"
+                className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-4 text-left shadow-xs transition hover:border-blue-400 hover:shadow-md active:scale-[0.98]"
               >
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
-                  <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                    <Book className="h-4 w-4 sm:h-5 sm:w-5" />
+                <div className="flex items-center justify-between mb-1.5 sm:mb-3">
+                  <div className="flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl bg-blue-50 text-blue-600">
+                    <Book className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
                   </div>
-                  <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  <span className="text-[9px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
                     On Loan
                   </span>
                 </div>
-                <p className="text-xl sm:text-3xl font-bold text-slate-900">
-                  {borrowedBooks.length}
-                </p>
-                <p className="mt-1 text-[11px] sm:text-xs text-slate-500">Currently borrowed</p>
+                <div>
+                  <p className="text-lg sm:text-3xl font-black text-slate-900 leading-none">
+                    {borrowedBooks.length}
+                  </p>
+                  <p className="mt-1 text-[10px] sm:text-xs text-slate-500 line-clamp-1">Currently borrowed</p>
+                </div>
               </button>
 
               {/* Due Soon */}
               <button
                 type="button"
                 onClick={handleDueSoonClick}
-                className="flex flex-col rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4 text-left shadow-xs transition hover:border-amber-400 hover:shadow-md active:scale-[0.98]"
+                className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-4 text-left shadow-xs transition hover:border-amber-400 hover:shadow-md active:scale-[0.98]"
               >
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
-                  <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
-                    <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
+                <div className="flex items-center justify-between mb-1.5 sm:mb-3">
+                  <div className="flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl bg-amber-50 text-amber-600">
+                    <Clock className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
                   </div>
-                  <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  <span className="text-[9px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
                     Due Soon
                   </span>
                 </div>
-                <p className="text-xl sm:text-3xl font-bold text-amber-600">
-                  {dueSoonCount}
-                </p>
-                <p className="mt-1 text-[11px] sm:text-xs text-slate-500">Approaching return</p>
+                <div>
+                  <p className="text-lg sm:text-3xl font-black text-amber-600 leading-none">
+                    {dueSoonCount}
+                  </p>
+                  <p className="mt-1 text-[10px] sm:text-xs text-slate-500 line-clamp-1">Approaching return</p>
+                </div>
               </button>
 
               {/* Pending Requests */}
               <button
                 type="button"
                 onClick={() => navigate("/studentpage/inbox")}
-                className="flex flex-col rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4 text-left shadow-xs transition hover:border-indigo-400 hover:shadow-md active:scale-[0.98]"
+                className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-4 text-left shadow-xs transition hover:border-indigo-400 hover:shadow-md active:scale-[0.98]"
               >
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
-                  <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                    <Hourglass className="h-4 w-4 sm:h-5 sm:w-5" />
+                <div className="flex items-center justify-between mb-1.5 sm:mb-3">
+                  <div className="flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl bg-indigo-50 text-indigo-600">
+                    <Hourglass className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
                   </div>
-                  <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  <span className="text-[9px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
                     Pending
                   </span>
                 </div>
-                <p className="text-xl sm:text-3xl font-bold text-indigo-600">
-                  {pendingRequestsCount}
-                </p>
-                <p className="mt-1 text-[11px] sm:text-xs text-slate-500">Under review</p>
+                <div>
+                  <p className="text-lg sm:text-3xl font-black text-indigo-600 leading-none">
+                    {pendingRequestsCount}
+                  </p>
+                  <p className="mt-1 text-[10px] sm:text-xs text-slate-500 line-clamp-1">Under review</p>
+                </div>
               </button>
 
               {/* Overdue */}
               <button
                 type="button"
                 onClick={handleBorrowedClick}
-                className={`flex flex-col rounded-2xl border p-3.5 sm:p-4 text-left shadow-xs transition hover:shadow-md active:scale-[0.98] ${
+                className={`flex flex-col justify-between rounded-2xl border p-2.5 sm:p-4 text-left shadow-xs transition hover:shadow-md active:scale-[0.98] ${
                   overdueCount > 0
                     ? "border-rose-300 bg-rose-50/40 hover:border-rose-400"
                     : "border-slate-200 bg-white hover:border-emerald-400"
                 }`}
               >
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
+                <div className="flex items-center justify-between mb-1.5 sm:mb-3">
                   <div
-                    className={`flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl ${
+                    className={`flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl ${
                       overdueCount > 0
                         ? "bg-rose-100 text-rose-600"
                         : "bg-emerald-50 text-emerald-600"
                     }`}
                   >
-                    <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <AlertTriangle className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
                   </div>
-                  <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  <span className="text-[9px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
                     Overdue
                   </span>
                 </div>
-                <p
-                  className={`text-xl sm:text-3xl font-bold ${
-                    overdueCount > 0 ? "text-rose-600" : "text-emerald-600"
-                  }`}
-                >
-                  {overdueCount}
-                </p>
-                <p className="mt-1 text-[11px] sm:text-xs text-slate-500">
-                  {overdueCount > 0 ? "Requires return" : "All books on time"}
-                </p>
+                <div>
+                  <p
+                    className={`text-lg sm:text-3xl font-black leading-none ${
+                      overdueCount > 0 ? "text-rose-600" : "text-emerald-600"
+                    }`}
+                  >
+                    {overdueCount}
+                  </p>
+                  <p className="mt-1 text-[10px] sm:text-xs text-slate-500 line-clamp-1">
+                    {overdueCount > 0 ? "Requires return" : "All books on time"}
+                  </p>
+                </div>
               </button>
             </div>
           </section>

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FiHome, FiMail, FiLogOut, FiBook, FiUsers, FiList, FiCheckCircle, FiMoon, FiSun, FiSettings, FiGlobe, FiShield, FiDatabase, FiMonitor, FiSmartphone, FiChevronDown, FiActivity } from "react-icons/fi";
 import api, { getAdminNotifications, signOut } from "../../../utils/api";
-import { AlertOverlay, ConfirmationOverlay, GlobalHeader } from "../../common";
+import { AlertOverlay, ConfirmationOverlay, GlobalHeader, LogoutConfirmationModal } from "../../common";
 import { SuperAdminDashboard, SuperAdminSchools, SuperAdminRoles, SuperAdminSettings, SuperAdminInbox, SuperAdminUsers, SuperAdminBooks, SuperAdminAnalytics } from "../../collegeTabs/SuperAdminTabs";
 
 function Admin() {
@@ -316,7 +316,7 @@ function Admin() {
             <GlobalHeader
               userName={userInfo?.firstname || userInfo?.name || 'Super Admin'}
               userRole={localStorage.getItem('userRole')}
-              profileImage={userInfo?.profile_picture}
+              profileImage={userInfo?.profile_picture || userInfo?.profile_image}
               unreadCount={unreadCount}
               notifications={notifications}
               schoolId={localStorage.getItem('schoolId')}
@@ -398,12 +398,12 @@ function Admin() {
       </div>
       )}
 
-      <ConfirmationOverlay
+      <LogoutConfirmationModal
         show={showLogoutConfirmation}
-        title="Confirm Logout"
-        message="Are you sure you want to log out? You will need to log in again to access the system."
         onConfirm={confirmLogout}
         onCancel={() => setShowLogoutConfirmation(false)}
+        darkMode={darkMode}
+        userInfo={userInfo}
       />
     </div>
   );

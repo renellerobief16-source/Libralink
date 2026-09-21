@@ -19,7 +19,7 @@ function ActionMenu({ trigger, items }) {
   }, [open]);
 
   return (
-    <div className="relative inline-block text-left" ref={menuRef}>
+    <div className={`relative inline-block text-left ${open ? "z-30" : ""}`} ref={menuRef}>
       <div onClick={() => setOpen((prev) => !prev)} className="cursor-pointer">{trigger}</div>
 
       {open && (

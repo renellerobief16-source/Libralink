@@ -116,9 +116,14 @@ router.post('/', auth, requireRole(['Super Admin']), async (req, res) => {
 
 // @route   POST /api/schools/:id/logo
 // @desc    Upload school logo
-// @access  Private (Super Admin)
-router.post('/:id/logo', auth, requireRole(['Super Admin']), uploadLogo.single('logo'), async (req, res) => {
+// @access  Private (Super Admin, Librarian Admin for own school)
+router.post('/:id/logo', auth, requireRole(['Super Admin', 'Librarian Admin']), uploadLogo.single('logo'), async (req, res) => {
   try {
+    const userRole = (req.user.role_name || req.user.role || '').toLowerCase();
+    if (userRole !== 'super admin' && String(req.user.school_id) !== String(req.params.id)) {
+      return res.status(403).json({ success: false, message: 'You can only update logo for your own school' });
+    }
+
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }

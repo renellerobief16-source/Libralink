@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { Book, X, MapPin, AlertCircle, CheckCircle, Clock, Shield, Loader2 } from 'lucide-react';
 import api from '../../../utils/api';
+import CartBookCover from './CartBookCover';
 
 const StudentBorrowingList = forwardRef(({ onCheckout, onContinueBrowsing }, ref) => {
   const [borrowingList, setBorrowingList] = useState(() => {
@@ -24,6 +25,7 @@ const StudentBorrowingList = forwardRef(({ onCheckout, onContinueBrowsing }, ref
   useEffect(() => {
     try {
       localStorage.setItem('borrowingList', JSON.stringify(borrowingList));
+      window.dispatchEvent(new Event('borrowing-list-changed'));
     } catch (error) {
       console.error('Error saving borrowing list:', error);
     }
@@ -111,6 +113,8 @@ const StudentBorrowingList = forwardRef(({ onCheckout, onContinueBrowsing }, ref
       title: book.title,
       author: book.author,
       isbn: book.isbn,
+      category: book.category || book.categories?.category_name || '',
+      cover_image: book.cover_image || book.image || book.cover || book.image_url || book.cover_url || '',
       owner_school_id: book.school_id,
       owner_school_name: book.school_name || book.schools?.school_name || 'Unknown School',
       borrow_type: 'HOME',
@@ -261,9 +265,7 @@ const StudentBorrowingList = forwardRef(({ onCheckout, onContinueBrowsing }, ref
                       className="bg-[#F7FAFC] rounded-xl p-4 border border-[#E2E8F0] hover:border-[#0077B6] transition-colors"
                     >
                       <div className="flex gap-4">
-                        <div className="w-16 h-20 bg-gradient-to-br from-[#0077B6]/10 to-[#005f8f]/10 rounded-lg flex-shrink-0 flex items-center justify-center border border-[#0077B6]/20">
-                          <Book className="w-8 h-8 text-[#0077B6]" />
-                        </div>
+                        <CartBookCover book={item} className="h-20 w-14 shrink-0" />
                         <div className="flex-1 min-w-0">
                           <h4 className="font-semibold text-[#0F172A] mb-1 line-clamp-2">{item.title}</h4>
                           <p className="text-sm text-[#64748B] mb-2">{item.author}</p>

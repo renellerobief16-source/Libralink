@@ -337,7 +337,10 @@ const sendDirectLibrarianEmail = async ({
   subject = 'Notice from Library Administration',
   messageBody = '',
   templateType = 'notice',
-  schoolName = 'Library Institution'
+  schoolName = 'Library Institution',
+  senderName = 'Campus Librarian',
+  senderRole = 'Librarian Administrator',
+  senderProfilePicture = null
 }) => {
   try {
     const formattedBody = messageBody
@@ -345,6 +348,16 @@ const sendDirectLibrarianEmail = async ({
       .filter(line => line.trim())
       .map(line => `<p style="margin: 0 0 12px 0; line-height: 1.6; color: #334155; font-size: 14px;">${line}</p>`)
       .join('');
+
+    const assetBase = process.env.API_BASE_URL || process.env.BACKEND_URL || (process.env.NODE_ENV === 'production' ? 'https://libralink-backend.onrender.com' : 'http://localhost:5000');
+    const fullPicUrl = senderProfilePicture ? (senderProfilePicture.startsWith('http') ? senderProfilePicture : `${assetBase}${senderProfilePicture.startsWith('/') ? '' : '/'}${senderProfilePicture}`) : null;
+    const senderInitials = (senderName || 'L')
+      .split(' ')
+      .filter(Boolean)
+      .map(n => n[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || 'L';
 
     const mailOptions = {
       from: process.env.EMAIL_USER || process.env.GMAIL_USER || 'no-reply@libralink.com',
@@ -367,6 +380,29 @@ const sendDirectLibrarianEmail = async ({
 
             <div style="background: #f8fafc; border-left: 4px solid #0284c7; padding: 16px 20px; border-radius: 6px; margin: 18px 0 24px 0;">
               ${formattedBody}
+            </div>
+
+            <!-- Sender Signature Card with Profile Picture -->
+            <div style="margin-top: 24px; padding: 16px; background-color: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
+              <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
+                <tr>
+                  <td style="width: 48px; vertical-align: middle;">
+                    ${fullPicUrl ? `
+                      <img src="${fullPicUrl}" alt="${senderName}" width="48" height="48" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #0284c7; display: block;" />
+                    ` : `
+                      <div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #0284c7, #1e40af); color: #ffffff; font-weight: 800; font-size: 18px; text-align: center; line-height: 48px;">
+                        ${senderInitials}
+                      </div>
+                    `}
+                  </td>
+                  <td style="padding-left: 12px; vertical-align: middle;">
+                    <div style="font-weight: 700; font-size: 14px; color: #0f172a;">${senderName}</div>
+                    <div style="font-size: 11px; font-weight: 600; color: #0284c7; text-transform: uppercase; margin-top: 2px;">
+                      ${senderRole} • ${schoolName}
+                    </div>
+                  </td>
+                </tr>
+              </table>
             </div>
 
             <div style="text-align: center; margin: 24px 0;">

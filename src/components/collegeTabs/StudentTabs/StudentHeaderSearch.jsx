@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useLayoutEffect } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
   Search,
@@ -240,6 +240,50 @@ export function StudentHeaderSearch({ className = "" }) {
   const [searchingPartner, setSearchingPartner] = useState(false);
   const containerRef = useRef(null);
   const inputRef = useRef(null);
+  const [dropdownStyle, setDropdownStyle] = useState({});
+
+  // Recalculate dropdown position whenever open state or window size changes
+  useLayoutEffect(() => {
+    if (!isOpen || !containerRef.current) return;
+    const updatePosition = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+
+      if (viewportWidth < 640) {
+        // Full-width on mobile with 10px margins so content is never squished
+        const margin = 10;
+        setDropdownStyle({
+          position: 'fixed',
+          top: rect.bottom + 8,
+          left: margin,
+          width: viewportWidth - margin * 2,
+          maxHeight: `calc(100vh - ${rect.bottom + 16}px)`,
+          zIndex: 9999,
+        });
+      } else {
+        // Desktop/Tablet: generous width (at least 520px or rect.width)
+        const targetWidth = Math.max(rect.width, 520);
+        const margin = 16;
+        let left = rect.left;
+        if (left + targetWidth > viewportWidth - margin) {
+          left = Math.max(margin, viewportWidth - targetWidth - margin);
+        }
+        setDropdownStyle({
+          position: 'fixed',
+          top: rect.bottom + 8,
+          left: left,
+          width: Math.min(targetWidth, viewportWidth - margin * 2),
+          maxHeight: `calc(100vh - ${rect.bottom + 16}px)`,
+          zIndex: 9999,
+        });
+      }
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    return () => window.removeEventListener('resize', updatePosition);
+  }, [isOpen]);
 
   // Sync searchQuery when navigating with state or query params
   useEffect(() => {
@@ -590,7 +634,7 @@ export function StudentHeaderSearch({ className = "" }) {
         ref={inputRef}
         type="text"
         value={searchQuery}
-        placeholder={isHomePage ? "Search controllers, tabs, or settings..." : "Search books, authors, subjects, or ISBN..."}
+        placeholder={isHomePage ? "Search books, authors…" : "Search books, authors, ISBN…"}
         aria-label="Search student portal"
         onChange={handleInputChange}
         onFocus={() => setIsOpen(true)}
@@ -614,7 +658,7 @@ export function StudentHeaderSearch({ className = "" }) {
             setActiveIndex(-1);
           }
         }}
-        className="h-12 w-full rounded-full border border-slate-200/90 bg-white pl-11 pr-11 text-sm font-medium text-slate-800 shadow-sm transition-all placeholder:text-slate-400 placeholder:font-normal focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 md:text-[15px]"
+        className="h-10 w-full rounded-full border border-slate-200/90 bg-white pl-11 pr-11 text-sm font-medium text-slate-800 shadow-sm transition-all placeholder:text-slate-400 placeholder:font-normal focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/25 sm:h-11 md:h-12 md:text-[15px]"
       />
 
       {/* Clear Button */}
@@ -629,9 +673,12 @@ export function StudentHeaderSearch({ className = "" }) {
         </button>
       )}
 
-      {/* RICH SEARCH DROPDOWN */}
+      {/* RICH SEARCH DROPDOWN — rendered with fixed position to escape header stacking context */}
       {isOpen && (
-        <div className="absolute left-0 right-0 top-full z-[100] mt-2 max-h-[min(540px,82vh)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_50px_-12px_rgba(15,23,42,0.22)] backdrop-blur-md">
+        <div
+          style={dropdownStyle}
+          className="max-h-[min(460px,70vh)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_20px_60px_-12px_rgba(15,23,42,0.28)] backdrop-blur-md"
+        >
           {isHomePage ? (
             /* ============================================================ */
             /* HOME PAGE: NAVIGATION CONTROLLERS, TABS, & SETTINGS ONLY     */
@@ -859,17 +906,17 @@ export function StudentHeaderSearch({ className = "" }) {
                         key={`pred-${term}-${pIdx}`}
                         onClick={() => executeSearch(term)}
                         onMouseEnter={() => setActiveIndex(pIdx)}
-                        className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm cursor-pointer transition-colors ${
+                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
                           isSelected ? "bg-blue-50 text-blue-900 font-semibold" : "text-slate-800 hover:bg-slate-50"
                         }`}
                       >
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <Search className="h-4 w-4 text-slate-400 shrink-0" />
-                          <div className="truncate text-xs sm:text-sm">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <Search className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                          <div className="text-xs line-clamp-1 text-slate-800 font-medium">
                             <HighlightMatch text={term} query={searchQuery} />
                           </div>
                         </div>
-                        <ChevronRight className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+                        <ChevronRight className="h-3 w-3 text-slate-300 shrink-0" />
                       </div>
                     );
                   })}
@@ -879,12 +926,12 @@ export function StudentHeaderSearch({ className = "" }) {
               {/* SECTION 2: Local Library Matches */}
               {homeMatches.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-slate-500 border-b border-slate-100 mb-1">
-                    <span className="flex items-center gap-1.5 uppercase tracking-wider text-[11px] text-blue-700 font-bold">
-                      <Building2 className="h-3.5 w-3.5 text-blue-600" />
+                  <div className="flex items-center justify-between px-2.5 py-1 text-[10px] font-semibold text-slate-500 border-b border-slate-100 mb-1">
+                    <span className="flex items-center gap-1 uppercase tracking-wider text-blue-700 font-bold">
+                      <Building2 className="h-3 w-3 text-blue-600" />
                       Home Library Books ({homeMatches.length})
                     </span>
-                    <span className="text-[10px] text-slate-400">Available on campus</span>
+                    <span className="text-[10px] text-slate-400">On campus</span>
                   </div>
 
                   <div className="space-y-1">
@@ -897,14 +944,14 @@ export function StudentHeaderSearch({ className = "" }) {
                           key={book.id || book.book_id}
                           onClick={() => handleSelectHomeBook(book)}
                           onMouseEnter={() => setActiveIndex(itemFlatIdx)}
-                          className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all border ${
+                          className={`flex items-center gap-2.5 p-1.5 rounded-lg cursor-pointer transition-all border ${
                             isSelected
                               ? "bg-blue-50/90 border-blue-300 shadow-2xs"
                               : "border-transparent hover:bg-blue-50/50 hover:border-blue-200"
                           }`}
                         >
-                          {/* Book cover / icon */}
-                          <div className="relative flex h-10 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 border border-slate-200/80 shadow-2xs overflow-hidden select-none">
+                          {/* Book cover / icon (compact 28x36px) */}
+                          <div className="relative flex h-9 w-7 shrink-0 items-center justify-center rounded bg-slate-100 border border-slate-200/80 shadow-2xs overflow-hidden select-none">
                             {book.cover_image ? (
                               <img
                                 src={getBackendAssetUrl(book.cover_image)}
@@ -916,29 +963,31 @@ export function StudentHeaderSearch({ className = "" }) {
                               />
                             ) : null}
                             <div className="absolute inset-0 flex items-center justify-center bg-slate-100 z-0">
-                              <img src="/L.png" alt="Libralink" className="h-5 w-5 object-contain grayscale opacity-35" />
+                              <img src="/L.png" alt="Libralink" className="h-4 w-4 object-contain grayscale opacity-35" />
                             </div>
                           </div>
 
                           {/* Book Details */}
                           <div className="min-w-0 flex-1">
-                            <h4 className="text-sm font-semibold text-slate-900 truncate">
+                            <h4 className="text-xs font-semibold text-slate-900 line-clamp-2 leading-tight break-words">
                               <HighlightMatch text={book.title} query={searchQuery} />
                             </h4>
-                            <p className="text-xs text-slate-500 truncate">
-                              By <HighlightMatch text={book.author || "Unknown author"} query={searchQuery} />
+                            <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500 flex-wrap">
+                              <span className="truncate max-w-[180px]">
+                                By <HighlightMatch text={book.author || "Unknown author"} query={searchQuery} />
+                              </span>
                               {book.category && (
-                                <span className="ml-2 inline-block text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">
+                                <span className="shrink-0 text-[9px] px-1 py-0.2 rounded bg-slate-100 text-slate-600 font-medium">
                                   {book.category}
                                 </span>
                               )}
-                            </p>
+                            </div>
                           </div>
 
-                          {/* Availability badge */}
-                          <div className="shrink-0 text-right">
+                          {/* Availability badge & chevron */}
+                          <div className="shrink-0 flex items-center gap-1.5">
                             <span
-                              className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                              className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
                                 isAvail
                                   ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                   : "bg-slate-100 text-slate-600"
@@ -946,15 +995,15 @@ export function StudentHeaderSearch({ className = "" }) {
                             >
                               {isAvail ? (
                                 <>
-                                  <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                  <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 shrink-0" />
                                   <span>{book.available_copies || 1} avail</span>
                                 </>
                               ) : (
                                 "Unavailable"
                               )}
                             </span>
+                            <ChevronRight className="h-3.5 w-3.5 text-slate-300 shrink-0" />
                           </div>
-                          <ChevronRight className="h-4 w-4 text-slate-300 shrink-0" />
                         </div>
                       );
                     })}
@@ -965,20 +1014,20 @@ export function StudentHeaderSearch({ className = "" }) {
               {/* SECTION 3: Available in Partner Libraries (Consortium Inter-Library) */}
               {(safePartnerBooks.length > 0 || searchingPartner) && (
                 <div className="pt-1">
-                  <div className="flex items-center justify-between px-3 py-1.5 text-xs font-semibold border-b border-indigo-100 bg-indigo-50/50 rounded-lg mb-1.5">
-                    <span className="flex items-center gap-1.5 uppercase tracking-wider text-[11px] text-indigo-800 font-bold">
-                      <Globe className="h-3.5 w-3.5 text-indigo-600" />
-                      Available in Partner Libraries
+                  <div className="flex items-center justify-between px-2.5 py-1 text-[10px] font-semibold border-b border-indigo-100 bg-indigo-50/50 rounded-md mb-1">
+                    <span className="flex items-center gap-1 uppercase tracking-wider text-indigo-800 font-bold">
+                      <Globe className="h-3 w-3 text-indigo-600" />
+                      Partner Libraries
                     </span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-600 text-white font-bold tracking-wide">
-                      Consortium Network
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-600 text-white font-bold tracking-wide">
+                      Consortium
                     </span>
                   </div>
 
                   {searchingPartner ? (
-                    <div className="flex items-center gap-2 p-3 text-xs text-indigo-700">
-                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
-                      <span>Checking consortium partner campuses...</span>
+                    <div className="flex items-center gap-2 p-2.5 text-xs text-indigo-700">
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+                      <span>Checking consortium campuses...</span>
                     </div>
                   ) : (
                     <div className="space-y-1">
@@ -990,56 +1039,56 @@ export function StudentHeaderSearch({ className = "" }) {
                             key={`${partnerBook.school_id}-${partnerBook.book_id}`}
                             onClick={() => handleSelectPartnerBook(partnerBook)}
                             onMouseEnter={() => setActiveIndex(itemFlatIdx)}
-                            className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all border ${
+                            className={`flex items-start gap-2.5 p-2 rounded-lg cursor-pointer transition-all border ${
                               isSelected
                                 ? "bg-indigo-50/95 border-indigo-400 shadow-2xs"
                                 : "border-indigo-100/70 hover:bg-indigo-50/80 hover:border-indigo-300"
                             }`}
                           >
-                            {/* School Badge Icon */}
-                            <div className="flex h-10 w-9 shrink-0 flex-col items-center justify-center rounded-lg bg-indigo-600 text-white shadow-2xs">
-                              <Building2 className="h-4 w-4 text-white" />
-                              <span className="text-[8px] font-bold uppercase tracking-tighter text-indigo-200 mt-0.5 truncate max-w-[34px]">
+                            {/* School Badge Icon (compact 28x36px) */}
+                            <div className="flex h-9 w-7 shrink-0 flex-col items-center justify-center rounded bg-indigo-600 text-white shadow-2xs mt-0.5">
+                              <Building2 className="h-3.5 w-3.5 text-white" />
+                              <span className="text-[7px] font-bold uppercase tracking-tighter text-indigo-200 leading-none truncate max-w-[26px]">
                                 {partnerBook.school_code || "SCH"}
                               </span>
                             </div>
 
                             {/* Info */}
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5">
-                                <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200 truncate max-w-[150px]">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
                                   {partnerBook.school_name}
                                 </span>
                                 {partnerBook.enable_visiting_fee && Number(partnerBook.visiting_fee_amount) > 0 ? (
-                                  <span className="text-[9px] font-bold text-amber-800 bg-amber-100 px-1 rounded">
+                                  <span className="text-[8px] font-bold text-amber-800 bg-amber-100 px-1 py-0.2 rounded border border-amber-200">
                                     ₱{Number(partnerBook.visiting_fee_amount).toFixed(2)}
                                   </span>
                                 ) : (
-                                  <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 rounded">
+                                  <span className="text-[8px] font-bold text-emerald-700 bg-emerald-100 px-1 py-0.2 rounded border border-emerald-200">
                                     Free
                                   </span>
                                 )}
                               </div>
-                              <h4 className="text-sm font-semibold text-slate-900 truncate mt-0.5">
+                              <h4 className="text-xs font-semibold text-slate-900 line-clamp-2 leading-tight break-words mt-0.5">
                                 <HighlightMatch text={partnerBook.title} query={searchQuery} />
                               </h4>
-                              <p className="text-xs text-slate-500 truncate flex items-center gap-1">
-                                <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
-                                <span>{partnerBook.address || "Consortium Partner Campus"}</span>
-                              </p>
+                              <div className="flex items-center justify-between gap-1.5 mt-1 flex-wrap">
+                                <p className="text-[10px] text-slate-500 truncate flex items-center gap-1">
+                                  <MapPin className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+                                  <span>{partnerBook.address || "Consortium Campus"}</span>
+                                </p>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    {partnerBook.available_copies || 1} avail
+                                  </span>
+                                  <span className="text-[8px] text-indigo-600 font-semibold">
+                                    View Pass
+                                  </span>
+                                </div>
+                              </div>
                             </div>
 
-                            {/* Copy count badge & call to action */}
-                            <div className="shrink-0 text-right flex flex-col items-end">
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                {partnerBook.available_copies || 1} available
-                              </span>
-                              <span className="text-[9px] text-indigo-600 font-semibold mt-0.5">
-                                View Details & Pass
-                              </span>
-                            </div>
-
-                            <ChevronRight className="h-4 w-4 text-slate-300 shrink-0" />
+                            <ChevronRight className="h-3 w-3 text-slate-300 shrink-0 self-center" />
                           </div>
                         );
                       })}

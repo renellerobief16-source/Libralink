@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useNotifications } from "../../../context/NotificationContext";
@@ -10,6 +10,7 @@ import StudentFavorite from "./StudentFavorite";
 import StudentProfile from "./StudentProfile";
 import { StudentHeaderActions } from "./StudentHeaderActions";
 import { StudentHeaderSearch } from "./StudentHeaderSearch";
+import { useBorrowingCartCount, useOpenBorrowingCart, useIsCartDrawerOpen } from "../../../utils/studentCart";
 
 import {
   Book,
@@ -121,6 +122,219 @@ const studentSearchFeatures = [
   },
 ];
 
+/* ─── MobileCartButton ──────────────────────────────────────────────────────
+ * A compact borrowing cart button with live badge counter for mobile header.
+ * ─────────────────────────────────────────────────────────────────────────── */
+function MobileCartButton() {
+  const cartCount = useBorrowingCartCount();
+  const openCart = useOpenBorrowingCart();
+  const isCartOpen = useIsCartDrawerOpen();
+
+  return (
+    <button
+      type="button"
+      onClick={openCart}
+      className="md:hidden relative flex h-9 w-9 items-center justify-center rounded-full text-slate-700 transition-colors hover:bg-slate-100 hover:text-blue-600 active:scale-95"
+      aria-label={`Borrowing cart with ${cartCount} books`}
+      title="Borrowing Cart"
+    >
+      <ShoppingCart className="h-5 w-5" />
+      {!isCartOpen && cartCount > 0 && (
+        <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[9px] font-bold text-white leading-none shadow-xs ring-2 ring-white transition-opacity">
+          {cartCount > 9 ? "9+" : cartCount}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/* ─── MobileBellButton ──────────────────────────────────────────────────────
+ * A sleek notification bell with an anchored compact dropdown for mobile.
+ * ─────────────────────────────────────────────────────────────────────────── */
+function MobileBellButton() {
+  const { notifications = [], unreadCount = 0, markAsRead, markAllAsRead } = useNotifications();
+  const [isOpen, setIsOpen] = useState(false);
+  const [filter, setFilter] = useState("all");
+  const containerRef = useRef(null);
+  const navigate = useNavigate();
+
+  // Close on click outside or escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") setIsOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  const filtered = (notifications || []).filter((n) => {
+    if (filter === "unread") return !n.read;
+    return true;
+  });
+
+  const handleNotificationClick = (item) => {
+    if (!item.read) markAsRead(item.id);
+    setIsOpen(false);
+    navigate("/studentpage/inbox");
+  };
+
+  const handleViewAll = () => {
+    setIsOpen(false);
+    navigate("/studentpage/inbox");
+  };
+
+  return (
+    <div ref={containerRef} className="relative md:hidden">
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 active:scale-95 ${
+          isOpen
+            ? "bg-blue-50 text-blue-600 ring-2 ring-blue-500/30"
+            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+        }`}
+        aria-label="Notifications"
+        aria-expanded={isOpen}
+      >
+        <Bell className="h-5 w-5" />
+        {unreadCount > 0 && (
+          <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white leading-none shadow-xs ring-2 ring-white">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {/* COMPACT NOTIFICATION DROPDOWN */}
+      {isOpen && (
+        <div
+          role="dialog"
+          aria-label="Notifications"
+          className="absolute right-0 top-full mt-2 w-[min(320px,calc(100vw-20px))] rounded-2xl border border-slate-200/90 bg-white/98 shadow-[0_16px_40px_-8px_rgba(15,23,42,0.22)] backdrop-blur-xl z-[100] animate-in fade-in zoom-in-95 duration-150 overflow-hidden"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-slate-100 px-3.5 py-2.5 bg-slate-50/70">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-900">Notifications</span>
+              {unreadCount > 0 && (
+                <span className="rounded-full bg-blue-100 px-1.5 py-0.2 text-[10px] font-bold text-blue-700">
+                  {unreadCount} new
+                </span>
+              )}
+            </div>
+            {unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={markAllAsRead}
+                className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 transition"
+              >
+                Mark all read
+              </button>
+            )}
+          </div>
+
+          {/* Quick Filter Pills */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-slate-100 bg-white">
+            <button
+              type="button"
+              onClick={() => setFilter("all")}
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition ${
+                filter === "all"
+                  ? "bg-blue-600 text-white shadow-2xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              All ({(notifications || []).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilter("unread")}
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition ${
+                filter === "unread"
+                  ? "bg-blue-600 text-white shadow-2xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              Unread ({unreadCount})
+            </button>
+          </div>
+
+          {/* Scrollable Notification List */}
+          <div className="max-h-[250px] overflow-y-auto overscroll-contain divide-y divide-slate-100">
+            {filtered.length === 0 ? (
+              <div className="py-7 text-center">
+                <Bell className="h-6 w-6 text-slate-300 mx-auto mb-1.5 stroke-[1.5]" />
+                <p className="text-xs font-medium text-slate-600">
+                  {filter === "unread" ? "No unread notifications" : "No notifications yet"}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">We'll alert you when books are ready or updated.</p>
+              </div>
+            ) : (
+              filtered.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => handleNotificationClick(item)}
+                  className={`flex items-start gap-2.5 p-2.5 cursor-pointer transition hover:bg-slate-50 ${
+                    !item.read ? "bg-blue-50/40" : ""
+                  }`}
+                >
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600 mt-0.5">
+                    <Bell className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <p className={`text-xs truncate ${!item.read ? "font-bold text-slate-900" : "font-medium text-slate-700"}`}>
+                        {item.title}
+                      </p>
+                      {!item.read && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-600 shrink-0" />
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 line-clamp-2 leading-snug mt-0.5">
+                      {item.message}
+                    </p>
+                    {item.createdAt && (
+                      <span className="text-[9px] text-slate-400 mt-1 block">
+                        {new Date(item.createdAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Footer: View All in Inbox */}
+          <div className="border-t border-slate-100 bg-slate-50/50 p-2 text-center">
+            <button
+              type="button"
+              onClick={handleViewAll}
+              className="w-full rounded-xl py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition"
+            >
+              View all in Inbox →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function StudentBottomNav() {
   const { unreadCount = 0 } = useNotifications();
@@ -140,240 +354,362 @@ export function StudentBottomNav() {
         setCurrentUser(null);
       }
     };
-
     window.addEventListener("libralink-user-changed", refreshCurrentUser);
     window.addEventListener("storage", refreshCurrentUser);
-
     return () => {
       window.removeEventListener("libralink-user-changed", refreshCurrentUser);
       window.removeEventListener("storage", refreshCurrentUser);
     };
   }, []);
 
-  const profileImage =
-    currentUser?.profile_picture ||
-    currentUser?.profile_image ||
-    "";
-
+  const profileImage = currentUser?.profile_picture || currentUser?.profile_image || "";
   const getProfilePictureUrl = (picture) => {
     if (!picture) return "";
-    if (
-      picture.startsWith("http://") ||
-      picture.startsWith("https://") ||
-      picture.startsWith("data:") ||
-      picture.startsWith("blob:")
-    ) {
-      return picture;
-    }
+    if (picture.startsWith("http://") || picture.startsWith("https://") || picture.startsWith("data:") || picture.startsWith("blob:")) return picture;
     if (picture.startsWith("/")) return `${API_ORIGIN}${picture}`;
     return `${API_ORIGIN}/${picture}`;
   };
-
   const profileImageUrl = getProfilePictureUrl(profileImage);
+  const initial = (currentUser?.first_name || currentUser?.name || "S").charAt(0).toUpperCase();
+
+  const tabs = [
+    { to: "/studentpage", end: true, icon: Home, label: "Home" },
+    { to: "/studentpage/search", icon: Search, label: "Search" },
+    { to: "/studentpage/favorites", icon: Heart, label: "Favorites" },
+    { to: "/studentpage/inbox", icon: Bell, label: "Inbox", badge: unreadCount, badgeColor: "bg-rose-500" },
+    { to: "/studentpage/profile", icon: null, label: "Me", isProfile: true },
+  ];
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 px-0 pb-0 pt-1.5 lg:hidden" aria-label="Student navigation">
-      <div className="mx-auto grid h-[64px] w-full grid-cols-5 gap-0.5 rounded-none border border-slate-200/90 bg-white/95 px-1 shadow-[0_8px_28px_rgba(15,23,42,0.14)] backdrop-blur-xl">
-        {/* Home */}
+    <nav
+      className="fixed inset-x-0 bottom-0 z-50 lg:hidden"
+      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      aria-label="Student navigation"
+    >
+      {/* Blur backdrop */}
+      <div className="border-t border-slate-200/70 bg-white/96 backdrop-blur-2xl shadow-[0_-1px_0_0_rgba(0,0,0,0.05)]">
+        <div className="grid h-[58px] grid-cols-5 items-center">
+          {tabs.map((tab) => (
+            <NavLink
+              key={tab.to}
+              to={tab.to}
+              end={tab.end}
+              className={({ isActive }) =>
+                `group relative flex flex-col items-center justify-center gap-[3px] h-full w-full transition-all duration-200 active:scale-90 ${
+                  isActive ? "text-blue-600" : "text-slate-400 hover:text-slate-600"
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  {/* Active indicator — thin line at top */}
+                  <span
+                    className={`absolute top-0 left-1/2 -translate-x-1/2 h-[2px] w-5 rounded-b-full transition-all duration-300 ${
+                      isActive ? "bg-blue-600 opacity-100" : "opacity-0"
+                    }`}
+                  />
 
-        <NavLink
-          to="/studentpage"
+                  {/* Icon */}
+                  <div className="relative flex items-center justify-center">
+                    {tab.isProfile ? (
+                      profileImageUrl ? (
+                        <img
+                          src={profileImageUrl}
+                          alt="Profile"
+                          className={`h-[22px] w-[22px] rounded-full object-cover transition-all duration-200 ${
+                            isActive ? "ring-2 ring-blue-600 ring-offset-1" : "ring-1 ring-slate-300"
+                          }`}
+                        />
+                      ) : (
+                        <div
+                          className={`flex h-[22px] w-[22px] items-center justify-center rounded-full text-[10px] font-bold transition-all duration-200 ${
+                            isActive
+                              ? "bg-blue-600 text-white ring-2 ring-blue-600 ring-offset-1"
+                              : "bg-slate-200 text-slate-600"
+                          }`}
+                        >
+                          {initial}
+                        </div>
+                      )
+                    ) : (
+                      <tab.icon
+                        className={`transition-all duration-200 ${
+                          isActive ? "h-[22px] w-[22px] text-blue-600" : "h-[21px] w-[21px] text-slate-400"
+                        } ${
+                          tab.icon === Heart && isActive ? "fill-current" : ""
+                        }`}
+                        strokeWidth={isActive ? 2.2 : 1.8}
+                      />
+                    )}
 
-          end
+                    {/* Badge */}
+                    {tab.badge > 0 && (
+                      <span className="absolute -right-2 -top-1 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-rose-500 px-[3px] text-[8px] font-bold leading-none text-white shadow-xs ring-1 ring-white">
+                        {tab.badge > 9 ? "9+" : tab.badge}
+                      </span>
+                    )}
+                  </div>
 
-          className={({ isActive }) => `
-
-            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold
-
-            ${isActive ? "border-blue-600 text-blue-700" : "text-slate-500 active:text-blue-600"}
-
-          `}
-        >
-          <Home className="h-[22px] w-[22px]" />
-          <span>Home</span>
-        </NavLink>
-
-        {/* Search */}
-
-        <NavLink
-          to="/studentpage/search"
-
-          className={({ isActive }) => `
-
-            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold
-
-            ${isActive ? "border-blue-600 text-blue-700" : "text-slate-500 active:text-blue-600"}
-
-          `}
-        >
-          <Search className="h-[22px] w-[22px]" />
-          <span>Discover</span>
-        </NavLink>
-
-        {/* Favorites */}
-
-        <NavLink
-          to="/studentpage/favorites"
-
-          className={({ isActive }) => `
-
-            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold
-
-            ${isActive ? "border-blue-600 text-blue-700" : "text-slate-500 active:text-blue-600"}
-
-          `}
-        >
-          <Heart className="h-[22px] w-[22px]" />
-          <span>Favorites</span>
-        </NavLink>
-
-        {/* Inbox */}
-
-        <NavLink
-          to="/studentpage/inbox"
-
-          className={({ isActive }) => `
-
-            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold
-
-            ${isActive ? "border-blue-600 text-blue-700" : "text-slate-500 active:text-blue-600"}
-
-          `}
-        >
-          <span className="relative"><Mail className="h-[22px] w-[22px]" />{unreadCount > 0 && <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-white bg-rose-500 px-0.5 text-[9px] font-bold leading-none text-white">{unreadCount > 9 ? "9+" : unreadCount}</span>}</span>
-          <span>Inbox</span>
-        </NavLink>
-
-        {/* Profile Picture */}
-
-        <NavLink
-          to="/studentpage/profile"
-
-          className={({ isActive }) => `
-
-            flex min-w-0 flex-col items-center justify-center gap-1 border-t-2 border-transparent px-1 text-[10px] font-semibold
-
-            ${isActive ? "border-blue-600 text-blue-700" : "text-slate-500 active:text-blue-600"}
-
-          `}
-        >
-          {profileImageUrl ? (
-            <img
-              src={profileImageUrl}
-              alt="Profile"
-              className="h-[22px] w-[22px] rounded-full object-cover ring-1 ring-current"
-            />
-          ) : (
-            <User className="h-[22px] w-[22px]" />
-          )}
-          <span>Profile</span>
-        </NavLink>
+                  {/* Label */}
+                  <span
+                    className={`text-[10px] leading-none tracking-tight transition-all duration-200 ${
+                      isActive ? "font-semibold text-blue-600" : "font-normal text-slate-400"
+                    }`}
+                  >
+                    {tab.label}
+                  </span>
+                </>
+              )}
+            </NavLink>
+          ))}
+        </div>
       </div>
     </nav>
   );
 }
 
 function StudentFloatingCart() {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const cartCount = useBorrowingCartCount();
+  const openCart = useOpenBorrowingCart();
+  const isCartOpen = useIsCartDrawerOpen();
+  const buttonRef = React.useRef(null);
   const dragRef = React.useRef(null);
   const movedRef = React.useRef(false);
-  const positionRef = React.useRef(null);
-  const idleTimerRef = React.useRef(null);
+  const prevCountRef = React.useRef(cartCount);
   const [isDragging, setIsDragging] = useState(false);
-  const [isIdle, setIsIdle] = useState(false);
+  const [badgeBouncing, setBadgeBouncing] = useState(false);
+
   const [position, setPosition] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('studentCartPosition') || 'null');
-      return saved && Number.isFinite(saved.x) && Number.isFinite(saved.y) ? saved : { x: Math.max(12, window.innerWidth - 68), y: Math.max(12, window.innerHeight - (window.innerWidth >= 768 ? 96 : 146)) };
+      if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+        return {
+          x: Math.max(12, Math.min(saved.x, window.innerWidth - 68)),
+          y: Math.max(12, Math.min(saved.y, window.innerHeight - 130)),
+        };
+      }
     } catch {
-      return { x: Math.max(12, window.innerWidth - 68), y: Math.max(12, window.innerHeight - (window.innerWidth >= 768 ? 96 : 146)) };
+      // fallback
     }
+    return {
+      x: Math.max(12, window.innerWidth - 68),
+      y: Math.max(12, window.innerHeight - (window.innerWidth >= 768 ? 100 : 140)),
+    };
   });
 
-  useEffect(() => {
-    positionRef.current = position;
-  }, [position]);
+  const keepOnScreen = React.useCallback((x, y) => ({
+    x: Math.max(12, Math.min(x, window.innerWidth - 68)),
+    y: Math.max(12, Math.min(y, window.innerHeight - 130)),
+  }), []);
 
-  const resetIdleTimer = React.useCallback(() => {
-    setIsIdle(false);
-    window.clearTimeout(idleTimerRef.current);
-    idleTimerRef.current = window.setTimeout(() => setIsIdle(true), 3000);
-  }, []);
-
-  useEffect(() => {
-    resetIdleTimer();
-    return () => window.clearTimeout(idleTimerRef.current);
-  }, [resetIdleTimer]);
-
-  const keepOnScreen = (x, y) => ({ x: Math.max(8, Math.min(x, window.innerWidth - 64)), y: Math.max(8, Math.min(y, window.innerHeight - 142)) });
-
-  const snapToNearestSide = (currentPosition) => {
+  const snapToNearestSide = React.useCallback((currentPosition) => {
     const safePosition = keepOnScreen(currentPosition.x, currentPosition.y);
-    const cartCenter = safePosition.x + 28;
+    const cartCenter = safePosition.x + 27;
     const screenCenter = window.innerWidth / 2;
 
     return {
       ...safePosition,
-      x: cartCenter < screenCenter ? 8 : window.innerWidth - 64,
+      x: cartCenter < screenCenter ? 12 : window.innerWidth - 68,
     };
-  };
+  }, [keepOnScreen]);
+
+  // Keep on screen on window resize & snap
+  useEffect(() => {
+    const handleResize = () => {
+      setPosition((prev) => snapToNearestSide(prev));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [snapToNearestSide]);
+
+  // Pop-up bounce animation whenever books are added to cart
+  useEffect(() => {
+    if (cartCount > prevCountRef.current) {
+      setBadgeBouncing(true);
+      const timer = setTimeout(() => setBadgeBouncing(false), 900);
+      return () => clearTimeout(timer);
+    }
+    prevCountRef.current = cartCount;
+  }, [cartCount]);
+
+  // Global pointer event listeners during drag for silky smooth, weightless 0ms tracking
+  useEffect(() => {
+    if (!isDragging) return;
+
+    // Completely prevent window and mobile viewport scrolling while dragging the cart
+    const preventTouchScroll = (e) => {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('touchmove', preventTouchScroll, { passive: false });
+    const originalOverscroll = document.body.style.overscrollBehavior;
+    document.body.style.overscrollBehavior = 'none';
+
+    const handlePointerMove = (event) => {
+      if (!dragRef.current || dragRef.current.pointerId !== event.pointerId) return;
+
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+
+      const movement = Math.hypot(
+        event.clientX - dragRef.current.startX,
+        event.clientY - dragRef.current.startY
+      );
+      if (!dragRef.current.hasMoved && movement < 3) return;
+
+      dragRef.current.hasMoved = true;
+      movedRef.current = true;
+
+      const nextX = event.clientX - dragRef.current.offsetX;
+      const nextY = event.clientY - dragRef.current.offsetY;
+      const safe = keepOnScreen(nextX, nextY);
+
+      dragRef.current.currentX = safe.x;
+      dragRef.current.currentY = safe.y;
+
+      // Direct GPU transform update for instant 120fps tracking with zero lag/weight
+      if (buttonRef.current) {
+        buttonRef.current.style.transform = `translate3d(${safe.x}px, ${safe.y}px, 0)`;
+      }
+    };
+
+    const handlePointerUp = (event) => {
+      if (!dragRef.current || dragRef.current.pointerId !== event.pointerId) return;
+
+      try {
+        if (buttonRef.current?.hasPointerCapture(event.pointerId)) {
+          buttonRef.current.releasePointerCapture(event.pointerId);
+        }
+      } catch {
+        // ignore
+      }
+
+      const finalPosition = snapToNearestSide({
+        x: dragRef.current.currentX,
+        y: dragRef.current.currentY,
+      });
+
+      dragRef.current = null;
+      setIsDragging(false);
+      setPosition(finalPosition);
+
+      try {
+        localStorage.setItem('studentCartPosition', JSON.stringify(finalPosition));
+      } catch {
+        // ignore
+      }
+
+      // Smooth magnetic snap to side without size change
+      if (buttonRef.current) {
+        buttonRef.current.style.transition = 'transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.25s ease, box-shadow 0.25s ease';
+        buttonRef.current.style.transform = `translate3d(${finalPosition.x}px, ${finalPosition.y}px, 0)`;
+      }
+
+      if (movedRef.current) {
+        window.setTimeout(() => {
+          movedRef.current = false;
+        }, 80);
+      }
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+
+    return () => {
+      window.removeEventListener('touchmove', preventTouchScroll);
+      document.body.style.overscrollBehavior = originalOverscroll;
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+    };
+  }, [isDragging, keepOnScreen, snapToNearestSide]);
 
   const handlePointerDown = (event) => {
-    event.preventDefault();
+    // Only respond to primary mouse button or touch
+    if (event.button !== 0 && event.pointerType === 'mouse') return;
+
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+
     dragRef.current = {
       pointerId: event.pointerId,
       offsetX: event.clientX - position.x,
       offsetY: event.clientY - position.y,
       startX: event.clientX,
       startY: event.clientY,
+      currentX: position.x,
+      currentY: position.y,
       hasMoved: false,
     };
     movedRef.current = false;
     setIsDragging(true);
-    resetIdleTimer();
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+
+    // Disable CSS transition immediately for zero latency response without scaling
+    if (buttonRef.current) {
+      buttonRef.current.style.transition = 'none';
+      buttonRef.current.style.transform = `translate3d(${position.x}px, ${position.y}px, 0)`;
+    }
   };
 
-  const handlePointerMove = (event) => {
-    if (!dragRef.current || dragRef.current.pointerId !== event.pointerId) return;
-    const movement = Math.hypot(event.clientX - dragRef.current.startX, event.clientY - dragRef.current.startY);
-    if (!dragRef.current.hasMoved && movement < 4) return;
-
-    dragRef.current.hasMoved = true;
-    event.preventDefault();
-    const next = keepOnScreen(event.clientX - dragRef.current.offsetX, event.clientY - dragRef.current.offsetY);
-    movedRef.current = true;
-    positionRef.current = next;
-    setPosition(next);
-  };
-
-  const handlePointerUp = () => {
-    if (!dragRef.current) return;
-    const finalPosition = snapToNearestSide(positionRef.current || position);
-    positionRef.current = finalPosition;
-    setPosition(finalPosition);
-    localStorage.setItem('studentCartPosition', JSON.stringify(finalPosition));
-    dragRef.current = null;
-    setIsDragging(false);
-    resetIdleTimer();
-    if (movedRef.current) window.setTimeout(() => { movedRef.current = false; }, 0);
-  };
-
-  const openCart = () => {
-    if (movedRef.current) return;
-    resetIdleTimer();
-    if (location.pathname.startsWith('/studentpage/search')) {
-      window.dispatchEvent(new Event('open-borrowing-list'));
+  const handleCartClick = (e) => {
+    if (movedRef.current) {
+      e.preventDefault();
       return;
     }
-    sessionStorage.setItem('openBorrowingList', 'true');
-    navigate('/studentpage/search');
+    openCart();
   };
 
   return (
-    <button type="button" onClick={openCart} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onContextMenu={(event) => event.preventDefault()} style={{ left: position.x, top: position.y, touchAction: 'none' }} className={`fixed z-[60] flex h-14 w-14 touch-none select-none items-center justify-center rounded-full border-2 border-white bg-blue-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.38)] transition-[left,top,opacity,box-shadow,transform] ${isDragging ? 'duration-0' : 'duration-150'} active:scale-95 ${isDragging || !isIdle ? 'opacity-100' : 'opacity-45'} mb-16 lg:mb-0`} aria-label="Open borrowing list">
-      <ShoppingCart className="h-6 w-6" aria-hidden="true" />
+    <button
+      ref={buttonRef}
+      type="button"
+      onClick={handleCartClick}
+      onPointerDown={handlePointerDown}
+      onTouchStart={(e) => {
+        if (e.cancelable) e.stopPropagation();
+      }}
+      onTouchMove={(e) => {
+        if (isDragging && e.cancelable) e.preventDefault();
+      }}
+      onContextMenu={(event) => event.preventDefault()}
+      style={{
+        transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+        touchAction: 'none',
+        left: 0,
+        top: 0,
+        transition: isDragging ? 'none' : 'transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.25s ease, box-shadow 0.25s ease',
+      }}
+      className={`fixed z-[70] flex h-12 w-12 sm:h-[50px] sm:w-[50px] touch-none select-none items-center justify-center rounded-2xl border border-white/20 bg-[#0A2540] text-white shadow-md will-change-transform ${
+        isDragging
+          ? 'shadow-lg cursor-grabbing opacity-100'
+          : 'opacity-50 hover:opacity-100 cursor-grab active:scale-95 transition-opacity'
+      }`}
+      aria-label={`Open borrowing list, ${cartCount} books in cart`}
+      title="Borrowing Cart (Drag to move)"
+    >
+      <ShoppingCart className="h-5 w-5 text-white" aria-hidden="true" />
+
+      {/* Clean iOS-style red notification badge on top right - hidden while cart drawer is open */}
+      {!isCartOpen && cartCount > 0 && (
+        <span
+          className={`absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#FF3B30] px-1 text-[10px] font-bold text-white shadow-xs ring-2 ring-[#0A2540] transition-all duration-200 ${
+            badgeBouncing ? 'scale-110' : 'scale-100'
+          }`}
+        >
+          {cartCount > 99 ? '99+' : cartCount}
+        </span>
+      )}
     </button>
   );
 }
@@ -1106,6 +1442,23 @@ export function StudentLayout({
   const location = useLocation();
   const isSearchRoute = location.pathname.startsWith("/studentpage/search");
   const isHomeRoute = location.pathname === "/studentpage" || location.pathname === "/studentpage/";
+  const isSearchOrHome = isSearchRoute || isHomeRoute;
+
+  // Map routes → page titles for minimalist header
+  const PAGE_TITLES = {
+    "/studentpage/favorites": { label: "Favorites", icon: Heart },
+    "/studentpage/inbox": { label: "Inbox", icon: Mail },
+    "/studentpage/history": { label: "Borrow History", icon: ClockIcon },
+    "/studentpage/settings": { label: "Settings", icon: Settings },
+    "/studentpage/profile": { label: "My Profile", icon: User },
+    "/studentpage/help": { label: "Help", icon: Book },
+    "/studentpage/about": { label: "About", icon: Book },
+    "/studentpage/borrowing": { label: "Borrowing List", icon: ShoppingCart },
+    "/studentpage/qr": { label: "My ID Card", icon: User },
+  };
+  const currentPageMeta = Object.entries(PAGE_TITLES).find(([path]) =>
+    location.pathname.startsWith(path)
+  )?.[1] || { label: "LibraLink", icon: Book };
   const [activePanel, setActivePanel] = useState(null);
   const panelMeta = {
     favorites: { title: "Favorites", icon: Heart, iconClass: "text-rose-500 bg-rose-50" },
@@ -1549,8 +1902,8 @@ export function StudentLayout({
           aria-label={`${activePanel} panel`}
           className={`student-expanded-panel fixed inset-x-0 bottom-0 z-40 flex flex-col w-full min-w-0 border-r border-slate-300 bg-[#F7FAFC] overflow-hidden transition-all duration-300 ${
             isPreviewMode
-              ? "top-[40px] md:top-[104px] lg:top-[40px] lg:h-[calc(100dvh-40px)]"
-              : "top-0 md:top-[64px] lg:top-0 lg:h-dvh"
+              ? "top-[40px] md:top-[96px] lg:top-[40px] lg:h-[calc(100dvh-40px)]"
+              : "top-0 md:top-[56px] lg:top-0 lg:h-dvh"
           } md:w-[380px] lg:w-[380px] ${
             sidebarExpanded ? "lg:left-[240px]" : "lg:left-[72px]"
           }`}
@@ -1616,26 +1969,66 @@ export function StudentLayout({
         </section>
       )}
 
-      {/* UNIFIED TOP HEADER (Consistent across ALL student routes) */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* TOP HEADER — two variants depending on route                    */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
       <header
-        className={`fixed inset-x-0 z-[35] flex h-[64px] items-center border-b border-[#E5E7EB] bg-[#F7FAFC]/95 backdrop-blur-md transition-all duration-300 ${
+        className={`fixed inset-x-0 z-[50] flex items-center border-b border-[#E5E7EB]/80 bg-white/95 backdrop-blur-md transition-all duration-300 ${
           isPreviewMode ? "top-[40px]" : "top-0"
         } ${sidebarExpanded ? "lg:left-[240px]" : "lg:left-[72px]"} ${
           activePanel ? (sidebarExpanded ? "lg:left-[620px]" : "lg:left-[452px]") : ""
         }`}
+        style={{ height: 56 }}
         aria-label="Student account toolbar"
       >
-        <div className="flex w-full min-w-0 items-center gap-3 px-3 md:px-5">
-          {/* Unified Search Bar */}
-          <div className="min-w-0 flex-1">
-            <StudentHeaderSearch />
-          </div>
+        {isSearchOrHome ? (
+          /* ─── SEARCH / HOME: Full search bar ─────────────────────────── */
+          <div className="flex w-full min-w-0 items-center gap-2 px-3 md:gap-3 md:px-5">
+            {/* Logo mark on mobile only */}
+            <img src="/L.png" alt="LibraLink" className="h-7 w-7 shrink-0 object-contain md:hidden" />
 
-          {/* Right Action Icons (Pass, Cart, Profile) */}
-          <div className="flex h-full shrink-0 items-center justify-end">
-            <StudentHeaderActions userInfo={userInfo} onLogout={onLogout} />
+            {/* Search bar — full flex */}
+            <div className="min-w-0 flex-1">
+              <StudentHeaderSearch />
+            </div>
+
+            {/* Mobile action buttons: Notifications */}
+            <div className="flex items-center gap-0.5 shrink-0 md:hidden">
+              <MobileBellButton />
+            </div>
+
+            {/* Right actions — md+ only */}
+            <div className="hidden md:flex h-full shrink-0 items-center">
+              <StudentHeaderActions userInfo={userInfo} onLogout={onLogout} />
+            </div>
           </div>
-        </div>
+        ) : (
+          /* ─── OTHER TABS: Minimalist header (Instagram / Twitter style) ── */
+          <div className="flex w-full items-center justify-between px-3 md:px-5">
+            {/* Left — Logo */}
+            <div className="flex items-center gap-2 min-w-[36px]">
+              <img src="/L.png" alt="LibraLink" className="h-7 w-7 object-contain" />
+            </div>
+
+            {/* Center — Page title */}
+            <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 pointer-events-none">
+              <h1 className="text-[15px] font-bold tracking-tight text-slate-900 truncate max-w-[160px] sm:max-w-none text-center">
+                {currentPageMeta.label}
+              </h1>
+            </div>
+
+            {/* Right — Bell + Avatar (md+) */}
+            <div className="flex items-center gap-0.5 md:gap-1 shrink-0 justify-end">
+              <div className="hidden md:flex items-center">
+                <StudentHeaderActions userInfo={userInfo} onLogout={onLogout} />
+              </div>
+              {/* Mobile actions: Bell */}
+              <div className="flex items-center gap-0.5 md:hidden">
+                <MobileBellButton />
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* MAIN CONTENT AREA */}
@@ -1645,7 +2038,7 @@ export function StudentLayout({
       >
         <main
           className={`w-full min-w-0 overflow-x-visible bg-[#F7FAFC] ${
-            isPreviewMode ? "pt-[104px]" : "pt-[64px]"
+            isPreviewMode ? "pt-[96px]" : "pt-[56px]"
           } ${activePanel ? "lg:pl-[380px]" : ""}`}
         >
           <div

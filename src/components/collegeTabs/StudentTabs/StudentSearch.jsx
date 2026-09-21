@@ -56,10 +56,10 @@ import {
 
 import api, { getLibraryPolicy, getBackendAssetUrl, consolidateBookInventory } from "../../../utils/api";
 import { subscribeToBookCopies } from "../../../utils/realtime";
-import { 
-  getStudentPreferences, 
-  getRecommendedBooks, 
-  getTopicBookCover 
+import {
+  getStudentPreferences,
+  getRecommendedBooks,
+  getTopicBookCover
 } from "../../../utils/studentRecommendations";
 import { useDraggableScroll } from "../../../hooks/useDraggableScroll";
 import StudentPreferencesModal from "./StudentPreferencesModal";
@@ -71,6 +71,7 @@ import { StudentHeaderActions } from "./StudentHeaderActions";
 import StudentBorrowingForm from "./StudentBorrowingForm";
 
 import QRCodeDisplay from "./QRCodeDisplay";
+import CartBookCover from "./CartBookCover";
 
 
 const getBookCategoryValue = (book) => {
@@ -359,11 +360,10 @@ function CategoryShelfRow({
                               searchBookInOtherSchools(book);
                             }
                           }}
-                          className={`rounded-md px-2 py-1 text-[10px] font-semibold transition ${
-                            isAvailable
+                          className={`rounded-md px-2 py-1 text-[10px] font-semibold transition ${isAvailable
                               ? "bg-blue-600 text-white hover:bg-blue-700"
                               : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                          }`}
+                            }`}
                           type="button"
                         >
                           {isAvailable ? "Borrow" : "Check"}
@@ -381,9 +381,8 @@ function CategoryShelfRow({
           <div
             ref={scroll.ref}
             {...scroll.events}
-            className={`flex gap-3 sm:gap-4 overflow-x-auto pb-4 pt-1 px-1 scrollbar-hide select-none transition-all ${
-              scroll.isDragging ? "cursor-grabbing" : "cursor-grab"
-            }`}
+            className={`flex gap-3 sm:gap-4 overflow-x-auto pb-4 pt-1 px-1 scrollbar-hide select-none transition-all ${scroll.isDragging ? "cursor-grabbing" : "cursor-grab"
+              }`}
           >
             {categoryBooks
               .slice(0, initialBooksPerCategory)
@@ -455,11 +454,10 @@ function CategoryShelfRow({
                           aria-label="Save to favorites"
                         >
                           <Heart
-                            className={`h-3.5 w-3.5 transition-colors ${
-                              favorites.includes(book.id)
+                            className={`h-3.5 w-3.5 transition-colors ${favorites.includes(book.id)
                                 ? "text-red-500 fill-current"
                                 : "text-slate-600 hover:text-red-500"
-                            }`}
+                              }`}
                           />
                         </button>
                         {isAvailable && (
@@ -531,11 +529,10 @@ function CategoryShelfRow({
                               disabled={displayStatus !== "available"}
                             >
                               <Plus
-                                className={`w-3.5 h-3.5 ${
-                                  displayStatus === "available"
+                                className={`w-3.5 h-3.5 ${displayStatus === "available"
                                     ? "text-[#0077B6] hover:text-[#005f8f]"
                                     : "text-gray-300 cursor-not-allowed"
-                                }`}
+                                  }`}
                               />
                             </button>
                           )}
@@ -553,11 +550,10 @@ function CategoryShelfRow({
                             aria-pressed={favorites.includes(book.id)}
                           >
                             <Heart
-                              className={`w-3.5 h-3.5 ${
-                                favorites.includes(book.id)
+                              className={`w-3.5 h-3.5 ${favorites.includes(book.id)
                                   ? "text-red-500 fill-current"
                                   : "text-[#64748B] hover:text-red-400"
-                              }`}
+                                }`}
                             />
                           </button>
                         </div>
@@ -693,15 +689,36 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
 
   useEffect(() => {
     const openBorrowingList = () => setShowBorrowingList(true);
+    const closeBorrowingList = () => setShowBorrowingList(false);
     window.addEventListener('open-borrowing-list', openBorrowingList);
+    window.addEventListener('close-borrowing-list', closeBorrowingList);
 
     if (sessionStorage.getItem('openBorrowingList') === 'true') {
       sessionStorage.removeItem('openBorrowingList');
       setShowBorrowingList(true);
     }
 
-    return () => window.removeEventListener('open-borrowing-list', openBorrowingList);
+    return () => {
+      window.removeEventListener('open-borrowing-list', openBorrowingList);
+      window.removeEventListener('close-borrowing-list', closeBorrowingList);
+    };
   }, []);
+
+  // Broadcast cart drawer open/close status to floating cart and header
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("cart-drawer-state-changed", {
+        detail: { isOpen: Boolean(showBorrowingList) },
+      })
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent("cart-drawer-state-changed", {
+          detail: { isOpen: false },
+        })
+      );
+    };
+  }, [showBorrowingList]);
 
   useEffect(() => {
     if (categoryView) {
@@ -879,8 +896,8 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
   useEffect(() => {
     const fetchNetworkTopicBooks = async () => {
       const prefs = studentPrefs;
-      const isNursing = prefs.course === "BSN" || 
-        (prefs.course && prefs.course.toLowerCase().includes("nursing")) || 
+      const isNursing = prefs.course === "BSN" ||
+        (prefs.course && prefs.course.toLowerCase().includes("nursing")) ||
         prefs.favorite_topics?.includes("science_health");
 
       let queryTerm = "";
@@ -1817,10 +1834,10 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
   const getRecommendationReason = (book, index) => {
     if (book.recommendationReason) {
       const isNursing = (book.recommendationReason || "").toLowerCase().includes("nursing") || (book.recommendationReason || "").toLowerCase().includes("bsn");
-      return { 
-        label: book.recommendationReason, 
+      return {
+        label: book.recommendationReason,
         icon: isNursing ? Stethoscope : Sparkles,
-        badgeClass: isNursing ? "bg-emerald-600/90 text-white" : "bg-indigo-600/90 text-white" 
+        badgeClass: isNursing ? "bg-emerald-600/90 text-white" : "bg-indigo-600/90 text-white"
       };
     }
     const isAvail = getBookDisplayStatus(book) === "available";
@@ -2170,10 +2187,10 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
         const requests = Array.isArray(res?.data)
           ? res.data
           : Array.isArray(res?.data?.data)
-          ? res.data.data
-          : Array.isArray(res)
-          ? res
-          : [];
+            ? res.data.data
+            : Array.isArray(res)
+              ? res
+              : [];
 
         let activeCount = 0;
         requests.forEach((req) => {
@@ -2256,12 +2273,14 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
       const exists = prev.some((item) => item.book_id === book.id);
       if (exists) return prev;
 
+      const rawCover = book.cover_image || book.image || book.cover || book.image_url || book.cover_url || '';
       const newItem = {
-        book_id: book.id,
+        book_id: book.id || book.book_id,
         title: book.title,
         author: book.author,
         isbn: book.isbn,
-        cover_image: book.cover_image || '',
+        category: (typeof getBookCategoryValue === 'function' ? getBookCategoryValue(book) : '') || book.category || '',
+        cover_image: rawCover,
         owner_school_id: book.school_id,
         owner_school_name: book.library,
         partner_school_id:
@@ -2722,38 +2741,14 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
           </>
         )}
 
-        {/* Search and filter card */}
-
-        <div className="mb-2 bg-[#F7FAFC] pb-0 pt-3 md:pt-0 sm:mb-3">
-          <div className="w-full min-w-0 overflow-visible">
-            <div className="mb-3 px-0 pt-1">
-              <div className="min-w-0">
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">
-                  Library catalogue
-                </p>
-                <h1 className="text-2xl font-bold leading-tight tracking-tight text-slate-900 sm:text-3xl">
-                  Find your next read
-                </h1>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-1 flex min-h-[1rem] items-center justify-between gap-3 px-0 lg:mt-0">
-            <p className="min-w-0 flex-1 truncate text-[10px] text-slate-500">
-              {searchQuery.trim() ? (
-                <>
-                  Showing matches for <span className="font-semibold text-slate-700">“{searchQuery.trim()}”</span>
-                </>
-              ) : (
-                "Start with a title, author, subject, or ISBN."
-              )}
+        {/* Active Search Results Indicator (Only shown when searching) */}
+        {searchQuery.trim() && (
+          <div className="mb-3 flex items-center justify-between gap-3 px-0 py-1">
+            <p className="min-w-0 flex-1 truncate text-xs text-slate-600">
+              Showing matches for <span className="font-bold text-slate-900">“{searchQuery.trim()}”</span>
             </p>
-            <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-blue-700 border border-blue-100 shadow-2xs">
-              {searchQuery.trim() || (selectedCategory && selectedCategory !== "All Books") || (filterAvailability && filterAvailability !== "all") ? (
-                <AnimatedCounter value={filteredBooks.length} suffix=" results" />
-              ) : (
-                <AnimatedCounter value={totalBooksCount || 1583} suffix=" results" />
-              )}
+            <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-100 shadow-2xs">
+              <AnimatedCounter value={filteredBooks.length} suffix=" results" />
             </span>
             <button
               type="button"
@@ -2764,14 +2759,13 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
               <SlidersHorizontal className="h-3 w-3" aria-hidden="true" />
               Filters
               {activeFiltersCount > 0 && (
-                <span className="inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[#0077B6] px-1 text-[9px] font-bold text-white">
+                <span className="inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-blue-600 px-1 text-[9px] font-bold text-white">
                   {activeFiltersCount}
                 </span>
               )}
             </button>
           </div>
-
-        </div>
+        )}
 
         {/* Other school results - 4th panel */}
 
@@ -2962,8 +2956,8 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                         }}
 
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${notificationFilter === "all"
-                            ? "bg-[#0077B6] text-white shadow-md"
-                            : "hover:bg-[#F7FAFC] text-[#0F172A] border border-[#E2E8F0]"
+                          ? "bg-[#0077B6] text-white shadow-md"
+                          : "hover:bg-[#F7FAFC] text-[#0F172A] border border-[#E2E8F0]"
                           }`}
                       >
                         <Book className="w-5 h-5" />
@@ -2985,8 +2979,8 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                         aria-pressed={filterAvailability === "available"}
 
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${filterAvailability === "available"
-                            ? "bg-[#0077B6] text-white shadow-md"
-                            : "hover:bg-[#F7FAFC] text-[#0F172A] border border-[#E2E8F0]"
+                          ? "bg-[#0077B6] text-white shadow-md"
+                          : "hover:bg-[#F7FAFC] text-[#0F172A] border border-[#E2E8F0]"
                           }`}
                       >
                         <CheckCircle className="w-5 h-5" />
@@ -3103,8 +3097,8 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                       key={school.school_id}
 
                       className={`p-4 rounded-xl border transition-all ${selectedSchool?.school_id === school.school_id
-                          ? "border-[#0077B6] bg-[#F7FAFC]"
-                          : "border-[#E2E8F0] hover:border-[#0077B6]"
+                        ? "border-[#0077B6] bg-[#F7FAFC]"
+                        : "border-[#E2E8F0] hover:border-[#0077B6]"
                         }`}
                     >
                       {selectedSchool?.school_id === school.school_id ? (
@@ -3387,9 +3381,8 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                   <div
                     ref={filterChipsScroll.ref}
                     {...filterChipsScroll.events}
-                    className={`mb-3 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide select-none ${
-                      filterChipsScroll.isDragging ? "cursor-grabbing" : "cursor-grab"
-                    }`}
+                    className={`mb-3 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide select-none ${filterChipsScroll.isDragging ? "cursor-grabbing" : "cursor-grab"
+                      }`}
                   >
                     {recoFilterOptions.map((opt) => {
                       const IconComponent = opt.icon;
@@ -3398,11 +3391,10 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                           key={`m-reco-${opt.id}`}
                           type="button"
                           onClick={() => setRecoFilter(opt.id)}
-                          className={`inline-flex items-center gap-1.5 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-all ${
-                            recoFilter === opt.id
+                          className={`inline-flex items-center gap-1.5 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-all ${recoFilter === opt.id
                               ? "bg-blue-600 text-white shadow-sm"
                               : "bg-white text-slate-600 border border-slate-200"
-                          }`}
+                            }`}
                         >
                           {IconComponent && <IconComponent className="h-3 w-3 shrink-0" />}
                           <span>{opt.label}</span>
@@ -3416,9 +3408,8 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                     <div
                       ref={curatedShelfScroll.ref}
                       {...curatedShelfScroll.events}
-                      className={`flex gap-3 overflow-x-auto pb-2 scrollbar-hide select-none transition-all ${
-                        curatedShelfScroll.isDragging ? "cursor-grabbing" : "cursor-grab"
-                      }`}
+                      className={`flex gap-3 overflow-x-auto pb-2 scrollbar-hide select-none transition-all ${curatedShelfScroll.isDragging ? "cursor-grabbing" : "cursor-grab"
+                        }`}
                     >
                       {curatedBooks.map((book, idx) => {
                         const isAvailable = getBookDisplayStatus(book) === "available";
@@ -3463,17 +3454,20 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                               {/* 3D Spine crease */}
                               <div className="pointer-events-none absolute inset-y-0 left-0 w-2.5 bg-gradient-to-r from-black/25 to-transparent z-[2]" />
 
-                              {/* Top Badges */}
+                              {/* Top Badges — shorter labels */}
                               <div className="absolute inset-x-1.5 top-1.5 z-10 flex items-center justify-between pointer-events-none">
-                                <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[7px] font-bold tracking-wider uppercase shadow-sm backdrop-blur-md bg-black/60 border border-white/20 text-white">
-                                  {recoReason.icon && <recoReason.icon className="h-2 w-2 shrink-0" />}
-                                  <span>{recoReason.label}</span>
-                                </span>
+                                {recoReason.label && (
+                                  <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[7px] font-bold tracking-wide uppercase shadow-sm backdrop-blur-md bg-black/55 border border-white/15 text-white max-w-[72px]">
+                                    {recoReason.icon && <recoReason.icon className="h-2 w-2 shrink-0" />}
+                                    <span className="truncate">{recoReason.label.replace('Recommended for ', '').replace('Recommended for You', 'For You')}</span>
+                                  </span>
+                                )}
 
-                                <span className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[7px] font-bold shadow-sm backdrop-blur-md ${isAvailable
+                                <span className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[7px] font-bold shadow-sm backdrop-blur-md ml-auto ${
+                                  isAvailable
                                     ? "bg-emerald-950/85 border border-emerald-400/45 text-emerald-300"
                                     : "bg-slate-900/85 border border-slate-600/45 text-slate-300"
-                                  }`}>
+                                }`}>
                                   <span className={`inline-block h-1 w-1 rounded-full ${isAvailable ? "bg-emerald-400 animate-pulse" : "bg-slate-400"}`} />
                                   {isAvailable ? "Available" : "Borrowed"}
                                 </span>
@@ -4048,11 +4042,10 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                   key={`d-reco-${opt.id}`}
                   type="button"
                   onClick={() => setRecoFilter(opt.id)}
-                  className={`inline-flex items-center gap-1.5 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-all ${
-                    recoFilter === opt.id
+                  className={`inline-flex items-center gap-1.5 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-all ${recoFilter === opt.id
                       ? "bg-blue-600 text-white shadow-sm ring-1 ring-blue-600"
                       : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/90"
-                  }`}
+                    }`}
                 >
                   {IconComponent && <IconComponent className="h-3 w-3 shrink-0" />}
                   <span>{opt.label}</span>
@@ -4111,18 +4104,17 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                     <div>
                       {/* Top Row: Context Badge + Availability Badge */}
                       <div className="mb-1 flex items-center justify-between gap-1">
-                        <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[8.5px] font-bold border truncate max-w-[120px] ${
-                          recoReason.label.includes("BSN") || recoReason.label.includes("Nursing")
+                        <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[8.5px] font-bold border truncate max-w-[120px] ${recoReason.label.includes("BSN") || recoReason.label.includes("Nursing")
                             ? "bg-emerald-50 text-emerald-700 border-emerald-200/60"
                             : "bg-blue-50 text-blue-700 border-blue-200/60"
-                        }`}>
+                          }`}>
                           {recoReason.icon && <recoReason.icon className="h-2.5 w-2.5 shrink-0" />}
-                          <span>{recoReason.label}</span>
+                          <span className="truncate">{recoReason.label.replace('Recommended for ', '').replace('Recommended for You', 'For You')}</span>
                         </span>
 
                         <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[8px] font-semibold ${isAvailable
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
-                            : "bg-slate-100 text-slate-500 border border-slate-200/60"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                          : "bg-slate-100 text-slate-500 border border-slate-200/60"
                           }`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${isAvailable ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
                           {isAvailable ? "Available" : "Checked Out"}
@@ -4215,25 +4207,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                 role="dialog"
                 aria-modal="true"
                 aria-label={`Book details for ${selectedBook.title}`}
-                onTouchStart={(e) => {
-                  sheetTouchStartY.current = e.touches[0].clientY;
-                }}
-                onTouchEnd={(e) => {
-                  const endY = e.changedTouches[0].clientY;
-                  const diff = endY - sheetTouchStartY.current;
-                  if (diff > 90 && mobileSheetState === "half") {
-                    handleCloseOverlay();
-                  } else if (diff > 90 && mobileSheetState === "full") {
-                    setMobileSheetState("half");
-                  } else if (diff < -60 && mobileSheetState === "half") {
-                    setMobileSheetState("full");
-                  }
-                }}
-                className={`book-details-panel fixed inset-x-0 bottom-0 z-[70] w-full min-w-0 max-w-none overflow-y-auto overscroll-contain rounded-t-[32px] bg-[#F7FAFC] shadow-2xl transition-all duration-300 lg:relative lg:inset-auto lg:col-start-2 lg:row-start-1 lg:z-auto lg:h-full lg:w-full lg:min-h-0 lg:max-h-none lg:overflow-y-auto lg:overscroll-contain lg:rounded-none lg:border-l lg:border-slate-200 lg:shadow-none animate-panel-slide-in ${
-                  showBorrowingForm || mobileSheetState !== "half"
-                    ? "max-h-[92dvh] lg:max-h-none"
-                    : "max-h-[62dvh] sm:max-h-[70dvh] lg:max-h-none"
-                }`}
+                className="book-details-panel fixed inset-0 z-[70] h-full w-full min-w-0 max-w-none overflow-y-auto overscroll-contain rounded-none bg-[#F7FAFC] shadow-2xl transition-all duration-300 lg:relative lg:inset-auto lg:col-start-2 lg:row-start-1 lg:z-auto lg:h-full lg:w-full lg:min-h-0 lg:max-h-none lg:overflow-y-auto lg:overscroll-contain lg:rounded-none lg:border-l lg:border-slate-200 lg:shadow-none animate-panel-slide-in"
               >
                 {/* Desktop Resize handle */}
                 <button
@@ -4246,25 +4220,28 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                   className="hidden lg:block absolute left-0 top-0 bottom-0 w-1 cursor-col-resize bg-transparent hover:bg-[#0077B6]/40 active:bg-[#0077B6]/60"
                 />
 
-                {/* Mobile Drag Indicator Bar */}
-                <div
-                  className="sticky top-0 z-20 flex w-full cursor-grab justify-center bg-[#F7FAFC] pt-3 pb-1 lg:hidden"
-                  onClick={() => setMobileSheetState((prev) => (prev === "half" ? "full" : "half"))}
-                >
-                  <div className="h-1.5 w-12 rounded-full bg-slate-300 transition hover:bg-slate-400" />
-                </div>
-
-                <div className="w-full">
-                  {/* Sticky Header with Action & Close */}
-                  <div className="sticky top-0 z-10 border-b border-slate-200/80 bg-[#F7FAFC]/95 px-4 pb-3 pt-3 backdrop-blur-sm sm:px-5">
+                <div className="w-full pb-10 lg:pb-6">
+                  {/* Sticky Header with Action, Back & Close */}
+                  <div className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 px-3 py-2.5 backdrop-blur-md sm:px-5">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">
-                          {showBorrowingForm ? "Borrow Request Form" : "Book Details"}
-                        </span>
-                        <h2 className="truncate text-sm font-bold text-slate-900 sm:text-base">
-                          {selectedBook.title}
-                        </h2>
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        {/* Mobile Back Button */}
+                        <button
+                          type="button"
+                          onClick={handleCloseOverlay}
+                          className="lg:hidden flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-2xs transition active:scale-95 hover:bg-slate-100"
+                          aria-label="Back"
+                        >
+                          <ChevronLeft className="h-5 w-5" />
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">
+                            {showBorrowingForm ? "Borrow Request Form" : "Book Details"}
+                          </span>
+                          <h2 className="truncate text-sm font-bold text-slate-900 sm:text-base">
+                            {selectedBook.title}
+                          </h2>
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-1.5">
@@ -4276,8 +4253,8 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                         >
                           <Heart
                             className={`h-4 w-4 ${favorites.includes(selectedBook.id)
-                                ? "fill-red-500 text-red-500"
-                                : "text-slate-600"
+                              ? "fill-red-500 text-red-500"
+                              : "text-slate-600"
                               }`}
                           />
                         </button>
@@ -4543,8 +4520,8 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                                 onClick={handleBorrow}
                                 disabled={!selectedBookAvailable}
                                 className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-bold text-white shadow-md transition-all active:scale-[0.98] ${selectedBookAvailable
-                                    ? "bg-blue-600 shadow-blue-600/20 hover:bg-blue-700"
-                                    : "cursor-not-allowed bg-slate-300 text-slate-500 shadow-none"
+                                  ? "bg-blue-600 shadow-blue-600/20 hover:bg-blue-700"
+                                  : "cursor-not-allowed bg-slate-300 text-slate-500 shadow-none"
                                   }`}
                               >
                                 <Book className="h-4 w-4" />
@@ -4557,8 +4534,8 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                               onClick={() => handleAddToBorrowingList(selectedBook)}
                               disabled={!selectedBookAvailable || studentActiveLoanCount >= (selectedBookPolicy?.max_borrow_limit || 5)}
                               className={`flex w-full items-center justify-center gap-1.5 rounded-xl border py-2.5 text-xs font-bold transition-all active:scale-[0.98] ${selectedBookAvailable && studentActiveLoanCount < (selectedBookPolicy?.max_borrow_limit || 5)
-                                  ? "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-400"
-                                  : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 shadow-none"
+                                ? "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-400"
+                                : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 shadow-none"
                                 }`}
                             >
                               <Plus className="h-4 w-4" />
@@ -4616,13 +4593,12 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                                     className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 transition hover:bg-slate-50"
                                   >
                                     <div className="flex items-center gap-2.5 min-w-0">
-                                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-bold text-xs ${
-                                        isRequested
+                                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-bold text-xs ${isRequested
                                           ? "bg-amber-100 text-amber-800"
                                           : isWaiting
                                             ? "bg-blue-100 text-blue-800"
                                             : "bg-purple-100 text-purple-800"
-                                      }`}>
+                                        }`}>
                                         {(borrower.username || "S").substring(0, 2).toUpperCase()}
                                       </div>
                                       <div className="min-w-0">
@@ -4828,8 +4804,8 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                                   >
                                     <Star
                                       className={`h-5 w-5 ${rating <= reviewRating
-                                          ? "fill-amber-400 text-amber-400"
-                                          : "text-slate-200"
+                                        ? "fill-amber-400 text-amber-400"
+                                        : "text-slate-200"
                                         }`}
                                     />
                                   </button>
@@ -4959,11 +4935,10 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                         key={opt.key}
                         type="button"
                         onClick={() => setCartSchoolFilter(opt.key)}
-                        className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold border transition-all active:scale-95 ${
-                          cartSchoolFilter === opt.key
+                        className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold border transition-all active:scale-95 ${cartSchoolFilter === opt.key
                             ? "bg-blue-600 text-white border-blue-600 shadow-sm"
                             : "bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-700"
-                        }`}
+                          }`}
                       >
                         {opt.label}
                       </button>
@@ -4975,9 +4950,8 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                 <div className="mt-2.5 flex items-center gap-2">
                   <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all duration-300 ${
-                        limitReached ? "bg-rose-500" : selectedCount > 0 ? "bg-blue-500" : "bg-slate-200"
-                      }`}
+                      className={`h-full rounded-full transition-all duration-300 ${limitReached ? "bg-rose-500" : selectedCount > 0 ? "bg-blue-500" : "bg-slate-200"
+                        }`}
                       style={{ width: `${cartRemainingSlots > 0 ? Math.min(100, (selectedCount / cartRemainingSlots) * 100) : 100}%` }}
                     />
                   </div>
@@ -5015,34 +4989,31 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                       return (
                         <div
                           key={group.schoolId}
-                          className={`rounded-2xl border transition-all ${
-                            isSchoolLocked
+                          className={`rounded-2xl border transition-all ${isSchoolLocked
                               ? "border-slate-200 bg-slate-50/80 opacity-60"
                               : someGroupChecked
-                              ? "border-blue-300 bg-blue-50/30 shadow-sm"
-                              : "border-slate-200 bg-white"
-                          }`}
+                                ? "border-blue-300 bg-blue-50/30 shadow-sm"
+                                : "border-slate-200 bg-white"
+                            }`}
                         >
                           {/* School Group Header */}
                           <div
-                            className={`flex items-center gap-3 px-4 py-3 border-b ${
-                              isSchoolLocked ? "border-slate-100" : someGroupChecked ? "border-blue-200" : "border-slate-100"
-                            }`}
+                            className={`flex items-center gap-3 px-4 py-3 border-b ${isSchoolLocked ? "border-slate-100" : someGroupChecked ? "border-blue-200" : "border-slate-100"
+                              }`}
                           >
                             {/* Group Select-All Checkbox */}
                             <button
                               type="button"
                               disabled={isSchoolLocked}
                               onClick={() => !isSchoolLocked && toggleSchoolGroupSelection(group.schoolId)}
-                              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all ${
-                                isSchoolLocked
+                              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all ${isSchoolLocked
                                   ? "border-slate-300 bg-slate-100 cursor-not-allowed"
                                   : allGroupChecked
-                                  ? "border-blue-600 bg-blue-600"
-                                  : someGroupChecked
-                                  ? "border-blue-400 bg-blue-100"
-                                  : "border-slate-300 hover:border-blue-400"
-                              }`}
+                                    ? "border-blue-600 bg-blue-600"
+                                    : someGroupChecked
+                                      ? "border-blue-400 bg-blue-100"
+                                      : "border-slate-300 hover:border-blue-400"
+                                }`}
                               title={isSchoolLocked ? "You can only borrow from one school at a time" : "Select all"}
                             >
                               {(allGroupChecked || someGroupChecked) && !isSchoolLocked && (
@@ -5080,60 +5051,46 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                                 <div
                                   key={item.book_id}
                                   onClick={() => !isDisabled && toggleCartSelection(item.book_id)}
-                                  className={`flex items-center gap-3 px-4 py-3 transition-colors cursor-pointer ${
-                                    isDisabled
+                                  className={`flex items-center gap-3 px-4 py-3 transition-colors cursor-pointer ${isDisabled
                                       ? "opacity-50 cursor-not-allowed bg-slate-50/50"
                                       : isChecked
-                                      ? "bg-blue-50/50"
-                                      : "hover:bg-slate-50"
-                                  }`}
+                                        ? "bg-blue-50/50"
+                                        : "hover:bg-slate-50"
+                                    }`}
                                   title={
                                     isItemUnavailable
                                       ? "This book is currently unavailable (all copies borrowed)"
                                       : isSchoolLocked
-                                      ? "You can only borrow from one school at a time"
-                                      : !isChecked && limitReached
-                                      ? `Borrow limit reached (${cartMaxLimit} books max)`
-                                      : ""
+                                        ? "You can only borrow from one school at a time"
+                                        : !isChecked && limitReached
+                                          ? `Borrow limit reached (${cartMaxLimit} books max)`
+                                          : ""
                                   }
                                 >
                                   {/* Checkbox */}
                                   <div
-                                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all ${
-                                      isDisabled
+                                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all ${isDisabled
                                         ? "border-slate-300 bg-slate-100"
                                         : isChecked
-                                        ? "border-blue-600 bg-blue-600"
-                                        : "border-slate-300 hover:border-blue-400"
-                                    }`}
+                                          ? "border-blue-600 bg-blue-600"
+                                          : "border-slate-300 hover:border-blue-400"
+                                      }`}
                                   >
                                     {isChecked && <Check className="h-3.5 w-3.5 text-white" />}
                                   </div>
 
                                   {/* Book Cover */}
-                                  {item.cover_image ? (
-                                    <img
-                                      src={item.cover_image.startsWith("http") ? item.cover_image : `http://localhost:5000${item.cover_image}`}
-                                      alt={item.title}
-                                      className="h-[56px] w-[42px] shrink-0 rounded-lg object-cover shadow-sm"
-                                      onError={(e) => { e.target.style.display = 'none'; }}
-                                    />
-                                  ) : (
-                                    <div className="flex h-[56px] w-[42px] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700 shadow-sm">
-                                      <Book className="h-5 w-5 text-white/90" />
-                                    </div>
-                                  )}
+                                  <CartBookCover book={item} className="h-[60px] w-[44px] shrink-0" />
 
                                   {/* Book Info */}
                                   <div className="flex-1 min-w-0">
                                     <h4 className="text-sm font-bold leading-5 text-slate-900 line-clamp-1">{item.title}</h4>
                                     <p className="mt-0.5 truncate text-xs text-slate-500">{item.author}</p>
                                     <div className="mt-1 flex items-center gap-1.5">
-                                      <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
-                                        item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE'
+                                      <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE'
                                           ? 'bg-indigo-50 text-indigo-700'
                                           : 'bg-blue-50 text-blue-700'
-                                      }`}>
+                                        }`}>
                                         {item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE' ? 'Partner' : 'Home'}
                                       </span>
                                       {isItemUnavailable && (
@@ -5208,11 +5165,10 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                       type="button"
                       onClick={handleContinueToRequest}
                       disabled={selectedCount === 0}
-                      className={`group flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold shadow-lg transition active:scale-[0.98] ${
-                        selectedCount > 0
+                      className={`group flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold shadow-lg transition active:scale-[0.98] ${selectedCount > 0
                           ? "bg-blue-600 text-white shadow-blue-600/22 hover:bg-blue-700"
                           : "bg-slate-200 text-slate-400 shadow-none cursor-not-allowed"
-                      }`}
+                        }`}
                     >
                       <span>Proceed to Borrow ({selectedCount})</span>
                       <ChevronRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
@@ -5747,40 +5703,40 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                 Close
               </button>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    const currentSchoolId = parseInt(localStorage.getItem("schoolId"));
-                    const partner = partnerBookDetailModal || {};
-                    const selected = selectedBook || {};
-                    setBorrowingFormList([
-                      {
-                        book_id: partner.book_id || partner.id || selected.id || selected.book_id,
-                        title: partner.title || selected.title || "Untitled Book",
-                        author: partner.author || selected.author || "Unknown Author",
-                        isbn: partner.isbn || selected.isbn || "N/A",
-                        owner_school_id: partner.school_id || selected.school_id,
-                        owner_school_name: partner.school_name || selected.library || "Partner School",
-                        partner_school_id:
-                          partner.school_id && partner.school_id !== currentSchoolId ? currentSchoolId : null,
-                        borrow_type:
-                          partner.school_id && partner.school_id !== currentSchoolId
-                            ? "INTER_SCHOOL_LIBRARY_USE"
-                            : "HOME",
-                        visiting_fee: partner.enable_visiting_fee ? (Number(partner.visiting_fee_amount) || 0) : 0,
-                        visiting_fee_type: partner.visiting_fee_type || "per_visit",
-                        visiting_policy_notes: partner.visiting_policy_notes || "",
-                      },
-                    ]);
-                    setPartnerBookDetailModal(null);
-                    setShowBorrowingForm(true);
-                  }}
-                  disabled={studentActiveLoanCount >= (selectedBookPolicy?.max_borrow_limit || 5)}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                >
-                  <Book className="h-3.5 w-3.5" />
-                  <span>Borrow This Copy</span>
-                </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const currentSchoolId = parseInt(localStorage.getItem("schoolId"));
+                  const partner = partnerBookDetailModal || {};
+                  const selected = selectedBook || {};
+                  setBorrowingFormList([
+                    {
+                      book_id: partner.book_id || partner.id || selected.id || selected.book_id,
+                      title: partner.title || selected.title || "Untitled Book",
+                      author: partner.author || selected.author || "Unknown Author",
+                      isbn: partner.isbn || selected.isbn || "N/A",
+                      owner_school_id: partner.school_id || selected.school_id,
+                      owner_school_name: partner.school_name || selected.library || "Partner School",
+                      partner_school_id:
+                        partner.school_id && partner.school_id !== currentSchoolId ? currentSchoolId : null,
+                      borrow_type:
+                        partner.school_id && partner.school_id !== currentSchoolId
+                          ? "INTER_SCHOOL_LIBRARY_USE"
+                          : "HOME",
+                      visiting_fee: partner.enable_visiting_fee ? (Number(partner.visiting_fee_amount) || 0) : 0,
+                      visiting_fee_type: partner.visiting_fee_type || "per_visit",
+                      visiting_policy_notes: partner.visiting_policy_notes || "",
+                    },
+                  ]);
+                  setPartnerBookDetailModal(null);
+                  setShowBorrowingForm(true);
+                }}
+                disabled={studentActiveLoanCount >= (selectedBookPolicy?.max_borrow_limit || 5)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                <Book className="h-3.5 w-3.5" />
+                <span>Borrow This Copy</span>
+              </button>
             </div>
           </div>
         </div>

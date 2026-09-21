@@ -182,11 +182,10 @@ function BookDetail() {
 
               {/* Status */}
               <div className="flex items-center gap-2 mb-4 sm:mb-6">
-                  <span className={`px-2 py-0.5 text-xs font-semibold border sm:px-3 sm:py-1 sm:text-sm ${
-                  book.real_time_status === 'available' 
-                    ? 'bg-green-100 text-green-700 border-green-200' 
+                <span className={`px-2 py-0.5 text-xs font-semibold border sm:px-3 sm:py-1 sm:text-sm ${book.real_time_status === 'available'
+                    ? 'bg-green-100 text-green-700 border-green-200'
                     : 'bg-red-100 text-red-700 border-red-200'
-                }`}>
+                  }`}>
                   {book.real_time_status === 'available' ? 'Available' : 'Unavailable'}
                 </span>
                 {book.available_copies !== undefined && book.total_copies > 0 && (
@@ -211,9 +210,8 @@ function BookDetail() {
                       {book.current_borrowers.map((borrower, idx) => (
                         <div key={idx} className="flex items-center gap-2 text-xs sm:text-sm">
                           <span className="text-[#64748B]">{borrower.username}</span>
-                          <span className={`text-xs font-medium ${
-                            borrower.status === 'borrowed' ? 'text-blue-600' : 'text-orange-600'
-                          }`}>
+                          <span className={`text-xs font-medium ${borrower.status === 'borrowed' ? 'text-blue-600' : 'text-orange-600'
+                            }`}>
                             ({borrower.status === 'borrowed' ? 'Borrowed' : 'Waiting'})
                           </span>
                         </div>
@@ -400,11 +398,10 @@ function BookDetail() {
             <button
               onClick={handleBorrow}
               disabled={book.real_time_status !== 'available'}
-              className={`w-full min-h-11 px-4 text-xs font-semibold text-white transition-all sm:min-h-12 sm:px-6 sm:text-sm rounded-lg ${
-                book.real_time_status === 'available'
+              className={`w-full min-h-11 px-4 text-xs font-semibold text-white transition-all sm:min-h-12 sm:px-6 sm:text-sm rounded-lg ${book.real_time_status === 'available'
                   ? 'bg-[#0077B6] hover:bg-[#005f8f] shadow-md shadow-[#0077B6]/20 hover:shadow-lg'
                   : 'bg-gray-300 cursor-not-allowed'
-              }`}
+                }`}
             >
               {book.real_time_status === 'available' ? 'Borrow This Book' : 'Currently Unavailable'}
             </button>

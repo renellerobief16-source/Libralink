@@ -10,16 +10,37 @@ import {
   X,
   LogOut,
   User,
+  ShoppingCart,
 } from "lucide-react";
+import { useBorrowingCartCount, useOpenBorrowingCart } from "../../../utils/studentCart";
 
 export function StudentHeaderActions({ userInfo, onLogout, className = "" }) {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
   const [notificationFilter, setNotificationFilter] = useState("all");
   const [imageError, setImageError] = useState(false);
+  const [profileSyncKey, setProfileSyncKey] = useState(0);
+
+  useEffect(() => {
+    const handleProfileUpdate = () => {
+      setImageError(false);
+      setProfileSyncKey((prev) => prev + 1);
+    };
+
+    window.addEventListener("libralink-profile-updated", handleProfileUpdate);
+    window.addEventListener("libralink-user-changed", handleProfileUpdate);
+    window.addEventListener("storage", handleProfileUpdate);
+    return () => {
+      window.removeEventListener("libralink-profile-updated", handleProfileUpdate);
+      window.removeEventListener("libralink-user-changed", handleProfileUpdate);
+      window.removeEventListener("storage", handleProfileUpdate);
+    };
+  }, []);
 
   const { unreadCount, notifications, markAsRead } = useNotifications();
   const navigate = useNavigate();
+  const cartCount = useBorrowingCartCount();
+  const openCart = useOpenBorrowingCart();
 
   const displayName = userInfo?.first_name || userInfo?.name || "Student";
   const currentUser = JSON.parse(localStorage.getItem("currentUser") || "null");
@@ -47,16 +68,17 @@ export function StudentHeaderActions({ userInfo, onLogout, className = "" }) {
     return `${API_ORIGIN}/${picture}`;
   };
 
-  const userId = userInfo?.user_id || currentUser?.user_id || currentUser?.id;
+  const userId = userInfo?.user_id || currentUser?.user_id || currentUser?.id || localStorage.getItem('currentUserId');
   const cachedAvatar = userId ? localStorage.getItem(`libralink_avatar_${userId}`) : null;
 
-  const profileImageUrl = (!imageError && profileImage) 
-    ? getProfileImageUrl(profileImage) 
-    : (cachedAvatar || "");
+  const candidateImage = profileImage || cachedAvatar || "";
+  const profileImageUrl = (!imageError && candidateImage) 
+    ? getProfileImageUrl(candidateImage) 
+    : "";
 
   useEffect(() => {
     setImageError(false);
-  }, [profileImage]);
+  }, [profileImage, cachedAvatar]);
 
   const handleNotificationClick = () => {
     setNotificationDropdownOpen((isOpen) => !isOpen);
@@ -111,7 +133,7 @@ export function StudentHeaderActions({ userInfo, onLogout, className = "" }) {
   };
 
   return (
-    <div className={`flex items-center gap-2 md:gap-4 ${className}`}>
+    <div className={`flex items-center gap-1.5 md:gap-3 ${className}`}>
       <div className="relative">
         <button
           type="button"
@@ -119,11 +141,13 @@ export function StudentHeaderActions({ userInfo, onLogout, className = "" }) {
           aria-label="Notifications"
           aria-expanded={notificationDropdownOpen}
           aria-controls="student-notifications-menu"
-          className="relative flex min-h-11 min-w-11 items-center justify-center rounded-full p-1.5 transition-colors hover:bg-[#F8FAFC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 md:p-2"
+          className="relative flex h-10 w-10 items-center justify-center rounded-full text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
         >
-          <Bell className="h-5 w-5 text-[#0F172A] md:h-6 md:w-6" />
+          <Bell className="h-5 w-5 md:h-5 md:w-5" />
           {unreadCount > 0 && (
-            <span className="absolute right-0 top-0 h-2 w-2 rounded-full bg-red-500" />
+            <span className="absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-xs ring-2 ring-white">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
           )}
         </button>
 

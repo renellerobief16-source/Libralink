@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Routes, Route } from 'react-router-dom';
 import { signOut, updateProfilePicture, updateUserProfile } from '../../../utils/api';
 import api from '../../../utils/api';
-import { ConfirmationOverlay } from '../../common';
+import { ConfirmationOverlay, LogoutConfirmationModal } from '../../common';
 import { useNotifications } from '../../../context/NotificationContext';
 import {
   StudentHome,
@@ -446,12 +446,12 @@ function StudentPortal() {
         </Routes>
       </StudentLayout>
 
-      <ConfirmationOverlay
+      <LogoutConfirmationModal
         show={showLogoutConfirmation}
-        title="Confirm Logout"
-        message="Are you sure you want to log out? You will be returned to the login page."
         onConfirm={confirmLogout}
         onCancel={() => setShowLogoutConfirmation(false)}
+        userInfo={userInfo}
+        schoolInfo={schoolInfo}
       />
     </>
   );

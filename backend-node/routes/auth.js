@@ -90,6 +90,31 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// @route   GET /api/auth/me
+// @desc    Get current authenticated user profile
+// @access  Private
+router.get('/me', auth, async (req, res) => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Invalid authentication session' });
+    }
+
+    const user = await User.getById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    res.json({
+      success: true,
+      data: user
+    });
+  } catch (error) {
+    console.error('[AUTH/ME] Error getting current user:', error);
+    res.status(500).json({ success: false, message: 'Unable to retrieve current user profile' });
+  }
+});
+
 // @route   POST /api/auth/logout
 // @desc    Logout user and record logout event to activity_logs
 // @access  Private

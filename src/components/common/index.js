@@ -14,3 +14,5 @@ export { default as DigitalClock } from './DigitalClock';
 export { default as DashboardRefreshButton } from './DashboardRefreshButton';
 export { default as GlobalHeader } from './GlobalHeader';
 export { default as AnimatedCounter } from './AnimatedCounter';
+export { default as BookDetailsModal } from './BookDetailsModal';
+export { default as LogoutConfirmationModal } from './LogoutConfirmationModal';

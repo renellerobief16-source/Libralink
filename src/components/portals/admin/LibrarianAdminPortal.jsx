@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { FiHome, FiMail, FiLogOut, FiBook, FiMoon, FiSun, FiUsers, FiList, FiCheckCircle, FiDollarSign, FiSettings, FiActivity, FiChevronDown, FiUser, FiLock, FiGrid, FiAlertOctagon, FiAlertTriangle, FiSliders } from "react-icons/fi";
 import { getAdminNotifications, getBackendAssetUrl, signOut } from "../../../utils/api";
 import api from "../../../utils/api";
-import { AlertOverlay, ConfirmationOverlay, GlobalHeader } from "../../common";
+import { AlertOverlay, ConfirmationOverlay, GlobalHeader, LogoutConfirmationModal } from "../../common";
 import { LibrarianAdminDashboard, LibrarianAdminAddLibrarian, LibrarianAdminBooks, LibrarianAdminFines, LibrarianAdminActivityLog, LibrarianAdminInbox, LibrarianAdminSettings, LibrarianAdminProfile, LibrarianAdminChangePassword, LibrarianAdminReportedOverdue, LibrarianAdminPolicies } from "../../collegeTabs/LibrarianAdminTabs";
 import { LibrarianOverdueBooks } from "../../collegeTabs/LibrarianTabs";
 
@@ -63,6 +63,27 @@ function LibrarianAdminPortal() {
   useEffect(() => {
     setSchoolLogoError(false);
   }, [schoolInfo?.logo]);
+
+  useEffect(() => {
+    const handleSchoolUpdate = (e) => {
+      if (e.detail) {
+        setSchoolInfo(e.detail);
+        setSchoolLogoError(false);
+      }
+    };
+    window.addEventListener('libralink-school-updated', handleSchoolUpdate);
+    return () => window.removeEventListener('libralink-school-updated', handleSchoolUpdate);
+  }, []);
+
+  useEffect(() => {
+    const handleProfileUpdate = (e) => {
+      if (e.detail) {
+        setUserInfo((prev) => ({ ...prev, ...e.detail }));
+      }
+    };
+    window.addEventListener('libralink-profile-updated', handleProfileUpdate);
+    return () => window.removeEventListener('libralink-profile-updated', handleProfileUpdate);
+  }, []);
 
   useEffect(() => {
     const loadStats = async () => {
@@ -188,9 +209,9 @@ function LibrarianAdminPortal() {
       case 'inbox':
         return <LibrarianAdminInbox />;
       case 'Library-Settings':
-        return <LibrarianAdminSettings />;
+        return <LibrarianAdminSettings onNavigate={setActiveTab} />;
       case 'profile':
-        return <LibrarianAdminProfile />;
+        return <LibrarianAdminProfile onNavigate={setActiveTab} />;
       case 'change-password':
         return <LibrarianAdminChangePassword />;
       case 'logout':
@@ -210,7 +231,16 @@ function LibrarianAdminPortal() {
             {/* Minimalist Seamless Brand & Campus Header */}
             <div className="p-5 border-b border-slate-100">
               <div className="flex items-center gap-3">
-                <img src="/L.png" alt="Libralink Logo" className="w-8 h-8 rounded-lg object-cover" />
+                {schoolInfo?.logo && !schoolLogoError ? (
+                  <img 
+                    src={getBackendAssetUrl(schoolInfo.logo)} 
+                    alt="Campus Logo" 
+                    className="w-8 h-8 rounded-lg object-contain bg-slate-50 border border-slate-200/80 p-0.5 shadow-2xs" 
+                    onError={() => setSchoolLogoError(true)}
+                  />
+                ) : (
+                  <img src="/L.png" alt="Libralink Logo" className="w-8 h-8 rounded-lg object-cover" />
+                )}
                 <div className="min-w-0 flex-1">
                   <span className="text-base font-bold tracking-tight text-slate-900 block leading-tight">LibraLink</span>
                   {schoolInfo ? (
@@ -320,7 +350,7 @@ function LibrarianAdminPortal() {
           <GlobalHeader
             userName={userInfo?.firstname || userInfo?.name || 'Admin'}
             userRole={localStorage.getItem('userRole')}
-            profileImage={userInfo?.profile_picture}
+            profileImage={userInfo?.profile_picture || userInfo?.profile_image}
             unreadCount={unreadCount}
             notifications={notifications}
             schoolId={localStorage.getItem('schoolId')}
@@ -407,12 +437,13 @@ function LibrarianAdminPortal() {
         </main>
       </div>
 
-      <ConfirmationOverlay
+      <LogoutConfirmationModal
         show={showLogoutConfirmation}
-        title="Confirm Logout"
-        message="Are you sure you want to log out? You will be returned to the login page."
         onConfirm={confirmLogout}
         onCancel={() => setShowLogoutConfirmation(false)}
+        darkMode={darkMode}
+        userInfo={userInfo}
+        schoolInfo={schoolInfo}
       />
     </div>
   );

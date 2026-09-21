@@ -7,7 +7,7 @@ import {
 } from "react-icons/fi";
 import { getUserNotifications, getBackendAssetUrl, signOut, getBorrowRequests } from "../../../utils/api";
 import api from "../../../utils/api";
-import { ConfirmationOverlay, GlobalHeader } from "../../common";
+import { ConfirmationOverlay, GlobalHeader, LogoutConfirmationModal } from "../../common";
 import { useNotifications } from "../../../context/NotificationContext";
 import {
   LibrarianDashboard as AdminDashboard,
@@ -319,7 +319,7 @@ function LibrarianPortal() {
           <GlobalHeader
             userName={userInfo?.firstname || userInfo?.name || 'Librarian'}
             userRole={localStorage.getItem('userRole')}
-            profileImage={userInfo?.profile_picture}
+            profileImage={userInfo?.profile_picture || userInfo?.profile_image}
             unreadCount={unreadCount}
             notifications={notifications}
             schoolId={localStorage.getItem('schoolId')}
@@ -412,7 +412,14 @@ function LibrarianPortal() {
           </div>
         </main>
 
-        <ConfirmationOverlay show={showLogoutConfirmation} title="Confirm Logout" message="Are you sure you want to log out? You will be returned to the login page." onConfirm={confirmLogout} onCancel={() => setShowLogoutConfirmation(false)} />
+        <LogoutConfirmationModal
+          show={showLogoutConfirmation}
+          onConfirm={confirmLogout}
+          onCancel={() => setShowLogoutConfirmation(false)}
+          darkMode={darkMode}
+          userInfo={userInfo}
+          schoolInfo={schoolInfo}
+        />
 
         {/* Staff Profile & Institutional Library Policy Modal */}
         {showStaffModal && (

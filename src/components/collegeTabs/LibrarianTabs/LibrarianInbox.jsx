@@ -429,17 +429,22 @@ Campus Library Team`);
                   }`}
                 >
                   <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-xs overflow-hidden border border-slate-200/60">
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-xs overflow-hidden border border-slate-200/60 relative">
                       {notification.sender_profile_picture ? (
                         <img
                           src={getBackendAssetUrl(notification.sender_profile_picture)}
-                          alt={notification.sender_name || 'User'}
+                          alt=""
                           className="w-full h-full object-cover"
-                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            const fb = e.currentTarget.parentElement.querySelector('.notif-lib-fallback');
+                            if (fb) fb.classList.remove('hidden');
+                          }}
                         />
-                      ) : (
-                        <span>{(notification.sender_name || 'LB').split(' ').map(p => p[0]).slice(0, 2).join('')}</span>
-                      )}
+                      ) : null}
+                      <span className={`notif-lib-fallback ${notification.sender_profile_picture ? 'hidden' : 'flex items-center justify-center'}`}>
+                        {(notification.sender_name || 'LB').split(' ').filter(Boolean).map(p => p[0]).slice(0, 2).join('')}
+                      </span>
                     </div>
 
                     <div className="flex-1 min-w-0">

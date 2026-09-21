@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Book,
   Heart,
@@ -6,6 +6,8 @@ import {
   ArrowUpRight,
   Building2,
   RefreshCw,
+  X,
+  BookOpen,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api, { getBackendAssetUrl } from "../../../utils/api";
@@ -47,6 +49,7 @@ function StudentFavorite({ isDrawer = false, onClose }) {
 
   const [error, setError] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all"); // 'all' | 'available'
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Targeted, fast direct fetch for favorited IDs only
   const loadBooks = async (targetFavs = favorites) => {
@@ -57,7 +60,6 @@ function StudentFavorite({ isDrawer = false, onClose }) {
       return;
     }
 
-    // If no cached books are shown, show skeleton
     if (allBooks.length === 0) {
       setLoading(true);
     }
@@ -98,7 +100,7 @@ function StudentFavorite({ isDrawer = false, onClose }) {
             available_copies: availableCopies,
             total_copies: totalCopies,
             school_id: book.school_id,
-            library: book.schools?.school_name || book.school_name || "Main Library",
+            library: book.schools?.school_name || book.school_name || "Main Campus Library",
             cover_image: book.cover_image || null,
           };
         } catch (singleErr) {
@@ -136,7 +138,7 @@ function StudentFavorite({ isDrawer = false, onClose }) {
               available_copies: 1,
               total_copies: 1,
               school_id: b.school_id,
-              library: b.schools?.school_name || "Main Library",
+              library: b.schools?.school_name || "Main Campus Library",
               cover_image: b.cover_image || null,
             }));
 
@@ -189,22 +191,35 @@ function StudentFavorite({ isDrawer = false, onClose }) {
     };
   }, []);
 
-  // Filter books
-  const allFavoriteBooks = allBooks.filter((book) =>
-    favorites.includes(book.id) ||
-    favorites.includes(String(book.id)) ||
-    (typeof book.id === "string" && favorites.includes(Number(book.id)))
-  );
+  // Filter books by favorites list
+  const allFavoriteBooks = useMemo(() => {
+    return allBooks.filter((book) =>
+      favorites.includes(book.id) ||
+      favorites.includes(String(book.id)) ||
+      (typeof book.id === "string" && favorites.includes(Number(book.id)))
+    );
+  }, [allBooks, favorites]);
 
-  const availableFavoriteBooks = allFavoriteBooks.filter(
-    (book) => book.real_time_status === "available"
-  );
-
-  const displayedBooks =
-    activeFilter === "available" ? availableFavoriteBooks : allFavoriteBooks;
+  const availableFavoriteBooks = useMemo(() => {
+    return allFavoriteBooks.filter((book) => book.real_time_status === "available");
+  }, [allFavoriteBooks]);
 
   const totalSavedCount = allFavoriteBooks.length;
   const availableCount = availableFavoriteBooks.length;
+
+  // Filter by active tab + search query
+  const displayedBooks = useMemo(() => {
+    const base = activeFilter === "available" ? availableFavoriteBooks : allFavoriteBooks;
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return base;
+    return base.filter(
+      (b) =>
+        b.title?.toLowerCase().includes(query) ||
+        b.author?.toLowerCase().includes(query) ||
+        b.category?.toLowerCase().includes(query) ||
+        b.isbn?.toLowerCase().includes(query)
+    );
+  }, [activeFilter, availableFavoriteBooks, allFavoriteBooks, searchQuery]);
 
   const removeFavorite = (bookId, e) => {
     e?.stopPropagation();
@@ -241,30 +256,30 @@ function StudentFavorite({ isDrawer = false, onClose }) {
   // Error State with Retry Button
   if (error && allBooks.length === 0) {
     return (
-      <div className="p-4 text-center">
+      <div className="p-6 text-center">
         <div className="mb-3 flex h-12 w-12 mx-auto items-center justify-center rounded-2xl bg-rose-50 text-rose-500">
-          <Heart className="h-6 w-6" />
+          <Heart className="h-5 w-5" />
         </div>
         <h3 className="text-sm font-bold text-slate-900 mb-1">
           Unable to load favorites
         </h3>
-        <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+        <p className="text-xs text-slate-500 mb-4 leading-relaxed max-w-xs mx-auto">
           {error}
         </p>
         <div className="flex items-center justify-center gap-2">
           <button
             type="button"
             onClick={() => loadBooks(favorites)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-95"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-blue-700 active:scale-95"
           >
             <RefreshCw className="h-3 w-3" /> Retry
           </button>
           <button
             type="button"
             onClick={handleBrowseCatalog}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
           >
-            <Search className="h-3 w-3" /> Browse
+            <Search className="h-3 w-3" /> Browse Catalog
           </button>
         </div>
       </div>
@@ -272,223 +287,246 @@ function StudentFavorite({ isDrawer = false, onClose }) {
   }
 
   return (
-    <div className={isDrawer ? "w-full pb-6" : "mx-auto w-full max-w-[1280px] px-3 sm:px-5 lg:px-8 py-4 sm:py-6"}>
+    <div className={isDrawer ? "w-full pb-6 text-slate-800" : "mx-auto w-full max-w-2xl px-3 sm:px-6 py-4 sm:py-6 text-slate-800"}>
       {/* Standalone Page Header (hidden in drawer to avoid duplicate titles) */}
       {!isDrawer && (
-        <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between border-b border-slate-100 pb-4">
+        <header className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-rose-50 text-rose-500">
                 <Heart className="h-3.5 w-3.5 fill-current" />
               </span>
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-rose-500">
-                Your Reading List
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-rose-500">
+                Saved Books
               </p>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
               My Favorites
             </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              {totalSavedCount} {totalSavedCount === 1 ? "book" : "books"} saved in your personal collection
+            <p className="text-xs text-slate-500 mt-0.5">
+              {totalSavedCount} {totalSavedCount === 1 ? "title" : "titles"} in your personal reading list
             </p>
           </div>
 
           <button
             onClick={handleBrowseCatalog}
-            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-blue-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 active:scale-[0.98]"
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-blue-300 hover:text-blue-600 active:scale-95"
           >
-            <Search className="h-3.5 w-3.5" /> Browse Catalog
+            <Search className="h-3.5 w-3.5 text-slate-400" /> Browse Catalog
           </button>
         </header>
       )}
 
-      {/* Unified Sub-Header: Filter Chips + Quick Counter (Sticky at top) */}
-      <div className={`z-10 flex items-center justify-between gap-2 ${
-        isDrawer
-          ? "sticky -top-2 bg-[#F7FAFC]/95 backdrop-blur-md -mx-3 px-3 py-2 border-b border-slate-200/60 mb-3 shadow-[0_4px_12px_rgba(0,0,0,0.03)]"
-          : "mb-3 px-1"
-      }`}>
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setActiveFilter("all")}
-            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
-              activeFilter === "all"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
-            }`}
-          >
-            All ({totalSavedCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveFilter("available")}
-            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
-              activeFilter === "available"
-                ? "bg-emerald-600 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
-            }`}
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <span className={`h-1.5 w-1.5 rounded-full ${activeFilter === "available" ? "bg-white" : "bg-emerald-500"} animate-pulse`} />
-              <span>Available ({availableCount})</span>
-            </span>
-          </button>
+      {/* Top Filter & Search Controls */}
+      {totalSavedCount > 0 && (
+        <div className="mb-3 space-y-2.5">
+          {/* Search Box */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Filter saved books..."
+              className="w-full rounded-xl border border-slate-200/80 bg-white pl-8.5 pr-8 py-1.5 text-xs text-slate-800 placeholder-slate-400 shadow-2xs focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                title="Clear search"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Minimalist Segmented Tabs + Quick Counter */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex rounded-xl bg-slate-100 p-0.5 text-xs font-medium border border-slate-200/60">
+              <button
+                type="button"
+                onClick={() => setActiveFilter("all")}
+                className={`rounded-lg px-3 py-1 text-[11px] font-semibold transition-all ${
+                  activeFilter === "all"
+                    ? "bg-white text-slate-900 shadow-2xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                All ({totalSavedCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveFilter("available")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-[11px] font-semibold transition-all ${
+                  activeFilter === "available"
+                    ? "bg-white text-slate-900 shadow-2xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    activeFilter === "available" ? "bg-emerald-500" : "bg-emerald-400"
+                  } ${availableCount > 0 ? "animate-pulse" : ""}`}
+                />
+                Available ({availableCount})
+              </button>
+            </div>
+
+            {isDrawer && (
+              <button
+                type="button"
+                onClick={handleBrowseCatalog}
+                className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-0.5 shrink-0"
+              >
+                Browse <ArrowUpRight className="h-3 w-3" />
+              </button>
+            )}
+          </div>
         </div>
+      )}
 
-        {isDrawer && (
-          <button
-            type="button"
-            onClick={handleBrowseCatalog}
-            className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-0.5 shrink-0"
-          >
-            Browse <ArrowUpRight className="h-3 w-3" />
-          </button>
-        )}
-      </div>
-
-      {/* Loading Skeleton (Only shown when no cache exists) */}
+      {/* Loading Skeleton */}
       {loading && allBooks.length === 0 ? (
-        <div className="divide-y divide-slate-200/80 rounded-xl border border-slate-200/80 bg-white p-3 shadow-sm">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-2 divide-y divide-slate-100 shadow-2xs overflow-hidden">
           {[1, 2, 3].map((n) => (
-            <div key={`fav-skel-${n}`} className="flex items-start gap-3 py-3 animate-pulse">
-              <div className="h-[76px] w-[52px] shrink-0 rounded-lg bg-slate-200" />
-              <div className="flex-1 space-y-2 py-1">
-                <div className="h-3 w-1/3 rounded bg-slate-200" />
+            <div key={`fav-skel-${n}`} className="flex items-center gap-3 p-3 animate-pulse">
+              <div className="h-16 w-12 shrink-0 rounded-lg bg-slate-200" />
+              <div className="flex-1 space-y-2">
+                <div className="h-2.5 w-20 rounded bg-slate-200" />
                 <div className="h-3.5 w-3/4 rounded bg-slate-200" />
                 <div className="h-2.5 w-1/2 rounded bg-slate-100" />
               </div>
+              <div className="h-7 w-7 rounded-lg bg-slate-100 shrink-0" />
             </div>
           ))}
         </div>
       ) : displayedBooks.length === 0 ? (
-        /* Empty State */
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center shadow-sm">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-400">
-            <Heart className="h-6 w-6" />
+        /* Minimalist Empty State */
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200/90 bg-white/70 py-10 px-4 text-center shadow-2xs my-2">
+          <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-500 border border-rose-100">
+            <Heart className="h-5 w-5 fill-rose-50 text-rose-500" />
           </div>
+
           <h3 className="text-sm font-bold text-slate-900 mb-1">
-            {totalSavedCount === 0 ? "No favorites yet" : "No available books matching filter"}
+            {totalSavedCount === 0
+              ? "No saved books yet"
+              : searchQuery
+              ? "No books match your search"
+              : "No available books right now"}
           </h3>
+
           <p className="text-xs text-slate-500 mb-4 max-w-xs leading-relaxed">
             {totalSavedCount === 0
-              ? "Save books by tapping the heart icon on any book card while exploring the collection."
-              : "All your saved books are currently borrowed. Check back later or switch filter to 'All'."}
+              ? "Tap the heart icon on any book while browsing the library to save it here for quick access."
+              : searchQuery
+              ? `No titles or authors match "${searchQuery}". Try a different keyword.`
+              : "All your saved books are currently checked out by other students. Check back soon!"}
           </p>
-          <button
-            type="button"
-            onClick={handleBrowseCatalog}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-95"
-          >
-            Explore Catalog <ArrowUpRight className="h-3.5 w-3.5" />
-          </button>
+
+          {searchQuery ? (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 active:scale-95"
+            >
+              Clear Search Filter
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleBrowseCatalog}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-2xs transition hover:bg-blue-700 active:scale-95"
+            >
+              Explore Catalog <ArrowUpRight className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       ) : (
-        /* Horizon Line List with Dividers */
-        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-          <div className="divide-y divide-slate-200/80">
+        /* Clean Minimalist List (Apple / Notion Style) */
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xs">
+          <div className="divide-y divide-slate-100">
             {displayedBooks.map((book) => {
               const isAvailable = book.real_time_status === "available";
               const coverUrl = getBackendAssetUrl(book.cover_image);
 
               return (
                 <div
-                  key={`fav-horizon-${book.id}`}
+                  key={`fav-row-${book.id}`}
                   onClick={() => handleBookClick(book)}
-                  className="group relative flex cursor-pointer items-start gap-3 p-3 transition-colors hover:bg-blue-50/60"
+                  className="group relative flex cursor-pointer items-center gap-3 p-3 transition-colors hover:bg-slate-50/80"
                 >
-                  {/* Left: Real Book Cover or Grey Libralink Fallback */}
-                  <div className="relative h-[76px] w-[52px] flex-shrink-0 overflow-hidden rounded-lg bg-slate-100 shadow-2xs transition-transform duration-200 group-hover:scale-105 border border-slate-200/80">
+                  {/* Left: Clean Rounded Cover Thumbnail */}
+                  <div className="relative h-16 w-11 sm:h-[68px] sm:w-12 shrink-0 overflow-hidden rounded-lg bg-slate-100 border border-slate-200/70 shadow-2xs">
                     {coverUrl ? (
                       <img
                         src={coverUrl}
                         alt={book.title}
-                        className="absolute inset-0 h-full w-full object-cover z-[1]"
+                        className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
                         onError={(e) => {
                           e.target.style.display = "none";
                         }}
                       />
                     ) : null}
 
-                    {/* Fallback Icon with Grey L.png */}
-                    <div
-                      className="absolute inset-0 flex flex-col items-center justify-center p-1 bg-slate-100 z-0 select-none"
-                    >
-                      <img
-                        src="/L.png"
-                        alt="Libralink"
-                        className="h-7 w-7 object-contain grayscale opacity-35"
-                      />
-                      <span className="mt-1 text-center text-[6.5px] font-semibold text-slate-400 line-clamp-1">
-                        {book.category || "Libralink"}
+                    {/* Fallback Clean Graphic */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center p-1 bg-slate-50 select-none">
+                      <BookOpen className="h-4 w-4 text-slate-400 mb-0.5" />
+                      <span className="text-[7px] font-semibold text-slate-400 text-center line-clamp-1 leading-tight">
+                        {book.category || "Book"}
                       </span>
                     </div>
-
-                    {/* 3D Spine Crease Effect */}
-                    <div className="pointer-events-none absolute inset-y-0 left-0 w-2 bg-gradient-to-r from-black/25 to-transparent z-[2]" />
                   </div>
 
-                  {/* Middle: Crisp Details */}
-                  <div className="flex min-w-0 flex-1 flex-col justify-between self-stretch py-0.5">
-                    <div>
-                      {/* Top Badges Row */}
-                      <div className="mb-1 flex items-center justify-between gap-1">
-                        <span className="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[8.5px] font-bold text-blue-700 border border-blue-200/60 truncate max-w-[130px]">
-                          {book.category || "General"}
-                        </span>
+                  {/* Middle: Clean Typography & Metadata */}
+                  <div className="flex min-w-0 flex-1 flex-col justify-center">
+                    {/* Top Tag & Availability Pill */}
+                    <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                      <span className="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-600 truncate max-w-[120px]">
+                        {book.category || "General"}
+                      </span>
 
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-semibold ${
+                          isAvailable
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200/50"
+                            : "bg-slate-100 text-slate-500 border border-slate-200/50"
+                        }`}
+                      >
                         <span
-                          className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[8px] font-semibold shrink-0 ${
-                            isAvailable
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
-                              : "bg-slate-100 text-slate-500 border border-slate-200/60"
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            isAvailable ? "bg-emerald-500" : "bg-slate-400"
                           }`}
-                        >
-                          <span
-                            className={`h-1.5 w-1.5 rounded-full ${
-                              isAvailable ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
-                            }`}
-                          />
-                          {isAvailable ? "Available" : "Checked Out"}
-                        </span>
-                      </div>
-
-                      {/* Title: 2-line clamp */}
-                      <h3 className="line-clamp-2 text-xs font-bold leading-snug text-slate-900 group-hover:text-blue-600 transition-colors">
-                        {book.title}
-                      </h3>
-
-                      {/* Author: 1-line clamp */}
-                      <p className="mt-0.5 truncate text-[11px] font-medium text-slate-500">
-                        {book.author && book.author !== "Unknown Author"
-                          ? book.author
-                          : "Academic Research"}
-                      </p>
-                    </div>
-
-                    {/* Bottom Metadata: Single-Line Campus + Live Copies */}
-                    <div className="mt-2 flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] text-slate-400">
-                      <div className="flex items-center gap-1 min-w-0 max-w-[190px]">
-                        <Building2 className="h-3 w-3 text-blue-500 shrink-0" />
-                        <span className="truncate font-medium text-slate-600">{book.library}</span>
-                        {book.available_copies > 0 && (
-                          <span className="shrink-0 text-slate-400">· {book.available_copies}c</span>
-                        )}
-                      </div>
-
-                      <span className="text-blue-600 font-semibold group-hover:underline text-[9.5px] shrink-0">
-                        View Details →
+                        />
+                        {isAvailable ? "Available" : "Checked Out"}
                       </span>
                     </div>
+
+                    {/* Book Title */}
+                    <h3 className="line-clamp-1 text-xs sm:text-sm font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
+                      {book.title}
+                    </h3>
+
+                    {/* Author & Campus Location */}
+                    <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-500 flex items-center gap-1">
+                      <span>{book.author && book.author !== "Unknown Author" ? book.author : "Academic Collection"}</span>
+                      {book.library && (
+                        <>
+                          <span className="text-slate-300">·</span>
+                          <span className="truncate text-slate-400 text-[10px]">{book.library}</span>
+                        </>
+                      )}
+                    </p>
                   </div>
 
-                  {/* Right: Quick Remove Heart */}
-                  <div className="shrink-0 self-center pl-0.5">
+                  {/* Right: Quick Remove Heart Button */}
+                  <div className="shrink-0 pl-1">
                     <button
                       type="button"
                       onClick={(e) => removeFavorite(book.id, e)}
                       title="Remove from favorites"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-500 hover:bg-rose-50 hover:scale-110 active:scale-95 transition-all"
+                      className="flex h-8 w-8 items-center justify-center rounded-xl text-rose-500 hover:bg-rose-50 hover:text-rose-600 hover:scale-110 active:scale-95 transition-all"
                     >
                       <Heart className="h-4 w-4 fill-current text-rose-500" />
                     </button>

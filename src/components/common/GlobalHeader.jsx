@@ -59,8 +59,28 @@ function GlobalHeader({
   const [deletingAll, setDeletingAll] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [notificationToDelete, setNotificationToDelete] = useState(null);
+  const [activeProfilePic, setActiveProfilePic] = useState(profileImage);
+  const [profileImgError, setProfileImgError] = useState(false);
+
+  useEffect(() => {
+    setActiveProfilePic(profileImage);
+    setProfileImgError(false);
+  }, [profileImage]);
+
+  useEffect(() => {
+    const handleProfileUpdated = (e) => {
+      const updatedPic = e?.detail?.profile_picture || e?.detail?.profile_image;
+      if (updatedPic) {
+        setActiveProfilePic(updatedPic);
+        setProfileImgError(false);
+      }
+    };
+    window.addEventListener('libralink-profile-updated', handleProfileUpdated);
+    return () => window.removeEventListener('libralink-profile-updated', handleProfileUpdated);
+  }, []);
+
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
 
   useEffect(() => {
     setLocalUnreadCount(unreadCount || 0);
@@ -808,11 +828,16 @@ function GlobalHeader({
             className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100'}`}
           >
             {/* Profile Avatar */}
-            <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
-              {profileImage ? (
-                <img src={profileImage} alt="Profile" className="w-full h-full rounded-full object-cover" />
+            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-sm flex items-center justify-center flex-shrink-0 overflow-hidden shadow-xs border border-blue-200 dark:border-gray-700">
+              {activeProfilePic && !profileImgError ? (
+                <img 
+                  src={getBackendAssetUrl(activeProfilePic)} 
+                  alt="" 
+                  className="w-full h-full object-cover" 
+                  onError={() => setProfileImgError(true)}
+                />
               ) : (
-                <FiUser className="w-5 h-5 text-white" />
+                <span>{(userName || 'U').charAt(0).toUpperCase()}</span>
               )}
             </div>
 
@@ -838,11 +863,16 @@ function GlobalHeader({
               {/* Identity Header */}
               <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700/60 mb-1">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-xs flex-shrink-0">
-                    {profileImage ? (
-                      <img src={profileImage} alt="Profile" className="w-full h-full rounded-full object-cover" />
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-xs flex-shrink-0 overflow-hidden border border-blue-200 dark:border-gray-700">
+                    {activeProfilePic && !profileImgError ? (
+                      <img 
+                        src={getBackendAssetUrl(activeProfilePic)} 
+                        alt="" 
+                        className="w-full h-full object-cover" 
+                        onError={() => setProfileImgError(true)}
+                      />
                     ) : (
-                      (userName || 'U').charAt(0).toUpperCase()
+                      <span>{(userName || 'U').charAt(0).toUpperCase()}</span>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">

@@ -5,9 +5,10 @@ import {
   FiAlertCircle, FiLayers, FiTag, FiCalendar, FiHash, FiUploadCloud,
   FiBookOpen, FiInfo, FiFolder, FiCheck, FiFileText, FiRefreshCw,
   FiBookmark, FiClock, FiActivity, FiUsers, FiChevronLeft, FiChevronRight,
-  FiChevronsLeft, FiChevronsRight
+  FiChevronsLeft, FiChevronsRight, FiEye, FiDownload, FiChevronDown
 } from "react-icons/fi";
 import api, { getBackendAssetUrl } from "../../../utils/api";
+import { exportBooksToExcel, exportBooksToCsv } from "../../../utils/exportUtils";
 import Card from "../../ui/Card";
 import SearchBar from "../../ui/SearchBar";
 import EmptyState from "../../ui/EmptyState";
@@ -16,6 +17,7 @@ import ConfirmationOverlay from "../../common/ConfirmationOverlay";
 import ActionMenu from "../../common/ActionMenu";
 import UndoToast from "../../common/UndoToast";
 import BookBorrowersDrawer from "../LibrarianTabs/BookBorrowersDrawer";
+import BookDetailsModal from "../../common/BookDetailsModal";
 
 const CATEGORY_PRESETS = [
   'General Collection',
@@ -80,6 +82,7 @@ function LibrarianAdminBooks() {
   const [viewMode, setViewMode] = useState('card'); // 'card' or 'table'
   const [editingBook, setEditingBook] = useState(null);
   const [activeBorrowersBook, setActiveBorrowersBook] = useState(null);
+  const [viewingBook, setViewingBook] = useState(null);
   const [archiveConfirmation, setArchiveConfirmation] = useState(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState(null);
   const [showEditForm, setShowEditForm] = useState(false);
@@ -112,6 +115,32 @@ function LibrarianAdminBooks() {
 
   const addFileInputRef = useRef(null);
   const editFileInputRef = useRef(null);
+
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async (format = 'excel') => {
+    setShowExportMenu(false);
+    if (!books || books.length === 0) {
+      alert('No books available to export.');
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const schoolCode = localStorage.getItem('schoolCode') || 'Campus';
+      if (format === 'excel') {
+        await exportBooksToExcel(books, { schoolCode });
+      } else {
+        exportBooksToCsv(books, { schoolCode });
+      }
+    } catch (err) {
+      console.error('Failed to export catalog backup:', err);
+      alert('Failed to export catalog: ' + err.message);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleArchive = async (book) => {
     setArchiveConfirmation(book);
@@ -609,7 +638,7 @@ function LibrarianAdminBooks() {
   return (
     <div className="animate-slide-up space-y-6">
       {/* Header Banner without Import Books button */}
-      <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-r from-white via-blue-50/25 to-indigo-50/20 p-5 sm:p-6 shadow-xs backdrop-blur-sm">
+      <div className={`rounded-2xl border border-slate-200/90 bg-gradient-to-r from-white via-blue-50/25 to-indigo-50/20 p-5 sm:p-6 shadow-xs backdrop-blur-sm transition-all ${showExportMenu ? 'relative z-30' : 'relative'}`}>
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
@@ -645,6 +674,68 @@ function LibrarianAdminBooks() {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Categories</span>
                 <span className="text-sm font-black text-indigo-600 tracking-tight"><AnimatedNumber value={Math.max(1, categories.length - 1)} /></span>
               </div>
+            </div>
+
+            {/* Export Backup Dropdown Button */}
+            <div className={`relative ${showExportMenu ? 'z-50' : ''}`}>
+              <button
+                type="button"
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                disabled={exporting || books.length === 0}
+                className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 hover:text-slate-950 text-xs font-bold shadow-2xs transition-all active:scale-95 shrink-0 cursor-pointer disabled:opacity-50"
+                title="Export and backup library catalog data"
+              >
+                {exporting ? (
+                  <div className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <FiDownload className="w-3.5 h-3.5 text-blue-600" />
+                )}
+                <span>{exporting ? 'Exporting...' : 'Export Backup'}</span>
+                <FiChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showExportMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
+                  <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl ring-1 ring-black/5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="px-3 py-2 border-b border-slate-100 mb-1">
+                      <p className="text-xs font-bold text-slate-900">Download Catalog Backup</p>
+                      <p className="text-[11px] text-slate-500">{books.length} titles • {totalCopiesCount} total copies</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleExport('excel')}
+                      className="w-full px-3 py-2.5 rounded-xl text-left hover:bg-emerald-50/80 transition-colors flex items-start gap-3 group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-[11px] shrink-0 group-hover:bg-emerald-200 transition-colors shadow-2xs">
+                        XLS
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-900 group-hover:text-emerald-950">Excel Workbook (.xlsx)</span>
+                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded-full">Recommended</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 leading-snug mt-0.5">2-Sheet workbook: Catalog Titles & Physical Barcodes</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleExport('csv')}
+                      className="w-full px-3 py-2.5 rounded-xl text-left hover:bg-slate-100 transition-colors flex items-start gap-3 group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center font-black text-[11px] shrink-0 group-hover:bg-slate-200 transition-colors shadow-2xs">
+                        CSV
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-xs font-bold text-slate-900 group-hover:text-slate-950">Comma-Separated Values (.csv)</span>
+                        <p className="text-[11px] text-slate-500 leading-snug mt-0.5">Universal plain-text UTF-8 backup file</p>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
             <Button
@@ -921,6 +1012,17 @@ function LibrarianAdminBooks() {
                         <Button
                           variant="secondary"
                           size="sm"
+                          onClick={() => setViewingBook(book)}
+                          className="px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-xl flex items-center gap-1.5 border border-slate-200 shadow-2xs transition-all cursor-pointer"
+                          title="View Full Book Details"
+                        >
+                          <FiEye className="w-3.5 h-3.5 text-slate-600" />
+                          <span>View</span>
+                        </Button>
+
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           onClick={() => setActiveBorrowersBook(book)}
                           className="px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-xl flex items-center gap-1.5 border border-slate-200 shadow-2xs transition-all cursor-pointer"
                           title="View Active Borrowers, Requests & History"
@@ -950,6 +1052,11 @@ function LibrarianAdminBooks() {
                             </Button>
                           }
                           items={[
+                            {
+                              label: "View Details",
+                              icon: <FiEye className="w-4 h-4 text-slate-600" />,
+                              onClick: () => setViewingBook(book),
+                            },
                             {
                               label: "Borrowers & History",
                               icon: <FiUsers className="w-4 h-4 text-blue-600" />,
@@ -1092,6 +1199,16 @@ function LibrarianAdminBooks() {
                             <div className="flex items-center justify-end gap-1">
                               <button
                                 type="button"
+                                onClick={() => setViewingBook(book)}
+                                className="px-2 py-1 text-[11px] font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-lg flex items-center gap-1 border border-slate-200 cursor-pointer transition-colors shadow-2xs"
+                                title="View Full Book Details"
+                              >
+                                <FiEye className="w-3 h-3 text-slate-600" />
+                                <span className="hidden md:inline">View</span>
+                              </button>
+
+                              <button
+                                type="button"
                                 onClick={() => setActiveBorrowersBook(book)}
                                 className="px-2 py-1 text-[11px] font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-lg flex items-center gap-1 border border-slate-200 cursor-pointer transition-colors shadow-2xs"
                                 title="View Borrowers & History"
@@ -1120,6 +1237,11 @@ function LibrarianAdminBooks() {
                                   </button>
                                 }
                                 items={[
+                                  {
+                                    label: "View Details",
+                                    icon: <FiEye className="w-4 h-4 text-slate-600" />,
+                                    onClick: () => setViewingBook(book),
+                                  },
                                   {
                                     label: "Borrowers & History",
                                     icon: <FiUsers className="w-4 h-4 text-blue-600" />,
@@ -2146,6 +2268,22 @@ function LibrarianAdminBooks() {
           book={activeBorrowersBook}
           onClose={() => setActiveBorrowersBook(null)}
           onBookUpdated={loadBooks}
+        />
+      )}
+
+      {/* Book Details Modal */}
+      {viewingBook && (
+        <BookDetailsModal
+          book={viewingBook}
+          onClose={() => setViewingBook(null)}
+          onOpenBorrowers={(b) => {
+            setViewingBook(null);
+            setActiveBorrowersBook(b);
+          }}
+          onEdit={(b) => {
+            setViewingBook(null);
+            handleEdit(b);
+          }}
         />
       )}
     </div>

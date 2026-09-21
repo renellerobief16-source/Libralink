@@ -91,6 +91,64 @@ async function broadcastAnnouncementNotifications(announcement, req) {
   console.log(`[ANNOUNCEMENTS] Broadcast ${notifications.length} notifications (${scope}, audience: ${targetAudience}, priority: ${priority}) for announcement ${announcement_id}`);
 }
 
+/**
+ * Enrich announcements with author/creator user details and school metadata
+ */
+async function enrichAnnouncements(announcements) {
+  if (!announcements || announcements.length === 0) return [];
+
+  const userIds = [...new Set(announcements.map(a => a.created_by || a.user_id).filter(Boolean))];
+  const schoolIds = [...new Set(announcements.map(a => a.school_id).filter(Boolean))];
+
+  let usersMap = new Map();
+  if (userIds.length > 0) {
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('user_id, firstname, lastname, profile_image, role, role_id')
+      .in('user_id', userIds);
+    if (!error && users) {
+      users.forEach(u => usersMap.set(u.user_id, u));
+    }
+  }
+
+  let schoolsMap = new Map();
+  if (schoolIds.length > 0) {
+    const { data: schools, error } = await supabase
+      .from('schools')
+      .select('school_id, school_name, school_code')
+      .in('school_id', schoolIds);
+    if (!error && schools) {
+      schools.forEach(s => schoolsMap.set(s.school_id, s));
+    }
+  }
+
+  return announcements.map(a => {
+    const author = usersMap.get(a.created_by || a.user_id) || null;
+    const school = schoolsMap.get(a.school_id) || null;
+    const authorName = author
+      ? [author.firstname, author.lastname].filter(Boolean).join(' ')
+      : 'Library Administration';
+    const authorRole = author?.role || (a.is_global || !a.school_id ? 'Super Admin' : 'Librarian Admin');
+    const authorPic = author?.profile_image || author?.profile_picture || null;
+
+    return {
+      ...a,
+      author: {
+        name: authorName,
+        role: authorRole,
+        profile_picture: authorPic,
+        profile_image: authorPic,
+      },
+      creator_name: authorName,
+      creator_role: authorRole,
+      creator_profile_picture: authorPic,
+      creator_profile_image: authorPic,
+      school_code: school?.school_code || null,
+      school_name: school?.school_name || null,
+    };
+  });
+}
+
 // ────────────────────────────────────────────────────────────────
 // Routes
 // ────────────────────────────────────────────────────────────────
@@ -118,7 +176,8 @@ router.get('/', auth, async (req, res) => {
       .limit(30);
 
     if (error) throw error;
-    res.json({ success: true, data: data || [] });
+    const enriched = await enrichAnnouncements(data || []);
+    res.json({ success: true, data: enriched });
   } catch (error) {
     console.error('Error getting announcements:', error);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -138,7 +197,8 @@ router.get('/school/:school_id', auth, async (req, res) => {
       .limit(30);
 
     if (error) throw error;
-    res.json({ success: true, data: data || [] });
+    const enriched = await enrichAnnouncements(data || []);
+    res.json({ success: true, data: enriched });
   } catch (error) {
     console.error('Error getting school announcements:', error);
     res.status(500).json({ success: false, message: 'Server error' });

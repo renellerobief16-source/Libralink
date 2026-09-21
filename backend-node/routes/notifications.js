@@ -20,32 +20,50 @@ async function enrichNotifications(notifications) {
     if (!requestError && data) requests = data;
   }
 
-  // 2. Collect student user IDs from borrow requests and direct notification user_ids
+  // 1b. Fetch announcements if any announcement notifications exist
+  const announcementIds = [...new Set((notifications || [])
+    .filter(n => (n.type === 'announcement' || String(n.title || '').includes('Announcement')) && n.related_id)
+    .map(n => Number(n.related_id) || n.related_id)
+    .filter(Boolean))];
+
+  let announcementsMap = new Map();
+  if (announcementIds.length > 0) {
+    const { data: annData } = await supabase
+      .from('announcements')
+      .select('announcement_id, created_by, title')
+      .in('announcement_id', announcementIds);
+    if (annData) {
+      annData.forEach(a => announcementsMap.set(String(a.announcement_id), a));
+    }
+  }
+
+  // 2. Collect student user IDs from borrow requests, direct notification user_ids, and announcement creators
   const studentIdsFromRequests = requests.map(r => r.student_id).filter(Boolean);
   const directUserIds = notifications.map(n => n.user_id || n.sender_id).filter(Boolean);
-  const allUserIds = [...new Set([...studentIdsFromRequests, ...directUserIds])];
+  const announcementCreatorIds = Array.from(announcementsMap.values()).map(a => a.created_by).filter(Boolean);
+  const allUserIds = [...new Set([...studentIdsFromRequests, ...directUserIds, ...announcementCreatorIds])];
 
   // 3. Fetch all potential student/user accounts
   let usersList = [];
   if (allUserIds.length > 0) {
     const { data: usersData, error: usersError } = await supabase
       .from('users')
-      .select('user_id, firstname, lastname, profile_image, school_id, role_id')
+      .select('user_id, firstname, lastname, profile_image, school_id, role_id, role')
       .in('user_id', allUserIds);
     if (!usersError && usersData) usersList = usersData;
   }
 
-  // 4. Also fetch active students to help match by name if request lookup misses
+  // 4. Also fetch active staff and students to help match by name if lookup misses
   const namesInMessages = notifications.map(n => {
-    const match = String(n.message || '').match(/^([A-Za-z\s.]+?)\s+(?:has\s+)?(?:submitted|requested|borrowed|canceled|cancelled|returned|claimed)/i);
+    const match = String(n.message || '').match(/(?:From\s+|has\s+)?([A-Za-z\s.]+?)(?:\s*:|\s+(?:has\s+)?(?:submitted|requested|borrowed|canceled|cancelled|returned|claimed))/i);
     return match ? match[1].trim() : null;
   }).filter(Boolean);
 
   if (namesInMessages.length > 0) {
     const { data: nameUsers } = await supabase
       .from('users')
-      .select('user_id, firstname, lastname, profile_image, school_id, role_id')
-      .limit(100);
+      .select('user_id, firstname, lastname, profile_image, school_id, role_id, role')
+      .limit(150);
     if (nameUsers) {
       const existingIds = new Set(usersList.map(u => u.user_id));
       nameUsers.forEach(nu => {
@@ -75,36 +93,51 @@ async function enrichNotifications(notifications) {
   return notifications.map(notification => {
     const relatedRequestId = getNotificationRequestId(notification);
     const request = requestsById.get(relatedRequestId);
-    let student = request ? studentsById.get(request.student_id) : null;
+    let matchedUser = request ? studentsById.get(request.student_id) : null;
 
-    // If not found via request, check by notification.user_id / sender_id
-    if (!student && notification.user_id) {
-      student = studentsById.get(notification.user_id);
+    // Check if announcement
+    const isAnn = notification.type === 'announcement' || String(notification.title || '').includes('Announcement');
+    if (isAnn && notification.related_id) {
+      const ann = announcementsMap.get(String(notification.related_id));
+      if (ann?.created_by) {
+        matchedUser = studentsById.get(ann.created_by);
+      }
     }
 
-    // If still not found, try matching by parsed name in message
-    const parsedNameMatch = String(notification.message || '').match(/^([A-Za-z\s.]+?)\s+(?:has\s+)?(?:submitted|requested|borrowed|canceled|cancelled|returned|claimed)/i);
-    const parsedName = parsedNameMatch ? parsedNameMatch[1].trim() : null;
-    if (!student && parsedName) {
-      student = usersList.find(u => {
-        const full = `${u.firstname || ''} ${u.lastname || ''}`.trim().toLowerCase();
-        return full === parsedName.toLowerCase() || full.includes(parsedName.toLowerCase()) || parsedName.toLowerCase().includes(full);
-      });
+    // If not found, check by notification.sender_id or user_id
+    if (!matchedUser && notification.sender_id) {
+      matchedUser = studentsById.get(notification.sender_id);
+    }
+    if (!matchedUser && !isAnn && notification.user_id) {
+      matchedUser = studentsById.get(notification.user_id);
     }
 
-    const schoolCode = student ? schoolsById.get(student.school_id) : null;
-    const finalName = student
-      ? [student.firstname, student.lastname].filter(Boolean).join(' ')
-      : (parsedName || notification.sender_name || notification.student_name || 'Library Patron');
+    // Try matching by parsed name in message
+    if (!matchedUser) {
+      const parsedMatch = String(notification.message || '').match(/(?:From\s+|has\s+)?([A-Za-z\s.]+?)(?:\s*:|\s+(?:has\s+)?(?:submitted|requested|borrowed|canceled|cancelled|returned|claimed))/i);
+      const parsedName = parsedMatch ? parsedMatch[1].trim() : null;
+      if (parsedName) {
+        matchedUser = usersList.find(u => {
+          const full = `${u.firstname || ''} ${u.lastname || ''}`.trim().toLowerCase();
+          return full === parsedName.toLowerCase() || full.includes(parsedName.toLowerCase()) || parsedName.toLowerCase().includes(full);
+        });
+      }
+    }
 
-    const profilePic = student?.profile_image || notification.profile_picture || notification.student_profile_picture || null;
+    const schoolCode = matchedUser ? schoolsById.get(matchedUser.school_id) : null;
+    const finalName = matchedUser
+      ? [matchedUser.firstname, matchedUser.lastname].filter(Boolean).join(' ')
+      : (isAnn ? 'Library Administration' : (notification.sender_name || notification.student_name || 'Library Patron'));
+
+    const profilePic = matchedUser?.profile_image || notification.profile_picture || notification.sender_profile_picture || notification.student_profile_picture || null;
 
     return normalizeNotification({
       ...notification,
       related_request_id: relatedRequestId,
       sender_name: finalName,
-      sender_role: student ? 'Student' : (notification.sender_role || 'User'),
+      sender_role: matchedUser?.role || (isAnn ? 'Librarian Admin' : (notification.sender_role || 'User')),
       profile_picture: profilePic,
+      sender_profile_picture: profilePic,
       student_name: finalName,
       student_profile_picture: profilePic,
       school_code: schoolCode || notification.school_code || null,
@@ -422,13 +455,20 @@ router.post('/send-email', auth, requireRole(['Librarian Admin', 'Librarian']), 
       if (school?.school_name) schoolName = school.school_name;
     }
 
+    const senderName = [req.user?.firstname, req.user?.lastname].filter(Boolean).join(' ') || 'Campus Librarian';
+    const senderRole = req.user?.role_name || req.user?.role || 'Librarian Administrator';
+    const senderProfilePicture = req.user?.profile_image || req.user?.profile_picture || null;
+
     const emailResult = await sendDirectLibrarianEmail({
       toEmail: recipient_email,
       recipientName: recipient_name || 'Library Patron',
       subject,
       messageBody: message,
       templateType: template_type || 'notice',
-      schoolName
+      schoolName,
+      senderName,
+      senderRole,
+      senderProfilePicture
     });
 
     if (!emailResult.success) {

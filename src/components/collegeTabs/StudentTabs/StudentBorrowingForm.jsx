@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useNotifications } from "../../../context/NotificationContext";
 import api from "../../../utils/api";
+import CartBookCover from "./CartBookCover";
 
 function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, compact = false }) {
   const { addNotification } = useNotifications();
@@ -305,9 +306,7 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, com
                     key={item.book_id || index}
                     className="flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/50 p-3 transition hover:border-blue-200"
                   >
-                    <div className="flex h-12 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-xs">
-                      <Book className="h-5 w-5 opacity-90" />
-                    </div>
+                    <CartBookCover book={item} className="h-14 w-10 shrink-0" />
 
                     <div className="min-w-0 flex-1">
                       <h4 className="line-clamp-1 text-xs font-bold text-slate-900">{item.title}</h4>
@@ -641,9 +640,12 @@ function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, com
                 </span>
                 <div className="space-y-1">
                   {borrowingList.map((book) => (
-                    <div key={book.book_id} className="flex items-center justify-between text-xs py-1">
-                      <span className="truncate max-w-[200px] font-medium text-slate-800">{book.title}</span>
-                      <span className="text-[10px] text-slate-500">{book.owner_school_name || 'Home'}</span>
+                    <div key={book.book_id} className="flex items-center justify-between text-xs py-1.5 gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <CartBookCover book={book} className="h-7 w-5 shrink-0 rounded-xs" />
+                        <span className="truncate max-w-[170px] font-medium text-slate-800">{book.title}</span>
+                      </div>
+                      <span className="text-[10px] text-slate-500 shrink-0">{book.owner_school_name || 'Home'}</span>
                     </div>
                   ))}
                 </div>
