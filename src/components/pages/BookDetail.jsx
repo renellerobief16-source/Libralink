@@ -131,6 +131,16 @@ function BookDetail() {
     }
   };
 
+  // Automatically redirect user to Borrow History tab after successful borrowing request
+  useEffect(() => {
+    if (!showSuccessOverlay || !submittedRequest) return;
+    const timer = setTimeout(() => {
+      setShowSuccessOverlay(false);
+      navigate("/studentpage/history", { state: { tab: "requests" } });
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, [showSuccessOverlay, submittedRequest, navigate]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
@@ -455,17 +465,20 @@ function BookDetail() {
               <FiBook className="w-7 h-7 text-green-600 sm:w-8 sm:h-8" />
             </div>
             <h3 className="text-lg font-bold text-[#0F172A] mb-2 sm:text-xl">Request Submitted!</h3>
-            <p className="text-sm text-[#64748B] mb-4 sm:text-base sm:mb-6">
+            <p className="text-sm text-[#64748B] mb-2 sm:text-base sm:mb-4">
               Your borrowing request has been submitted successfully. You will be notified when it's approved.
+            </p>
+            <p className="text-xs text-blue-600 font-semibold mb-4 animate-pulse">
+              Redirecting to Borrow History in a moment...
             </p>
             <button
               onClick={() => {
                 setShowSuccessOverlay(false);
-                navigate(-1);
+                navigate('/studentpage/history', { state: { tab: 'requests' } });
               }}
               className="w-full py-2.5 px-4 bg-[#0077B6] text-white rounded-xl font-semibold hover:bg-[#005f8f] transition-all sm:py-3 sm:px-6"
             >
-              Done
+              Go to Borrow History →
             </button>
           </div>
         </div>

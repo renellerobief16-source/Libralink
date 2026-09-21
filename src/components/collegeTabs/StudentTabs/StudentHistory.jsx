@@ -18,7 +18,7 @@ import {
   Check,
   ChevronRight,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import api, {
   getBackendAssetUrl,
   cancelBorrowRequest,
@@ -28,10 +28,19 @@ import QRCodeDisplay from "./QRCodeDisplay";
 
 function StudentHistory({ isDrawer = false, onClose }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [historyItems, setHistoryItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState("all"); // 'all' | 'active' | 'returned' | 'requests'
+  const [activeTab, setActiveTab] = useState(() => {
+    return location.state?.tab || new URLSearchParams(location.search).get("tab") || "all";
+  }); // 'all' | 'active' | 'returned' | 'requests'
+
+  useEffect(() => {
+    if (location.state?.tab) {
+      setActiveTab(location.state.tab);
+    }
+  }, [location.state]);
   const [selectedRequestForQR, setSelectedRequestForQR] = useState(null);
 
   // Cancellation States (Inline Accordion, No Overlay)

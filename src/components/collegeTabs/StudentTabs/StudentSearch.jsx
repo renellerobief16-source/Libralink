@@ -2458,6 +2458,16 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
     }
   };
 
+  // Automatically redirect user to Borrow History tab after successful borrowing request
+  useEffect(() => {
+    if (!showSuccessOverlay || !submittedRequest) return;
+    const timer = setTimeout(() => {
+      setShowSuccessOverlay(false);
+      navigate("/studentpage/history", { state: { tab: "requests" } });
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, [showSuccessOverlay, submittedRequest, navigate]);
+
   // Function to clear all borrowing-related history
 
   const clearBorrowingHistory = () => {
@@ -5395,23 +5405,32 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
               </div>
             </div>
 
+            {/* Auto-redirect visual indicator */}
+            <div className="mt-4 flex items-center justify-center gap-1.5 text-xs text-blue-600 font-semibold animate-pulse">
+              <Clock className="w-3.5 h-3.5" />
+              <span>Redirecting to Borrow History...</span>
+            </div>
+
             {/* Dual CTA Buttons */}
-            <div className="mt-5 grid grid-cols-2 gap-2">
+            <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => {
                   setShowSuccessOverlay(false);
-                  navigate('/student/history');
+                  navigate('/studentpage/history', { state: { tab: 'requests' } });
                 }}
-                className="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50"
+                className="flex items-center justify-center rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-600/25 transition hover:bg-blue-700 active:scale-[0.98]"
               >
-                View My Requests
+                Go to Requests Now →
               </button>
 
               <button
                 type="button"
-                onClick={() => setShowSuccessOverlay(false)}
-                className="flex items-center justify-center rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-600/25 transition hover:bg-blue-700 active:scale-[0.98]"
+                onClick={() => {
+                  setShowSuccessOverlay(false);
+                  navigate('/studentpage/history', { state: { tab: 'requests' } });
+                }}
+                className="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50"
               >
                 Done
               </button>
