@@ -197,7 +197,7 @@ function MapSetup({ center, zoom }) {
   useEffect(() => {
     if (!center) return;
     // Run multiple invalidations to ensure tiles load after container paint
-    const tasks = [50, 200, 500, 1000].map((ms) =>
+    const tasks = [50, 150, 300, 600, 1000].map((ms) =>
       setTimeout(() => {
         map.invalidateSize({ animate: false });
         if (!ready.current) {
@@ -206,7 +206,16 @@ function MapSetup({ center, zoom }) {
         }
       }, ms)
     );
-    return () => tasks.forEach(clearTimeout);
+
+    const handleResize = () => {
+      map.invalidateSize({ animate: false });
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      tasks.forEach(clearTimeout);
+      window.removeEventListener('resize', handleResize);
+    };
   }, [center, zoom, map]);
 
   return null;
