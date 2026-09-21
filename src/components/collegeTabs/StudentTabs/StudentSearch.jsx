@@ -4862,8 +4862,8 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
 
                                     {/* Expandable School Map */}
                                     {isExpanded && (
-                                      <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
-                                        <div className="h-40 w-full bg-slate-100">
+                                      <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 shadow-sm">
+                                        <div className="h-64 w-full bg-slate-100">
                                           <MinimalSchoolMap
                                             school={{
                                               school_id: schoolCopy.school_id,
@@ -4872,6 +4872,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                                               school_name: schoolCopy.school_name,
                                               address: schoolCopy.address,
                                             }}
+                                            height={256}
                                           />
                                         </div>
                                       </div>
@@ -5811,7 +5812,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                   </span>
                 </div>
 
-                <div className="h-44 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                <div className="h-64 sm:h-72 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
                   <MinimalSchoolMap
                     school={{
                       school_id: partnerBookDetailModal.school_id,
@@ -5820,6 +5821,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                       school_name: partnerBookDetailModal.school_name,
                       address: partnerBookDetailModal.address,
                     }}
+                    height={280}
                   />
                 </div>
               </div>

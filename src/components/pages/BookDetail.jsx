@@ -309,9 +309,20 @@ function BookDetail() {
             {/* Map Section */}
             <div className="border border-[#E2E8F0] bg-white p-4 shadow-sm sm:p-5 lg:p-7">
               <h3 className="text-base font-semibold text-[#0F172A] mb-3 sm:text-lg sm:mb-4">Location Map</h3>
-              <div className="h-56 overflow-hidden bg-[#F8FAFC] sm:h-80">
-                {book.schools?.latitude && book.schools?.longitude ? (
-                  <MinimalSchoolMap school={book.schools} />
+              <div className="h-72 overflow-hidden rounded-xl bg-[#F8FAFC] sm:h-80">
+                {book?.schools || book?.school_id ? (
+                  <MinimalSchoolMap
+                    school={
+                      book.schools || {
+                        school_id: book.school_id,
+                        school_name: book.school_name,
+                        address: book.address || book.school_address,
+                        latitude: book.latitude,
+                        longitude: book.longitude,
+                      }
+                    }
+                    height={320}
+                  />
                 ) : (
                   <div className="h-full flex items-center justify-center text-[#64748B]">
                     <div className="text-center">

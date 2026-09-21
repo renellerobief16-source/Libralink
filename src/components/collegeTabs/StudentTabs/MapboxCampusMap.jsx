@@ -202,12 +202,64 @@ export default function MapboxCampusMap({ school, height = 340, onExpand }) {
   const [fullscreen, setFullscreen] = useState(false);
   const [showLayers, setShowLayers] = useState(false);
 
-  const lat = Number(school?.latitude);
-  const lng = Number(school?.longitude);
-  const valid = Number.isFinite(lat) && Number.isFinite(lng);
-  const name = school?.school_name || 'Campus';
+  const [resolvedLat, setResolvedLat] = useState(() => {
+    const l = Number(school?.latitude);
+    return Number.isFinite(l) && l !== 0 ? l : null;
+  });
+  const [resolvedLng, setResolvedLng] = useState(() => {
+    const g = Number(school?.longitude);
+    return Number.isFinite(g) && g !== 0 ? g : null;
+  });
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState('prompt');
+
+  // Automatic geocoding fallback if coordinates are missing
+  useEffect(() => {
+    const l = Number(school?.latitude);
+    const g = Number(school?.longitude);
+    if (Number.isFinite(l) && Number.isFinite(g) && l !== 0 && g !== 0) {
+      setResolvedLat(l);
+      setResolvedLng(g);
+      return;
+    }
+
+    const name = school?.school_name || '';
+    const addr = school?.address || '';
+    const query = [name, addr, 'Philippines'].filter(Boolean).join(', ');
+    if (!query || query === 'Philippines') return;
+
+    let active = true;
+    setIsGeocoding(true);
+
+    fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`, {
+      headers: { 'User-Agent': 'LibraLink-Library-App/1.0' },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!active) return;
+        const gLat = Number(data?.[0]?.lat);
+        const gLng = Number(data?.[0]?.lon);
+        if (Number.isFinite(gLat) && Number.isFinite(gLng)) {
+          setResolvedLat(gLat);
+          setResolvedLng(gLng);
+        }
+      })
+      .catch((err) => {
+        console.warn('[MapboxCampusMap] Geocoding fallback error:', err);
+      })
+      .finally(() => {
+        if (active) setIsGeocoding(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [school?.latitude, school?.longitude, school?.school_name, school?.address]);
+
+  const valid = Number.isFinite(resolvedLat) && Number.isFinite(resolvedLng);
+  const name = school?.school_name || 'Campus Library';
   const address = school?.address || 'Partner Campus';
-  const center = useMemo(() => [lat, lng], [lat, lng]);
+  const center = useMemo(() => [resolvedLat || 14.9667, resolvedLng || 120.6353], [resolvedLat, resolvedLng]);
   const campusIcon = useMemo(() => makeCampusIcon(name.charAt(0).toUpperCase()), [name]);
   const tile = TILES[tileKey] || TILES.map;
 
@@ -230,48 +282,85 @@ export default function MapboxCampusMap({ school, height = 340, onExpand }) {
     return () => clearTimeout(t);
   }, [fullscreen]);
 
-  /* ── GPS + OSRM route ── */
-  const handleRoute = useCallback(() => {
-    if (!navigator.geolocation) return alert('Geolocation not supported.');
+  /* ── Calculate route between user GPS and school library ── */
+  const calculateRouteFromCoords = useCallback(async (uLat, uLng, targetLat, targetLng) => {
+    setUserLoc({ lat: uLat, lng: uLng });
     setLocating(true);
+    setPermissionStatus('granted');
+
+    try {
+      const r = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${uLng},${uLat};${targetLng},${targetLat}?overview=full&geometries=geojson`
+      );
+      const d = await r.json();
+      if (d.routes?.[0]) {
+        const pts = d.routes[0].geometry.coordinates.map(([lo, la]) => [la, lo]);
+        setRoute(pts);
+        setRouteInfo({
+          dist: (d.routes[0].distance / 1000).toFixed(1) + ' km',
+          time: Math.round(d.routes[0].duration / 60) + ' min drive',
+        });
+      } else {
+        setRoute([[uLat, uLng], [targetLat, targetLng]]);
+        const directDist = distanceLabel(uLat, uLng, targetLat, targetLng);
+        if (directDist) {
+          setRouteInfo({ dist: directDist, time: 'Direct path' });
+        }
+      }
+    } catch (err) {
+      console.warn('[MapboxCampusMap] Routing failed, using direct line:', err);
+      setRoute([[uLat, uLng], [targetLat, targetLng]]);
+      const directDist = distanceLabel(uLat, uLng, targetLat, targetLng);
+      if (directDist) {
+        setRouteInfo({ dist: directDist, time: 'Direct line' });
+      }
+    } finally {
+      setLocating(false);
+    }
+  }, []);
+
+  /* ── GPS + OSRM route trigger ── */
+  const handleRoute = useCallback((showPromptAlert = false) => {
+    if (!navigator.geolocation) {
+      if (showPromptAlert) alert('Geolocation is not supported by your browser.');
+      return;
+    }
+    if (!valid) return;
+
+    setLocating(true);
+    setPermissionStatus('locating');
+
     navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        const { latitude: uLat, longitude: uLng } = coords;
-        setUserLoc({ lat: uLat, lng: uLng });
-        try {
-          const r = await fetch(
-            `https://router.project-osrm.org/route/v1/driving/${uLng},${uLat};${lng},${lat}?overview=full&geometries=geojson`
-          );
-          const d = await r.json();
-          if (d.routes?.[0]) {
-            const pts = d.routes[0].geometry.coordinates.map(([lo, la]) => [la, lo]);
-            setRoute(pts);
-            setRouteInfo({
-              dist: (d.routes[0].distance / 1000).toFixed(1) + ' km',
-              time: Math.round(d.routes[0].duration / 60) + ' min drive',
-            });
-          } else {
-            setRoute([[uLat, uLng], [lat, lng]]);
-          }
-        } catch {
-          setRoute([[uLat, uLng], [lat, lng]]);
-        } finally {
-          setLocating(false);
+      ({ coords }) => {
+        calculateRouteFromCoords(coords.latitude, coords.longitude, resolvedLat, resolvedLng);
+      },
+      (err) => {
+        setLocating(false);
+        setPermissionStatus('denied');
+        console.info('[MapboxCampusMap] Geolocation access not granted:', err?.message);
+        if (showPromptAlert) {
+          alert('Location permission was denied. Please allow location access in your browser settings to view live directions.');
         }
       },
-      () => { alert('Allow location access to calculate route.'); setLocating(false); },
-      { enableHighAccuracy: true, timeout: 12000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
     );
-  }, [lat, lng]);
+  }, [valid, resolvedLat, resolvedLng, calculateRouteFromCoords]);
+
+  // Automatically request location and calculate route upon viewing map
+  useEffect(() => {
+    if (valid) {
+      handleRoute(false);
+    }
+  }, [valid, handleRoute]);
 
   const openGMaps = () =>
     window.open(
-      `https://www.google.com/maps/dir/?api=1${userLoc ? `&origin=${userLoc.lat},${userLoc.lng}` : ''}&destination=${lat},${lng}&travelmode=driving`,
+      `https://www.google.com/maps/dir/?api=1${userLoc ? `&origin=${userLoc.lat},${userLoc.lng}` : ''}&destination=${resolvedLat},${resolvedLng}&travelmode=driving`,
       '_blank'
     );
 
   const openWaze = () =>
-    window.open(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`, '_blank');
+    window.open(`https://waze.com/ul?ll=${resolvedLat},${resolvedLng}&navigate=yes`, '_blank');
 
   const copyAddr = () =>
     navigator.clipboard.writeText(address).then(() => {
@@ -279,7 +368,22 @@ export default function MapboxCampusMap({ school, height = 340, onExpand }) {
       setTimeout(() => setCopied(false), 2000);
     });
 
-  const dist = userLoc ? distanceLabel(userLoc.lat, userLoc.lng, lat, lng) : null;
+  const dist = userLoc && valid ? distanceLabel(userLoc.lat, userLoc.lng, resolvedLat, resolvedLng) : null;
+
+  /* ── Loading geocoding state ── */
+  if (isGeocoding && !valid) {
+    return (
+      <div
+        className="flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50"
+        style={{ height: typeof height === 'number' ? height : 280 }}
+      >
+        <div className="flex items-center gap-2.5 text-blue-600">
+          <Navigation className="h-5 w-5 animate-spin" />
+          <span className="text-xs font-semibold">Locating campus library…</span>
+        </div>
+      </div>
+    );
+  }
 
   /* ── No coords fallback ── */
   if (!valid) {
@@ -517,11 +621,40 @@ export default function MapboxCampusMap({ school, height = 340, onExpand }) {
               </button>
             </div>
 
+            {/* Live route / status banner */}
+            {routeInfo ? (
+              <div className="mb-2.5 flex items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-800">
+                <div className="flex items-center gap-1.5 font-bold truncate">
+                  <Navigation className="h-3.5 w-3.5 text-emerald-600 shrink-0 animate-pulse" />
+                  <span className="truncate">{routeInfo.dist} · {routeInfo.time} to library</span>
+                </div>
+                <span className="text-[10px] font-semibold text-emerald-700 shrink-0 uppercase tracking-wide">
+                  Live Route
+                </span>
+              </div>
+            ) : locating ? (
+              <div className="mb-2.5 flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-800">
+                <Navigation className="h-3.5 w-3.5 animate-spin text-blue-600 shrink-0" />
+                <span className="truncate">Determining your GPS location & directions…</span>
+              </div>
+            ) : permissionStatus === 'denied' && !userLoc ? (
+              <div className="mb-2.5 flex items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-800">
+                <span className="truncate">📍 Location access needed for live route & driving time</span>
+                <button
+                  type="button"
+                  onClick={() => handleRoute(true)}
+                  className="shrink-0 font-bold text-amber-900 underline hover:text-amber-700"
+                >
+                  Enable / Retry
+                </button>
+              </div>
+            ) : null}
+
             {/* Action buttons */}
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={handleRoute}
+                onClick={() => handleRoute(true)}
                 disabled={locating}
                 className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-bold transition-all active:scale-95 disabled:opacity-60 ${
                   route
@@ -530,7 +663,7 @@ export default function MapboxCampusMap({ school, height = 340, onExpand }) {
                 }`}
               >
                 <Navigation className={`h-3.5 w-3.5 ${locating ? 'animate-spin' : route ? 'text-emerald-500' : ''}`} />
-                <span>{locating ? 'Locating…' : route ? 'Re-Route' : 'Route'}</span>
+                <span>{locating ? 'Locating…' : route ? 'Re-Route' : 'Get Route'}</span>
               </button>
 
               <button
