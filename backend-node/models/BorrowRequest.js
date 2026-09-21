@@ -72,9 +72,33 @@ class BorrowRequest {
         throw new Error('Invalid book item: book_id is required and must be a valid number');
       }
 
+      // Reserve an available copy immediately to lock stock across the system
+      let assignedCopyId = null;
+      try {
+        const { data: availableCopy } = await supabase
+          .from('book_copies')
+          .select('copy_id')
+          .eq('book_id', book_id)
+          .eq('status', 'available')
+          .limit(1)
+          .maybeSingle();
+
+        if (availableCopy && availableCopy.copy_id) {
+          assignedCopyId = availableCopy.copy_id;
+          await supabase
+            .from('book_copies')
+            .update({ status: 'reserved' })
+            .eq('copy_id', assignedCopyId);
+          console.log('[BORROW REQUEST] Reserved copy', assignedCopyId, 'for book:', book_id);
+        }
+      } catch (copyErr) {
+        console.warn('[BORROW REQUEST] Could not reserve copy immediately:', copyErr.message);
+      }
+
       const item = {
         request_id,
         book_id,
+        assigned_copy_id: assignedCopyId,
         owner_school_id: itemData.owner_school_id ? Number(itemData.owner_school_id) : null,
         partner_school_id: itemData.partner_school_id ? Number(itemData.partner_school_id) : null,
         borrow_type: itemData.borrow_type || 'HOME',
@@ -617,14 +641,25 @@ class BorrowRequest {
 
       console.log('[BORROW REQUEST] Request status updated successfully');
 
-      // Update items status
-      const { error: itemsError } = await supabase
-        .from('borrow_request_items')
-        .update({ status: 'cancelled' })
-        .eq('request_id', request_id);
+      // Release any reserved book copies back to available
+      try {
+        const { data: items } = await supabase
+          .from('borrow_request_items')
+          .select('item_id, assigned_copy_id')
+          .eq('request_id', request_id);
 
-      if (itemsError) {
-        console.error('[BORROW REQUEST] Error updating items:', itemsError);
+        if (items && items.length > 0) {
+          for (const itm of items) {
+            if (itm.assigned_copy_id) {
+              await supabase
+                .from('book_copies')
+                .update({ status: 'available' })
+                .eq('copy_id', itm.assigned_copy_id);
+            }
+          }
+        }
+      } catch (revertErr) {
+        console.warn('[BORROW REQUEST] Error reverting reserved copies on reject:', revertErr.message);
       }
 
       console.log('[BORROW REQUEST] Rejection completed');

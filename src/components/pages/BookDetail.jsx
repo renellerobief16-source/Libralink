@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FiBook, FiUser, FiMapPin, FiCalendar, FiArrowLeft, FiHome, FiTag, FiCopy, FiChevronDown, FiAlertCircle, FiClock, FiShield } from 'react-icons/fi';
 import api, { getLibraryPolicy } from '../../utils/api';
+import { subscribeToBookCopies } from '../../utils/realtime';
 import StudentBorrowingForm from '../collegeTabs/StudentTabs/StudentBorrowingForm';
 import { MinimalSchoolMap } from '../collegeTabs/StudentTabs/SchoolMap';
 
@@ -68,6 +69,15 @@ function BookDetail() {
 
     if (bookId) {
       loadBook();
+
+      const unsubscribe = subscribeToBookCopies(null, (payload) => {
+        if (payload?.new?.book_id && String(payload.new.book_id) === String(bookId)) {
+          loadBook();
+        }
+      });
+      return () => {
+        if (unsubscribe) unsubscribe();
+      };
     }
   }, [bookId]);
 
@@ -96,6 +106,22 @@ function BookDetail() {
         setShowBorrowingForm(false);
         setShowSuccessOverlay(true);
         setBorrowingFormList([]);
+
+        // Realtime optimistic deduction of copies (0ms latency)
+        setBook((prev) => {
+          if (!prev) return null;
+          const currentAvail = prev.available_copies !== undefined ? Number(prev.available_copies) : 1;
+          const newAvail = Math.max(0, currentAvail - 1);
+          const total = prev.total_copies !== undefined ? Number(prev.total_copies) : Math.max(1, currentAvail);
+          return {
+            ...prev,
+            available_copies: newAvail,
+            total_copies: total,
+            availability_ratio: `${newAvail}/${total}`,
+            real_time_status: newAvail > 0 ? 'available' : 'unavailable',
+            is_available: newAvail > 0,
+          };
+        });
       } else {
         const errorMsg = response?.message || 'Unknown error';
         alert('Failed to submit borrowing request: ' + errorMsg);
@@ -183,11 +209,11 @@ function BookDetail() {
 
               {/* Status */}
               <div className="flex items-center gap-2 mb-4 sm:mb-6">
-                <span className={`px-2 py-0.5 text-xs font-semibold border sm:px-3 sm:py-1 sm:text-sm ${book.real_time_status === 'available'
-                    ? 'bg-green-100 text-green-700 border-green-200'
-                    : 'bg-red-100 text-red-700 border-red-200'
+                <span className={`px-2 py-0.5 text-xs font-semibold border sm:px-3 sm:py-1 sm:text-sm ${book.available_copies > 0 && book.real_time_status === 'available'
+                    ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                    : 'bg-rose-100 text-rose-700 border-rose-200'
                   }`}>
-                  {book.real_time_status === 'available' ? 'Available' : 'Unavailable'}
+                  {book.available_copies > 0 && book.real_time_status === 'available' ? 'Available' : 'Out of Stock'}
                 </span>
                 {book.available_copies !== undefined && book.total_copies > 0 && (
                   <span className="text-xs text-[#64748B] sm:text-sm">
@@ -398,13 +424,14 @@ function BookDetail() {
           ) : (
             <button
               onClick={handleBorrow}
-              disabled={book.real_time_status !== 'available'}
-              className={`w-full min-h-11 px-4 text-xs font-semibold text-white transition-all sm:min-h-12 sm:px-6 sm:text-sm rounded-lg ${book.real_time_status === 'available'
+              disabled={book.available_copies <= 0 || book.real_time_status !== 'available'}
+              className={`w-full min-h-11 px-4 text-xs font-semibold text-white transition-all sm:min-h-12 sm:px-6 sm:text-sm rounded-lg ${
+                book.available_copies > 0 && book.real_time_status === 'available'
                   ? 'bg-[#0077B6] hover:bg-[#005f8f] shadow-md shadow-[#0077B6]/20 hover:shadow-lg'
-                  : 'bg-gray-300 cursor-not-allowed'
+                  : 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed shadow-none'
                 }`}
             >
-              {book.real_time_status === 'available' ? 'Borrow This Book' : 'Currently Unavailable'}
+              {book.available_copies > 0 && book.real_time_status === 'available' ? 'Borrow This Book' : 'Out of Stock'}
             </button>
           )}
         </div>

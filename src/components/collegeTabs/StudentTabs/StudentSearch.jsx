@@ -154,10 +154,11 @@ function BookStatusBadge({
   } else if (
     status === "unavailable" ||
     status === "borrowed" ||
+    status === "out_of_stock" ||
     (copies !== undefined && !isNaN(copies) && copies <= 0)
   ) {
     config = {
-      label: "Unavailable",
+      label: "Out of Stock",
       icon: AlertCircle,
       className: "text-rose-700 border-rose-300 bg-rose-50 font-bold",
       animated: false,
@@ -1394,6 +1395,17 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
           }));
 
           setBooks(mappedBooks);
+
+          // Synchronize selectedBook if drawer/modal is currently open
+          setSelectedBook((prev) => {
+            if (!prev) return null;
+            const updated = mappedBooks.find(
+              (b) =>
+                (b.id && b.id === prev.id) ||
+                (b.book_id && b.book_id === prev.book_id),
+            );
+            return updated ? { ...prev, ...updated } : prev;
+          });
         } else {
           setBooks([]);
         }
@@ -2362,6 +2374,65 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
 
         setShowSuccessOverlay(true);
 
+        // Instantly decrement copies and update availability in local state (0ms latency)
+        const requestedBookIds = new Set(
+          (borrowingFormList || [])
+            .map((it) => Number(it.book_id || it.id))
+            .filter(Boolean),
+        );
+
+        if (requestedBookIds.size > 0) {
+          setBooks((prevBooks) =>
+            prevBooks.map((b) => {
+              const bId = Number(b.id || b.book_id);
+              if (requestedBookIds.has(bId)) {
+                const currentAvail =
+                  b.available_copies !== undefined
+                    ? Number(b.available_copies)
+                    : 1;
+                const newAvail = Math.max(0, currentAvail - 1);
+                const total =
+                  b.total_copies !== undefined
+                    ? Number(b.total_copies)
+                    : Math.max(1, currentAvail);
+                return {
+                  ...b,
+                  available_copies: newAvail,
+                  availability_ratio: `${newAvail}/${total}`,
+                  is_available: newAvail > 0,
+                  real_time_status: newAvail > 0 ? (b.real_time_status || "available") : "unavailable",
+                };
+              }
+              return b;
+            }),
+          );
+
+          // Update selectedBook if drawer is open
+          setSelectedBook((prevSelected) => {
+            if (!prevSelected) return null;
+            const selId = Number(prevSelected.id || prevSelected.book_id);
+            if (requestedBookIds.has(selId)) {
+              const currentAvail =
+                prevSelected.available_copies !== undefined
+                  ? Number(prevSelected.available_copies)
+                  : 1;
+              const newAvail = Math.max(0, currentAvail - 1);
+              const total =
+                prevSelected.total_copies !== undefined
+                  ? Number(prevSelected.total_copies)
+                  : Math.max(1, currentAvail);
+              return {
+                ...prevSelected,
+                available_copies: newAvail,
+                availability_ratio: `${newAvail}/${total}`,
+                is_available: newAvail > 0,
+                real_time_status: newAvail > 0 ? (prevSelected.real_time_status || "available") : "unavailable",
+              };
+            }
+            return prevSelected;
+          });
+        }
+
         setBorrowingFormList([]);
 
         // Clear the borrowing list from localStorage after successful submission
@@ -3187,14 +3258,16 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                                       {book.author}
                                     </p>
 
-                                    <div className="flex items-center gap-2 mt-2">
-                                      <span className={`text-xs font-medium ${book.available_copies > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                        {book.available_copies > 0 ? 'Available' : 'Unavailable'}
-                                      </span>
-
-                                      {book.total_copies > 0 && (
-                                        <span className="text-xs text-[#64748B]">
-                                          · {book.available_copies}/{book.total_copies}
+                                    <div className="flex items-center gap-1.5 mt-2">
+                                      {book.available_copies <= 0 ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                          Out of Stock · 0/{book.total_copies || 1}
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                          Available · {book.available_copies}/{book.total_copies}
                                         </span>
                                       )}
                                     </div>
@@ -3236,7 +3309,9 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                                 </div>
 
                                 <button
+                                  disabled={book.available_copies <= 0}
                                   onClick={(e) => {
+                                    if (book.available_copies <= 0) return;
                                     e.stopPropagation();
 
                                     const currentSchoolId = parseInt(
@@ -3274,9 +3349,15 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                                     setShowBorrowingForm(true);
                                   }}
 
-                                  className="w-full mt-3 bg-[#0077B6] hover:bg-[#005f8f] text-white py-2 rounded-lg font-medium transition-colors text-xs"
+                                  className={`w-full mt-3 py-2 rounded-lg font-medium transition-colors text-xs flex items-center justify-center gap-1.5 ${
+                                    book.available_copies <= 0
+                                      ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none"
+                                      : "bg-[#0077B6] hover:bg-[#005f8f] text-white shadow-xs"
+                                  }`}
                                 >
-                                  Borrow This Book
+                                  {book.available_copies <= 0
+                                    ? "Out of Stock"
+                                    : "Borrow This Book"}
                                 </button>
                               </div>
                             ))}
@@ -3932,6 +4013,17 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                                 }
                               }
 
+                              if (book.available_copies <= 0) {
+                                return (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                      Out of Stock · 0/{book.total_copies || 1}
+                                    </span>
+                                  </div>
+                                );
+                              }
+
                               return (
                                 <div className="flex items-center gap-2">
                                   <span
@@ -3967,7 +4059,9 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
 
                       <div className="mt-4 pt-4 border-t border-[#E2E8F0]">
                         <button
+                          disabled={book.available_copies <= 0}
                           onClick={(e) => {
+                            if (book.available_copies <= 0) return;
                             e.stopPropagation();
 
                             if (selectedSchool) {
@@ -4004,9 +4098,15 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                             }
                           }}
 
-                          className="w-full bg-[#0077B6] hover:bg-[#005f8f] text-white py-2.5 rounded-lg font-medium transition-colors text-sm"
+                          className={`w-full py-2.5 rounded-lg font-medium transition-colors text-sm flex items-center justify-center gap-2 ${
+                            book.available_copies <= 0
+                              ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none"
+                              : "bg-[#0077B6] hover:bg-[#005f8f] text-white shadow-xs"
+                          }`}
                         >
-                          Borrow This Book
+                          {book.available_copies <= 0
+                            ? "Out of Stock"
+                            : "Borrow This Book"}
                         </button>
                       </div>
                     </div>
@@ -4538,7 +4638,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                                   }`}
                               >
                                 <Book className="h-4 w-4" />
-                                <span>{selectedBookAvailable ? "Borrow This Book" : "Unavailable — Cannot Request"}</span>
+                                <span>{selectedBookAvailable ? "Borrow This Book" : "Out of Stock"}</span>
                               </button>
                             )}
 
@@ -4552,7 +4652,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                                 }`}
                             >
                               <Plus className="h-4 w-4" />
-                              <span>{selectedBookAvailable ? "Add to Borrowing List" : "Unavailable"}</span>
+                              <span>{selectedBookAvailable ? "Add to Borrowing List" : "Out of Stock"}</span>
                             </button>
                           </div>
                         </div>
@@ -5108,7 +5208,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                                       </span>
                                       {isItemUnavailable && (
                                         <span className="rounded-md bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 border border-rose-200">
-                                          Unavailable
+                                          Out of Stock
                                         </span>
                                       )}
                                     </div>

@@ -297,11 +297,15 @@ const StudentBorrowingList = forwardRef(({ onCheckout, onContinueBrowsing }, ref
                             }`}>
                               {getBorrowTypeText(item.borrow_type)}
                             </span>
-                            {item.available_copies !== undefined && (
+                            {item.available_copies !== undefined && item.available_copies <= 0 ? (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold border border-rose-200">
+                                Out of Stock
+                              </span>
+                            ) : item.available_copies !== undefined ? (
                               <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-medium">
                                 {item.available_copies} {item.available_copies === 1 ? 'copy' : 'copies'} available
                               </span>
-                            )}
+                            ) : null}
                           </div>
                         </div>
                         <button
