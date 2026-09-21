@@ -435,7 +435,7 @@ export default function MapboxCampusMap({ school, height = 340, onExpand }) {
     );
   }
 
-  const heightPx = fullscreen ? '100vh' : typeof height === 'number' ? `${height}px` : '340px';
+  const heightPx = fullscreen ? '100vh' : typeof height === 'number' ? `${height}px` : (height || '340px');
 
   return (
     <>
@@ -491,7 +491,7 @@ export default function MapboxCampusMap({ school, height = 340, onExpand }) {
             ? 'fixed inset-0 z-[9999] rounded-none border-0 shadow-none'
             : 'rounded-2xl border border-slate-200/80 shadow-lg'
         }`}
-        style={{ height: heightPx, minHeight: fullscreen ? '100vh' : '260px' }}
+        style={{ height: heightPx, minHeight: fullscreen ? '100vh' : (height === '100%' ? '100%' : '260px') }}
       >
         {/* ── Leaflet Map ── */}
         <MapContainer

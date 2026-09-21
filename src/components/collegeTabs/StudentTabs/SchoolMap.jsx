@@ -128,7 +128,7 @@ function MinimalSchoolMap({ school, height = 280, onExpand }) {
     return () => { cancelled = true; };
   }, [school?.address, school?.latitude, school?.longitude, school?.school_id, school?.school_name]);
 
-  const resolvedHeight = typeof height === 'number' ? height : 280;
+  const resolvedHeight = typeof height === 'number' ? `${height}px` : (height || '280px');
 
   if (loading) {
     return (
