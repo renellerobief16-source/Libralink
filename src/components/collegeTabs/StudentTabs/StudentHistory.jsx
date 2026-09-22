@@ -720,16 +720,12 @@ function StudentHistory({ isDrawer = false, onClose }) {
 
       {/* QR Code Modal for Librarian Counter Pickup */}
       {selectedRequestForQR && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md">
-            <QRCodeDisplay
-              request={selectedRequestForQR}
-              token={selectedRequestForQR.qr_token}
-              requestId={selectedRequestForQR.request_id}
-              onClose={() => setSelectedRequestForQR(null)}
-            />
-          </div>
-        </div>
+        <QRCodeDisplay
+          request={selectedRequestForQR}
+          token={selectedRequestForQR.qr_token}
+          requestId={selectedRequestForQR.request_id}
+          onClose={() => setSelectedRequestForQR(null)}
+        />
       )}
 
       {/* Toast Notification */}

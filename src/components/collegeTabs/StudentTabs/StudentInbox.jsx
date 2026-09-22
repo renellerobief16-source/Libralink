@@ -657,23 +657,19 @@ function StudentInbox({ isDrawer = false, onClose }) {
         </div>
       )}
 
-      {/* ─── Floating Detail Modal / Mobile Bottom Sheet ────────────────────── */}
+      {/* ─── Full-Screen Notification Fill View (No Dimmed Overlay) ────────────────── */}
       {showNotificationModal && selectedNotification && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 backdrop-blur-xs p-0 sm:p-4 animate-fade-in"
-          onClick={() => setShowNotificationModal(false)}
-        >
-          <div
-            className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl border border-slate-200/80 p-4 sm:p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <NotificationModal
-              notification={selectedNotification}
-              requestDetails={requestDetails}
-              loading={loadingRequest}
-              onClose={() => setShowNotificationModal(false)}
-            />
-          </div>
+        <div className="fixed inset-0 z-50 flex flex-col bg-white w-full h-[100dvh] overflow-hidden animate-in fade-in duration-150">
+          <NotificationModal
+            notification={selectedNotification}
+            requestDetails={requestDetails}
+            loading={loadingRequest}
+            onClose={() => setShowNotificationModal(false)}
+            onViewHistory={() => {
+              setShowNotificationModal(false);
+              navigate("/studentpage/history", { state: { tab: "requests" } });
+            }}
+          />
         </div>
       )}
 
@@ -780,16 +776,12 @@ function StudentInbox({ isDrawer = false, onClose }) {
 
       {/* ─── QR Pass Modal ─────────────────────────────────────────────────── */}
       {showQRCode && selectedRequestForQR && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-fade-in">
-          <div className="w-full max-w-md">
-            <QRCodeDisplay
-              request={selectedRequestForQR}
-              token={selectedRequestForQR.qr_token}
-              requestId={selectedRequestForQR.request_id}
-              onClose={() => setShowQRCode(false)}
-            />
-          </div>
-        </div>
+        <QRCodeDisplay
+          request={selectedRequestForQR}
+          token={selectedRequestForQR.qr_token}
+          requestId={selectedRequestForQR.request_id}
+          onClose={() => setShowQRCode(false)}
+        />
       )}
     </div>
   );

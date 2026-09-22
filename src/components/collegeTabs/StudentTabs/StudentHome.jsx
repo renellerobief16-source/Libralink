@@ -1474,16 +1474,12 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
 
       {/* Access Token QR Code Modal */}
       {selectedRequestForQR && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md max-h-[90vh] sm:max-h-[85vh] overflow-y-auto overscroll-contain rounded-3xl bg-white p-5 sm:p-6 shadow-2xl animate-in zoom-in-95 scrollbar-thin">
-            <QRCodeDisplay
-              request={selectedRequestForQR}
-              token={selectedRequestForQR.qr_token}
-              requestId={selectedRequestForQR.request_id}
-              onClose={() => setSelectedRequestForQR(null)}
-            />
-          </div>
-        </div>
+        <QRCodeDisplay
+          request={selectedRequestForQR}
+          token={selectedRequestForQR.qr_token}
+          requestId={selectedRequestForQR.request_id}
+          onClose={() => setSelectedRequestForQR(null)}
+        />
       )}
 
 

@@ -478,40 +478,77 @@ function StudentFloatingCart() {
   const prevCountRef = React.useRef(cartCount);
   const [isDragging, setIsDragging] = useState(false);
   const [badgeBouncing, setBadgeBouncing] = useState(false);
+  const [isIdle, setIsIdle] = useState(false);
+  const idleTimerRef = React.useRef(null);
+
+  const resetIdleTimer = React.useCallback(() => {
+    setIsIdle(false);
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      setIsIdle(true);
+    }, 2500);
+  }, []);
+
+  // Idle timer: 2.5s before fading to 50% opacity
+  useEffect(() => {
+    resetIdleTimer();
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, [resetIdleTimer, cartCount]);
+
+  const buttonSize = 50;
+
+  const keepOnScreen = React.useCallback((x, y) => {
+    const maxX = Math.max(0, window.innerWidth - buttonSize);
+    const maxY = Math.max(0, window.innerHeight - (window.innerWidth >= 768 ? 75 : 120));
+    return {
+      x: Math.max(0, Math.min(x, maxX)),
+      y: Math.max(12, Math.min(y, maxY)),
+    };
+  }, []);
+
+  // Sagad sa dulo: 4-edge magnetic docking (Left, Right, Top, or Bottom)
+  const snapToNearestSide = React.useCallback((currentPosition) => {
+    const safePosition = keepOnScreen(currentPosition.x, currentPosition.y);
+    const maxX = Math.max(0, window.innerWidth - buttonSize);
+    const maxY = Math.max(0, window.innerHeight - (window.innerWidth >= 768 ? 75 : 120));
+
+    const distLeft = safePosition.x;
+    const distRight = Math.abs(maxX - safePosition.x);
+    const distTop = Math.abs(safePosition.y - 12);
+    const distBottom = Math.abs(maxY - safePosition.y);
+
+    const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+
+    if (minDist === distTop) {
+      return { x: safePosition.x, y: 12 };
+    }
+    if (minDist === distBottom) {
+      return { x: safePosition.x, y: maxY };
+    }
+    if (minDist === distLeft) {
+      return { x: 0, y: safePosition.y };
+    }
+    return { x: maxX, y: safePosition.y };
+  }, [keepOnScreen]);
 
   const [position, setPosition] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('studentCartPosition') || 'null');
       if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
-        return {
-          x: Math.max(12, Math.min(saved.x, window.innerWidth - 68)),
-          y: Math.max(12, Math.min(saved.y, window.innerHeight - 130)),
-        };
+        return keepOnScreen(saved.x, saved.y);
       }
     } catch {
       // fallback
     }
+    const maxX = Math.max(0, window.innerWidth - buttonSize);
+    const maxY = Math.max(0, window.innerHeight - (window.innerWidth >= 768 ? 75 : 120));
     return {
-      x: Math.max(12, window.innerWidth - 68),
-      y: Math.max(12, window.innerHeight - (window.innerWidth >= 768 ? 100 : 140)),
+      x: maxX,
+      y: maxY - 20,
     };
   });
-
-  const keepOnScreen = React.useCallback((x, y) => ({
-    x: Math.max(12, Math.min(x, window.innerWidth - 68)),
-    y: Math.max(12, Math.min(y, window.innerHeight - 130)),
-  }), []);
-
-  const snapToNearestSide = React.useCallback((currentPosition) => {
-    const safePosition = keepOnScreen(currentPosition.x, currentPosition.y);
-    const cartCenter = safePosition.x + 27;
-    const screenCenter = window.innerWidth / 2;
-
-    return {
-      ...safePosition,
-      x: cartCenter < screenCenter ? 12 : window.innerWidth - 68,
-    };
-  }, [keepOnScreen]);
 
   // Keep on screen on window resize & snap
   useEffect(() => {
@@ -526,17 +563,17 @@ function StudentFloatingCart() {
   useEffect(() => {
     if (cartCount > prevCountRef.current) {
       setBadgeBouncing(true);
+      resetIdleTimer();
       const timer = setTimeout(() => setBadgeBouncing(false), 900);
       return () => clearTimeout(timer);
     }
     prevCountRef.current = cartCount;
-  }, [cartCount]);
+  }, [cartCount, resetIdleTimer]);
 
-  // Global pointer event listeners during drag for silky smooth, weightless 0ms tracking
+  // Global pointer event listeners during drag
   useEffect(() => {
     if (!isDragging) return;
 
-    // Completely prevent window and mobile viewport scrolling while dragging the cart
     const preventTouchScroll = (e) => {
       if (e.cancelable) {
         e.preventDefault();
@@ -570,7 +607,6 @@ function StudentFloatingCart() {
       dragRef.current.currentX = safe.x;
       dragRef.current.currentY = safe.y;
 
-      // Direct GPU transform update for instant 120fps tracking with zero lag/weight
       if (buttonRef.current) {
         buttonRef.current.style.transform = `translate3d(${safe.x}px, ${safe.y}px, 0)`;
       }
@@ -595,6 +631,7 @@ function StudentFloatingCart() {
       dragRef.current = null;
       setIsDragging(false);
       setPosition(finalPosition);
+      resetIdleTimer();
 
       try {
         localStorage.setItem('studentCartPosition', JSON.stringify(finalPosition));
@@ -602,9 +639,8 @@ function StudentFloatingCart() {
         // ignore
       }
 
-      // Smooth magnetic snap to side without size change
       if (buttonRef.current) {
-        buttonRef.current.style.transition = 'transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.25s ease, box-shadow 0.25s ease';
+        buttonRef.current.style.transition = 'transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.4s ease, box-shadow 0.25s ease';
         buttonRef.current.style.transform = `translate3d(${finalPosition.x}px, ${finalPosition.y}px, 0)`;
       }
 
@@ -626,15 +662,16 @@ function StudentFloatingCart() {
       window.removeEventListener('pointerup', handlePointerUp);
       window.removeEventListener('pointercancel', handlePointerUp);
     };
-  }, [isDragging, keepOnScreen, snapToNearestSide]);
+  }, [isDragging, keepOnScreen, snapToNearestSide, resetIdleTimer]);
 
   const handlePointerDown = (event) => {
-    // Only respond to primary mouse button or touch
     if (event.button !== 0 && event.pointerType === 'mouse') return;
 
     if (event.cancelable) {
       event.preventDefault();
     }
+
+    resetIdleTimer();
 
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -655,7 +692,6 @@ function StudentFloatingCart() {
     movedRef.current = false;
     setIsDragging(true);
 
-    // Disable CSS transition immediately for zero latency response without scaling
     if (buttonRef.current) {
       buttonRef.current.style.transition = 'none';
       buttonRef.current.style.transform = `translate3d(${position.x}px, ${position.y}px, 0)`;
@@ -663,6 +699,7 @@ function StudentFloatingCart() {
   };
 
   const handleCartClick = (e) => {
+    resetIdleTimer();
     if (movedRef.current) {
       e.preventDefault();
       return;
@@ -676,7 +713,9 @@ function StudentFloatingCart() {
       type="button"
       onClick={handleCartClick}
       onPointerDown={handlePointerDown}
+      onMouseEnter={resetIdleTimer}
       onTouchStart={(e) => {
+        resetIdleTimer();
         if (e.cancelable) e.stopPropagation();
       }}
       onTouchMove={(e) => {
@@ -688,22 +727,24 @@ function StudentFloatingCart() {
         touchAction: 'none',
         left: 0,
         top: 0,
-        transition: isDragging ? 'none' : 'transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.25s ease, box-shadow 0.25s ease',
+        transition: isDragging ? 'none' : 'transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.4s ease, box-shadow 0.25s ease',
       }}
-      className={`fixed z-[70] flex h-12 w-12 sm:h-[50px] sm:w-[50px] touch-none select-none items-center justify-center rounded-2xl border border-white/20 bg-[#0A2540] text-white shadow-md will-change-transform ${
+      className={`fixed z-[70] flex h-12 w-12 sm:h-[50px] sm:w-[50px] touch-none select-none items-center justify-center rounded-2xl border border-blue-400/40 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/30 will-change-transform ${
         isDragging
-          ? 'shadow-lg cursor-grabbing opacity-100'
-          : 'opacity-50 hover:opacity-100 cursor-grab active:scale-95 transition-opacity'
+          ? 'shadow-2xl cursor-grabbing opacity-100 scale-105'
+          : isIdle
+          ? 'opacity-50 hover:opacity-100 cursor-grab transition-opacity'
+          : 'opacity-100 hover:opacity-100 cursor-grab active:scale-95 transition-opacity'
       }`}
       aria-label={`Open borrowing list, ${cartCount} books in cart`}
       title="Borrowing Cart (Drag to move)"
     >
       <ShoppingCart className="h-5 w-5 text-white" aria-hidden="true" />
 
-      {/* Clean iOS-style red notification badge on top right - hidden while cart drawer is open */}
+      {/* Clean iOS-style red notification badge on top right */}
       {!isCartOpen && cartCount > 0 && (
         <span
-          className={`absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#FF3B30] px-1 text-[10px] font-bold text-white shadow-xs ring-2 ring-[#0A2540] transition-all duration-200 ${
+          className={`absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#FF3B30] px-1 text-[10px] font-bold text-white shadow-xs ring-2 ring-blue-600 transition-all duration-200 ${
             badgeBouncing ? 'scale-110' : 'scale-100'
           }`}
         >

@@ -12,7 +12,7 @@ import api from '../../../utils/api';
  * SchoolMap (Full-modal wrapper)
  * Used when the user clicks "View Full Map" on a school.
  * ─────────────────────────────────────────────────────────────────────── */
-function SchoolMap({ school, onClose }) {
+function SchoolMap({ school, book, onClose }) {
   const lat = Number(school?.latitude);
   const lng = Number(school?.longitude);
   const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
@@ -32,6 +32,7 @@ function SchoolMap({ school, onClose }) {
   return (
     <MapboxCampusMap
       school={school}
+      book={book}
       height={480}
       onExpand={onClose}
     />
@@ -51,7 +52,7 @@ function SchoolMap({ school, onClose }) {
  *             Defaults to 280. Do NOT pass '100%'.
  *  onExpand – optional callback when user clicks the expand button
  * ─────────────────────────────────────────────────────────────────────── */
-function MinimalSchoolMap({ school, height = 280, onExpand }) {
+function MinimalSchoolMap({ school, book, height = 280, onExpand }) {
   const [loading, setLoading] = useState(true);
   const [coords, setCoords] = useState(null);
   const [extraSchoolInfo, setExtraSchoolInfo] = useState(null);
@@ -168,6 +169,7 @@ function MinimalSchoolMap({ school, height = 280, onExpand }) {
         longitude: coords[1],
         logo: school?.logo || extraSchoolInfo?.logo,
       }}
+      book={book}
       height={resolvedHeight}
       onExpand={onExpand}
     />

@@ -14,14 +14,14 @@ export default defineConfig({
     host: 'localhost',
     port: 5173,
     headers: {
-      'Content-Security-Policy': "default-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:5000 http://localhost:5173 http://127.0.0.1:5173 ws: wss:; img-src 'self' data: blob: http://localhost:5000 https://libralink-50ig.onrender.com https://*.tile.openstreetmap.org; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' http://localhost:5000 http://localhost:5173 http://127.0.0.1:5173 ws: wss:; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:5173 http://127.0.0.1:5173; script-src-elem 'self' 'unsafe-inline' http://localhost:5173 http://127.0.0.1:5173;"
+      'Content-Security-Policy': "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob: http://localhost:5173 http://127.0.0.1:5173; script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https: blob: http://localhost:5173 http://127.0.0.1:5173; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; img-src 'self' data: blob: https: http://localhost:5000; connect-src 'self' https: http://localhost:5000 http://localhost:5173 http://127.0.0.1:5173 ws: wss:;"
     }
   },
   preview: {
     host: 'localhost',
     port: 4173,
     headers: {
-      'Content-Security-Policy': "default-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:5000 http://localhost:5173 http://127.0.0.1:5173 ws: wss:; img-src 'self' data: blob: http://localhost:5000 https://libralink-50ig.onrender.com https://*.tile.openstreetmap.org; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' http://localhost:5000 http://localhost:5173 http://127.0.0.1:5173 ws: wss:; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:5173 http://127.0.0.1:5173; script-src-elem 'self' 'unsafe-inline' http://localhost:5173 http://127.0.0.1:5173;"
+      'Content-Security-Policy': "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob: http://localhost:5173 http://127.0.0.1:5173; script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https: blob: http://localhost:5173 http://127.0.0.1:5173; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; img-src 'self' data: blob: https: http://localhost:5000; connect-src 'self' https: http://localhost:5000 http://localhost:5173 http://127.0.0.1:5173 ws: wss:;"
     }
   }
 })
