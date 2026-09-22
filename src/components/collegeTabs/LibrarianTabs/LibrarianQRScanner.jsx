@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import api, { scanQRToken, releaseBookItem, returnBookItem, returnBook, getBackendAssetUrl } from '../../../utils/api';
+import { formatPhilippineDate, formatTimeWithRelative, getDueStatusDetails } from '../../../utils/timeUtils';
 
 function LibrarianQRScanner({ darkMode }) {
   const [activeMode, setActiveMode] = useState('qr'); // 'qr' | 'desk-return'
@@ -49,6 +50,12 @@ function LibrarianQRScanner({ darkMode }) {
   const [damageFee, setDamageFee] = useState('0');
   const [isFinePaid, setIsFinePaid] = useState(true);
   const [clearanceSlipData, setClearanceSlipData] = useState(null);
+
+  // Release Slip & Student ID Preview States
+  const [releaseSlipData, setReleaseSlipData] = useState(null);
+  const [zoomIdPhoto, setZoomIdPhoto] = useState(false);
+  const [idPhotoFallback, setIdPhotoFallback] = useState(false);
+  const [idPhotoFailed, setIdPhotoFailed] = useState(false);
 
   // Desk Fast Return States
   const [activeLoans, setActiveLoans] = useState([]);
@@ -226,6 +233,7 @@ function LibrarianQRScanner({ darkMode }) {
     setLoading(true);
     let successCount = 0;
     let errors = [];
+    const releasedList = [];
 
     for (const item of itemsToRelease) {
       try {
@@ -234,6 +242,7 @@ function LibrarianQRScanner({ darkMode }) {
           errors.push(response.error.message || `Failed to release item #${item.item_id}`);
         } else {
           successCount++;
+          releasedList.push(item);
         }
       } catch (err) {
         errors.push(err.message);
@@ -246,15 +255,29 @@ function LibrarianQRScanner({ darkMode }) {
       showToast(`Successfully released all ${successCount} books to student!`);
     }
 
-    // Refresh request data
-    const tokenToUse = request.qr_token || manualToken;
-    if (tokenToUse) {
-      const updatedResponse = await scanQRToken(tokenToUse);
-      if (!updatedResponse.error && updatedResponse.data) {
-        const fresh = updatedResponse.data?.data || updatedResponse.data;
-        setRequest(fresh);
-      }
+    if (releasedList.length > 0) {
+      setReleaseSlipData({
+        studentName: `${request?.student?.firstname || ''} ${request?.student?.lastname || ''}`.trim() || 'Student Borrower',
+        studentNumber: request?.student?.student_number || 'N/A',
+        schoolName: request?.home_school?.school_name || request?.home_school_name || 'Library Circulation',
+        requestId: request?.request_id,
+        releaseDate: new Date().toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        books: releasedList.map(it => ({
+          title: it.book?.title || 'Book Title',
+          author: it.book?.author || 'N/A',
+          accessionNumber: it.book_copies?.accession_number || 'ACC-RELEASED',
+          dueDate: it.due_date || request?.due_date
+        }))
+      });
     }
+
     setLoading(false);
   };
 
@@ -306,16 +329,13 @@ function LibrarianQRScanner({ darkMode }) {
     setDamageFee('0');
     setIsFinePaid(true);
 
-    // Calculate overdue metrics
+    // Calculate overdue metrics using standardized Philippine calendar cutoff
     const rawDueDate = item.due_date || request?.due_date;
     if (rawDueDate) {
-      const dueDate = new Date(rawDueDate);
-      const now = new Date();
-      if (now > dueDate) {
-        const diffMs = now.getTime() - dueDate.getTime();
-        const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-        setReturnDaysOverdue(days);
-        const fine = days * 5; // Standard default ₱5.00/day
+      const dueStatus = getDueStatusDetails(rawDueDate);
+      if (dueStatus.isOverdue) {
+        setReturnDaysOverdue(dueStatus.daysOverdue);
+        const fine = dueStatus.daysOverdue * 5; // Standard default ₱5.00/day
         setComputedOverdueFine(fine);
         setManualFineAmount(String(fine));
         return;
@@ -434,6 +454,9 @@ function LibrarianQRScanner({ darkMode }) {
         } else {
           setRequest(scannedRequest);
           setError(null);
+          setIdPhotoFallback(false);
+          setIdPhotoFailed(false);
+          setZoomIdPhoto(false);
         }
       }
     } catch (err) {
@@ -461,6 +484,7 @@ function LibrarianQRScanner({ darkMode }) {
     if (!itemToRelease) return;
     setLoading(true);
     try {
+      const targetItem = request?.items?.find(it => it.item_id === itemToRelease);
       const response = await releaseBookItem(itemToRelease);
       if (response.error) {
         const serverMessage = response.error?.response?.data?.error || response.error?.response?.data?.message;
@@ -468,14 +492,28 @@ function LibrarianQRScanner({ darkMode }) {
         showToast(msg, 'error');
       } else {
         showToast('Book successfully released to student!');
-        const tokenToUse = request?.qr_token || manualToken;
-        if (tokenToUse) {
-          const updatedResponse = await scanQRToken(tokenToUse);
-          if (!updatedResponse.error && updatedResponse.data) {
-            const fresh = updatedResponse.data?.data || updatedResponse.data;
-            setRequest(fresh);
-          }
-        }
+        setReleaseSlipData({
+          studentName: `${request?.student?.firstname || ''} ${request?.student?.lastname || ''}`.trim() || 'Student Borrower',
+          studentNumber: request?.student?.student_number || 'N/A',
+          schoolName: request?.home_school?.school_name || request?.home_school_name || 'Library Circulation',
+          requestId: request?.request_id,
+          releaseDate: new Date().toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          }),
+          books: [
+            {
+              title: targetItem?.book?.title || 'Book Title',
+              author: targetItem?.book?.author || 'N/A',
+              accessionNumber: targetItem?.book_copies?.accession_number || 'ACC-RELEASED',
+              dueDate: targetItem?.due_date || request?.due_date
+            }
+          ]
+        });
       }
     } catch (err) {
       showToast(err.message || 'Failed to release book', 'error');
@@ -486,10 +524,23 @@ function LibrarianQRScanner({ darkMode }) {
     }
   };
 
+  const handleDismissReleaseSlip = () => {
+    setReleaseSlipData(null);
+    resetScanner();
+  };
+
+  const handleDismissClearanceSlip = () => {
+    setClearanceSlipData(null);
+    resetScanner();
+  };
+
   const resetScanner = () => {
     setRequest(null);
     setError(null);
     setManualToken('');
+    setIdPhotoFallback(false);
+    setIdPhotoFailed(false);
+    setZoomIdPhoto(false);
   };
 
   // -------------------------------------------------------------
@@ -868,10 +919,7 @@ function LibrarianQRScanner({ darkMode }) {
                   {filteredActiveLoans.map((loan) => {
                     const book = loan.book_copies?.books || {};
                     const student = loan.student || {};
-                    const dueDate = loan.due_date ? new Date(loan.due_date) : null;
-                    const isOverdue = dueDate && dueDate < now;
-                    const isDueSoon = dueDate && !isOverdue && dueDate <= in48Hours;
-                    const daysOverdue = dueDate && isOverdue ? Math.floor((now - dueDate) / (1000 * 60 * 60 * 24)) : 0;
+                    const dueStatus = getDueStatusDetails(loan.due_date);
 
                     return (
                       <tr key={loan.borrow_id} className="hover:bg-slate-50/60 transition">
@@ -903,27 +951,19 @@ function LibrarianQRScanner({ darkMode }) {
                           </div>
                         </td>
 
-                        <td className="px-4 py-3 text-slate-600">
-                          {loan.borrow_date ? new Date(loan.borrow_date).toLocaleDateString() : 'N/A'}
+                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                          <p className="font-semibold text-slate-800">{formatPhilippineDate(loan.borrow_date)}</p>
+                          <p className="text-[10px] text-slate-400">{formatTimeWithRelative(loan.borrow_date)}</p>
                         </td>
 
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           <div>
-                            <span className={`font-semibold ${isOverdue ? 'text-rose-600' : isDueSoon ? 'text-amber-600' : 'text-slate-700'}`}>
-                              {dueDate ? dueDate.toLocaleDateString() : 'No date'}
+                            <span className={`font-semibold ${dueStatus.textClass}`}>
+                              {formatPhilippineDate(loan.due_date)}
                             </span>
-                            {isOverdue && (
-                              <p className="text-[10px] font-bold text-rose-600 flex items-center gap-0.5 mt-0.5">
-                                <AlertTriangle className="h-2.5 w-2.5" />
-                                {daysOverdue} day{daysOverdue !== 1 ? 's' : ''} overdue
-                              </p>
-                            )}
-                            {isDueSoon && (
-                              <p className="text-[10px] font-bold text-amber-600 flex items-center gap-0.5 mt-0.5">
-                                <Clock className="h-2.5 w-2.5" />
-                                Due within 48h
-                              </p>
-                            )}
+                            <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.2 rounded-md mt-0.5 ${dueStatus.badgeClass}`}>
+                              <span>{dueStatus.label}</span>
+                            </div>
                           </div>
                         </td>
 
@@ -1028,18 +1068,63 @@ function LibrarianQRScanner({ darkMode }) {
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                     Physical Student ID Photo
                   </span>
-                  {request.id_picture_url ? (
-                    <img
-                      src={getBackendAssetUrl(request.id_picture_url)}
-                      alt="Student ID"
-                      className="h-28 w-auto rounded-xl border border-slate-200 object-cover shadow-2xs"
-                    />
-                  ) : (
-                    <div className="flex h-28 w-32 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white text-slate-400">
-                      <IdCard className="h-6 w-6 mb-1 text-slate-300" />
-                      <span className="text-[10px]">No Photo on File</span>
-                    </div>
-                  )}
+                  {(() => {
+                    const primaryUrl = request.id_picture_url ? getBackendAssetUrl(request.id_picture_url) : null;
+                    const renderUrl = request.id_picture_url
+                      ? `https://libralink-50ig.onrender.com${request.id_picture_url.startsWith('/') ? '' : '/'}${request.id_picture_url}`
+                      : null;
+                    const profileUrl = request.student?.profile_image ? getBackendAssetUrl(request.student.profile_image) : null;
+
+                    let currentSrc = null;
+                    if (!idPhotoFallback && primaryUrl) {
+                      currentSrc = primaryUrl;
+                    } else if (idPhotoFallback && !idPhotoFailed && renderUrl) {
+                      currentSrc = renderUrl;
+                    } else if (profileUrl) {
+                      currentSrc = profileUrl;
+                    }
+
+                    if (currentSrc && !idPhotoFailed) {
+                      return (
+                        <div
+                          className="relative group cursor-pointer overflow-hidden rounded-xl border border-slate-200 shadow-2xs"
+                          onClick={() => setZoomIdPhoto(true)}
+                          title="Click to zoom ID photo"
+                        >
+                          <img
+                            src={currentSrc}
+                            alt="Student ID"
+                            className="h-28 w-auto max-w-[140px] rounded-xl object-cover transition-transform duration-200 group-hover:scale-105"
+                            onError={() => {
+                              if (!idPhotoFallback && renderUrl) {
+                                setIdPhotoFallback(true);
+                              } else {
+                                setIdPhotoFailed(true);
+                              }
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-slate-900/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold gap-1">
+                            <Search className="h-3.5 w-3.5" />
+                            <span>Zoom</span>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="flex h-28 w-32 flex-col items-center justify-center rounded-xl border border-blue-200 bg-blue-50/60 p-2 text-center">
+                        <div className="h-10 w-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm mb-1 shadow-xs">
+                          {request.student?.firstname?.[0] || 'S'}{request.student?.lastname?.[0] || ''}
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-800 line-clamp-1">
+                          {request.student?.firstname} {request.student?.lastname}
+                        </span>
+                        <span className="text-[9.5px] font-mono text-slate-500">
+                          {request.student?.student_number || 'No ID on File'}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -1446,6 +1531,178 @@ function LibrarianQRScanner({ darkMode }) {
       )}
 
       {/* ============================================================== */}
+      {/* MODAL: ZOOM PHYSICAL STUDENT ID PHOTO                          */}
+      {/* ============================================================== */}
+      {zoomIdPhoto && (
+        <div
+          className="fixed inset-0 z-80 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+          onClick={() => setZoomIdPhoto(false)}
+        >
+          <div
+            className="relative max-w-lg w-full bg-white rounded-3xl overflow-hidden shadow-2xl p-5 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <IdCard className="h-5 w-5 text-blue-600" />
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">Physical Student ID Card</h4>
+                  <p className="text-[11px] text-slate-500">
+                    {request?.student?.firstname} {request?.student?.lastname} · {request?.student?.student_number}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setZoomIdPhoto(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex items-center justify-center bg-slate-50 rounded-2xl p-2 max-h-[68vh] overflow-hidden">
+              <img
+                src={
+                  (() => {
+                    const primaryUrl = request?.id_picture_url ? getBackendAssetUrl(request.id_picture_url) : null;
+                    const renderUrl = request?.id_picture_url
+                      ? `https://libralink-50ig.onrender.com${request.id_picture_url.startsWith('/') ? '' : '/'}${request.id_picture_url}`
+                      : null;
+                    const profileUrl = request?.student?.profile_image ? getBackendAssetUrl(request.student.profile_image) : null;
+                    if (!idPhotoFallback && primaryUrl) return primaryUrl;
+                    if (renderUrl) return renderUrl;
+                    return profileUrl || primaryUrl;
+                  })()
+                }
+                alt="Student ID Full"
+                className="max-h-[62vh] w-auto object-contain rounded-xl shadow-xs"
+              />
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-500">
+              <span>{request?.home_school?.school_name || request?.home_school_name || 'Home Campus'}</span>
+              <button
+                type="button"
+                onClick={() => setZoomIdPhoto(false)}
+                className="px-4 py-1.5 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 transition"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL: OFFICIAL HANDOVER RELEASE SLIP                          */}
+      {/* ============================================================== */}
+      {releaseSlipData && (
+        <div className="fixed inset-0 z-70 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-emerald-600">
+                <div className="h-9 w-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                  <CheckCircle2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base">Circulation Handover Release Slip</h3>
+                  <p className="text-[10px] text-slate-500">Official LibraLink Handover Receipt</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleDismissReleaseSlip}
+                className="rounded-lg p-1 text-slate-400 hover:text-slate-600 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Handover Slip Card */}
+            <div className="rounded-2xl border-2 border-emerald-500/30 bg-emerald-50/30 p-5 space-y-3 font-sans text-xs">
+              <div className="flex items-center justify-between border-b border-emerald-200 pb-2">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-800 block">
+                    {releaseSlipData.schoolName}
+                  </span>
+                  <span className="text-slate-500 text-[10px]">Library Circulation Counter · Handover Authorized</span>
+                </div>
+                <span className="bg-emerald-600 text-white font-bold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                  RELEASED
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-slate-700 bg-white/80 p-3 rounded-xl border border-emerald-100">
+                <div>
+                  <span className="text-[10px] uppercase text-slate-400 block font-semibold">Borrower</span>
+                  <span className="font-bold text-slate-900">{releaseSlipData.studentName}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase text-slate-400 block font-semibold">Student ID</span>
+                  <span className="font-mono font-bold text-slate-900">{releaseSlipData.studentNumber}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase text-slate-400 block font-semibold">Handover Timestamp</span>
+                  <span className="text-slate-700">{releaseSlipData.releaseDate}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase text-slate-400 block font-semibold">Request ID</span>
+                  <span className="font-mono text-emerald-700 font-bold">{releaseSlipData.requestId}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                  Released Books ({releaseSlipData.books?.length || 1})
+                </span>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {releaseSlipData.books?.map((bk, i) => (
+                    <div key={i} className="flex items-start justify-between gap-2 p-2.5 rounded-xl bg-white border border-emerald-100 text-xs">
+                      <div className="min-w-0">
+                        <p className="font-bold text-slate-900 truncate">{bk.title}</p>
+                        <p className="text-[11px] text-slate-500">{bk.author}</p>
+                        {bk.accessionNumber && (
+                          <span className="inline-block mt-0.5 font-mono text-[9.5px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                            Acc: {bk.accessionNumber}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-[9.5px] uppercase text-slate-400 block font-semibold">Due Date</span>
+                        <span className="font-bold text-emerald-700">
+                          {formatPhilippineDate(bk.dueDate)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-emerald-200 text-center text-[10px] text-emerald-800">
+                ✓ Physical copy authorized and handed over to borrower. Loan records synchronized.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+              >
+                Print Slip
+              </button>
+              <button
+                type="button"
+                onClick={handleDismissReleaseSlip}
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition"
+              >
+                Done / Scan Next Student
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
       {/* MODAL: OFFICIAL DIGITAL RETURN CLEARANCE SLIP                  */}
       {/* ============================================================== */}
       {clearanceSlipData && (
@@ -1463,7 +1720,7 @@ function LibrarianQRScanner({ darkMode }) {
               </div>
               <button
                 type="button"
-                onClick={() => setClearanceSlipData(null)}
+                onClick={handleDismissClearanceSlip}
                 className="rounded-lg p-1 text-slate-400 hover:text-slate-600 transition"
               >
                 <X className="h-4 w-4" />
@@ -1526,10 +1783,10 @@ function LibrarianQRScanner({ darkMode }) {
               </button>
               <button
                 type="button"
-                onClick={() => setClearanceSlipData(null)}
+                onClick={handleDismissClearanceSlip}
                 className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition"
               >
-                Done
+                Done / Scan Next Student
               </button>
             </div>
           </div>

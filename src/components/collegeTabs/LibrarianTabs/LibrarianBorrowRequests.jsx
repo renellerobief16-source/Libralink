@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { 
   FiBook, FiUser, FiCalendar, FiMapPin, FiPhone, FiCheckCircle, FiXCircle, 
   FiClock, FiEye, FiChevronDown, FiChevronUp, FiRefreshCw, FiAlertTriangle, 
@@ -27,7 +27,14 @@ import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import StatusBadge from "../../ui/StatusBadge";
 import EmptyState from "../../ui/EmptyState";
-import { formatDateTimeWithRelative, formatPhilippineDateTime, formatPhilippineDate } from "../../../utils/timeUtils";
+import { 
+  formatDateTimeWithRelative, 
+  formatPhilippineDateTime, 
+  formatPhilippineDate,
+  formatPhilippineTime,
+  formatTimeWithRelative,
+  getDueStatusDetails 
+} from "../../../utils/timeUtils";
 
 const animationStyles = `
   @keyframes drawCircle {
@@ -112,6 +119,23 @@ function AdminBorrowRequests() {
   const [approvedRequest, setApprovedRequest] = useState(null);
   const [returningBookId, setReturningBookId] = useState(null);
   const [activeRequestTab, setActiveRequestTab] = useState('home-school');
+  const [homeQueueSearch, setHomeQueueSearch] = useState('');
+  const [homeDatePreset, setHomeDatePreset] = useState('all'); // 'all' | 'today' | 'this_week' | 'this_month' | 'custom'
+  const [homeDateStart, setHomeDateStart] = useState('');
+  const [homeDateEnd, setHomeDateEnd] = useState('');
+
+  const [interSchoolSearch, setInterSchoolSearch] = useState('');
+  const [interSchoolDatePreset, setInterSchoolDatePreset] = useState('all');
+  const [interSchoolDateStart, setInterSchoolDateStart] = useState('');
+  const [interSchoolDateEnd, setInterSchoolDateEnd] = useState('');
+
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyDatePreset, setHistoryDatePreset] = useState('all');
+  const [historyDateStart, setHistoryDateStart] = useState('');
+  const [historyDateEnd, setHistoryDateEnd] = useState('');
+  const [historyTypeFilter, setHistoryTypeFilter] = useState('all'); // 'all' | 'returned' | 'cancelled'
+
+  const [zoomIdModal, setZoomIdModal] = useState({ isOpen: false, imageUrl: '', studentName: '', studentNumber: '', schoolName: '' });
   // Toast notification state
   const [actionToast, setActionToast] = useState(null); // { type: 'approve'|'decline', message: string }
 
@@ -145,6 +169,16 @@ function AdminBorrowRequests() {
   const [isHoldSettingsOpen, setIsHoldSettingsOpen] = useState(false);
   const [savingHoldSettings, setSavingHoldSettings] = useState(false);
   const [tempHoldDays, setTempHoldDays] = useState(3);
+
+  // Return Inspection Modal States (Integrated Circulation Desk Check-in)
+  const [showReturnInspectionModal, setShowReturnInspectionModal] = useState(false);
+  const [loanToInspect, setLoanToInspect] = useState(null);
+  const [returnCondition, setReturnCondition] = useState('good'); // 'good' | 'minor' | 'damaged'
+  const [damageFee, setDamageFee] = useState('0');
+  const [manualFineAmount, setManualFineAmount] = useState('0');
+  const [isFinePaid, setIsFinePaid] = useState(false);
+  const [returnRemarks, setReturnRemarks] = useState('');
+  const [returnInspectionProcessing, setReturnInspectionProcessing] = useState(false);
 
   // Helper to trigger toast notification
   const showToast = (type, message) => {
@@ -207,7 +241,73 @@ function AdminBorrowRequests() {
       .catch(() => {});
   }, []);
 
+  // Open the Professional Return Inspection Modal
+  const handleOpenReturnModal = (borrow, book, student) => {
+    const dueStatus = getDueStatusDetails(borrow.due_date);
+    const initialFine = dueStatus.isOverdue ? (dueStatus.daysOverdue * 5).toFixed(2) : '0';
+    setLoanToInspect({
+      ...borrow,
+      book,
+      student,
+      dueStatus,
+    });
+    setReturnCondition('good');
+    setDamageFee('0');
+    setManualFineAmount(initialFine);
+    setIsFinePaid(false);
+    setReturnRemarks('');
+    setShowReturnInspectionModal(true);
+  };
+
+  // Process the Return with Condition Check & Restock
+  const handleConfirmReturnInspection = async () => {
+    if (!loanToInspect) return;
+    try {
+      setReturnInspectionProcessing(true);
+      const borrowId = loanToInspect.borrow_id;
+      const { data, error } = await returnBook(borrowId);
+      if (error) throw error;
+
+      const bookTitle = loanToInspect.book?.title || 'Book';
+      const studentName = loanToInspect.student?.firstname 
+        ? `${loanToInspect.student.firstname} ${loanToInspect.student.lastname}` 
+        : (loanToInspect.student?.name || 'Student Borrower');
+
+      const conditionLabel = returnCondition === 'good' ? 'Good / Intact' : returnCondition === 'minor' ? 'Minor Wear' : 'Damaged';
+      const totalFee = (parseFloat(manualFineAmount) || 0) + (parseFloat(damageFee) || 0);
+
+      showToast('approve', `"${bookTitle}" successfully returned and restocked into catalog!`);
+
+      addNotification({
+        type: 'BOOK_RETURNED',
+        title: 'Book Returned & Inspected',
+        message: `"${bookTitle}" returned by ${studentName}. Condition: ${conditionLabel}${totalFee > 0 ? ` · Fee: ₱${totalFee.toFixed(2)}${isFinePaid ? ' (Paid at counter)' : ' (Pending clearance)'}` : ' · No fines'}`,
+        student_name: studentName,
+      });
+
+      setShowReturnInspectionModal(false);
+      setLoanToInspect(null);
+      await fetchActiveBorrows();
+      await fetchBorrowRequests();
+      window.dispatchEvent(new CustomEvent('refreshStats'));
+    } catch (err) {
+      console.error('Error returning book:', err);
+      alert(err?.response?.data?.message || err.message || 'Failed to check in returned book. Please try again.');
+    } finally {
+      setReturnInspectionProcessing(false);
+    }
+  };
+
   const handleReturnBook = async (borrowId, bookTitle = 'Book', studentName = 'Student') => {
+    // Locate the borrow record to open the inspection modal
+    const borrow = activeBorrows.find(b => b.borrow_id === borrowId);
+    if (borrow) {
+      const book = booksData[borrow.book_id] || borrow.book_copies?.books || {};
+      const student = studentsData[borrow.student_id] || borrow.student || {};
+      handleOpenReturnModal(borrow, book, student);
+      return;
+    }
+
     if (!window.confirm(`Confirm return / check-in for "${bookTitle}" borrowed by ${studentName}?`)) {
       return;
     }
@@ -247,11 +347,7 @@ function AdminBorrowRequests() {
 
     setSendingReminderId(borrow.borrow_id);
     try {
-      const dueDate = new Date(borrow.due_date);
-      const today = new Date();
-      const isOverdue = dueDate < today;
-      const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
-      const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const dueStatus = getDueStatusDetails(borrow.due_date);
       const formattedDueDate = formatPhilippineDate(borrow.due_date);
       const studentName = student.firstname ? `${student.firstname} ${student.lastname}` : (student.name || 'Student');
 
@@ -259,8 +355,9 @@ function AdminBorrowRequests() {
         student_id: studentId,
         book_title: book.title || 'Borrowed Book',
         due_date: formattedDueDate,
-        reminder_type: isOverdue ? 'overdue' : 'due_soon',
-        days_left: isOverdue ? -daysOverdue : diffDays,
+        reminder_type: dueStatus.isOverdue ? 'overdue' : dueStatus.isDueToday ? 'due_today' : 'due_soon',
+        days_left: dueStatus.daysRemaining,
+        days_overdue: dueStatus.daysOverdue,
         borrow_id: borrow.borrow_id,
       });
 
@@ -308,7 +405,7 @@ function AdminBorrowRequests() {
                 booksMap[bookId] = bookResponse.data;
               }
             }
-            setBooksData(booksMap);
+            setBooksData(prev => ({ ...prev, ...booksMap }));
           } catch (err) {
             console.error('Error fetching books:', err);
           }
@@ -385,8 +482,8 @@ function AdminBorrowRequests() {
       
       // Fetch all book details at once (more efficient)
       if (data && data.length > 0) {
-        const uniqueBookIds = [...new Set(data.map(b => b.book_id))].filter(id => id && id.length > 0);
-        const uniqueStudentIds = [...new Set(data.map(b => b.student_id))].filter(id => id && id.length > 0);
+        const uniqueBookIds = [...new Set(data.map(b => b.book_id || b.book_copies?.books?.book_id))].filter(id => id && String(id).length > 0);
+        const uniqueStudentIds = [...new Set(data.map(b => b.student_id))].filter(id => id && String(id).length > 0);
         
         // Fetch books using API
         if (uniqueBookIds.length > 0) {
@@ -398,7 +495,7 @@ function AdminBorrowRequests() {
                 booksMap[bookId] = bookResponse.data;
               }
             }
-            setBooksData(booksMap);
+            setBooksData(prev => ({ ...prev, ...booksMap }));
           } catch (err) {
             console.error('Error fetching books:', err);
           }
@@ -789,6 +886,170 @@ function AdminBorrowRequests() {
     const s = String(item?.item_status || item?.status || '').toLowerCase();
     return s === 'approved' || s === 'ready_for_pickup' || s === 'ready for pickup';
   };
+
+  const matchesDateFilter = (dateStr, preset, customStart, customEnd) => {
+    if (!dateStr || preset === 'all') return true;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return true;
+    
+    // Manila timezone calendar day comparison (UTC+8)
+    const manilaOptions = { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' };
+    const recordDateStr = new Intl.DateTimeFormat('en-CA', manilaOptions).format(d);
+    const todayDateStr = new Intl.DateTimeFormat('en-CA', manilaOptions).format(new Date());
+
+    if (preset === 'today') {
+      return recordDateStr === todayDateStr;
+    }
+
+    if (preset === 'this_week') {
+      const today = new Date();
+      const dayOfWeek = today.getDay(); // 0 is Sunday
+      const diffToMonday = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+      const monday = new Date(today.setDate(diffToMonday));
+      const mondayStr = new Intl.DateTimeFormat('en-CA', manilaOptions).format(monday);
+      return recordDateStr >= mondayStr && recordDateStr <= todayDateStr;
+    }
+
+    if (preset === 'this_month') {
+      const [year, month] = todayDateStr.split('-');
+      return recordDateStr.startsWith(`${year}-${month}`);
+    }
+
+    if (preset === 'custom') {
+      if (customStart && recordDateStr < customStart) return false;
+      if (customEnd && recordDateStr > customEnd) return false;
+      return true;
+    }
+
+    return true;
+  };
+
+  // Home School Active & Pending Requests Queue (Clean, unified)
+  const homeFilteredRequests = useMemo(() => {
+    return borrowRequests.filter((request) => {
+      // Exclude completed history (those belong in Circulation History)
+      const status = String(request.status || '').toLowerCase();
+      if (status === 'returned' || status === 'cancelled' || status === 'rejected') {
+        return false;
+      }
+
+      // Date filter
+      const dateToCheck = request.created_at || request.borrow_date;
+      if (!matchesDateFilter(dateToCheck, homeDatePreset, homeDateStart, homeDateEnd)) {
+        return false;
+      }
+
+      // Search filter
+      if (homeQueueSearch.trim()) {
+        const q = homeQueueSearch.toLowerCase();
+        const student = request.student || {};
+        const studentName = `${student.firstname || ''} ${student.lastname || ''} ${student.name || ''}`.toLowerCase();
+        const studentNumber = String(student.student_number || request.student_id || '').toLowerCase();
+        const reqId = String(request.request_id || '').toLowerCase();
+        const purpose = String(request.purpose || '').toLowerCase();
+        const bookTitles = (request.items || []).map(it => it.book?.title || '').join(' ').toLowerCase();
+
+        return (
+          studentName.includes(q) ||
+          studentNumber.includes(q) ||
+          reqId.includes(q) ||
+          purpose.includes(q) ||
+          bookTitles.includes(q)
+        );
+      }
+
+      return true;
+    });
+  }, [borrowRequests, homeDatePreset, homeDateStart, homeDateEnd, homeQueueSearch]);
+
+  // Inter-School (Interlibrary) Filtered Requests
+  const interSchoolFilteredRequests = useMemo(() => {
+    return interSchoolRequests.filter((request) => {
+      const status = String(request.status || request.item_status || request.borrow_request?.status || '').toLowerCase();
+      if (status === 'returned' || status === 'cancelled' || status === 'rejected') {
+        return false;
+      }
+
+      const dateToCheck = request.borrow_request?.created_at || request.created_at;
+      if (!matchesDateFilter(dateToCheck, interSchoolDatePreset, interSchoolDateStart, interSchoolDateEnd)) {
+        return false;
+      }
+
+      if (interSchoolSearch.trim()) {
+        const q = interSchoolSearch.toLowerCase();
+        const student = request.borrow_request?.student || request.student || {};
+        const studentName = `${student.firstname || ''} ${student.lastname || ''} ${student.name || ''}`.toLowerCase();
+        const studentNumber = String(student.student_number || request.student_id || '').toLowerCase();
+        const reqId = String(request.borrow_request?.request_id || request.request_id || '').toLowerCase();
+        const purpose = String(request.borrow_request?.purpose || request.purpose || '').toLowerCase();
+        const bookTitle = String(request.book?.title || '').toLowerCase();
+
+        return (
+          studentName.includes(q) ||
+          studentNumber.includes(q) ||
+          reqId.includes(q) ||
+          purpose.includes(q) ||
+          bookTitle.includes(q)
+        );
+      }
+
+      return true;
+    });
+  }, [interSchoolRequests, interSchoolDatePreset, interSchoolDateStart, interSchoolDateEnd, interSchoolSearch]);
+
+  // Circulation History Records (Previous completed loans with date)
+  const circulationHistoryRecords = useMemo(() => {
+    const homeHistory = borrowRequests
+      .filter(r => r.status === 'returned' || r.status === 'cancelled' || r.status === 'rejected')
+      .map(r => ({ ...r, _queueSource: 'home' }));
+
+    const interHistory = interSchoolRequests
+      .filter(r => {
+        const s = String(r.status || r.item_status || r.borrow_request?.status || '').toLowerCase();
+        return s === 'returned' || s === 'cancelled' || s === 'rejected';
+      })
+      .map(r => ({
+        ...(r.borrow_request || r),
+        _queueSource: 'inter-school',
+        rawItem: r
+      }));
+
+    const combined = [...homeHistory, ...interHistory].reduce((acc, curr) => {
+      if (!acc.some(item => item.request_id === curr.request_id)) {
+        acc.push(curr);
+      }
+      return acc;
+    }, []);
+
+    return combined.filter(record => {
+      const status = String(record.status || '').toLowerCase();
+      if (historyTypeFilter === 'returned' && status !== 'returned') return false;
+      if (historyTypeFilter === 'cancelled' && status !== 'cancelled' && status !== 'rejected') return false;
+
+      const dateToCheck = record.return_date || record.updated_at || record.created_at;
+      if (!matchesDateFilter(dateToCheck, historyDatePreset, historyDateStart, historyDateEnd)) {
+        return false;
+      }
+
+      if (historySearch.trim()) {
+        const q = historySearch.toLowerCase();
+        const student = record.student || {};
+        const studentName = `${student.firstname || ''} ${student.lastname || ''} ${student.name || ''}`.toLowerCase();
+        const studentNumber = String(student.student_number || record.student_id || '').toLowerCase();
+        const reqId = String(record.request_id || '').toLowerCase();
+        const bookTitles = (record.items || []).map(it => it.book?.title || '').join(' ').toLowerCase();
+
+        return (
+          studentName.includes(q) ||
+          studentNumber.includes(q) ||
+          reqId.includes(q) ||
+          bookTitles.includes(q)
+        );
+      }
+
+      return true;
+    });
+  }, [borrowRequests, interSchoolRequests, historyTypeFilter, historyDatePreset, historyDateStart, historyDateEnd, historySearch]);
 
   const readyForPickupRequests = [
     ...borrowRequests
@@ -1197,54 +1458,53 @@ function AdminBorrowRequests() {
         </div>
       </div>
       
-      {/* Modern Pill Switcher */}
-      <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-slate-100/90 border border-slate-200/80 w-fit">
+      {/* Modern Compact Single-Line Switcher */}
+      <div className="w-full max-w-full overflow-x-auto no-scrollbar flex items-center gap-1 sm:gap-1.5 p-1 rounded-xl bg-slate-100/95 border border-slate-200/90 shadow-2xs mb-5">
         <button
           onClick={() => setActiveRequestTab('home-school')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs whitespace-nowrap transition-all shrink-0 ${
             activeRequestTab === 'home-school'
-              ? 'bg-white text-blue-700 shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              ? 'bg-white text-blue-700 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
           }`}
         >
-          <FiBook className="w-4 h-4" />
-          <span>Home School (Pending)</span>
-          <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+          <FiBook className="w-3.5 h-3.5 text-blue-600" />
+          <span>Home Requests</span>
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
             activeRequestTab === 'home-school' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600'
           }`}>
-            {borrowRequests.filter(r => r.status === 'pending').length}
+            {homeFilteredRequests.length}
           </span>
         </button>
 
         <button
           onClick={() => setActiveRequestTab('inter-school')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs whitespace-nowrap transition-all shrink-0 ${
             activeRequestTab === 'inter-school'
-              ? 'bg-white text-blue-700 shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              ? 'bg-white text-blue-700 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
           }`}
         >
-          <FiGlobe className="w-4 h-4" />
-          <span>Inter-School (Pending)</span>
-          <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+          <FiGlobe className="w-3.5 h-3.5 text-blue-600" />
+          <span>Inter-School</span>
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
             activeRequestTab === 'inter-school' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600'
           }`}>
-            {interSchoolRequests.filter(r => r.status === 'pending').length}
+            {interSchoolFilteredRequests.length}
           </span>
         </button>
 
-        {/* 📦 NEW TAB: Ready for Pickup (Approved) */}
         <button
           onClick={() => setActiveRequestTab('ready-for-pickup')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs whitespace-nowrap transition-all shrink-0 ${
             activeRequestTab === 'ready-for-pickup'
-              ? 'bg-white text-emerald-700 shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              ? 'bg-white text-emerald-700 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
           }`}
         >
-          <FiPackage className="w-4 h-4 text-emerald-600" />
+          <FiPackage className="w-3.5 h-3.5 text-emerald-600" />
           <span>Ready for Pickup</span>
-          <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
             activeRequestTab === 'ready-for-pickup' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
           }`}>
             {readyForPickupRequests.length}
@@ -1252,161 +1512,470 @@ function AdminBorrowRequests() {
         </button>
 
         <button
-          onClick={() => setActiveRequestTab('cancellations')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all ${
-            activeRequestTab === 'cancellations'
-              ? 'bg-white text-amber-700 shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+          onClick={() => setActiveRequestTab('active-loans')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs whitespace-nowrap transition-all shrink-0 ${
+            activeRequestTab === 'active-loans'
+              ? 'bg-white text-indigo-700 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
           }`}
         >
-          <FiAlertTriangle className={`w-4 h-4 ${cancellationRequests.length > 0 ? 'text-amber-500' : ''}`} />
-          <span>Hold Cancellations</span>
+          <FiBook className="w-3.5 h-3.5 text-indigo-600" />
+          <span>Active Loans</span>
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+            activeRequestTab === 'active-loans' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-600'
+          }`}>
+            {activeBorrows.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveRequestTab('cancellations')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs whitespace-nowrap transition-all shrink-0 ${
+            activeRequestTab === 'cancellations'
+              ? 'bg-white text-amber-700 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+          }`}
+        >
+          <FiAlertTriangle className={`w-3.5 h-3.5 ${cancellationRequests.length > 0 ? 'text-amber-500' : 'text-slate-400'}`} />
+          <span>Cancellations</span>
           {cancellationRequests.length > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[11px] font-black bg-amber-500 text-white animate-pulse">
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-500 text-white animate-pulse">
               {cancellationRequests.length}
             </span>
           )}
         </button>
 
         <button
-          onClick={() => setActiveRequestTab('active-loans')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all ${
-            activeRequestTab === 'active-loans'
-              ? 'bg-white text-indigo-700 shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+          onClick={() => setActiveRequestTab('history')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs whitespace-nowrap transition-all shrink-0 ${
+            activeRequestTab === 'history'
+              ? 'bg-white text-purple-700 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
           }`}
         >
-          <FiBook className="w-4 h-4" />
-          <span>Active Loans</span>
-          <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
-            activeRequestTab === 'active-loans' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-600'
+          <FiClock className="w-3.5 h-3.5 text-purple-600" />
+          <span>Circulation History</span>
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+            activeRequestTab === 'history' ? 'bg-purple-100 text-purple-800' : 'bg-slate-200 text-slate-600'
           }`}>
-            {activeBorrows.length}
+            {circulationHistoryRecords.length}
           </span>
         </button>
       </div>
       
-      {/* Pending Requests Table - Home School */}
+      {/* Borrow Requests Table - Home School (Clean, unified with Date filter & School ID picture) */}
       {activeRequestTab === 'home-school' && (
         <div className="rounded-2xl border border-slate-200/90 bg-white shadow-xs overflow-hidden">
-          <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <FiClock className="w-4 h-4 text-blue-600" />
-              <span>Pending Requests Queue</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                {borrowRequests.filter(r => r.status === 'pending').length} pending
-              </span>
-            </h3>
+          {/* Header with Title and Search/Date Filter/Refresh */}
+          <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/50 space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <FiBook className="w-4 h-4 text-blue-600" />
+                  <span>Home School Borrow Requests</span>
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                    {homeFilteredRequests.length} {homeFilteredRequests.length === 1 ? 'record' : 'records'}
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Monitor and manage student borrow requests and active book reservations
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    fetchBorrowRequests();
+                    fetchActiveBorrows();
+                  }}
+                  disabled={borrowRequestsLoading}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition disabled:opacity-50"
+                  title="Refresh queue"
+                >
+                  <FiRefreshCw className={`w-3.5 h-3.5 text-blue-600 ${borrowRequestsLoading ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Instant Search & Date Filter Controls */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pt-1">
+              {/* Search Bar */}
+              <div className="relative flex-1 max-w-md">
+                <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search by student, student ID, book title, request ID..."
+                  value={homeQueueSearch}
+                  onChange={(e) => setHomeQueueSearch(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 pl-8 pr-7 py-1.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500 bg-white shadow-2xs transition"
+                />
+                {homeQueueSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setHomeQueueSearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    title="Clear search"
+                  >
+                    <FiX className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Date Filter Presets */}
+              <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto">
+                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 px-1.5 flex items-center gap-1">
+                    <FiCalendar className="w-3 h-3 text-slate-400" /> Date:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setHomeDatePreset('all')}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                      homeDatePreset === 'all'
+                        ? 'bg-slate-900 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    All Time
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHomeDatePreset('today')}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                      homeDatePreset === 'today'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHomeDatePreset('this_week')}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                      homeDatePreset === 'this_week'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    This Week
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHomeDatePreset('this_month')}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                      homeDatePreset === 'this_month'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    This Month
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHomeDatePreset('custom')}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                      homeDatePreset === 'custom'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    Custom
+                  </button>
+                </div>
+
+                {homeDatePreset === 'custom' && (
+                  <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 py-1 shadow-2xs">
+                    <input
+                      type="date"
+                      value={homeDateStart}
+                      onChange={(e) => setHomeDateStart(e.target.value)}
+                      className="bg-transparent text-xs text-slate-700 outline-none font-medium"
+                    />
+                    <span className="text-slate-400 text-xs">-</span>
+                    <input
+                      type="date"
+                      value={homeDateEnd}
+                      onChange={(e) => setHomeDateEnd(e.target.value)}
+                      className="bg-transparent text-xs text-slate-700 outline-none font-medium"
+                    />
+                    {(homeDateStart || homeDateEnd) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHomeDateStart('');
+                          setHomeDateEnd('');
+                        }}
+                        className="text-slate-400 hover:text-slate-600 ml-0.5"
+                      >
+                        <FiX className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
+
           {borrowRequestsLoading ? (
             <div className="text-center py-16 text-slate-500">
               <div className="w-7 h-7 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
               <p className="text-xs font-medium">Fetching borrow requests...</p>
             </div>
-          ) : borrowRequests.filter(r => r.status === 'pending').length === 0 ? (
+          ) : homeFilteredRequests.length === 0 ? (
             <div className="py-16 px-6 text-center">
               <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center mx-auto mb-3 text-blue-600">
                 <FiCheckCircle className="w-8 h-8" />
               </div>
-              <h4 className="text-base font-bold text-slate-800">No Pending Requests</h4>
+              <h4 className="text-base font-bold text-slate-800">
+                {homeQueueSearch || homeDatePreset !== 'all' ? 'No Matching Records Found' : 'No Active Requests'}
+              </h4>
               <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-                There are no pending home school borrow requests at the moment. New student reservations will appear here in real-time.
+                {homeQueueSearch || homeDatePreset !== 'all'
+                  ? 'No requests match your search or date filter. Try resetting filters to view all records.'
+                  : 'There are no active borrow requests in the queue at the moment.'}
               </p>
+              {(homeQueueSearch || homeDatePreset !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHomeQueueSearch('');
+                    setHomeDatePreset('all');
+                    setHomeDateStart('');
+                    setHomeDateEnd('');
+                  }}
+                  className="mt-3 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition"
+                >
+                  Reset Date & Filters
+                </button>
+              )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    <th className="py-3 px-4">Request ID</th>
-                    <th className="py-3 px-4">Borrower Student</th>
-                    <th className="py-3 px-4">Campus</th>
-                    <th className="py-3 px-4">Items</th>
-                    <th className="py-3 px-4">Purpose</th>
-                    <th className="py-3 px-4">Requested At (PHT)</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+            <div className="w-full overflow-x-auto">
+              <table className="w-full table-auto text-left border-collapse">
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-slate-200 bg-slate-50/90 backdrop-blur-xs text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="py-1.5 px-2 whitespace-nowrap w-24">Request ID</th>
+                    <th className="py-1.5 px-2 min-w-[150px] max-w-[190px]">Borrower</th>
+                    <th className="py-1.5 px-2 min-w-[120px] max-w-[160px]">Campus</th>
+                    <th className="py-1.5 px-2 min-w-[140px] max-w-[190px]">Book Details</th>
+                    <th className="py-1.5 px-2 min-w-[95px] max-w-[130px]">Purpose</th>
+                    <th className="py-1.5 px-2 whitespace-nowrap min-w-[95px]">Requested</th>
+                    <th className="py-1.5 px-2 whitespace-nowrap min-w-[80px]">Status</th>
+                    <th className="py-1.5 px-2 text-right whitespace-nowrap w-16">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {borrowRequests.filter(r => r.status === 'pending').map((request) => {
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {homeFilteredRequests.map((request) => {
                     const student = request.student || {};
                     const studentIdentity = getRequestStudentIdentity(request);
                     const homeSchool = request.home_school || request.school || {};
-                    const bookCount = request.items?.length || 0;
+                    const items = request.items || [];
+                    const bookCount = items.length || 0;
+                    const firstBook = items[0]?.book || booksData[request.book_id] || {};
+                    const status = String(request.status || '').toLowerCase();
+                    const isOverdue = status === 'borrowed' && request.due_date && new Date(request.due_date) < new Date();
+                    const studentIdPic = request.id_picture_url || request.id_photo_url || student.id_picture_url || student.profile_image || student.profile_picture;
+
                     return (
-                      <tr key={request.request_id} className="hover:bg-blue-50/30 transition-colors">
-                        <td className="py-3.5 px-4 text-xs font-mono font-bold text-blue-600">{request.request_id}</td>
-                        <td className="py-3.5 px-4 text-sm text-slate-700">
-                          <div className="flex items-center gap-2.5">
-                            {studentIdentity.profilePicture ? (
-                              <img
-                                src={getBackendAssetUrl(studentIdentity.profilePicture)}
-                                alt={studentIdentity.name}
-                                className="w-9 h-9 rounded-xl object-cover border border-slate-200/80 shadow-2xs shrink-0"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                  if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
-                                }}
-                              />
-                            ) : null}
-                            <div className={`w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs border border-white/20 ${studentIdentity.profilePicture ? 'hidden' : 'flex'}`}>
-                              {(studentIdentity.name || 'S').charAt(0).toUpperCase()}
+                      <tr key={request.request_id} className="hover:bg-blue-50/20 transition-colors">
+                        {/* Request ID */}
+                        <td className="py-1.5 px-2 font-mono font-bold text-blue-600 whitespace-nowrap text-[10px] w-24">
+                          {request.request_id}
+                        </td>
+
+                        {/* Borrower Student with Clickable Physical School ID Picture */}
+                        <td className="py-1.5 px-2 min-w-[150px] max-w-[190px]">
+                          <div className="flex items-center gap-1.5">
+                            {/* Rectangular School ID Card Preview */}
+                            <div 
+                              onClick={() => setZoomIdModal({
+                                isOpen: true,
+                                imageUrl: studentIdPic,
+                                studentName: studentIdentity.name,
+                                studentNumber: student.student_number || request.student_id || 'N/A',
+                                schoolName: homeSchool.school_name || 'Campus'
+                              })}
+                              className="relative w-10 h-7 rounded-md overflow-hidden cursor-pointer group shrink-0 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-blue-500 transition-all bg-slate-100 flex items-center justify-center"
+                              title="Click to zoom physical School ID card"
+                            >
+                              {studentIdPic ? (
+                                <img
+                                  src={getBackendAssetUrl(studentIdPic)}
+                                  alt={`${studentIdentity.name}'s School ID`}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
+                                  }}
+                                />
+                              ) : null}
+                              <div className={`w-full h-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-[8px] flex flex-col items-center justify-center ${studentIdPic ? 'hidden' : 'flex'}`}>
+                                <span>ID</span>
+                              </div>
+                              <div className="absolute top-0.5 left-0.5 bg-slate-900/80 text-white text-[7px] font-black px-0.5 rounded-xs leading-tight tracking-tighter backdrop-blur-xs pointer-events-none">
+                                ID
+                              </div>
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                <FiMaximize2 className="w-2 h-2" />
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <div className="font-bold text-xs text-slate-900 truncate">{studentIdentity.name}</div>
-                              <div className="text-[11px] text-slate-500 font-mono">{student.student_number || request.student_id || 'No ID'}</div>
+
+                            <div className="min-w-0 max-w-[115px]">
+                              <div className="font-bold text-slate-900 truncate text-[11px]" title={studentIdentity.name}>
+                                {studentIdentity.name}
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-mono truncate">
+                                {student.student_number || request.student_id || 'No ID'}
+                              </div>
                             </div>
                           </div>
                         </td>
-                        <td className="py-3.5 px-4 text-xs font-medium text-slate-600">{homeSchool.school_name || 'Campus Library'}</td>
-                        <td className="py-3.5 px-4 text-xs text-slate-700">
-                          <span className="inline-flex items-center gap-1 font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                            <FiBook className="w-3 h-3 text-slate-500" />
-                            {bookCount} {bookCount === 1 ? 'book' : 'books'}
+
+                        {/* Campus */}
+                        <td className="py-1.5 px-2 text-slate-600 min-w-[120px] max-w-[160px]">
+                          <div className="w-full max-w-[145px] min-w-0 overflow-hidden">
+                            <div className="truncate text-[10px] font-medium text-slate-700" title={homeSchool.school_name || 'Campus Library'}>
+                              {homeSchool.school_name || 'Campus Library'}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Book Details */}
+                        <td className="py-1.5 px-2 text-slate-700 min-w-[140px] max-w-[190px]">
+                          <div className="w-full max-w-[175px] min-w-0 overflow-hidden">
+                            <div className="font-bold text-slate-900 truncate text-[11px]" title={firstBook.title || 'Book Title'}>
+                              {firstBook.title || (bookCount > 0 ? `${bookCount} Book(s)` : 'General Request')}
+                            </div>
+                            {firstBook.author && (
+                              <div className="text-[10px] text-slate-500 truncate" title={firstBook.author}>
+                                {firstBook.author}
+                              </div>
+                            )}
+                            {bookCount > 1 && (
+                              <span className="inline-flex items-center text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded mt-0.5">
+                                +{bookCount - 1} more book{bookCount > 2 ? 's' : ''}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Purpose / Schedule */}
+                        <td className="py-1.5 px-2 text-slate-600 text-[10px] min-w-[95px] max-w-[130px]">
+                          <div className="truncate max-w-[115px]" title={request.purpose || 'Academic Reading'}>
+                            {request.purpose || 'Academic Reading'}
+                          </div>
+                          {status === 'borrowed' && request.due_date && (
+                            <div className={`text-[9px] font-bold mt-0.5 ${isOverdue ? 'text-rose-600' : 'text-slate-500'}`}>
+                              Due: {formatPhilippineDate(request.due_date)} {isOverdue && '(Overdue)'}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Requested Date */}
+                        <td className="py-1.5 px-2 text-slate-600 whitespace-nowrap min-w-[95px] text-[10px]" title={formatDateTimeWithRelative(request.created_at)}>
+                          {formatPhilippineDate(request.created_at)}
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-1.5 px-2 whitespace-nowrap min-w-[80px]">
+                          <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold capitalize ${getStatusColor(request.status)}`}>
+                            {request.status === 'borrowed' ? 'Borrowed' : request.status}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4 text-xs text-slate-600 truncate max-w-[180px]">{request.purpose || 'Academic Reading'}</td>
-                        <td className="py-3.5 px-4 text-xs text-slate-600 whitespace-nowrap font-medium">
-                          {formatDateTimeWithRelative(request.created_at)}
+
+                        {/* Actions */}
+                        <td className="py-1.5 px-2 text-right whitespace-nowrap w-16">
+                          <div className="flex items-center justify-end gap-1">
+                            {/* View Details */}
+                            <button
+                              type="button"
+                              onClick={() => handleViewDetails(request)}
+                              className="p-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-blue-600 transition-colors shadow-2xs"
+                              title="View Request Details"
+                            >
+                              <FiEye className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Status === pending: Approve & Reject */}
+                            {status === 'pending' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveClick(request.request_id)}
+                                  className="p-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-all active:scale-95"
+                                  title="Approve Request"
+                                >
+                                  <FiCheckCircle className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRejectClick(request.request_id)}
+                                  className="p-1.5 rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors shadow-2xs"
+                                  title="Decline Request"
+                                >
+                                  <FiXCircle className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
+
+                            {/* Status === approved / ready_for_pickup: Direct Release */}
+                            {(status === 'approved' || status === 'ready_for_pickup') && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenReleaseModal(request)}
+                                className="p-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-all active:scale-95"
+                                title="Release book directly to student"
+                              >
+                                <FiPackage className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            {/* Status === borrowed: Return / Check-In */}
+                            {status === 'borrowed' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const matchedBorrow = activeBorrows.find(b => 
+                                    b.student_id === request.student_id &&
+                                    (items.some(it => it.copy_id === b.copy_id || it.assigned_copy_id === b.copy_id || it.book_id === b.book_id))
+                                  ) || activeBorrows.find(b => b.student_id === request.student_id);
+
+                                  if (matchedBorrow) {
+                                    const book = booksData[matchedBorrow.book_id] || matchedBorrow.book_copies?.books || items[0]?.book || {};
+                                    const stud = studentsData[matchedBorrow.student_id] || matchedBorrow.student || request.student || {};
+                                    handleOpenReturnModal(matchedBorrow, book, stud);
+                                  } else {
+                                    const firstItem = items[0];
+                                    const fallbackBorrow = {
+                                      borrow_id: request.borrow_id || request.request_id,
+                                      due_date: request.due_date,
+                                      copy_id: firstItem?.copy_id || firstItem?.assigned_copy_id,
+                                      student_id: request.student_id,
+                                      item_id: firstItem?.item_id,
+                                    };
+                                    const book = firstItem?.book || booksData[firstItem?.book_id] || {};
+                                    const stud = request.student || {};
+                                    handleOpenReturnModal(fallbackBorrow, book, stud);
+                                  }
+                                }}
+                                className="p-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs transition-all active:scale-95"
+                                title="Check-in return of borrowed book"
+                              >
+                                <FiCheckCircle className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </td>
-                        <td className="py-3.5 px-4">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold capitalize ${getStatusColor(request.status)}`}>
-                            {request.status}
-                          </span>
-                        </td>
-                      <td className="py-4 px-4">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleViewDetails(request)}
-                            className="p-2 hover:bg-blue-100 rounded-lg transition-colors"
-                            title="View Details"
-                          >
-                            <FiEye className="w-4 h-4 text-blue-600" />
-                          </button>
-                          <button
-                            onClick={() => handleApproveClick(request.request_id)}
-                            className="p-2 hover:bg-green-100 rounded-lg transition-colors"
-                            title="Approve"
-                          >
-                            <FiCheckCircle className="w-4 h-4 text-green-600" />
-                          </button>
-                          <button
-                            onClick={() => handleRejectClick(request.request_id)}
-                            className="p-2 hover:bg-red-100 rounded-lg transition-colors"
-                            title="Reject"
-                          >
-                            <FiXCircle className="w-4 h-4 text-red-600" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
       </div>
       )}
 
@@ -1526,13 +2095,13 @@ function AdminBorrowRequests() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    <th className="py-3 px-4">Request & Pass</th>
-                    <th className="py-3 px-4">Borrower Student</th>
-                    <th className="py-3 px-4">Reserved Book(s)</th>
-                    <th className="py-3 px-4">Approved At</th>
-                    <th className="py-3 px-4">Pickup Deadline ({pickupHoldDays} Days)</th>
-                    <th className="py-3 px-4 text-right">Counter Actions</th>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="py-1.5 px-2">Request & Pass</th>
+                    <th className="py-1.5 px-2">Borrower</th>
+                    <th className="py-1.5 px-2">Reserved Book(s)</th>
+                    <th className="py-1.5 px-2">Approved At</th>
+                    <th className="py-1.5 px-2">Pickup Deadline ({pickupHoldDays} Days)</th>
+                    <th className="py-1.5 px-2 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1726,120 +2295,361 @@ function AdminBorrowRequests() {
         </div>
       )}
 
-      {/* Inter-School Requests Table */}
+      {/* Inter-School Requests Table (Upgraded Responsive Table with Date Filter & School ID Card) */}
       {activeRequestTab === 'inter-school' && (
         <div className="rounded-2xl border border-slate-200/90 bg-white shadow-xs overflow-hidden">
-          <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <FiGlobe className="w-4 h-4 text-blue-600" />
-              <span>Inter-School Requests</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                {interSchoolRequests.filter(r => r.status === 'pending').length} pending
-              </span>
-            </h3>
+          {/* Header with Title and Search/Date Filter/Refresh */}
+          <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/50 space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <FiGlobe className="w-4 h-4 text-blue-600" />
+                  <span>Inter-School Borrow Requests</span>
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                    {interSchoolFilteredRequests.length} {interSchoolFilteredRequests.length === 1 ? 'record' : 'records'}
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Cross-library borrow requests from partner campuses requiring home approval or pickup authorization
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => fetchInterSchoolRequests()}
+                  disabled={interSchoolRequestsLoading}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition disabled:opacity-50"
+                  title="Refresh inter-school queue"
+                >
+                  <FiRefreshCw className={`w-3.5 h-3.5 text-blue-600 ${interSchoolRequestsLoading ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Instant Search & Date Filter Controls */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pt-1">
+              {/* Search Bar */}
+              <div className="relative flex-1 max-w-md">
+                <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search by student, ID, partner campus, book..."
+                  value={interSchoolSearch}
+                  onChange={(e) => setInterSchoolSearch(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 pl-8 pr-7 py-1.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500 bg-white shadow-2xs transition"
+                />
+                {interSchoolSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setInterSchoolSearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    title="Clear search"
+                  >
+                    <FiX className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Date Filter Presets */}
+              <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto">
+                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 px-1.5 flex items-center gap-1">
+                    <FiCalendar className="w-3 h-3 text-slate-400" /> Date:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setInterSchoolDatePreset('all')}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                      interSchoolDatePreset === 'all'
+                        ? 'bg-slate-900 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    All Time
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInterSchoolDatePreset('today')}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                      interSchoolDatePreset === 'today'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInterSchoolDatePreset('this_week')}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                      interSchoolDatePreset === 'this_week'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    This Week
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInterSchoolDatePreset('this_month')}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                      interSchoolDatePreset === 'this_month'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    This Month
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInterSchoolDatePreset('custom')}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                      interSchoolDatePreset === 'custom'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    Custom
+                  </button>
+                </div>
+
+                {interSchoolDatePreset === 'custom' && (
+                  <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 py-1 shadow-2xs">
+                    <input
+                      type="date"
+                      value={interSchoolDateStart}
+                      onChange={(e) => setInterSchoolDateStart(e.target.value)}
+                      className="bg-transparent text-xs text-slate-700 outline-none font-medium"
+                    />
+                    <span className="text-slate-400 text-xs">-</span>
+                    <input
+                      type="date"
+                      value={interSchoolDateEnd}
+                      onChange={(e) => setInterSchoolDateEnd(e.target.value)}
+                      className="bg-transparent text-xs text-slate-700 outline-none font-medium"
+                    />
+                    {(interSchoolDateStart || interSchoolDateEnd) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInterSchoolDateStart('');
+                          setInterSchoolDateEnd('');
+                        }}
+                        className="text-slate-400 hover:text-slate-600 ml-0.5"
+                      >
+                        <FiX className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
+
           {interSchoolRequestsLoading ? (
             <div className="text-center py-16 text-slate-500">
               <div className="w-7 h-7 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-              <p className="text-xs font-medium">Fetching requests...</p>
+              <p className="text-xs font-medium">Fetching inter-school requests...</p>
             </div>
-          ) : interSchoolRequests.filter(r => r.status === 'pending').length === 0 ? (
+          ) : interSchoolFilteredRequests.length === 0 ? (
             <div className="py-16 px-6 text-center">
               <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center mx-auto mb-3 text-blue-600">
                 <FiGlobe className="w-8 h-8" />
               </div>
-              <h4 className="text-base font-bold text-slate-800">No Inter-School Requests</h4>
+              <h4 className="text-base font-bold text-slate-800">
+                {interSchoolSearch || interSchoolDatePreset !== 'all' ? 'No Matching Records Found' : 'No Inter-School Requests'}
+              </h4>
               <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-                There are no cross-library inter-school borrow requests awaiting pickup approval from partner campuses.
+                {interSchoolSearch || interSchoolDatePreset !== 'all'
+                  ? 'No inter-school requests match your search query or date filter. Reset filters to see all requests.'
+                  : 'There are no cross-library inter-school borrow requests in the queue.'}
               </p>
+              {(interSchoolSearch || interSchoolDatePreset !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInterSchoolSearch('');
+                    setInterSchoolDatePreset('all');
+                    setInterSchoolDateStart('');
+                    setInterSchoolDateEnd('');
+                  }}
+                  className="mt-3 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition"
+                >
+                  Reset Date & Filters
+                </button>
+              )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    <th className="py-3 px-4">Request ID</th>
-                    <th className="py-3 px-4">Borrower Student</th>
-                    <th className="py-3 px-4">Home School</th>
-                    <th className="py-3 px-4">Items</th>
-                    <th className="py-3 px-4">Purpose</th>
-                    <th className="py-3 px-4">Requested At (PHT)</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+            <div className="w-full overflow-x-auto">
+              <table className="w-full table-auto text-left border-collapse">
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-slate-200 bg-slate-50/90 backdrop-blur-xs text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="py-1.5 px-2 whitespace-nowrap w-24">Request ID</th>
+                    <th className="py-1.5 px-2 min-w-[150px] max-w-[190px]">Borrower</th>
+                    <th className="py-1.5 px-2 min-w-[120px] max-w-[160px]">Home Campus</th>
+                    <th className="py-1.5 px-2 min-w-[140px] max-w-[190px]">Book Details</th>
+                    <th className="py-1.5 px-2 min-w-[95px] max-w-[130px]">Purpose</th>
+                    <th className="py-1.5 px-2 whitespace-nowrap min-w-[95px]">Requested</th>
+                    <th className="py-1.5 px-2 whitespace-nowrap min-w-[80px]">Status</th>
+                    <th className="py-1.5 px-2 text-right whitespace-nowrap w-16">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {interSchoolRequests.filter(r => r.status === 'pending').map((request) => {
-                    const student = request.borrow_request?.student || request.student || {};
-                    const studentIdentity = getRequestStudentIdentity(request.borrow_request || request);
-                    const homeSchool = request.borrow_request?.home_school || request.home_school || {};
-                    const bookCount = request.borrow_request?.items?.length || request.items?.length || 0;
-                    const requestId = request.borrow_request?.request_id || request.request_id;
-                    const itemStatus = request.status;
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {interSchoolFilteredRequests.map((request) => {
+                    const parentReq = request.borrow_request || request;
+                    const student = parentReq.student || request.student || {};
+                    const studentIdentity = getRequestStudentIdentity(parentReq);
+                    const homeSchool = parentReq.home_school || request.home_school || {};
+                    const items = parentReq.items || request.items || [];
+                    const bookCount = items.length || (request.book ? 1 : 0);
+                    const firstBook = request.book || items[0]?.book || booksData[request.book_id] || {};
+                    const requestId = parentReq.request_id || request.request_id;
+                    const itemStatus = String(request.status || request.item_status || parentReq.status || 'pending').toLowerCase();
+                    const studentIdPic = parentReq.id_picture_url || parentReq.id_photo_url || request.id_picture_url || student.id_picture_url || student.profile_image || student.profile_picture;
+                    const purpose = parentReq.purpose || request.purpose || 'Inter-library Study';
+                    const requestedAt = parentReq.created_at || request.created_at;
+
                     return (
-                      <tr key={request.item_id} className="hover:bg-blue-50/30 transition-colors">
-                        <td className="py-3.5 px-4 text-xs font-mono font-bold text-blue-600">{requestId}</td>
-                        <td className="py-3.5 px-4 text-sm text-slate-700">
-                          <div className="flex items-center gap-2.5">
-                            {studentIdentity.profilePicture ? (
-                              <img
-                                src={getBackendAssetUrl(studentIdentity.profilePicture)}
-                                alt={studentIdentity.name}
-                                className="w-9 h-9 rounded-xl object-cover border border-slate-200/80 shadow-2xs shrink-0"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                  if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
-                                }}
-                              />
-                            ) : null}
-                            <div className={`w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs border border-white/20 ${studentIdentity.profilePicture ? 'hidden' : 'flex'}`}>
-                              {(studentIdentity.name || 'S').charAt(0).toUpperCase()}
+                      <tr key={request.item_id || requestId} className="hover:bg-blue-50/20 transition-colors">
+                        {/* Request ID */}
+                        <td className="py-1.5 px-2 font-mono font-bold text-blue-600 whitespace-nowrap text-[10px] w-24">
+                          {requestId}
+                        </td>
+
+                        {/* Borrower Student with Clickable Physical School ID Picture */}
+                        <td className="py-1.5 px-2 min-w-[150px] max-w-[190px]">
+                          <div className="flex items-center gap-1.5">
+                            {/* Rectangular School ID Card Preview */}
+                            <div 
+                              onClick={() => setZoomIdModal({
+                                isOpen: true,
+                                imageUrl: studentIdPic,
+                                studentName: studentIdentity.name,
+                                studentNumber: student.student_number || parentReq.student_id || 'N/A',
+                                schoolName: homeSchool.school_name || 'Partner Campus'
+                              })}
+                              className="relative w-10 h-7 rounded-md overflow-hidden cursor-pointer group shrink-0 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-indigo-500 transition-all bg-slate-100 flex items-center justify-center"
+                              title="Click to zoom physical School ID card"
+                            >
+                              {studentIdPic ? (
+                                <img
+                                  src={getBackendAssetUrl(studentIdPic)}
+                                  alt={`${studentIdentity.name}'s School ID`}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
+                                  }}
+                                />
+                              ) : null}
+                              <div className={`w-full h-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-black text-[8px] flex flex-col items-center justify-center ${studentIdPic ? 'hidden' : 'flex'}`}>
+                                <span>ID</span>
+                              </div>
+                              <div className="absolute top-0.5 left-0.5 bg-slate-900/80 text-white text-[7px] font-black px-0.5 rounded-xs leading-tight tracking-tighter backdrop-blur-xs pointer-events-none">
+                                ID
+                              </div>
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                <FiMaximize2 className="w-2 h-2" />
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <div className="font-bold text-xs text-slate-900 truncate">{studentIdentity.name}</div>
-                              <div className="text-[11px] text-slate-500 font-mono">{student.student_number || request.student_id || 'No ID'}</div>
+
+                            <div className="min-w-0 max-w-[115px]">
+                              <div className="font-bold text-slate-900 truncate text-[11px]" title={studentIdentity.name}>
+                                {studentIdentity.name}
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-mono truncate">
+                                {student.student_number || parentReq.student_id || 'No ID'}
+                              </div>
                             </div>
                           </div>
                         </td>
-                        <td className="py-3.5 px-4 text-xs font-medium text-slate-600">{homeSchool.school_name || 'Partner Campus'}</td>
-                        <td className="py-3.5 px-4 text-xs text-slate-700">
-                          <span className="inline-flex items-center gap-1 font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                            <FiBook className="w-3 h-3 text-slate-500" />
-                            {bookCount} {bookCount === 1 ? 'book' : 'books'}
-                          </span>
+
+                        {/* Home Campus */}
+                        <td className="py-1.5 px-2 text-slate-600 min-w-[120px] max-w-[160px]">
+                          <div className="w-full max-w-[145px] min-w-0 overflow-hidden">
+                            <span className="inline-flex items-center gap-1 font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded text-[10px] max-w-full truncate" title={homeSchool.school_name || 'Partner Campus'}>
+                              <FiMapPin className="w-3 h-3 text-indigo-500 shrink-0" />
+                              <span className="truncate">{homeSchool.school_name || 'Partner Campus'}</span>
+                            </span>
+                          </div>
                         </td>
-                        <td className="py-3.5 px-4 text-xs text-slate-600 truncate max-w-[180px]">{request.borrow_request?.purpose || request.purpose || 'Inter-library Research'}</td>
-                        <td className="py-3.5 px-4 text-xs text-slate-600 whitespace-nowrap font-medium">
-                          {formatDateTimeWithRelative(request.borrow_request?.created_at || request.created_at)}
+
+                        {/* Book Details */}
+                        <td className="py-1.5 px-2 text-slate-700 min-w-[140px] max-w-[190px]">
+                          <div className="w-full max-w-[175px] min-w-0 overflow-hidden">
+                            <div className="font-bold text-slate-900 truncate text-[11px]" title={firstBook.title || 'Book Title'}>
+                              {firstBook.title || (bookCount > 0 ? `${bookCount} Book(s)` : 'General Request')}
+                            </div>
+                            {firstBook.author && (
+                              <div className="text-[10px] text-slate-500 truncate" title={firstBook.author}>
+                                {firstBook.author}
+                              </div>
+                            )}
+                            {bookCount > 1 && (
+                              <span className="inline-flex items-center text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded mt-0.5">
+                                +{bookCount - 1} more book{bookCount > 2 ? 's' : ''}
+                              </span>
+                            )}
+                          </div>
                         </td>
-                        <td className="py-3.5 px-4">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold capitalize ${getStatusColor(itemStatus)}`}>
-                            {itemStatus}
-                          </span>
+
+                        {/* Purpose */}
+                        <td className="py-1.5 px-2 text-slate-600 text-[10px] min-w-[95px] max-w-[130px]">
+                          <div className="truncate max-w-[115px]" title={purpose}>
+                            {purpose}
+                          </div>
                         </td>
-                        <td className="py-4 px-4">
-                          <div className="flex gap-2">
+
+                        {/* Requested At */}
+                        <td className="py-1.5 px-2 text-slate-600 whitespace-nowrap min-w-[95px] text-[10px]">
+                          <div title={formatDateTimeWithRelative(requestedAt)} className="cursor-default">
+                            <div className="font-mono text-slate-700 text-[11px]">
+                              {formatPhilippineDate(requestedAt)}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-1.5 px-2 whitespace-nowrap min-w-[80px]">
+                          <StatusBadge status={itemStatus} />
+                        </td>
+
+                        {/* Actions */}
+                        <td className="py-1.5 px-2 text-right whitespace-nowrap w-16">
+                          <div className="flex items-center justify-end gap-1">
+                            {/* View Full Details Button */}
                             <button
-                              onClick={() => handleViewDetails(request.borrow_request || request)}
-                              className="p-2 hover:bg-blue-100 rounded-lg transition-colors"
-                              title="View Details"
+                              type="button"
+                              onClick={() => handleViewDetails(parentReq)}
+                              className="p-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-blue-600 transition-colors shadow-2xs"
+                              title="View Full Request Details"
                             >
-                              <FiEye className="w-4 h-4 text-blue-600" />
+                              <FiEye className="w-3.5 h-3.5" />
                             </button>
-                            <button
-                              onClick={() => handleApproveClick(requestId)}
-                              className="p-2 hover:bg-green-100 rounded-lg transition-colors"
-                              title="Approve"
-                            >
-                              <FiCheckCircle className="w-4 h-4 text-green-600" />
-                            </button>
-                            <button
-                              onClick={() => handleRejectClick(requestId)}
-                              className="p-2 hover:bg-red-100 rounded-lg transition-colors"
-                              title="Reject"
-                            >
-                              <FiXCircle className="w-4 h-4 text-red-600" />
-                            </button>
+
+                            {/* Status === pending: Approve / Decline */}
+                            {itemStatus === 'pending' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveClick(requestId)}
+                                  className="p-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-all active:scale-95"
+                                  title="Approve Inter-School Request"
+                                >
+                                  <FiCheckCircle className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRejectClick(requestId)}
+                                  className="p-1.5 rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors shadow-2xs"
+                                  title="Decline Request"
+                                >
+                                  <FiXCircle className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1889,12 +2699,12 @@ function AdminBorrowRequests() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="text-left py-4 px-4 text-sm font-semibold text-slate-700">Request ID</th>
-                    <th className="text-left py-4 px-4 text-sm font-semibold text-slate-700">Student</th>
-                    <th className="text-left py-4 px-4 text-sm font-semibold text-slate-700">Reserved Books</th>
-                    <th className="text-left py-4 px-4 text-sm font-semibold text-slate-700">Cancellation Reason</th>
-                    <th className="text-left py-4 px-4 text-sm font-semibold text-slate-700">Date</th>
-                    <th className="text-left py-4 px-4 text-sm font-semibold text-slate-700">Actions</th>
+                    <th className="text-left py-1.5 px-2 text-[10px] font-bold text-slate-600 uppercase tracking-wider">Request ID</th>
+                    <th className="text-left py-1.5 px-2 text-[10px] font-bold text-slate-600 uppercase tracking-wider">Student</th>
+                    <th className="text-left py-1.5 px-2 text-[10px] font-bold text-slate-600 uppercase tracking-wider">Reserved Books</th>
+                    <th className="text-left py-1.5 px-2 text-[10px] font-bold text-slate-600 uppercase tracking-wider">Reason</th>
+                    <th className="text-left py-1.5 px-2 text-[10px] font-bold text-slate-600 uppercase tracking-wider">Date</th>
+                    <th className="text-left py-1.5 px-2 text-[10px] font-bold text-slate-600 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1906,65 +2716,65 @@ function AdminBorrowRequests() {
                     const isProcessing = cancellationProcessing && cancellationRequestToProcess?.request_id === request.request_id;
 
                     return (
-                      <tr key={request.request_id} className="border-b border-slate-100 hover:bg-amber-50/30 transition-colors">
-                        <td className="py-4 px-4 text-sm font-medium text-slate-900">
+                      <tr key={request.request_id} className="border-b border-slate-100 hover:bg-amber-50/30 transition-colors text-[11px]">
+                        <td className="py-1.5 px-2 font-mono font-medium text-slate-900 text-[10px]">
                           <div>{request.request_id}</div>
                           {request.isInterSchool && (
-                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
+                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-800">
                               Inter-School
                             </span>
                           )}
                         </td>
-                        <td className="py-4 px-4 text-sm text-slate-700">
-                          <div className="flex items-center gap-2.5">
+                        <td className="py-1.5 px-2 text-slate-700">
+                          <div className="flex items-center gap-1.5">
                             {studentIdentity.profilePicture ? (
                               <img
                                 src={getBackendAssetUrl(studentIdentity.profilePicture)}
                                 alt={studentIdentity.name}
-                                className="w-9 h-9 rounded-xl object-cover border border-slate-200/80 shadow-2xs shrink-0"
+                                className="w-7 h-7 rounded-lg object-cover border border-slate-200/80 shadow-2xs shrink-0"
                                 onError={(e) => {
                                   e.currentTarget.style.display = 'none';
                                   if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
                                 }}
                               />
                             ) : null}
-                            <div className={`w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs border border-white/20 ${studentIdentity.profilePicture ? 'hidden' : 'flex'}`}>
+                            <div className={`w-7 h-7 rounded-lg bg-gradient-to-tr from-amber-500 to-orange-600 text-white font-black text-[9px] flex items-center justify-center shrink-0 shadow-2xs border border-white/20 ${studentIdentity.profilePicture ? 'hidden' : 'flex'}`}>
                               {(studentIdentity.name || 'S').charAt(0).toUpperCase()}
                             </div>
                             <div className="min-w-0">
-                              <div className="font-medium text-slate-900 truncate">
+                              <div className="font-medium text-slate-900 truncate text-[11px]">
                                 {studentIdentity.name}
                               </div>
-                              <div className="text-xs text-slate-500 font-mono">{student.student_number || student.student_id || ''}</div>
+                              <div className="text-[10px] text-slate-500 font-mono">{student.student_number || student.student_id || ''}</div>
                             </div>
                           </div>
                         </td>
-                        <td className="py-4 px-4 text-sm text-slate-700">
-                          <div className="space-y-1 max-w-xs">
+                        <td className="py-1.5 px-2 text-slate-700">
+                          <div className="space-y-0.5 max-w-[160px]">
                             {bookItems.map((itm, i) => (
-                              <div key={i} className="flex items-center gap-1.5 text-xs text-slate-800 truncate">
-                                <FiBook className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                              <div key={i} className="flex items-center gap-1 text-[10px] text-slate-800 truncate">
+                                <FiBook className="w-3 h-3 text-blue-500 shrink-0" />
                                 <span className="truncate font-medium">{itm.book?.title || itm.title || `Book ID: ${itm.book_id}`}</span>
                               </div>
                             ))}
                           </div>
                         </td>
-                        <td className="py-4 px-4 text-sm">
-                          <div className="rounded-lg bg-amber-50 border border-amber-200/80 p-2.5 max-w-sm">
-                            <p className="text-xs font-semibold text-amber-900 leading-snug">{reason}</p>
+                        <td className="py-1.5 px-2">
+                          <div className="rounded-md bg-amber-50 border border-amber-200/80 px-2 py-1 max-w-[180px]">
+                            <p className="text-[10px] font-semibold text-amber-900 leading-snug">{reason}</p>
                           </div>
                         </td>
-                        <td className="py-4 px-4 text-xs text-slate-600 whitespace-nowrap font-medium">
+                        <td className="py-1.5 px-2 text-[10px] text-slate-600 whitespace-nowrap font-medium">
                           {formatDateTimeWithRelative(request.created_at)}
                         </td>
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-2">
+                        <td className="py-1.5 px-2">
+                          <div className="flex items-center gap-1">
                             <button
                               onClick={() => handleViewDetails(request)}
-                              className="p-2 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors"
+                              className="p-1 hover:bg-blue-50 rounded-md text-blue-600 transition-colors"
                               title="View Details"
                             >
-                              <FiEye className="w-4 h-4" />
+                              <FiEye className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => {
@@ -1972,11 +2782,10 @@ function AdminBorrowRequests() {
                                 setShowConfirmCancelModal(true);
                               }}
                               disabled={isProcessing}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition active:scale-95 shadow-sm disabled:opacity-50"
+                              className="p-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white transition active:scale-95 shadow-sm disabled:opacity-50"
                               title="Confirm cancellation and release copy back to catalog"
                             >
                               <FiCheckCircle className="w-3.5 h-3.5" />
-                              Confirm
                             </button>
                             <button
                               onClick={() => {
@@ -1985,11 +2794,10 @@ function AdminBorrowRequests() {
                                 setShowDeclineCancelModal(true);
                               }}
                               disabled={isProcessing}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition active:scale-95 disabled:opacity-50"
+                              className="p-1.5 rounded-md border border-slate-300 hover:bg-slate-100 text-rose-600 transition active:scale-95 disabled:opacity-50"
                               title="Decline cancellation and maintain reservation"
                             >
-                              <FiXCircle className="w-3.5 h-3.5 text-rose-500" />
-                              Decline
+                              <FiXCircle className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </td>
@@ -2458,11 +3266,33 @@ function AdminBorrowRequests() {
               })()}
 
               {/* Context message */}
-              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mb-6">
+              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mb-4">
                 <p className="text-sm text-emerald-900 leading-relaxed">
                   You are about to <span className="font-bold">approve</span> this borrow request. The student will be notified and allowed to proceed with picking up the requested books from the library.
                 </p>
               </div>
+
+              {/* Pickup Hold Window Info */}
+              {(() => {
+                const holdDeadline = new Date();
+                holdDeadline.setDate(holdDeadline.getDate() + (pickupHoldDays || 3));
+                return (
+                  <div className="rounded-2xl border border-emerald-200/90 bg-emerald-50/60 p-3.5 mb-4 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between text-emerald-950 font-bold">
+                      <span className="flex items-center gap-1.5">
+                        <FiPackage className="w-4 h-4 text-emerald-700" />
+                        Pickup Hold Window:
+                      </span>
+                      <span className="font-mono text-emerald-800 bg-white px-2 py-0.5 rounded-md border border-emerald-200 font-bold">
+                        {pickupHoldDays} Calendar Days
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-emerald-800 leading-relaxed">
+                      Student will have until <strong>{formatPhilippineDate(holdDeadline)}</strong> to claim their books at the circulation counter before hold auto-expires.
+                    </p>
+                  </div>
+                );
+              })()}
 
               {/* Info row */}
               <div className="flex items-center gap-2 text-xs text-slate-500 mb-6 px-1">
@@ -2539,10 +3369,39 @@ function AdminBorrowRequests() {
               </div>
 
               {/* Warning message */}
-              <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 mb-5">
+              <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 mb-4">
                 <p className="text-sm text-rose-900 leading-relaxed">
                   You are about to <span className="font-bold">decline</span> this request. The student will be notified and may need to resubmit a new borrow request.
                 </p>
+              </div>
+
+              {/* Quick-select standard reason chips */}
+              <div className="mb-3">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Quick-select common reason:
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    "All physical copies currently loaned out",
+                    "Copy undergoing repair / binding maintenance",
+                    "Student has overdue loans or unsettled fines",
+                    "Student ID credentials unverified or unclear",
+                    "Reserved for institutional or faculty reference"
+                  ].map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() => setDeclineReason(chip)}
+                      className={`text-[11px] px-2.5 py-1 rounded-lg border text-left transition-all ${
+                        declineReason === chip
+                          ? 'bg-rose-100 text-rose-800 border-rose-300 font-bold shadow-2xs'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Reason textarea — required */}
@@ -2553,9 +3412,9 @@ function AdminBorrowRequests() {
                 <textarea
                   value={declineReason}
                   onChange={(e) => setDeclineReason(e.target.value.slice(0, 300))}
-                  placeholder="e.g. Book is currently reserved for another borrower, insufficient identification, policy violation..."
+                  placeholder="Select a reason chip above or type custom reason..."
                   rows={3}
-                  className="w-full rounded-xl border-2 border-slate-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none text-sm text-slate-800 placeholder:text-slate-400 px-3.5 py-3 resize-none transition-all duration-150"
+                  className="w-full rounded-xl border-2 border-slate-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none text-sm text-slate-800 placeholder:text-slate-400 px-3.5 py-2.5 resize-none transition-all duration-150"
                 />
                 <div className="flex justify-between items-center mt-1.5">
                   <p className="text-[11px] text-slate-400">This message will be sent to the student as notification.</p>
@@ -2594,6 +3453,249 @@ function AdminBorrowRequests() {
               {declineReason.trim().length > 0 && declineReason.trim().length < 5 && (
                 <p className="text-xs text-rose-500 mt-2 text-center">Please enter at least 5 characters for the reason.</p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════
+           CIRCULATION DESK RETURN INSPECTION MODAL
+          ══════════════════════════════════════════════════════════ */}
+      {showReturnInspectionModal && loanToInspect && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+          style={{ animation: 'fadeInOverlay 0.2s ease-out' }}
+          onClick={() => { if (!returnInspectionProcessing) setShowReturnInspectionModal(false); }}
+        >
+          <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-md" />
+
+          <div
+            className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100"
+            style={{ animation: 'slideUpScale 0.25s cubic-bezier(0.34,1.56,0.64,1)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="h-1.5 w-full bg-gradient-to-r from-blue-500 via-indigo-600 to-cyan-500" />
+
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold">
+                  <FiCheckCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 leading-tight">Return & Catalog Check-in</h3>
+                  <p className="text-[11px] text-slate-500">Inspect condition, review fines, and restock copy</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowReturnInspectionModal(false)}
+                disabled={returnInspectionProcessing}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+              >
+                <FiX className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              {/* Book & Borrower Summary Card */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-bold text-slate-900 truncate">
+                      {loanToInspect.book?.title || 'Book Title'}
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      {loanToInspect.book?.author ? `by ${loanToInspect.book.author}` : 'Unknown Author'}
+                    </p>
+                  </div>
+                  {loanToInspect.book_copies?.accession_number && (
+                    <span className="font-mono text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md font-bold shrink-0">
+                      Acc: {loanToInspect.book_copies.accession_number}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/60 text-[11px]">
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">Borrower</span>
+                    <span className="font-semibold text-slate-800">
+                      {loanToInspect.student?.firstname ? `${loanToInspect.student.firstname} ${loanToInspect.student.lastname}` : 'Student'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">Due Date</span>
+                    <span className={`font-bold ${loanToInspect.dueStatus?.textClass}`}>
+                      {formatPhilippineDate(loanToInspect.due_date)} ({loanToInspect.dueStatus?.label})
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Due Status & Overdue Fine Section */}
+              {loanToInspect.dueStatus?.isOverdue ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-3.5 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-rose-900">
+                    <span className="flex items-center gap-1.5">
+                      <FiAlertTriangle className="w-4 h-4 text-rose-600" />
+                      Overdue by {loanToInspect.dueStatus.daysOverdue} calendar day{loanToInspect.dueStatus.daysOverdue !== 1 ? 's' : ''}
+                    </span>
+                    <span className="font-mono text-rose-700 text-sm">
+                      ₱{(loanToInspect.dueStatus.daysOverdue * 5).toFixed(2)}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-rose-800">
+                    Standard rate: ₱5.00/day. You may adjust or waive the fine below for excused clearance:
+                  </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <label className="text-xs font-bold text-rose-900">Assessed Fine (₱):</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={manualFineAmount}
+                      onChange={(e) => setManualFineAmount(e.target.value)}
+                      className="w-24 rounded-lg border border-rose-300 bg-white px-2 py-1 text-xs font-bold text-rose-900 focus:outline-none focus:ring-2 focus:ring-rose-400"
+                    />
+                    {parseFloat(manualFineAmount) === 0 && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                        Waived
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs flex items-center justify-between text-emerald-800 font-semibold">
+                  <div className="flex items-center gap-2">
+                    <FiCheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Returned On Time (No Overdue Fines)</span>
+                  </div>
+                  <span className="font-mono font-bold text-emerald-700">₱0.00</span>
+                </div>
+              )}
+
+              {/* Physical Condition Checklist */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Book Condition Grading:
+                </label>
+                <div className="grid grid-cols-3 gap-2 text-xs font-semibold">
+                  {[
+                    { id: 'good', label: 'Good / Intact', badge: 'No Damage' },
+                    { id: 'minor', label: 'Minor Wear', badge: 'Acceptable' },
+                    { id: 'damaged', label: 'Damaged', badge: 'Penalty' },
+                  ].map((cond) => (
+                    <button
+                      key={cond.id}
+                      type="button"
+                      onClick={() => {
+                        setReturnCondition(cond.id);
+                        if (cond.id === 'damaged' && damageFee === '0') {
+                          setDamageFee('50');
+                        } else if (cond.id !== 'damaged') {
+                          setDamageFee('0');
+                        }
+                      }}
+                      className={`rounded-2xl border p-2.5 text-center transition flex flex-col items-center gap-1 ${
+                        returnCondition === cond.id
+                          ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold shadow-xs ring-1 ring-blue-500'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{cond.label}</span>
+                      <span className={`text-[9px] px-1.5 py-0.2 rounded-md ${
+                        cond.id === 'good' ? 'bg-emerald-100 text-emerald-800' : cond.id === 'minor' ? 'bg-slate-100 text-slate-700' : 'bg-rose-100 text-rose-800'
+                      }`}>
+                        {cond.badge}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {returnCondition === 'damaged' && (
+                  <div className="mt-2 rounded-2xl border border-rose-200 bg-rose-50/70 p-3 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between text-rose-900 font-bold">
+                      <span>Damage / Defacement Fee:</span>
+                      <div className="flex items-center gap-1">
+                        <span>₱</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={damageFee}
+                          onChange={(e) => setDamageFee(e.target.value)}
+                          className="w-20 rounded-lg border border-rose-300 bg-white px-2 py-0.5 text-xs font-bold text-rose-900 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-rose-700">
+                      Covers torn pages, liquid spills, or binding repairs.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Total Fee & Counter Settlement */}
+              {(parseFloat(manualFineAmount) > 0 || parseFloat(damageFee) > 0) && (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs space-y-2">
+                  <div className="flex items-center justify-between text-slate-900 font-extrabold text-sm">
+                    <span>Total Fees Assessed:</span>
+                    <span className="font-mono text-blue-700 text-base">
+                      ₱{((parseFloat(manualFineAmount) || 0) + (parseFloat(damageFee) || 0)).toFixed(2)}
+                    </span>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer pt-1">
+                    <input
+                      type="checkbox"
+                      checked={isFinePaid}
+                      onChange={(e) => setIsFinePaid(e.target.checked)}
+                      className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
+                    />
+                    <span>Settled and paid by student at circulation desk</span>
+                  </label>
+                </div>
+              )}
+
+              {/* Inspection Remarks */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Inspection Remarks <span className="text-slate-400 font-normal">(Optional)</span>:
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Pages intact, barcode scanned, condition verified..."
+                  value={returnRemarks}
+                  onChange={(e) => setReturnRemarks(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowReturnInspectionModal(false)}
+                disabled={returnInspectionProcessing}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-100 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReturnInspection}
+                disabled={returnInspectionProcessing}
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+              >
+                {returnInspectionProcessing ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Checking In...</span>
+                  </>
+                ) : (
+                  <>
+                    <FiCheckCircle className="w-4 h-4" />
+                    <span>Complete Return & Restock</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -3043,11 +4145,7 @@ function AdminBorrowRequests() {
                         const bookCover = book.cover_image || booksData[borrow.book_id]?.cover_image || borrow.book_copies?.books?.cover_image;
                         const studentAvatar = student.profile_image || student.profile_picture || student.avatar || student.avatar_url || studentsData[borrow.student_id]?.profile_image || studentsData[borrow.student_id]?.profile_picture;
                         const schoolName = book.schools?.school_name || schoolsMap[book.school_id]?.school_name || '';
-                        const dueDate = new Date(borrow.due_date);
-                        const today = new Date();
-                        const isOverdue = dueDate < today;
-                        const isDueSoon = !isOverdue && (dueDate.getTime() - today.getTime()) <= (2 * 24 * 60 * 60 * 1000);
-                        const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+                        const dueStatus = getDueStatusDetails(borrow.due_date);
                         const studentFullName = student.firstname ? `${student.firstname} ${student.lastname}` : (student.name || 'Student Borrower');
                         
                         return (
@@ -3135,7 +4233,7 @@ function AdminBorrowRequests() {
                                 {formatPhilippineDate(borrow.borrow_date)}
                               </p>
                               <p className="text-[10px] text-slate-400">
-                                {formatDateTimeWithRelative(borrow.borrow_date)}
+                                {formatTimeWithRelative(borrow.borrow_date)}
                               </p>
                             </td>
 
@@ -3143,30 +4241,20 @@ function AdminBorrowRequests() {
                             <td className="px-3 py-2.5 whitespace-nowrap">
                               <div className="space-y-0.5">
                                 <div className="flex items-center gap-1">
-                                  <FiClock className={`w-3 h-3 ${isOverdue ? 'text-rose-500' : (isDueSoon ? 'text-amber-500' : 'text-slate-400')}`} />
-                                  <span className={`text-xs font-bold ${isOverdue ? 'text-rose-600' : (isDueSoon ? 'text-amber-600' : 'text-slate-900')}`}>
-                                    {formatPhilippineDate(dueDate)}
+                                  <FiClock className={`w-3 h-3 ${dueStatus.textClass}`} />
+                                  <span className={`text-xs font-bold ${dueStatus.textClass}`}>
+                                    {formatPhilippineDate(borrow.due_date)}
                                   </span>
                                 </div>
-                                {isOverdue ? (
-                                  <span className="inline-block px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-50 border border-rose-200 text-rose-700">
-                                    {daysOverdue}d Overdue
-                                  </span>
-                                ) : isDueSoon ? (
-                                  <span className="inline-block px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 border border-amber-200 text-amber-700">
-                                    Due Soon
-                                  </span>
-                                ) : (
-                                  <span className="inline-block px-1.5 py-0.2 rounded text-[9px] font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700">
-                                    Active
-                                  </span>
-                                )}
+                                <span className={`inline-block px-1.5 py-0.2 rounded text-[9px] font-bold ${dueStatus.badgeClass}`}>
+                                  {dueStatus.label}
+                                </span>
                               </div>
                             </td>
 
                             {/* Status */}
                             <td className="px-2.5 py-2.5 whitespace-nowrap">
-                              <StatusBadge status={isOverdue ? 'overdue' : (isDueSoon ? 'due soon' : 'active')} />
+                              <StatusBadge status={dueStatus.status === 'due_today' ? 'due soon' : dueStatus.status} />
                             </td>
 
                             {/* Action */}
@@ -3177,9 +4265,9 @@ function AdminBorrowRequests() {
                                   onClick={() => handleSendStudentReminder(borrow, book, student)}
                                   disabled={sendingReminderId === borrow.borrow_id}
                                   className={`text-[11px] px-2.5 py-1 font-bold rounded-lg border transition-all active:scale-95 flex items-center gap-1 shadow-2xs ${
-                                    isOverdue
+                                    dueStatus.isOverdue
                                       ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
-                                      : isDueSoon
+                                      : dueStatus.isDueSoon
                                       ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
                                       : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                                   }`}
@@ -3190,26 +4278,17 @@ function AdminBorrowRequests() {
                                   ) : (
                                     <FiBell className="w-3 h-3 text-amber-600" />
                                   )}
-                                  <span>{isOverdue ? 'Notify Overdue' : 'Remind Due'}</span>
+                                  <span>{dueStatus.isOverdue ? 'Notify Overdue' : dueStatus.isDueToday ? 'Remind Due Today' : 'Remind Due'}</span>
                                 </button>
 
                                 <Button
                                   size="sm"
-                                  onClick={() => handleReturnBook(borrow.borrow_id, book.title || 'Book', studentFullName)}
-                                  disabled={returningBookId === borrow.borrow_id}
+                                  onClick={() => handleOpenReturnModal(borrow, book, student)}
+                                  disabled={returnInspectionProcessing}
                                   className="text-xs px-2.5 py-1 font-bold shadow-xs hover:shadow-sm transition-all active:scale-95 whitespace-nowrap"
                                 >
-                                  {returningBookId === borrow.borrow_id ? (
-                                    <>
-                                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1" />
-                                      <span>Returning...</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <FiCheckCircle className="w-3.5 h-3.5 mr-1" />
-                                      <span>Return</span>
-                                    </>
-                                  )}
+                                  <FiCheckCircle className="w-3.5 h-3.5 mr-1" />
+                                  <span>Return</span>
                                 </Button>
                               </div>
                             </td>
@@ -3222,6 +4301,419 @@ function AdminBorrowRequests() {
             </div>
           )}
         </Card>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
+           CIRCULATION HISTORY QUEUE (RETURNED & COMPLETED LOANS)
+          ══════════════════════════════════════════════════════════════ */}
+      {activeRequestTab === 'history' && (
+        <div className="rounded-2xl border border-slate-200/90 bg-white shadow-xs overflow-hidden">
+          {/* Header with Title, Search, Date Filter, and Type Filter */}
+          <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/50 space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <FiClock className="w-4 h-4 text-purple-600" />
+                  <span>Circulation History & Completed Records</span>
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                    {circulationHistoryRecords.length} {circulationHistoryRecords.length === 1 ? 'record' : 'records'}
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Complete archive of returned books, inspected check-ins, and cancelled borrow transactions with timestamps
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    fetchBorrowRequests();
+                    fetchInterSchoolRequests();
+                    fetchActiveBorrows();
+                  }}
+                  disabled={borrowRequestsLoading}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition disabled:opacity-50"
+                  title="Refresh history records"
+                >
+                  <FiRefreshCw className={`w-3.5 h-3.5 text-purple-600 ${borrowRequestsLoading ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Controls Bar: Type Filter, Search, and Date Presets */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pt-1">
+              {/* Left: Type Toggle & Search */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 max-w-xl">
+                {/* Type Filter Pills */}
+                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setHistoryTypeFilter('all')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                      historyTypeFilter === 'all'
+                        ? 'bg-slate-900 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    All Types
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryTypeFilter('returned')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                      historyTypeFilter === 'returned'
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    <FiCheckCircle className="w-3 h-3" />
+                    <span>Returned</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryTypeFilter('cancelled')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                      historyTypeFilter === 'cancelled'
+                        ? 'bg-rose-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    <FiXCircle className="w-3 h-3" />
+                    <span>Cancelled</span>
+                  </button>
+                </div>
+
+                {/* Instant Search Bar */}
+                <div className="relative flex-1">
+                  <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search history by student, ID, book title..."
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 pl-8 pr-7 py-1.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 bg-white shadow-2xs transition"
+                  />
+                  {historySearch && (
+                    <button
+                      type="button"
+                      onClick={() => setHistorySearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      title="Clear search"
+                    >
+                      <FiX className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Right: Date Filter Presets */}
+              <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto">
+                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 px-1.5 flex items-center gap-1">
+                    <FiCalendar className="w-3 h-3 text-slate-400" /> Date:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryDatePreset('all')}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                      historyDatePreset === 'all'
+                        ? 'bg-slate-900 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    All Time
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryDatePreset('today')}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                      historyDatePreset === 'today'
+                        ? 'bg-purple-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryDatePreset('this_week')}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                      historyDatePreset === 'this_week'
+                        ? 'bg-purple-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    This Week
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryDatePreset('this_month')}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                      historyDatePreset === 'this_month'
+                        ? 'bg-purple-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    This Month
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryDatePreset('custom')}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                      historyDatePreset === 'custom'
+                        ? 'bg-purple-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    Custom
+                  </button>
+                </div>
+
+                {historyDatePreset === 'custom' && (
+                  <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 py-1 shadow-2xs">
+                    <input
+                      type="date"
+                      value={historyDateStart}
+                      onChange={(e) => setHistoryDateStart(e.target.value)}
+                      className="bg-transparent text-xs text-slate-700 outline-none font-medium"
+                    />
+                    <span className="text-slate-400 text-xs">-</span>
+                    <input
+                      type="date"
+                      value={historyDateEnd}
+                      onChange={(e) => setHistoryDateEnd(e.target.value)}
+                      className="bg-transparent text-xs text-slate-700 outline-none font-medium"
+                    />
+                    {(historyDateStart || historyDateEnd) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHistoryDateStart('');
+                          setHistoryDateEnd('');
+                        }}
+                        className="text-slate-400 hover:text-slate-600 ml-0.5"
+                      >
+                        <FiX className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {borrowRequestsLoading ? (
+            <div className="text-center py-16 text-slate-500">
+              <div className="w-7 h-7 border-2 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+              <p className="text-xs font-medium">Fetching history records...</p>
+            </div>
+          ) : circulationHistoryRecords.length === 0 ? (
+            <div className="py-16 px-6 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center mx-auto mb-3 text-purple-600">
+                <FiClock className="w-8 h-8" />
+              </div>
+              <h4 className="text-base font-bold text-slate-800">
+                {historySearch || historyDatePreset !== 'all' || historyTypeFilter !== 'all' ? 'No Matching Records Found' : 'No History Records Yet'}
+              </h4>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+                {historySearch || historyDatePreset !== 'all' || historyTypeFilter !== 'all'
+                  ? 'No circulation records match your search or date filter. Reset filters to see all completed transactions.'
+                  : 'Returned books and cancelled requests will be recorded here automatically.'}
+              </p>
+              {(historySearch || historyDatePreset !== 'all' || historyTypeFilter !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHistorySearch('');
+                    setHistoryDatePreset('all');
+                    setHistoryDateStart('');
+                    setHistoryDateEnd('');
+                    setHistoryTypeFilter('all');
+                  }}
+                  className="mt-3 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition"
+                >
+                  Reset Date & Filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="w-full overflow-x-auto">
+              <table className="w-full table-auto text-left border-collapse">
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-slate-200 bg-slate-50/90 backdrop-blur-xs text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="py-1.5 px-2 whitespace-nowrap w-24">Record ID</th>
+                    <th className="py-1.5 px-2 min-w-[150px] max-w-[190px]">Borrower</th>
+                    <th className="py-1.5 px-2 min-w-[140px] max-w-[190px]">Book Details</th>
+                    <th className="py-1.5 px-2 min-w-[130px] max-w-[165px]">Campus Origin</th>
+                    <th className="py-1.5 px-2 whitespace-nowrap min-w-[110px]">Completed Date</th>
+                    <th className="py-1.5 px-2 whitespace-nowrap min-w-[100px]">Condition / Fines</th>
+                    <th className="py-1.5 px-2 whitespace-nowrap min-w-[80px]">Status</th>
+                    <th className="py-1.5 px-2 text-right whitespace-nowrap w-14">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {circulationHistoryRecords.map((record) => {
+                    const student = record.student || {};
+                    const studentIdentity = getRequestStudentIdentity(record);
+                    const homeSchool = record.home_school || record.school || {};
+                    const items = record.items || [];
+                    const bookCount = items.length || 0;
+                    const firstBook = items[0]?.book || booksData[record.book_id] || {};
+                    const status = String(record.status || '').toLowerCase();
+                    const studentIdPic = record.id_picture_url || record.id_photo_url || student.id_picture_url || student.profile_image || student.profile_picture;
+                    const completedDate = record.return_date || record.updated_at || record.created_at;
+                    const hasFine = Number(record.fine_amount || record.damage_fee || 0) > 0;
+                    const fineAmount = record.fine_amount || record.damage_fee || '0';
+
+                    return (
+                      <tr key={`${record.request_id || record.borrow_id}-${record._queueSource}`} className="hover:bg-purple-50/20 transition-colors text-[11px]">
+                        {/* Record ID */}
+                        <td className="py-1.5 px-2 font-mono font-bold text-purple-700 whitespace-nowrap text-[10px] w-24">
+                          {record.request_id || record.borrow_id}
+                        </td>
+
+                        {/* Borrower Student with Clickable Physical School ID Picture */}
+                        <td className="py-1.5 px-2 min-w-[150px] max-w-[190px]">
+                          <div className="flex items-center gap-1.5">
+                            {/* Rectangular School ID Card Preview */}
+                            <div 
+                              onClick={() => setZoomIdModal({
+                                isOpen: true,
+                                imageUrl: studentIdPic,
+                                studentName: studentIdentity.name,
+                                studentNumber: student.student_number || record.student_id || 'N/A',
+                                schoolName: homeSchool.school_name || 'Campus'
+                              })}
+                              className="relative w-10 h-7 rounded-md overflow-hidden cursor-pointer group shrink-0 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-purple-500 transition-all bg-slate-100 flex items-center justify-center"
+                              title="Click to zoom physical School ID card"
+                            >
+                              {studentIdPic ? (
+                                <img
+                                  src={getBackendAssetUrl(studentIdPic)}
+                                  alt={`${studentIdentity.name}'s School ID`}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
+                                  }}
+                                />
+                              ) : null}
+                              <div className={`w-full h-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white font-black text-[8px] flex flex-col items-center justify-center ${studentIdPic ? 'hidden' : 'flex'}`}>
+                                <span>ID</span>
+                              </div>
+                              <div className="absolute top-0.5 left-0.5 bg-slate-900/80 text-white text-[7px] font-black px-0.5 rounded-xs leading-tight tracking-tighter backdrop-blur-xs pointer-events-none">
+                                ID
+                              </div>
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                <FiMaximize2 className="w-2 h-2" />
+                              </div>
+                            </div>
+
+                            <div className="min-w-0 max-w-[115px]">
+                              <div className="font-bold text-slate-900 truncate text-[11px]" title={studentIdentity.name}>
+                                {studentIdentity.name}
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-mono truncate">
+                                {student.student_number || record.student_id || 'No ID'}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Book Details */}
+                        <td className="py-1.5 px-2 text-slate-700 min-w-[140px] max-w-[190px]">
+                          <div className="w-full max-w-[175px] min-w-0 overflow-hidden">
+                            <div className="font-bold text-slate-900 truncate text-[11px]" title={firstBook.title || 'Book Title'}>
+                              {firstBook.title || (bookCount > 0 ? `${bookCount} Book(s)` : 'General Request')}
+                            </div>
+                            {firstBook.author && (
+                              <div className="text-[10px] text-slate-500 truncate" title={firstBook.author}>
+                                {firstBook.author}
+                              </div>
+                            )}
+                            {bookCount > 1 && (
+                              <span className="inline-flex items-center text-[9px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.2 rounded mt-0.5">
+                                +{bookCount - 1} more book{bookCount > 2 ? 's' : ''}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Campus Origin - Truncated cleanly to prevent any overlap */}
+                        <td className="py-1.5 px-2 text-slate-600 min-w-[130px] max-w-[165px]">
+                          <div className="w-full max-w-[150px] min-w-0 overflow-hidden">
+                            <div className="truncate text-[11px] font-semibold text-slate-800" title={homeSchool.school_name || 'Campus'}>
+                              {homeSchool.school_name || 'Campus Library'}
+                            </div>
+                            <span className={`inline-block px-1.5 py-0.2 rounded text-[9px] font-bold mt-0.5 ${
+                              record._queueSource === 'inter-school' 
+                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' 
+                                : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {record._queueSource === 'inter-school' ? 'Inter-School' : 'Local Home'}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Completed Date */}
+                        <td className="py-1.5 px-2 text-slate-600 whitespace-nowrap min-w-[110px] text-[10px]">
+                          <div title={formatDateTimeWithRelative(completedDate)} className="cursor-default">
+                            <div className="font-mono text-slate-800 text-[11px] font-semibold">
+                              {formatPhilippineDate(completedDate)}
+                            </div>
+                            <div className="text-[9px] text-slate-400 font-medium">
+                              {formatTimeWithRelative(completedDate)}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Condition / Fines */}
+                        <td className="py-1.5 px-2 whitespace-nowrap min-w-[100px]">
+                          <div className="space-y-0.5">
+                            {hasFine ? (
+                              <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 font-bold text-[10px]">
+                                <span>₱{Number(fineAmount).toFixed(2)}</span>
+                                <span className="text-[9px] font-normal text-rose-600">fine</span>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[9px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                <FiCheck className="w-3 h-3" /> No Fines
+                              </span>
+                            )}
+                            {record.return_condition && (
+                              <div className="text-[9px] text-slate-500 capitalize truncate max-w-[95px]">
+                                Condition: <span className="font-semibold text-slate-700">{record.return_condition}</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-1.5 px-2 whitespace-nowrap">
+                          <StatusBadge status={status} />
+                        </td>
+
+                        {/* Actions */}
+                        <td className="py-1.5 px-2 text-right whitespace-nowrap w-14">
+                          <button
+                            type="button"
+                            onClick={() => handleViewDetails(record)}
+                            className="p-1 rounded-md border border-slate-200 text-slate-700 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-300 transition-all shadow-2xs"
+                            title="View Full Historical Record"
+                          >
+                            <FiEye className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ⚙️ ADJUST PICKUP HOLD DURATION SETTINGS MODAL */}
@@ -3539,11 +5031,7 @@ function AdminBorrowRequests() {
                               const bookCover = book.cover_image || booksData[borrow.book_id]?.cover_image || borrow.book_copies?.books?.cover_image;
                               const studentAvatar = student.profile_image || student.profile_picture || student.avatar || student.avatar_url || studentsData[borrow.student_id]?.profile_image || studentsData[borrow.student_id]?.profile_picture;
                               const schoolName = book.schools?.school_name || schoolsMap[book.school_id]?.school_name || '';
-                              const dueDate = new Date(borrow.due_date);
-                              const today = new Date();
-                              const isOverdue = dueDate < today;
-                              const isDueSoon = !isOverdue && (dueDate.getTime() - today.getTime()) <= (2 * 24 * 60 * 60 * 1000);
-                              const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+                              const dueStatus = getDueStatusDetails(borrow.due_date);
                               const studentFullName = student.firstname ? `${student.firstname} ${student.lastname}` : (student.name || 'Student Borrower');
 
                               return (
@@ -3650,7 +5138,7 @@ function AdminBorrowRequests() {
                                           {formatPhilippineDate(borrow.borrow_date)}
                                         </p>
                                         <p className="text-[10px] text-slate-400">
-                                          {formatDateTimeWithRelative(borrow.borrow_date)}
+                                          {formatTimeWithRelative(borrow.borrow_date)}
                                         </p>
                                       </div>
                                     </div>
@@ -3660,32 +5148,20 @@ function AdminBorrowRequests() {
                                   <td className="px-4 py-4 whitespace-nowrap">
                                     <div className="space-y-1">
                                       <div className="flex items-center gap-1.5">
-                                        <FiClock className={`w-3.5 h-3.5 ${isOverdue ? 'text-rose-500' : (isDueSoon ? 'text-amber-500' : 'text-slate-400')}`} />
-                                        <span className={`text-xs font-black ${isOverdue ? 'text-rose-600' : (isDueSoon ? 'text-amber-600' : 'text-slate-900')}`}>
-                                          {formatPhilippineDate(dueDate)}
+                                        <FiClock className={`w-3.5 h-3.5 ${dueStatus.textClass}`} />
+                                        <span className={`text-xs font-black ${dueStatus.textClass}`}>
+                                          {formatPhilippineDate(borrow.due_date)}
                                         </span>
                                       </div>
-                                      {isOverdue ? (
-                                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-[10px] font-black text-rose-700">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-                                          <span>{daysOverdue} day{daysOverdue !== 1 ? 's' : ''} Overdue</span>
-                                        </div>
-                                      ) : isDueSoon ? (
-                                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-black text-amber-700">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
-                                          <span>Due Soon</span>
-                                        </div>
-                                      ) : (
-                                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700">
-                                          <span>Active Loan</span>
-                                        </div>
-                                      )}
+                                      <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${dueStatus.badgeClass}`}>
+                                        <span>{dueStatus.label}</span>
+                                      </div>
                                     </div>
                                   </td>
 
                                   {/* Status */}
                                   <td className="px-3 py-4 whitespace-nowrap">
-                                    <StatusBadge status={isOverdue ? 'overdue' : (isDueSoon ? 'due soon' : 'active')} />
+                                    <StatusBadge status={dueStatus.status === 'due_today' ? 'due soon' : dueStatus.status} />
                                   </td>
 
                                   {/* Action */}
@@ -3696,9 +5172,9 @@ function AdminBorrowRequests() {
                                         onClick={() => handleSendStudentReminder(borrow, book, student)}
                                         disabled={sendingReminderId === borrow.borrow_id}
                                         className={`text-xs px-3 py-1.5 font-bold rounded-xl border transition-all active:scale-95 flex items-center gap-1.5 shadow-xs ${
-                                          isOverdue
+                                          dueStatus.isOverdue
                                             ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
-                                            : isDueSoon
+                                            : dueStatus.isDueSoon
                                             ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
                                             : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                                         }`}
@@ -3709,26 +5185,17 @@ function AdminBorrowRequests() {
                                         ) : (
                                           <FiBell className="w-3.5 h-3.5 text-amber-600" />
                                         )}
-                                        <span>{isOverdue ? 'Notify Overdue' : 'Remind Due'}</span>
+                                        <span>{dueStatus.isOverdue ? 'Notify Overdue' : dueStatus.isDueToday ? 'Remind Due Today' : 'Remind Due'}</span>
                                       </button>
 
                                       <Button
                                         size="sm"
-                                        onClick={() => handleReturnBook(borrow.borrow_id, book.title || 'Book', studentFullName)}
-                                        disabled={returningBookId === borrow.borrow_id}
+                                        onClick={() => handleOpenReturnModal(borrow, book, student)}
+                                        disabled={returnInspectionProcessing}
                                         className="font-bold shadow-sm hover:shadow-md transition-all active:scale-95"
                                       >
-                                        {returningBookId === borrow.borrow_id ? (
-                                          <>
-                                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" />
-                                            Returning...
-                                          </>
-                                        ) : (
-                                          <>
-                                            <FiCheckCircle className="w-4 h-4 mr-1.5" />
-                                            Return / Check-In
-                                          </>
-                                        )}
+                                        <FiCheckCircle className="w-4 h-4 mr-1.5" />
+                                        Return / Check-In
                                       </Button>
                                     </div>
                                   </td>
@@ -3744,18 +5211,14 @@ function AdminBorrowRequests() {
 
                 // Grid View Mode
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {filteredLoans.map((borrow) => {
                       const book = booksData[borrow.book_id] || borrow.book_copies?.books || {};
                       const student = studentsData[borrow.student_id] || borrow.student || {};
                       const bookCover = book.cover_image || booksData[borrow.book_id]?.cover_image || borrow.book_copies?.books?.cover_image;
                       const studentAvatar = student.profile_image || student.profile_picture || student.avatar || student.avatar_url || studentsData[borrow.student_id]?.profile_image || studentsData[borrow.student_id]?.profile_picture;
                       const schoolName = book.schools?.school_name || schoolsMap[book.school_id]?.school_name || '';
-                      const dueDate = new Date(borrow.due_date);
-                      const today = new Date();
-                      const isOverdue = dueDate < today;
-                      const isDueSoon = !isOverdue && (dueDate.getTime() - today.getTime()) <= (2 * 24 * 60 * 60 * 1000);
-                      const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+                      const dueStatus = getDueStatusDetails(borrow.due_date);
                       const studentFullName = student.firstname ? `${student.firstname} ${student.lastname}` : (student.name || 'Student Borrower');
 
                       return (
@@ -3831,7 +5294,7 @@ function AdminBorrowRequests() {
                               <p className="text-xs font-bold text-slate-900 truncate">
                                 {studentFullName}
                               </p>
-                              <p className="text-[11px] font-mono text-slate-500 truncate">
+                              <p className="font-mono text-[11px] text-slate-500 truncate">
                                 {student.student_number || `ID: ${borrow.student_id}`}
                               </p>
                             </div>
@@ -3845,48 +5308,27 @@ function AdminBorrowRequests() {
                             </div>
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-slate-500">Due Date:</span>
-                              <span className={`font-black ${isOverdue ? 'text-rose-600' : (isDueSoon ? 'text-amber-600' : 'text-slate-900')}`}>
-                                {formatPhilippineDate(dueDate)}
+                              <span className={`font-black ${dueStatus.textClass}`}>
+                                {formatPhilippineDate(borrow.due_date)}
                               </span>
                             </div>
                             <div className="flex items-center justify-between pt-1">
-                              {isOverdue ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-xs font-black text-rose-700">
-                                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                                  {daysOverdue} day{daysOverdue !== 1 ? 's' : ''} Overdue
-                                </span>
-                              ) : isDueSoon ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-black text-amber-700">
-                                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-                                  Due Soon
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700">
-                                  Active Loan
-                                </span>
-                              )}
-                              <StatusBadge status={isOverdue ? 'overdue' : (isDueSoon ? 'due soon' : 'active')} />
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${dueStatus.badgeClass}`}>
+                                {dueStatus.label}
+                              </span>
+                              <StatusBadge status={dueStatus.status === 'due_today' ? 'due soon' : dueStatus.status} />
                             </div>
                           </div>
 
                           {/* Return Button */}
                           <Button
                             size="md"
-                            onClick={() => handleReturnBook(borrow.borrow_id, book.title || 'Book', studentFullName)}
-                            disabled={returningBookId === borrow.borrow_id}
+                            onClick={() => handleOpenReturnModal(borrow, book, student)}
+                            disabled={returnInspectionProcessing}
                             className="w-full font-bold shadow-xs hover:shadow-md transition-all active:scale-98"
                           >
-                            {returningBookId === borrow.borrow_id ? (
-                              <>
-                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" />
-                                Returning Book...
-                              </>
-                            ) : (
-                              <>
-                                <FiCheckCircle className="w-4 h-4 mr-1.5" />
-                                Return / Check-In
-                              </>
-                            )}
+                            <FiCheckCircle className="w-4 h-4 mr-1.5" />
+                            Return / Check-In
                           </Button>
                         </div>
                       );
@@ -3908,6 +5350,92 @@ function AdminBorrowRequests() {
               >
                 Done
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Institutional School ID Zoom Lightbox Modal */}
+      {zoomIdModal.isOpen && (
+        <div 
+          className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+          onClick={() => setZoomIdModal(prev => ({ ...prev, isOpen: false }))}
+        >
+          <div 
+            className="relative max-w-md w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 animate-scaleUp"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-5 py-3.5 bg-gradient-to-r from-slate-900 to-blue-950 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+                  <FiMaximize2 className="w-4 h-4 text-blue-300" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm leading-tight text-white">{zoomIdModal.studentName || 'Student ID Card'}</h4>
+                  <p className="text-[11px] text-slate-300 font-mono">
+                    {zoomIdModal.studentNumber} • {zoomIdModal.schoolName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setZoomIdModal(prev => ({ ...prev, isOpen: false }))}
+                className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition"
+                title="Close ID preview"
+              >
+                <FiX className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body / Image */}
+            <div className="p-3 bg-slate-900 flex items-center justify-center min-h-[260px] max-h-[65vh] overflow-hidden">
+              {zoomIdModal.imageUrl ? (
+                <img
+                  src={getBackendAssetUrl(zoomIdModal.imageUrl)}
+                  alt={`School ID Card for ${zoomIdModal.studentName}`}
+                  className="max-h-[60vh] max-w-full rounded-xl object-contain shadow-2xl border border-slate-700/50"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              <div className={`flex-col items-center justify-center text-center p-8 text-slate-400 ${zoomIdModal.imageUrl ? 'hidden' : 'flex'}`}>
+                <div className="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center mb-3 text-slate-400">
+                  <FiUser className="w-8 h-8" />
+                </div>
+                <p className="text-sm font-semibold text-slate-300">No School ID Image Uploaded</p>
+                <p className="text-xs text-slate-500 mt-1 max-w-xs">
+                  This student has not yet uploaded an institutional ID card photo.
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <span className="text-[11px] text-slate-500 font-medium">
+                Verified Student Identification
+              </span>
+              <div className="flex items-center gap-2">
+                {zoomIdModal.imageUrl && (
+                  <a
+                    href={getBackendAssetUrl(zoomIdModal.imageUrl)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold shadow-2xs transition"
+                  >
+                    Open Full Resolution
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setZoomIdModal(prev => ({ ...prev, isOpen: false }))}
+                  className="px-4 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-2xs transition"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

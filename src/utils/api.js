@@ -339,13 +339,13 @@ export async function getBorrowRequests(schoolId) {
   }
 }
 
-export async function updateBorrowRequestStatus(requestId, status, adminId) {
+export async function updateBorrowRequestStatus(requestId, status, adminId, reason = '') {
   try {
     if (status === 'approved') {
       const response = await api.put(`/borrow-requests/${requestId}/approve`);
       return { data: response.data, error: null };
     } else if (status === 'rejected') {
-      const response = await api.put(`/borrow-requests/${requestId}/reject`, { remarks: 'Rejected by librarian' });
+      const response = await api.put(`/borrow-requests/${requestId}/reject`, { remarks: reason || 'Rejected by librarian' });
       return { data: response.data, error: null };
     }
 

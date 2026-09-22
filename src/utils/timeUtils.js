@@ -151,3 +151,158 @@ export function formatDateTimeWithRelative(dateInput, fallback = '—') {
   }
   return fullTime;
 }
+
+/**
+ * Formats time only with relative indicator (for table cells that already show the date)
+ * Example: "4:40 PM (1h ago)"
+ * @param {string|number|Date} dateInput 
+ * @param {string} fallback 
+ * @returns {string}
+ */
+export function formatTimeWithRelative(dateInput, fallback = '—') {
+  const d = safeParseDate(dateInput);
+  if (!d) return fallback;
+
+  const timeStr = formatPhilippineTime(d, fallback);
+  const rel = formatRelativeTime(d);
+
+  if (rel && rel !== 'Just now' && !rel.includes(',') && !rel.includes(d.getFullYear().toString())) {
+    return `${timeStr} • ${rel}`;
+  }
+  return timeStr;
+}
+
+/**
+ * Gets calendar date string (YYYY-MM-DD) in Philippine Standard Time
+ * @param {Date} d 
+ * @returns {string}
+ */
+export function getManilaDateString(dateInput) {
+  const d = safeParseDate(dateInput);
+  if (!d) return '';
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: MANILA_TZ,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+  } catch {
+    return d.toISOString().split('T')[0];
+  }
+}
+
+/**
+ * Accurately determines loan due status according to Philippine calendar day
+ * Cutoff: Books remain 'due_today' until 11:59:59 PM PHT of the due date.
+ * Only become 'overdue' on the following calendar day (at least 1d overdue).
+ * 
+ * @param {string|number|Date} dueDateInput 
+ * @returns {{
+ *   status: 'overdue' | 'due_today' | 'due_soon' | 'active',
+ *   label: string,
+ *   badgeClass: string,
+ *   textClass: string,
+ *   isOverdue: boolean,
+ *   isDueToday: boolean,
+ *   isDueSoon: boolean,
+ *   daysOverdue: number,
+ *   daysRemaining: number
+ * }}
+ */
+export function getDueStatusDetails(dueDateInput) {
+  const dueDate = safeParseDate(dueDateInput);
+  if (!dueDate) {
+    return {
+      status: 'active',
+      label: 'Active',
+      badgeClass: 'bg-slate-50 border-slate-200 text-slate-700',
+      textClass: 'text-slate-700',
+      isOverdue: false,
+      isDueToday: false,
+      isDueSoon: false,
+      daysOverdue: 0,
+      daysRemaining: 0,
+    };
+  }
+
+  const todayStr = getManilaDateString(new Date());
+  const dueStr = getManilaDateString(dueDate);
+
+  if (todayStr === dueStr) {
+    return {
+      status: 'due_today',
+      label: 'Due Today',
+      badgeClass: 'bg-amber-50 border-amber-300 text-amber-800 ring-1 ring-amber-400/30',
+      textClass: 'text-amber-700 font-bold',
+      isOverdue: false,
+      isDueToday: true,
+      isDueSoon: true,
+      daysOverdue: 0,
+      daysRemaining: 0,
+    };
+  }
+
+  if (todayStr > dueStr) {
+    const todayEpoch = new Date(todayStr + 'T00:00:00+08:00').getTime();
+    const dueEpoch = new Date(dueStr + 'T00:00:00+08:00').getTime();
+    const daysOverdue = Math.max(1, Math.round((todayEpoch - dueEpoch) / (1000 * 60 * 60 * 24)));
+
+    return {
+      status: 'overdue',
+      label: `${daysOverdue}d Overdue`,
+      badgeClass: 'bg-rose-50 border-rose-200 text-rose-700 ring-1 ring-rose-400/20',
+      textClass: 'text-rose-600 font-bold',
+      isOverdue: true,
+      isDueToday: false,
+      isDueSoon: false,
+      daysOverdue,
+      daysRemaining: 0,
+    };
+  }
+
+  // Future due date
+  const todayEpoch = new Date(todayStr + 'T00:00:00+08:00').getTime();
+  const dueEpoch = new Date(dueStr + 'T00:00:00+08:00').getTime();
+  const daysRemaining = Math.max(1, Math.round((dueEpoch - todayEpoch) / (1000 * 60 * 60 * 24)));
+
+  if (daysRemaining === 1) {
+    return {
+      status: 'due_soon',
+      label: 'Due Tomorrow',
+      badgeClass: 'bg-amber-50 border-amber-200 text-amber-700',
+      textClass: 'text-amber-600 font-semibold',
+      isOverdue: false,
+      isDueToday: false,
+      isDueSoon: true,
+      daysOverdue: 0,
+      daysRemaining: 1,
+    };
+  }
+
+  if (daysRemaining <= 2) {
+    return {
+      status: 'due_soon',
+      label: `Due in ${daysRemaining}d`,
+      badgeClass: 'bg-amber-50 border-amber-200 text-amber-700',
+      textClass: 'text-amber-600 font-semibold',
+      isOverdue: false,
+      isDueToday: false,
+      isDueSoon: true,
+      daysOverdue: 0,
+      daysRemaining,
+    };
+  }
+
+  return {
+    status: 'active',
+    label: 'Active',
+    badgeClass: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+    textClass: 'text-emerald-700 font-medium',
+    isOverdue: false,
+    isDueToday: false,
+    isDueSoon: false,
+    daysOverdue: 0,
+    daysRemaining,
+  };
+}

@@ -31,6 +31,7 @@ import { useNavigate } from "react-router-dom";
 import { StudentRecommendedShelf } from "./StudentRecommendedShelf";
 import QRCodeDisplay from "./QRCodeDisplay";
 import api, { API_ORIGIN, requestBorrowCancellation } from "../../../utils/api";
+import { getDueStatusDetails, formatPhilippineDate } from "../../../utils/timeUtils";
 import {
   STUDENT_TOPICS,
   STUDENT_COURSES,
@@ -388,13 +389,11 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
             const borrowRes = await api.get(`/borrow/student/${currentUserId}`);
             if (borrowRes.data) {
               const books = borrowRes.data.map((borrow) => {
-                const dueDate = new Date(borrow.due_date);
-                const today = new Date();
-                const daysDiff = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+                const dueStatus = getDueStatusDetails(borrow.due_date);
 
                 let status = "onTime";
-                if (daysDiff < 0) status = "overdue";
-                else if (daysDiff <= 3) status = "dueSoon";
+                if (dueStatus.isOverdue) status = "overdue";
+                else if (dueStatus.isDueSoon || dueStatus.isDueToday) status = "dueSoon";
 
                 const ownerSchool =
                   borrow.book_copies?.books?.schools?.school_name ||
@@ -406,14 +405,13 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
                   title: borrow.book_title || borrow.title || "Unknown Book",
                   author: borrow.author || "Unknown Author",
                   dueDate: borrow.due_date,
-                  dueIn:
-                    daysDiff < 0
-                      ? `${Math.abs(daysDiff)} days overdue`
-                      : daysDiff === 0
-                      ? "Due today"
-                      : daysDiff === 1
-                      ? "Due tomorrow"
-                      : `${daysDiff} days left`,
+                  dueIn: dueStatus.isOverdue
+                    ? `${dueStatus.daysOverdue} day${dueStatus.daysOverdue !== 1 ? 's' : ''} overdue`
+                    : dueStatus.isDueToday
+                    ? "Due today"
+                    : dueStatus.daysRemaining === 1
+                    ? "Due tomorrow"
+                    : `${dueStatus.daysRemaining} days left`,
                   status: status,
                   borrowId: borrow.borrow_id,
                   ownerSchool: ownerSchool,

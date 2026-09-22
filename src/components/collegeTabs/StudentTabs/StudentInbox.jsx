@@ -26,7 +26,7 @@ import api, { getAnnouncements, getUserNotifications, getBackendAssetUrl } from 
 import NotificationModal from "./inbox/NotificationModal";
 import NotificationEmptyState from "./inbox/NotificationEmptyState";
 import QRCodeDisplay from "./QRCodeDisplay";
-import { formatPhilippineDate, formatDateTimeWithRelative } from "../../../utils/timeUtils";
+import { formatPhilippineDate, formatDateTimeWithRelative, getDueStatusDetails } from "../../../utils/timeUtils";
 
 function StudentInbox({ isDrawer = false, onClose }) {
   const navigate = useNavigate();
@@ -188,22 +188,17 @@ function StudentInbox({ isDrawer = false, onClose }) {
 
   // Compute Active Loans with Due Status
   const activeLoansWithDueStatus = useMemo(() => {
-    const today = new Date();
     return activeBorrows.map((borrow) => {
-      const dueDate = new Date(borrow.due_date);
-      const isOverdue = dueDate < today;
-      const diffTime = dueDate.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      const isDueSoon = !isOverdue && diffDays <= 2;
-      const isDueToday = !isOverdue && diffDays === 0;
+      const dueStatus = getDueStatusDetails(borrow.due_date);
 
       return {
         ...borrow,
-        isOverdue,
-        isDueSoon,
-        isDueToday,
-        diffDays,
-        daysOverdue: Math.floor((today - dueDate) / (1000 * 60 * 60 * 24)),
+        isOverdue: dueStatus.isOverdue,
+        isDueSoon: dueStatus.isDueSoon,
+        isDueToday: dueStatus.isDueToday,
+        diffDays: dueStatus.daysRemaining,
+        daysOverdue: dueStatus.daysOverdue,
+        dueStatus,
       };
     });
   }, [activeBorrows]);

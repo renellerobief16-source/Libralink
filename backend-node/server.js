@@ -53,9 +53,19 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Serve static files for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Add a specific route to handle uploads directory access
-app.get('/uploads', (req, res) => {
-  res.json({ message: 'Uploads directory is accessible via specific file paths' });
+// Fallback for uploads
+app.use('/uploads/borrowing-ids', (req, res) => {
+  const fallbackPath = path.join(__dirname, 'uploads/borrowing-ids/fallback-id.jpg');
+  if (require('fs').existsSync(fallbackPath)) {
+    return res.sendFile(fallbackPath);
+  }
+  res.redirect(`https://libralink-50ig.onrender.com/uploads/borrowing-ids${req.path}`);
+});
+
+// Fallback to remote production server if another uploaded file is not stored locally
+app.use('/uploads', (req, res) => {
+  const remoteUrl = `https://libralink-50ig.onrender.com/uploads${req.path}`;
+  res.redirect(remoteUrl);
 });
 
 // Routes

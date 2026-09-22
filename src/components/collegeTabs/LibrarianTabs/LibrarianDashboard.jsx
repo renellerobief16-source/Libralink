@@ -192,7 +192,8 @@ function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, on
         }
 
         // Find low stock books (less than 2 available copies)
-        const lowStock = booksArray.filter(b => {
+        const booksList = Array.isArray(booksSource) ? booksSource : [];
+        const lowStock = booksList.filter(b => {
           const totalCopies = b.total_copies || 1;
           const availableCopies = b.available_copies || 0;
           return totalCopies > 0 && availableCopies < 2;

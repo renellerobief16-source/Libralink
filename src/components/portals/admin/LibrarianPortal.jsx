@@ -314,7 +314,7 @@ function LibrarianPortal() {
           ))}
         </div>
 
-        <main className={`flex-1 lg:ml-64 pb-16 lg:pb-0`}>
+        <main className={`flex-1 min-w-0 lg:ml-64 pb-16 lg:pb-0 overflow-x-hidden`}>
           {/* Sticky Global Header (Adapted from Student Page Header) */}
           <GlobalHeader
             userName={userInfo?.firstname || userInfo?.name || 'Librarian'}
@@ -368,9 +368,7 @@ function LibrarianPortal() {
             );
           })()}
 
-          <div className="p-6 lg:p-8">
-            <div className="mb-8">
-            </div>
+          <div className="p-4 lg:p-6 min-w-0">
 
             {activeTab === 'home' && (
               <AdminDashboard 

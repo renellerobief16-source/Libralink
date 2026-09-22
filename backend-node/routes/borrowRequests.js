@@ -292,21 +292,27 @@ router.put('/:id/reject', auth, requireRole(['Librarian', 'Librarian Admin']), a
       .select('owner_school_id, partner_school_id')
       .eq('request_id', req.params.id);
 
-    if (!requestItems || requestItems.length === 0) {
-      return res.status(400).json({ success: false, message: 'No items found in request' });
-    }
-
-    const isInterSchool = request.request_type === 'INTER_SCHOOL' ||
-      requestItems?.some(item => item.owner_school_id !== request.home_school_id);
     const isHomeSchool = String(request.home_school_id) === String(req.user.school_id);
-    const isOwnerSchool = requestItems?.some(item => String(item.owner_school_id) === String(req.user.school_id));
+    const isSuperAdmin = req.user.role === 'Super Admin' || req.user.role_id === 1;
+    const hasItems = Array.isArray(requestItems) && requestItems.length > 0;
 
-    // Security: Librarian can only reject if:
-    // 1. It's a home school request and librarian is from that school, OR
-    // 2. It's an inter-school request and librarian is from the owner school
-    if ((isInterSchool && !isOwnerSchool) || (!isInterSchool && !isHomeSchool)) {
-      console.error('[REJECT] Authorization failed - isInterSchool:', isInterSchool, 'isOwnerSchool:', isOwnerSchool, 'isHomeSchool:', isHomeSchool);
-      return res.status(403).json({ success: false, message: 'Unauthorized - You can only reject requests for your library' });
+    if (!hasItems) {
+      // If request has no items, allow home school librarian or admin to reject/clean it up
+      if (!isHomeSchool && !isSuperAdmin) {
+        return res.status(403).json({ success: false, message: 'Unauthorized - You can only reject requests for your library' });
+      }
+    } else {
+      const isInterSchool = request.request_type === 'INTER_SCHOOL' ||
+        requestItems?.some(item => item.owner_school_id !== request.home_school_id);
+      const isOwnerSchool = requestItems?.some(item => String(item.owner_school_id) === String(req.user.school_id));
+
+      // Security: Librarian can only reject if:
+      // 1. It's a home school request and librarian is from that school, OR
+      // 2. It's an inter-school request and librarian is from the owner school
+      if ((isInterSchool && !isOwnerSchool) || (!isInterSchool && !isHomeSchool)) {
+        console.error('[REJECT] Authorization failed - isInterSchool:', isInterSchool, 'isOwnerSchool:', isOwnerSchool, 'isHomeSchool:', isHomeSchool);
+        return res.status(403).json({ success: false, message: 'Unauthorized - You can only reject requests for your library' });
+      }
     }
 
     const result = await BorrowRequest.reject(req.params.id, remarks);

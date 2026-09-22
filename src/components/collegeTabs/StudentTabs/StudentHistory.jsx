@@ -25,6 +25,7 @@ import api, {
   requestBorrowCancellation,
 } from "../../../utils/api";
 import QRCodeDisplay from "./QRCodeDisplay";
+import { getDueStatusDetails, formatPhilippineDate } from "../../../utils/timeUtils";
 
 function StudentHistory({ isDrawer = false, onClose }) {
   const navigate = useNavigate();
@@ -130,44 +131,16 @@ function StudentHistory({ isDrawer = false, onClose }) {
     fetchHistory();
   }, []);
 
-  // Helper for due date calculation
+  // Helper for due date calculation using standardized Philippine time
   const getDueStatus = (dueDate, status) => {
     if (status === "returned") return null;
     if (!dueDate) return null;
 
-    const due = new Date(dueDate);
-    const now = new Date();
-    // Normalize to midnight for fair day comparison
-    due.setHours(0, 0, 0, 0);
-    now.setHours(0, 0, 0, 0);
-
-    const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) {
-      return {
-        label: `Overdue by ${Math.abs(diffDays)}d`,
-        style: "bg-rose-50 text-rose-700 border-rose-200",
-        isUrgent: true,
-      };
-    }
-    if (diffDays === 0) {
-      return {
-        label: "Due Today",
-        style: "bg-amber-50 text-amber-700 border-amber-200",
-        isUrgent: true,
-      };
-    }
-    if (diffDays === 1) {
-      return {
-        label: "Due Tomorrow",
-        style: "bg-amber-50 text-amber-700 border-amber-200",
-        isUrgent: false,
-      };
-    }
+    const details = getDueStatusDetails(dueDate);
     return {
-      label: `Due in ${diffDays}d`,
-      style: "bg-blue-50 text-blue-700 border-blue-200",
-      isUrgent: false,
+      label: details.label,
+      style: details.badgeClass,
+      isUrgent: details.isOverdue || details.isDueToday,
     };
   };
 

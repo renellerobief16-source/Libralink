@@ -417,7 +417,7 @@ class BorrowRequest {
 
       const { data: student, error: studentError } = await supabase
         .from('users')
-        .select('firstname, lastname, student_number, email, contact_number')
+        .select('firstname, lastname, student_number, email, contact_number, profile_image')
         .eq('user_id', request.student_id)
         .maybeSingle();
       if (studentError) throw studentError;
@@ -631,7 +631,10 @@ class BorrowRequest {
       // Simple status update without .select().single()
       const { error } = await supabase
         .from('borrow_requests')
-        .update({ status: 'rejected' })
+        .update({ 
+          status: 'rejected',
+          rejection_reason: remarks || 'Declined by librarian'
+        })
         .eq('request_id', request_id);
 
       if (error) {
@@ -968,12 +971,21 @@ class BorrowRequest {
         try {
           const finePolicy = await LibrarySettings.getFinePolicy(schoolId);
           if (finePolicy.enable_fines) {
-            const dueDate = new Date(dueDateStr);
-            const now = new Date();
-            if (now > dueDate) {
-              const diffMs = now.getTime() - dueDate.getTime();
-              const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-              daysOverdue = Math.max(0, diffDays - (finePolicy.grace_period_days || 0));
+            // Calculate overdue using Philippine calendar day bounds (UTC+8)
+            const manilaDateOptions = { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' };
+            const todayStr = new Intl.DateTimeFormat('en-CA', manilaDateOptions).format(new Date());
+            let dueStr = '';
+            if (typeof dueDateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dueDateStr.trim())) {
+              dueStr = dueDateStr.trim();
+            } else {
+              dueStr = new Intl.DateTimeFormat('en-CA', manilaDateOptions).format(new Date(dueDateStr));
+            }
+
+            if (todayStr > dueStr) {
+              const todayMs = new Date(todayStr + 'T00:00:00+08:00').getTime();
+              const dueMs = new Date(dueStr + 'T00:00:00+08:00').getTime();
+              const calendarDiffDays = Math.max(1, Math.round((todayMs - dueMs) / (1000 * 60 * 60 * 24)));
+              daysOverdue = Math.max(0, calendarDiffDays - (finePolicy.grace_period_days || 0));
 
               if (daysOverdue > 0) {
                 const rawFine = daysOverdue * finePolicy.fine_amount_per_day;

@@ -15,6 +15,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import QRCodeDisplay from "../QRCodeDisplay";
+import { formatPhilippineDate, formatPhilippineDateTime } from "../../../../utils/timeUtils";
 
 /**
  * NotificationModal component
@@ -252,12 +253,8 @@ function RequestDetails({ requestDetails, onCopyToken, copiedToken }) {
             <Calendar className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
             <div>
               <p className="text-xs text-slate-500">Due Date</p>
-              <p className="text-sm font-medium text-slate-800">
-                {new Date(requestDetails.due_date).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })}
+              <p className="text-sm font-semibold text-slate-800">
+                {formatPhilippineDate(requestDetails.due_date)}
               </p>
             </div>
           </div>
@@ -268,11 +265,7 @@ function RequestDetails({ requestDetails, onCopyToken, copiedToken }) {
           <div>
             <p className="text-xs text-slate-500">Date Submitted</p>
             <p className="text-sm font-medium text-slate-800">
-              {new Date(requestDetails.created_at).toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })}
+              {formatPhilippineDate(requestDetails.created_at)}
             </p>
           </div>
         </div>
