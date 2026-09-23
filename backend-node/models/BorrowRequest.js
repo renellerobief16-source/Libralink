@@ -715,7 +715,7 @@ class BorrowRequest {
       let actualCopyId = copy_id || existingItem.assigned_copy_id || existingItem.copy_id;
       
       if (!actualCopyId) {
-        // Automatically find an available copy for this book
+        // 1. Try to find an available copy for this book
         const { data: availableCopy } = await supabase
           .from('book_copies')
           .select('copy_id')
@@ -724,33 +724,55 @@ class BorrowRequest {
           .limit(1)
           .maybeSingle();
 
-        if (availableCopy) {
+        if (availableCopy && availableCopy.copy_id) {
           actualCopyId = availableCopy.copy_id;
         } else {
-          // If no copy is marked 'available', pick any existing copy for this book
-          const { data: anyCopy } = await supabase
+          // 2. Try to find a reserved copy for this book
+          const { data: reservedCopy } = await supabase
             .from('book_copies')
             .select('copy_id')
             .eq('book_id', existingItem.book_id)
+            .eq('status', 'reserved')
             .limit(1)
             .maybeSingle();
-          if (anyCopy) {
-            actualCopyId = anyCopy.copy_id;
+
+          if (reservedCopy && reservedCopy.copy_id) {
+            actualCopyId = reservedCopy.copy_id;
           } else {
-            // Auto-create a tracked copy for this book copy inventory
-            const { data: newCopy } = await supabase
+            // 3. Pick any existing copy for this book
+            const { data: anyCopy } = await supabase
               .from('book_copies')
-              .insert({
-                book_id: existingItem.book_id,
-                school_id: existingItem.owner_school_id || 1,
-                accession_number: `ACC-${Date.now().toString().slice(-6)}`,
-                status: 'borrowed',
-                condition: 'good'
-              })
               .select('copy_id')
-              .single();
-            if (newCopy) {
-              actualCopyId = newCopy.copy_id;
+              .eq('book_id', existingItem.book_id)
+              .limit(1)
+              .maybeSingle();
+
+            if (anyCopy && anyCopy.copy_id) {
+              actualCopyId = anyCopy.copy_id;
+            } else {
+              // 4. Auto-create a tracked copy for this book copy inventory
+              // Note: book_copies table does NOT have a school_id column.
+              const uniqueSuffix = `${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000)}`;
+              const { data: newCopy, error: createCopyErr } = await supabase
+                .from('book_copies')
+                .insert({
+                  book_id: existingItem.book_id,
+                  accession_number: `ACC-${existingItem.book_id}-${uniqueSuffix}`,
+                  barcode: `BC-${existingItem.book_id}-${uniqueSuffix}`,
+                  shelf_location: 'CIRCULATION',
+                  status: 'borrowed',
+                  condition: 'good'
+                })
+                .select('copy_id')
+                .single();
+
+              if (createCopyErr) {
+                console.error('[BORROW REQUEST] Error auto-creating book copy:', createCopyErr);
+              }
+              if (newCopy && newCopy.copy_id) {
+                actualCopyId = newCopy.copy_id;
+                console.log('[BORROW REQUEST] Auto-created new copy:', actualCopyId, 'for book:', existingItem.book_id);
+              }
             }
           }
         }
