@@ -1706,21 +1706,23 @@ export function StudentLayout({
             onClick={() => setActivePanel(null)}
             title={!sidebarExpanded ? "Home" : undefined}
             className={({ isActive }) => `
-              relative flex items-center rounded-xl transition-all duration-200
+              group relative flex items-center rounded-xl transition-all duration-200
               ${sidebarExpanded ? "gap-3 px-3 py-2.5 text-sm font-medium" : "justify-center p-3"}
-              ${isActive && !activePanel ? "text-[#2563EB] bg-blue-50/80 font-semibold" : "text-[#64748B] hover:text-[#0F172A] hover:bg-slate-50"}
+              ${isActive && !activePanel 
+                ? "text-blue-600 bg-blue-50/90 font-semibold shadow-2xs" 
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"}
             `}
           >
             {({ isActive }) => (
               <>
-                <Home className="w-5 h-5 flex-shrink-0" />
+                <Home className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 group-hover:scale-110 ${isActive && !activePanel ? "text-blue-600" : "text-slate-500 group-hover:text-slate-800"}`} />
                 {sidebarExpanded ? (
                   <span className="truncate">Home</span>
                 ) : (
                   <span className="sr-only">Home</span>
                 )}
                 {isActive && !activePanel && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-[#2563EB] rounded-r-full" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-blue-600 rounded-r-full shadow-xs" />
                 )}
               </>
             )}
@@ -1732,21 +1734,23 @@ export function StudentLayout({
             onClick={() => setActivePanel(null)}
             title={!sidebarExpanded ? "Search Books" : undefined}
             className={({ isActive }) => `
-              relative flex items-center rounded-xl transition-all duration-200
+              group relative flex items-center rounded-xl transition-all duration-200
               ${sidebarExpanded ? "gap-3 px-3 py-2.5 text-sm font-medium" : "justify-center p-3"}
-              ${isActive && !activePanel ? "text-[#2563EB] bg-blue-50/80 font-semibold" : "text-[#64748B] hover:text-[#0F172A] hover:bg-slate-50"}
+              ${isActive && !activePanel 
+                ? "text-blue-600 bg-blue-50/90 font-semibold shadow-2xs" 
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"}
             `}
           >
             {({ isActive }) => (
               <>
-                <Search className="w-5 h-5 flex-shrink-0" />
+                <Search className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 group-hover:scale-110 ${isActive && !activePanel ? "text-blue-600" : "text-slate-500 group-hover:text-slate-800"}`} />
                 {sidebarExpanded ? (
                   <span className="truncate">Search Books</span>
                 ) : (
                   <span className="sr-only">Search Books</span>
                 )}
                 {isActive && !activePanel && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-[#2563EB] rounded-r-full" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-blue-600 rounded-r-full shadow-xs" />
                 )}
               </>
             )}
@@ -1761,21 +1765,23 @@ export function StudentLayout({
             }}
             title={!sidebarExpanded ? "Favorites" : undefined}
             className={({ isActive }) => `
-              relative flex items-center rounded-xl transition-all duration-200
+              group relative flex items-center rounded-xl transition-all duration-200
               ${sidebarExpanded ? "gap-3 px-3 py-2.5 text-sm font-medium" : "justify-center p-3"}
-              ${isActive || activePanel === "favorites" ? "text-[#2563EB] bg-blue-50/80 font-semibold" : "text-[#64748B] hover:text-[#0F172A] hover:bg-slate-50"}
+              ${isActive || activePanel === "favorites" 
+                ? "text-blue-600 bg-blue-50/90 font-semibold shadow-2xs" 
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"}
             `}
           >
             {({ isActive }) => (
               <>
-                <Heart className="w-5 h-5 flex-shrink-0" />
+                <Heart className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 group-hover:scale-110 ${isActive || activePanel === "favorites" ? "text-rose-500 fill-rose-500/20" : "text-slate-500 group-hover:text-rose-500"}`} />
                 {sidebarExpanded ? (
                   <span className="truncate">Favorites</span>
                 ) : (
                   <span className="sr-only">Favorites</span>
                 )}
                 {(isActive || activePanel === "favorites") && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-[#2563EB] rounded-r-full" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-blue-600 rounded-r-full shadow-xs" />
                 )}
               </>
             )}

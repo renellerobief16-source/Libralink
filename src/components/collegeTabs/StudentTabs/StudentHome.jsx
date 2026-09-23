@@ -945,112 +945,76 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
             </div>
           )}
 
-          {/* 4-METRIC SUMMARY CARDS (Responsive: 2 cols on mobile, 4 on desktop) */}
-          <section aria-label="Library Summary">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
-              {/* Active Loans */}
-              <button
-                type="button"
-                onClick={handleBorrowedClick}
-                className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-4 text-left shadow-xs transition hover:border-blue-400 hover:shadow-md active:scale-[0.98]"
-              >
-                <div className="flex items-center justify-between mb-1.5 sm:mb-3">
-                  <div className="flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl bg-blue-50 text-blue-600">
-                    <Book className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
-                  </div>
-                  <span className="text-[9px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    On Loan
-                  </span>
-                </div>
-                <div>
-                  <p className="text-lg sm:text-3xl font-black text-slate-900 leading-none">
+          {/* REPLACED TRADITIONAL 4 CARDS WITH A MODERN & COMPACT STATUS HUB */}
+          <section aria-label="Student Loan Status Bar" className="rounded-2xl border border-slate-200/90 bg-white p-3 sm:p-4 shadow-xs">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Loan Overview:</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                {/* On Loan Badge Button */}
+                <button
+                  type="button"
+                  onClick={handleBorrowedClick}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-50/80 hover:bg-blue-100/80 border border-blue-200/60 px-3 py-1.5 text-xs font-semibold text-blue-900 transition-all active:scale-95"
+                  title="View active borrowings"
+                >
+                  <Book className="h-3.5 w-3.5 text-blue-600" />
+                  <span>On Loan:</span>
+                  <span className="rounded-md bg-blue-600 px-1.5 py-0.2 text-[11px] font-bold text-white leading-tight">
                     {borrowedBooks.length}
-                  </p>
-                  <p className="mt-1 text-[10px] sm:text-xs text-slate-500 line-clamp-1">Currently borrowed</p>
-                </div>
-              </button>
-
-              {/* Due Soon */}
-              <button
-                type="button"
-                onClick={handleDueSoonClick}
-                className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-4 text-left shadow-xs transition hover:border-amber-400 hover:shadow-md active:scale-[0.98]"
-              >
-                <div className="flex items-center justify-between mb-1.5 sm:mb-3">
-                  <div className="flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl bg-amber-50 text-amber-600">
-                    <Clock className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
-                  </div>
-                  <span className="text-[9px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    Due Soon
                   </span>
-                </div>
-                <div>
-                  <p className="text-lg sm:text-3xl font-black text-amber-600 leading-none">
+                </button>
+
+                {/* Due Soon Badge Button */}
+                <button
+                  type="button"
+                  onClick={handleDueSoonClick}
+                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 ${
+                    dueSoonCount > 0
+                      ? "bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-900"
+                      : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600"
+                  }`}
+                  title="Approaching return due date"
+                >
+                  <Clock className={`h-3.5 w-3.5 ${dueSoonCount > 0 ? "text-amber-600" : "text-slate-400"}`} />
+                  <span>Due Soon:</span>
+                  <span className={`rounded-md px-1.5 py-0.2 text-[11px] font-bold leading-tight ${
+                    dueSoonCount > 0 ? "bg-amber-500 text-white" : "bg-slate-200 text-slate-700"
+                  }`}>
                     {dueSoonCount}
-                  </p>
-                  <p className="mt-1 text-[10px] sm:text-xs text-slate-500 line-clamp-1">Approaching return</p>
-                </div>
-              </button>
-
-              {/* Pending Requests */}
-              <button
-                type="button"
-                onClick={() => navigate("/studentpage/inbox")}
-                className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-4 text-left shadow-xs transition hover:border-indigo-400 hover:shadow-md active:scale-[0.98]"
-              >
-                <div className="flex items-center justify-between mb-1.5 sm:mb-3">
-                  <div className="flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl bg-indigo-50 text-indigo-600">
-                    <Hourglass className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
-                  </div>
-                  <span className="text-[9px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    Pending
                   </span>
-                </div>
-                <div>
-                  <p className="text-lg sm:text-3xl font-black text-indigo-600 leading-none">
+                </button>
+
+                {/* Pending Requests */}
+                <button
+                  type="button"
+                  onClick={() => navigate("/studentpage/inbox")}
+                  className="inline-flex items-center gap-2 rounded-xl bg-indigo-50/80 hover:bg-indigo-100/80 border border-indigo-200/60 px-3 py-1.5 text-xs font-semibold text-indigo-900 transition-all active:scale-95"
+                  title="View requests in inbox"
+                >
+                  <Hourglass className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>Pending:</span>
+                  <span className="rounded-md bg-indigo-600 px-1.5 py-0.2 text-[11px] font-bold text-white leading-tight">
                     {pendingRequestsCount}
-                  </p>
-                  <p className="mt-1 text-[10px] sm:text-xs text-slate-500 line-clamp-1">Under review</p>
-                </div>
-              </button>
-
-              {/* Overdue */}
-              <button
-                type="button"
-                onClick={handleBorrowedClick}
-                className={`flex flex-col justify-between rounded-2xl border p-2.5 sm:p-4 text-left shadow-xs transition hover:shadow-md active:scale-[0.98] ${
-                  overdueCount > 0
-                    ? "border-rose-300 bg-rose-50/40 hover:border-rose-400"
-                    : "border-slate-200 bg-white hover:border-emerald-400"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5 sm:mb-3">
-                  <div
-                    className={`flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl ${
-                      overdueCount > 0
-                        ? "bg-rose-100 text-rose-600"
-                        : "bg-emerald-50 text-emerald-600"
-                    }`}
-                  >
-                    <AlertTriangle className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
-                  </div>
-                  <span className="text-[9px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    Overdue
                   </span>
-                </div>
-                <div>
-                  <p
-                    className={`text-lg sm:text-3xl font-black leading-none ${
-                      overdueCount > 0 ? "text-rose-600" : "text-emerald-600"
-                    }`}
-                  >
-                    {overdueCount}
-                  </p>
-                  <p className="mt-1 text-[10px] sm:text-xs text-slate-500 line-clamp-1">
-                    {overdueCount > 0 ? "Requires return" : "All books on time"}
-                  </p>
-                </div>
-              </button>
+                </button>
+
+                {/* Overdue Status */}
+                <button
+                  type="button"
+                  onClick={handleBorrowedClick}
+                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 ${
+                    overdueCount > 0
+                      ? "bg-rose-50 hover:bg-rose-100 border-rose-300 text-rose-900"
+                      : "bg-emerald-50/80 hover:bg-emerald-100/80 border-emerald-200/60 text-emerald-900"
+                  }`}
+                  title="View overdue books"
+                >
+                  <AlertTriangle className={`h-3.5 w-3.5 ${overdueCount > 0 ? "text-rose-600" : "text-emerald-600"}`} />
+                  <span>{overdueCount > 0 ? `Overdue (${overdueCount})` : "All on time"}</span>
+                </button>
+              </div>
             </div>
           </section>
 
