@@ -17,12 +17,14 @@ import {
   FiInfo,
   FiArrowRight,
   FiCheckCircle,
-  FiRefreshCw
+  FiRefreshCw,
+  FiX
 } from "react-icons/fi";
 import Card from "../../ui/Card";
 import Input from "../../ui/Input";
 import Button from "../../ui/Button";
 import api, { getLibraryPolicy, getBackendAssetUrl } from "../../../utils/api";
+import CampusLocationPicker from "../../common/CampusLocationPicker";
 
 function LibrarianAdminSettings({ onNavigate }) {
   const [schoolInfo, setSchoolInfo] = useState(null);
@@ -36,6 +38,8 @@ function LibrarianAdminSettings({ onNavigate }) {
   const [address, setAddress] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [email, setEmail] = useState("");
+  const [latitude, setLatitude] = useState(null);
+  const [longitude, setLongitude] = useState(null);
 
   // Operating Hours & Schedule State
   const [operatingDays, setOperatingDays] = useState("Monday – Friday");
@@ -78,6 +82,8 @@ function LibrarianAdminSettings({ onNavigate }) {
           setAddress(schoolData.address || "");
           setContactNumber(schoolData.contact_number || "");
           setEmail(schoolData.email || "");
+          setLatitude(schoolData.latitude !== undefined && schoolData.latitude !== null ? Number(schoolData.latitude) : null);
+          setLongitude(schoolData.longitude !== undefined && schoolData.longitude !== null ? Number(schoolData.longitude) : null);
 
           if (schoolData.logo) {
             setLogoPreview(getBackendAssetUrl(schoolData.logo));
@@ -171,6 +177,8 @@ function LibrarianAdminSettings({ onNavigate }) {
         address: address,
         contact_number: contactNumber,
         email: email,
+        latitude: latitude !== null && latitude !== undefined && !isNaN(Number(latitude)) ? Number(latitude) : null,
+        longitude: longitude !== null && longitude !== undefined && !isNaN(Number(longitude)) ? Number(longitude) : null,
       });
 
       // 3. Cache operating schedule
@@ -189,6 +197,8 @@ function LibrarianAdminSettings({ onNavigate }) {
         address,
         contact_number: contactNumber,
         email,
+        latitude: latitude !== null && latitude !== undefined && !isNaN(Number(latitude)) ? Number(latitude) : null,
+        longitude: longitude !== null && longitude !== undefined && !isNaN(Number(longitude)) ? Number(longitude) : null,
         logo: updatedLogoUrl,
       };
 
@@ -216,8 +226,49 @@ function LibrarianAdminSettings({ onNavigate }) {
 
   return (
     <div className="space-y-6 animate-slide-up pb-10">
+      {/* ── Floating Overlay Notification Toasts (Top Right) ── */}
+      {saveSuccess && (
+        <div className="fixed top-6 right-6 z-[9999] flex items-center gap-3 rounded-2xl border border-emerald-200/90 bg-white/95 px-4 py-3.5 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300 ring-1 ring-emerald-500/20 max-w-sm">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 shadow-2xs">
+            <FiCheckCircle className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold text-slate-800">Success!</p>
+            <p className="text-[11px] font-medium text-slate-500 mt-0.5">Settings saved successfully</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSaveSuccess(false)}
+            className="ml-1 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+            title="Dismiss"
+          >
+            <FiX className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="fixed top-6 right-6 z-[9999] flex items-center gap-3 rounded-2xl border border-rose-200/90 bg-white/95 px-4 py-3.5 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300 ring-1 ring-rose-500/20 max-w-sm">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600 shadow-2xs">
+            <FiAlertCircle className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold text-rose-900">Error</p>
+            <p className="text-[11px] font-medium text-slate-600 mt-0.5">{errorMessage}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMessage("")}
+            className="ml-1 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+            title="Dismiss"
+          >
+            <FiX className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* Header Banner */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-xs">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
@@ -231,21 +282,7 @@ function LibrarianAdminSettings({ onNavigate }) {
             Manage your institution's profile, contact details, operating schedule, and library identity
           </p>
         </div>
-
-        {saveSuccess && (
-          <div className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold rounded-xl animate-fade-in shrink-0 shadow-2xs">
-            <FiCheckCircle className="w-4 h-4 text-emerald-600" />
-            <span>Settings saved successfully</span>
-          </div>
-        )}
       </div>
-
-      {errorMessage && (
-        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-semibold text-rose-700 flex items-center gap-2.5">
-          <FiAlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-          <span>{errorMessage}</span>
-        </div>
-      )}
 
       {loading ? (
         <Card>
@@ -440,6 +477,39 @@ function LibrarianAdminSettings({ onNavigate }) {
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="e.g. McArthur Highway, Guiguinto, Bulacan, Philippines"
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-600 shadow-2xs"
+                />
+              </div>
+
+              {/* Interactive Campus Map Pin & Coordinates */}
+              <div className="pt-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <FiMapPin className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Campus Map Pin & Coordinates</span>
+                  </span>
+                  {latitude && longitude ? (
+                    <span className="text-[11px] font-mono text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-semibold">
+                      📍 {Number(latitude).toFixed(4)}, {Number(longitude).toFixed(4)}
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-normal">
+                      ⚠️ Pin location on map so students can navigate to your campus
+                    </span>
+                  )}
+                </label>
+                <CampusLocationPicker
+                  latitude={latitude}
+                  longitude={longitude}
+                  address={address}
+                  schoolName={libraryName || schoolInfo?.school_name || 'Campus Library'}
+                  schoolLogo={logoPreview || (schoolInfo?.logo ? getBackendAssetUrl(schoolInfo.logo) : '')}
+                  onChange={({ latitude: newLat, longitude: newLng, address: newAddr }) => {
+                    setLatitude(newLat);
+                    setLongitude(newLng);
+                    if (!address.trim() && newAddr) {
+                      setAddress(newAddr);
+                    }
+                  }}
                 />
               </div>
 

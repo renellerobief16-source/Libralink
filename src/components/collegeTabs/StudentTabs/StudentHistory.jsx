@@ -273,98 +273,79 @@ function StudentHistory({ isDrawer = false, onClose }) {
 
   return (
     <div className={isDrawer ? "w-full pb-6" : "mx-auto w-full max-w-[1280px] px-3 sm:px-5 lg:px-8 py-4 sm:py-6"}>
-      {/* Standalone Page Header */}
+      {/* Compact Page Header */}
       {!isDrawer && (
-        <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between border-b border-slate-100 pb-4">
+        <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                <Clock className="h-3.5 w-3.5" />
-              </span>
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600">
-                Reading Activity
-              </p>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+            <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Clock className="h-4 w-4 text-slate-500" />
               Borrow History
             </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Track your borrowed books, pickup passes, and completed returns.
-            </p>
+            <p className="text-xs text-slate-500 mt-0.5">Track your borrowed books, pickup passes, and returns.</p>
           </div>
-
-          <button
-            onClick={() => navigate("/studentpage/search")}
-            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-blue-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 active:scale-[0.98]"
-          >
-            <Search className="h-3.5 w-3.5" /> Borrow New Book
-          </button>
-        </header>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-semibold text-slate-700">
+              <span className="font-black">{historyItems.length}</span>
+              <span className="opacity-70">Total</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-xs font-semibold text-blue-700">
+              <span className="font-black">{activeCount}</span>
+              <span className="opacity-70">Active</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-xs font-semibold text-emerald-700">
+              <span className="font-black">{returnedCount}</span>
+              <span className="opacity-70">Returned</span>
+            </div>
+            <button
+              onClick={() => navigate("/studentpage/search")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+            >
+              <Search className="h-3.5 w-3.5" /> Browse Books
+            </button>
+          </div>
+        </div>
       )}
 
-      {/* Sticky Tab Switcher Bar */}
-      <div className={`z-10 flex items-center justify-between gap-1.5 ${
+      {/* Tab Switcher Bar */}
+      <div className={`z-10 flex items-center justify-between gap-2 ${
         isDrawer
-          ? "sticky -top-2 bg-[#F7FAFC]/95 backdrop-blur-md -mx-3 px-3 py-2 border-b border-slate-200/60 mb-3 shadow-[0_4px_12px_rgba(0,0,0,0.03)]"
-          : "mb-3 overflow-x-auto pb-2 border-b border-slate-200 scrollbar-hide"
+          ? "sticky -top-2 bg-[#F7FAFC]/95 backdrop-blur-md -mx-3 px-3 py-2 border-b border-slate-200/60 mb-3"
+          : "mb-3 border-b border-slate-200 pb-2"
       }`}>
-        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-          <button
-            type="button"
-            onClick={() => setActiveTab("all")}
-            className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
-              activeTab === "all"
-                ? "bg-slate-900 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
-            }`}
-          >
-            All ({historyItems.length})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("active")}
-            className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
-              activeTab === "active"
-                ? "bg-emerald-600 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
-            }`}
-          >
-            Active ({activeCount})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("returned")}
-            className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
-              activeTab === "returned"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
-            }`}
-          >
-            Returned ({returnedCount})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("requests")}
-            className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
-              activeTab === "requests"
-                ? "bg-amber-600 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
-            }`}
-          >
-            Requests ({requestsCount})
-          </button>
+        <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg overflow-x-auto scrollbar-hide">
+          {[
+            { id: 'all',      label: 'All',      count: historyItems.length },
+            { id: 'active',   label: 'Active',   count: activeCount },
+            { id: 'returned', label: 'Returned', count: returnedCount },
+            { id: 'requests', label: 'Requests', count: requestsCount },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition ${
+                activeTab === tab.id
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              {tab.label}
+              {tab.count > 0 && (
+                <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full ${
+                  activeTab === tab.id ? 'bg-slate-100 text-slate-600' : 'bg-slate-200/60 text-slate-500'
+                }`}>{tab.count}</span>
+              )}
+            </button>
+          ))}
         </div>
 
         <button
           type="button"
           onClick={fetchHistory}
-          title="Refresh History"
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition shrink-0"
+          title="Refresh"
+          className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition shrink-0"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-blue-600" : ""}`} />
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />
         </button>
       </div>
 

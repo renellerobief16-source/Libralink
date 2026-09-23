@@ -1,0 +1,492 @@
+// =====================================================================
+// LibraLink Multi-School Library Management System
+// Complete Database Entity Relationship Diagram (DBML for dbdiagram.io)
+// Website: https://dbdiagram.io
+// =====================================================================
+
+Project libralink {
+  database_type: 'PostgreSQL'
+  Note: '''
+    # LibraLink Database Schema
+    Multi-School Library Management & Inter-School Lending System.
+    Includes multi-tenancy, bibliographic cataloging, copy tracking,
+    real-time circulation, permission letter workflows, and audit logging.
+  '''
+}
+
+// =====================================================================
+// ENUMS
+// =====================================================================
+
+Enum user_status {
+  active
+  inactive
+}
+
+Enum book_condition {
+  good
+  fair
+  poor
+  damaged
+}
+
+Enum book_status {
+  available
+  borrowed
+  reserved
+  lost
+  maintenance
+}
+
+Enum borrow_status {
+  active
+  returned
+  overdue
+}
+
+Enum gender_type {
+  male
+  female
+  other
+}
+
+Enum school_status {
+  active
+  inactive
+}
+
+Enum request_status {
+  pending
+  approved
+  rejected
+  permission_ready
+  ready_for_pickup
+  borrowed
+  returned
+  cancelled
+}
+
+Enum item_status {
+  pending
+  approved
+  released
+  returned
+  cancelled
+}
+
+Enum request_type_enum {
+  HOME
+  INTER_SCHOOL
+}
+
+Enum borrow_type_enum {
+  HOME
+  INTER_SCHOOL_LIBRARY_USE
+}
+
+Enum fine_status_enum {
+  unpaid
+  paid
+  waived
+}
+
+// =====================================================================
+// 1. MULTI-TENANCY & USER MANAGEMENT
+// =====================================================================
+
+Table schools {
+  school_id integer [pk, increment]
+  school_name varchar(255) [not null]
+  school_code varchar(50) [unique, not null]
+  address text
+  contact_number varchar(50)
+  email varchar(255)
+  logo text
+  latitude decimal(10,8)
+  longitude decimal(11,8)
+  borrowing_requirements text
+  status school_status [default: 'active']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+
+  Note: 'Institutional library tenants in the consortium'
+}
+
+Table roles {
+  role_id integer [pk, increment]
+  role_name varchar(50) [unique, not null, note: 'Super Admin, Librarian Admin, Librarian, Assistant Librarian, Student']
+
+  Note: 'RBAC Authorization roles'
+}
+
+Table users {
+  user_id integer [pk, increment]
+  school_id integer [not null, ref: > schools.school_id]
+  role_id integer [not null, ref: > roles.role_id]
+  student_number varchar(50)
+  employee_number varchar(50)
+  firstname varchar(100) [not null]
+  lastname varchar(100) [not null]
+  middle_name varchar(100)
+  gender gender_type
+  contact_number varchar(50)
+  email varchar(255) [unique, not null]
+  username varchar(100)
+  recovery_email varchar(255)
+  password varchar(255) [not null, note: 'Bcrypt hashed password']
+  position varchar(100)
+  profile_image varchar(255)
+  policy_accepted boolean [default: false]
+  status user_status [default: 'active']
+  is_archived boolean [default: false]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    email
+    school_id
+    role_id
+    student_number
+  }
+  Note: 'Students, Faculty, and Library Personnel accounts'
+}
+
+Table verification_codes {
+  id integer [pk, increment]
+  user_id integer [not null, ref: > users.user_id]
+  email varchar(255) [not null]
+  code varchar(6) [not null]
+  type varchar(50) [default: 'email_verification', note: 'email_verification, password_reset']
+  expires_at timestamp [not null]
+  used_at timestamp
+  is_used boolean [default: false]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    user_id
+    email
+    code
+  }
+  Note: 'One-time security tokens for signup verification & password resets'
+}
+
+// =====================================================================
+// 2. CATALOGING & PHYSICAL INVENTORY
+// =====================================================================
+
+Table categories {
+  category_id integer [pk, increment]
+  category_name varchar(100) [unique, not null]
+
+  Note: 'Subject categories and classifications (e.g. Science, Fiction, History)'
+}
+
+Table authors {
+  author_id integer [pk, increment]
+  author_name varchar(255) [unique, not null]
+
+  Note: 'Book contributors and primary authors'
+}
+
+Table publishers {
+  publisher_id integer [pk, increment]
+  publisher_name varchar(255) [unique, not null]
+  place_of_publication varchar(255)
+
+  Note: 'Publishing houses and publication locations'
+}
+
+Table books {
+  book_id integer [pk, increment]
+  school_id integer [not null, ref: > schools.school_id]
+  category_id integer [ref: > categories.category_id]
+  publisher_id integer [ref: > publishers.publisher_id]
+  title varchar(255) [not null]
+  isbn varchar(50)
+  call_number varchar(100)
+  edition varchar(50)
+  copyright_year integer
+  physical_description text
+  series_title varchar(255)
+  general_note text
+  cover_image varchar(255)
+  remarks text
+  encoded_by integer [ref: > users.user_id]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    school_id
+    title
+    isbn
+  }
+  Note: 'Bibliographic metadata records owned by a school'
+}
+
+Table book_authors {
+  book_id integer [ref: > books.book_id]
+  author_id integer [ref: > authors.author_id]
+
+  indexes {
+    (book_id, author_id) [pk]
+  }
+  Note: 'Many-to-Many bridge table between Books and Authors'
+}
+
+Table book_copies {
+  copy_id integer [pk, increment]
+  book_id integer [not null, ref: > books.book_id]
+  accession_number varchar(50) [unique, not null]
+  barcode varchar(50) [unique]
+  rfid_tag varchar(50) [unique]
+  shelf_location varchar(100)
+  condition book_condition [default: 'good']
+  status book_status [default: 'available']
+
+  indexes {
+    book_id
+    accession_number
+    barcode
+    status
+  }
+  Note: 'Physical barcode/RFID items located on library shelves'
+}
+
+// =====================================================================
+// 3. MODERN CIRCULATION & INTER-SCHOOL BORROWING
+// =====================================================================
+
+Table borrow_requests {
+  request_id varchar(20) [pk, note: 'Formatted ID: LL-YYYY-XXXXXX']
+  student_id integer [not null, ref: > users.user_id]
+  home_school_id integer [not null, ref: > schools.school_id]
+  request_type request_type_enum [not null]
+  status request_status [default: 'pending']
+  purpose text [not null]
+  contact_number varchar(50)
+  address text
+  id_picture_url varchar(255)
+  qr_token varchar(255) [unique]
+  permission_letter_generated boolean [default: false]
+  permission_letter_url varchar(255)
+  approved_by integer [ref: > users.user_id]
+  approved_at timestamp
+  borrowed_at timestamp
+  returned_at timestamp
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    student_id
+    home_school_id
+    status
+    qr_token
+  }
+  Note: 'Header record for multi-item borrow carts, home lending & inter-school permissions'
+}
+
+Table borrow_request_items {
+  item_id integer [pk, increment]
+  request_id varchar(20) [not null, ref: > borrow_requests.request_id]
+  book_id integer [not null, ref: > books.book_id]
+  owner_school_id integer [not null, ref: > schools.school_id]
+  partner_school_id integer [ref: > schools.school_id]
+  borrow_type borrow_type_enum [not null]
+  status item_status [default: 'pending']
+  copy_id integer [ref: > book_copies.copy_id]
+  due_date date
+  released_by integer [ref: > users.user_id]
+  released_at timestamp
+  returned_by integer [ref: > users.user_id]
+  returned_at timestamp
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    request_id
+    book_id
+    owner_school_id
+    copy_id
+    status
+  }
+  Note: 'Line items within a borrow request, tracking individual copies released and returned'
+}
+
+Table borrow_transactions {
+  borrow_id integer [pk, increment]
+  copy_id integer [not null, ref: > book_copies.copy_id]
+  student_id integer [not null, ref: > users.user_id]
+  librarian_id integer [ref: > users.user_id]
+  borrow_date timestamp [default: `CURRENT_TIMESTAMP`]
+  due_date date [not null]
+  return_date timestamp
+  status borrow_status [default: 'active']
+  remarks text
+
+  indexes {
+    student_id
+    copy_id
+    due_date
+    status
+  }
+  Note: 'Circulation desk checkout audit records'
+}
+
+Table fines {
+  fine_id integer [pk, increment]
+  borrow_id integer [ref: > borrow_transactions.borrow_id]
+  student_id integer [not null, ref: > users.user_id]
+  school_id integer [not null, ref: > schools.school_id]
+  amount decimal(10,2) [not null]
+  status fine_status_enum [default: 'unpaid']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    student_id
+    school_id
+    status
+  }
+  Note: 'Overdue or damaged book financial penalties'
+}
+
+Table interlibrary_requests {
+  request_id integer [pk, increment]
+  student_id integer [not null, ref: > users.user_id]
+  copy_id integer [not null, ref: > book_copies.copy_id]
+  from_school_id integer [not null, ref: > schools.school_id]
+  to_school_id integer [not null, ref: > schools.school_id]
+  request_date timestamp [default: `CURRENT_TIMESTAMP`]
+  approved_by integer [ref: > users.user_id]
+  status request_status [default: 'pending']
+  remarks text
+
+  indexes {
+    student_id
+    from_school_id
+    to_school_id
+    status
+  }
+  Note: 'Legacy interlibrary loan direct dispatch record'
+}
+
+// =====================================================================
+// 4. SYSTEM, COMMUNICATIONS & AUDIT LOGS
+// =====================================================================
+
+Table notifications {
+  notification_id integer [pk, increment]
+  user_id integer [ref: > users.user_id]
+  school_id integer [ref: > schools.school_id]
+  title varchar(255) [not null]
+  message text [not null]
+  type varchar(50)
+  related_id integer
+  is_read boolean [default: false]
+  is_admin_notification boolean [default: false]
+  is_global boolean [default: false]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    user_id
+    school_id
+    is_read
+  }
+  Note: 'In-app real-time notification alerts'
+}
+
+Table announcements {
+  announcement_id integer [pk, increment]
+  school_id integer [ref: > schools.school_id]
+  created_by integer [not null, ref: > users.user_id]
+  title varchar(255) [not null]
+  content text [not null]
+  image varchar(255)
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    school_id
+    created_at
+  }
+  Note: 'Campus-wide announcements and library updates'
+}
+
+Table activity_logs {
+  log_id integer [pk, increment]
+  user_id integer [ref: > users.user_id]
+  activity text [not null]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    user_id
+    created_at
+  }
+  Note: 'Audit trails of user actions and security events'
+}
+
+Table import_history {
+  import_id integer [pk, increment]
+  school_id integer [not null, ref: > schools.school_id]
+  user_id integer [ref: > users.user_id]
+  file_name varchar(255) [not null]
+  total_rows integer [default: 0]
+  successful integer [default: 0]
+  failed integer [default: 0]
+  skipped integer [default: 0]
+  status varchar(50) [default: 'pending']
+  error_details text
+  import_date timestamp [default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    school_id
+    user_id
+    import_date
+  }
+  Note: 'Batch CSV/Excel catalog import tracking'
+}
+
+Table settings {
+  setting_id integer [pk, increment]
+  setting_key varchar(255) [unique, not null]
+  setting_value text
+  description text
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    setting_key
+  }
+  Note: 'Global platform configuration and borrowing parameters'
+}
+
+// =====================================================================
+// TABLE GROUPS (Color-coded modules for dbdiagram.io)
+// =====================================================================
+
+TableGroup Users_and_Tenants [color: #2563EB] {
+  schools
+  roles
+  users
+  verification_codes
+}
+
+TableGroup Catalog_and_Inventory [color: #059669] {
+  books
+  book_copies
+  book_authors
+  authors
+  publishers
+  categories
+  import_history
+}
+
+TableGroup Circulation_and_Borrowing [color: #D97706] {
+  borrow_requests
+  borrow_request_items
+  borrow_transactions
+  interlibrary_requests
+  fines
+}
+
+TableGroup System_and_Communications [color: #7C3AED] {
+  notifications
+  announcements
+  activity_logs
+  settings
+}

@@ -1,0 +1,206 @@
+<mxfile host="app.diagrams.net" modified="2026-09-24T00:16:00.000Z" agent="Mozilla/5.0" version="24.0.0">
+  <diagram id="use-case-diagram-only" name="LibraLink Use Case Diagram">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1350" pageHeight="1100" background="#FFFFFF" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="uc_title" value="&lt;b&gt;&lt;font style=&quot;font-size: 22px; color: #0F172A;&quot;&gt;LibraLink - UML Use Case Diagram&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 13px; color: #475569;&quot;&gt;Actors, Associations, &amp;lt;&amp;lt;Include&amp;gt;&amp;gt;, and &amp;lt;&amp;lt;Extend&amp;gt;&amp;gt; Relationships&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="25" width="600" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- ACTORS (LEFT COLUMN - TUNAY NA STICKMEN)    -->
+        <!-- ========================================== -->
+
+        <!-- Student -->
+        <mxCell id="actor_student" value="Student" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=2;fontStyle=1;fontSize=14;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="70" y="220" width="45" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Home-School Librarian -->
+        <mxCell id="actor_homelib" value="Home-School&lt;br&gt;Librarian" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=2;fontStyle=1;fontSize=13;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="70" y="470" width="45" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Partner-School Librarian -->
+        <mxCell id="actor_partnerlib" value="Partner-School&lt;br&gt;Librarian" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=2;fontStyle=1;fontSize=13;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="70" y="690" width="45" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Administrator -->
+        <mxCell id="actor_admin" value="Administrator" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=2;fontStyle=1;fontSize=13;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="70" y="900" width="45" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- CORE BASE USE CASES (CENTER COLUMN)       -->
+        <!-- ========================================== -->
+
+        <mxCell id="uc_reg" value="Register an Account" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="270" y="95" width="180" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_login" value="Log-in" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="270" y="170" width="180" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_search" value="Search for Books" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="270" y="245" width="180" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Submit Request with Extension Point -->
+        <mxCell id="uc_submit" value="&lt;b&gt;Submit a Request&lt;/b&gt;&lt;br&gt;&lt;hr style=&quot;border-top: 1px solid black;&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;extension points&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 9px;&quot;&gt;Access Approved Resources&lt;/font&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="260" y="325" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_monitor" value="Monitor Request Status" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="270" y="415" width="180" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Review Requests with Extension Point -->
+        <mxCell id="uc_review" value="&lt;b&gt;Review Student Requests&lt;/b&gt;&lt;br&gt;&lt;hr style=&quot;border-top: 1px solid black;&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;extension points&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 9px;&quot;&gt;Approve / Disapprove&lt;/font&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="260" y="505" width="200" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_verify_app" value="Verify Approved Requests" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="265" y="655" width="190" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_process_acc" value="Process Applicable&lt;br&gt;Access Requests" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="265" y="740" width="190" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_manage_users" value="Manage Users" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="270" y="835" width="180" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_manage_schools" value="Manage Participating&lt;br&gt;Schools" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="270" y="905" width="180" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_manage_records" value="Manage System Records" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="270" y="980" width="180" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- SUB USE CASES (RIGHT COLUMN)               -->
+        <!-- ========================================== -->
+
+        <mxCell id="uc_avail" value="Check Book Availability" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="640" y="225" width="180" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_sugg" value="View Partner-School&lt;br&gt;Suggestions" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="640" y="300" width="180" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_access" value="Access Approved&lt;br&gt;Resources" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="640" y="375" width="180" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_verify_info" value="Verify Submitted&lt;br&gt;Information" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="640" y="475" width="180" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_approve" value="Approve Requests" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="640" y="550" width="170" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_disapprove" value="Disapprove Requests" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="640" y="615" width="170" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_confirm_avail" value="Confirm Resource&lt;br&gt;Availability" style="ellipse;whiteSpace=wrap;html=1;fillColor=#68C5F7;strokeColor=#000000;strokeWidth=1.8;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="640" y="700" width="180" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- SOLID ASSOCIATIONS (ACTOR -> USE CASE)     -->
+        <!-- ========================================== -->
+        <mxCell id="assoc1" style="endArrow=none;html=1;strokeWidth=1.8;strokeColor=#000000;" edge="1" parent="1" source="actor_student" target="uc_reg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc2" style="endArrow=none;html=1;strokeWidth=1.8;strokeColor=#000000;" edge="1" parent="1" source="actor_student" target="uc_login">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc3" style="endArrow=none;html=1;strokeWidth=1.8;strokeColor=#000000;" edge="1" parent="1" source="actor_student" target="uc_search">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc4" style="endArrow=none;html=1;strokeWidth=1.8;strokeColor=#000000;" edge="1" parent="1" source="actor_student" target="uc_submit">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc5" style="endArrow=none;html=1;strokeWidth=1.8;strokeColor=#000000;" edge="1" parent="1" source="actor_student" target="uc_monitor">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="assoc6" style="endArrow=none;html=1;strokeWidth=1.8;strokeColor=#000000;" edge="1" parent="1" source="actor_homelib" target="uc_login">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc7" style="endArrow=none;html=1;strokeWidth=1.8;strokeColor=#000000;" edge="1" parent="1" source="actor_homelib" target="uc_review">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc8" style="endArrow=none;html=1;strokeWidth=1.8;strokeColor=#000000;" edge="1" parent="1" source="actor_homelib" target="uc_monitor">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="assoc9" style="endArrow=none;html=1;strokeWidth=1.8;strokeColor=#000000;" edge="1" parent="1" source="actor_partnerlib" target="uc_login">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc10" style="endArrow=none;html=1;strokeWidth=1.8;strokeColor=#000000;" edge="1" parent="1" source="actor_partnerlib" target="uc_verify_app">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc11" style="endArrow=none;html=1;strokeWidth=1.8;strokeColor=#000000;" edge="1" parent="1" source="actor_partnerlib" target="uc_process_acc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="assoc12" style="endArrow=none;html=1;strokeWidth=1.8;strokeColor=#000000;" edge="1" parent="1" source="actor_admin" target="uc_login">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc13" style="endArrow=none;html=1;strokeWidth=1.8;strokeColor=#000000;" edge="1" parent="1" source="actor_admin" target="uc_manage_users">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc14" style="endArrow=none;html=1;strokeWidth=1.8;strokeColor=#000000;" edge="1" parent="1" source="actor_admin" target="uc_manage_schools">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc15" style="endArrow=none;html=1;strokeWidth=1.8;strokeColor=#000000;" edge="1" parent="1" source="actor_admin" target="uc_manage_records">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- <<INCLUDE>> DASHED ARROWS                  -->
+        <!-- ========================================== -->
+        <mxCell id="inc1" value="&amp;lt;&amp;lt;Include&amp;gt;&amp;gt;" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endSize=8;strokeWidth=1.8;strokeColor=#000000;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="uc_search" target="uc_avail">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="inc2" value="&amp;lt;&amp;lt;Include&amp;gt;&amp;gt;" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endSize=8;strokeWidth=1.8;strokeColor=#000000;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="uc_search" target="uc_sugg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="inc3" value="&amp;lt;&amp;lt;Include&amp;gt;&amp;gt;" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endSize=8;strokeWidth=1.8;strokeColor=#000000;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="uc_submit" target="uc_avail">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="inc4" value="&amp;lt;&amp;lt;Include&amp;gt;&amp;gt;" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endSize=8;strokeWidth=1.8;strokeColor=#000000;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="uc_review" target="uc_verify_info">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="inc5" value="&amp;lt;&amp;lt;Include&amp;gt;&amp;gt;" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endSize=8;strokeWidth=1.8;strokeColor=#000000;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="uc_verify_app" target="uc_confirm_avail">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- <<EXTEND>> DASHED ARROWS                   -->
+        <!-- ========================================== -->
+        <mxCell id="ext1" value="&amp;lt;&amp;lt;Extend&amp;gt;&amp;gt;" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endSize=8;strokeWidth=1.8;strokeColor=#000000;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="uc_access" target="uc_submit">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ext2" value="&amp;lt;&amp;lt;Extend&amp;gt;&amp;gt;" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endSize=8;strokeWidth=1.8;strokeColor=#000000;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="uc_approve" target="uc_review">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ext3" value="&amp;lt;&amp;lt;Extend&amp;gt;&amp;gt;" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endSize=8;strokeWidth=1.8;strokeColor=#000000;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="uc_disapprove" target="uc_review">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

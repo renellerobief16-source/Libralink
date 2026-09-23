@@ -5,6 +5,44 @@ const LibrarySettings = require('../models/LibrarySettings');
 const { auth, requireRole } = require('../middleware/auth');
 const supabase = require('../config/database');
 
+// @route   GET /api/borrow-requests
+// @desc    Get all borrow requests (Super Admin overview / system-wide queries)
+// @access  Private
+router.get('/', auth, async (req, res) => {
+  try {
+    const { status, school_id } = req.query;
+    let query = supabase
+      .from('borrow_requests')
+      .select(`
+        *,
+        student:student_id(firstname, lastname, student_number, email, profile_image),
+        home_school:home_school_id(school_name, school_code),
+        items:borrow_request_items(
+          *,
+          book:book_id(title, author),
+          owner_school:owner_school_id(school_name, school_code),
+          partner_school:partner_school_id(school_name, school_code)
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (school_id) {
+      query = query.eq('home_school_id', school_id);
+    }
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    res.json({ success: true, data: data || [] });
+  } catch (error) {
+    console.error('[BORROW REQUESTS] Error fetching all borrow requests:', error);
+    res.status(500).json({ success: false, message: 'Server error fetching borrow requests' });
+  }
+});
+
 // @route   POST /api/borrow-requests
 // @desc    Create a new borrowing request
 // @access  Private (Student)

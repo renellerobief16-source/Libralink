@@ -6,6 +6,7 @@ import {
   FiUserCheck, FiFileText, FiSun, FiMoon, FiShield, FiExternalLink, FiSliders
 } from 'react-icons/fi';
 import { getBackendAssetUrl, markAllNotificationsAsRead } from '../../utils/api';
+import { formatSmartTime, formatPhilippineFullTooltip } from '../../utils/timeUtils';
 
 const DESK_SHORTCUTS = [
   { id: 'circulation-counter', title: 'Circulation Desk & Scan', description: 'Fast student check-in, QR scan & desk return', icon: FiRotateCcw, color: 'text-blue-600 bg-blue-50 border-blue-200' },
@@ -511,52 +512,6 @@ function GlobalHeader({
 
       {/* Right side - Notifications and Profile */}
       <div className="flex items-center gap-3">
-        {/* Role Switcher Pill for Admin Librarian */}
-        {isAdminLibrarian && isLibrarianAdminRoute && (
-          <button
-            onClick={() => navigate('/librarian')}
-            className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border shadow-xs cursor-pointer ${
-              darkMode
-                ? 'bg-blue-950/60 text-blue-300 border-blue-800 hover:bg-blue-900/80 hover:text-white'
-                : 'bg-blue-50/90 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300'
-            }`}
-            title="Switch to Librarian Circulation Counter"
-          >
-            <FiRotateCcw className="w-3.5 h-3.5 text-blue-600" />
-            <span>Circulation Desk</span>
-          </button>
-        )}
-
-        {isAdminLibrarian && isLibrarianRoute && (
-          <button
-            onClick={() => navigate('/librarian-admin')}
-            className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border shadow-xs cursor-pointer ${
-              darkMode
-                ? 'bg-purple-950/60 text-purple-300 border-purple-800 hover:bg-purple-900/80 hover:text-white'
-                : 'bg-purple-50/90 text-purple-700 border-purple-200 hover:bg-purple-100 hover:border-purple-300'
-            }`}
-            title="Return to Admin Management Console"
-          >
-            <FiShield className="w-3.5 h-3.5 text-purple-600" />
-            <span>Admin Console</span>
-          </button>
-        )}
-
-        {/* Switch to Student Preview */}
-        {isAdminLibrarian && (
-          <button
-            onClick={() => navigate('/studentpage')}
-            className={`hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border shadow-xs cursor-pointer ${
-              darkMode
-                ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800 hover:bg-emerald-900/80 hover:text-white'
-                : 'bg-emerald-50/90 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300'
-            }`}
-            title="Preview Student / Reader Experience"
-          >
-            <FiExternalLink className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Student View</span>
-          </button>
-        )}
 
         {/* Notification Bell (Clean Light Style) */}
         <div className="notification-dropdown-container relative">
@@ -753,9 +708,12 @@ function GlobalHeader({
                               </p>
 
                               <div className="flex items-center justify-between gap-1 mt-1.5">
-                                <span className="text-[10px] flex items-center gap-1 font-medium text-slate-500">
+                                <span 
+                                  className="text-[10px] flex items-center gap-1 font-medium text-slate-500"
+                                  title={formatPhilippineFullTooltip(notification.created_at)}
+                                >
                                   <FiClock className="w-2.5 h-2.5" />
-                                  {formatTimeAgo(notification.created_at)}
+                                  {formatSmartTime(notification.created_at)}
                                 </span>
                                 {isUnread && (
                                   <span className="w-2 h-2 bg-blue-600 rounded-full ring-2 ring-blue-200" />

@@ -133,6 +133,92 @@ export function formatRelativeTime(dateInput) {
 }
 
 /**
+ * Formats a timestamp into Smart Contextual Relative Time
+ * - < 60s: "Just now"
+ * - < 60m: "X mins ago"
+ * - Today: "Today at 2:30 PM"
+ * - Yesterday: "Yesterday at 10:15 AM"
+ * - This year: "Sep 23 at 2:30 PM"
+ * - Older: "Sep 23, 2025 at 2:30 PM"
+ * 
+ * @param {string|number|Date} dateInput 
+ * @param {string} fallback 
+ * @returns {string}
+ */
+export function formatSmartTime(dateInput, fallback = '—') {
+  const d = safeParseDate(dateInput);
+  if (!d) return fallback;
+
+  const now = new Date();
+  const diffSeconds = Math.floor((now.getTime() - d.getTime()) / 1000);
+
+  // Very recent
+  if (diffSeconds < 45) return 'Just now';
+  if (diffSeconds < 3600) {
+    const mins = Math.max(1, Math.floor(diffSeconds / 60));
+    return `${mins} min${mins > 1 ? 's' : ''} ago`;
+  }
+
+  const timeStr = formatPhilippineTime(d);
+  const todayStr = getManilaDateString(now);
+  const dateStr = getManilaDateString(d);
+
+  if (todayStr === dateStr) {
+    return `Today at ${timeStr}`;
+  }
+
+  // Calculate yesterday in Manila
+  const yesterdayDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const yesterdayStr = getManilaDateString(yesterdayDate);
+  if (yesterdayStr === dateStr) {
+    return `Yesterday at ${timeStr}`;
+  }
+
+  // Same year check
+  try {
+    const dYear = new Intl.DateTimeFormat('en-US', { timeZone: MANILA_TZ, year: 'numeric' }).format(d);
+    const nowYear = new Intl.DateTimeFormat('en-US', { timeZone: MANILA_TZ, year: 'numeric' }).format(now);
+    const monthDay = new Intl.DateTimeFormat('en-US', { timeZone: MANILA_TZ, month: 'short', day: 'numeric' }).format(d);
+
+    if (dYear === nowYear) {
+      return `${monthDay} at ${timeStr}`;
+    }
+    return `${monthDay}, ${dYear} at ${timeStr}`;
+  } catch {
+    return `${formatPhilippineDate(d)} at ${timeStr}`;
+  }
+}
+
+/**
+ * Returns a high-precision Philippine Standard Time description for title tooltips
+ * Example: "Wednesday, September 23, 2026 at 2:30:15 PM (PST / UTC+8)"
+ * @param {string|number|Date} dateInput 
+ * @returns {string}
+ */
+export function formatPhilippineFullTooltip(dateInput) {
+  const d = safeParseDate(dateInput);
+  if (!d) return '';
+
+  try {
+    const formatted = new Intl.DateTimeFormat('en-US', {
+      timeZone: MANILA_TZ,
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    }).format(d);
+
+    return `${formatted} (PST / UTC+8)`;
+  } catch {
+    return d.toLocaleString();
+  }
+}
+
+/**
  * Combines Philippine date-time with relative indicator
  * Example: "Sep 10, 2026 • 10:00 PM (2h ago)"
  * @param {string|number|Date} dateInput 
@@ -140,16 +226,7 @@ export function formatRelativeTime(dateInput) {
  * @returns {string}
  */
 export function formatDateTimeWithRelative(dateInput, fallback = '—') {
-  const d = safeParseDate(dateInput);
-  if (!d) return fallback;
-
-  const fullTime = formatPhilippineDateTime(d, fallback);
-  const rel = formatRelativeTime(d);
-
-  if (rel && rel !== 'Just now' && !rel.includes(',')) {
-    return `${fullTime} (${rel})`;
-  }
-  return fullTime;
+  return formatSmartTime(dateInput, fallback);
 }
 
 /**

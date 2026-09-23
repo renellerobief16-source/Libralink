@@ -1,0 +1,153 @@
+// =====================================================================
+// LibraLink - System Flow Diagram (DBML for dbdiagram.io)
+// Matches: 2. SYSTEM FLOW DIAGRAM (Information Flow: Input to Output)
+// Website: https://dbdiagram.io
+// =====================================================================
+
+Project libralink_system_flow {
+  database_type: 'PostgreSQL'
+  Note: '''
+    # 2. SYSTEM FLOW DIAGRAM (LibraLink)
+    This shows how information flows within the LibraLink system from input to output.
+    "The flow ensures secure processing, proper validation, and timely delivery of information."
+  '''
+}
+
+// -------------------------------------------------------------
+// STEP 1: USER
+// -------------------------------------------------------------
+Table 1_USER {
+  actor_id varchar [pk, note: 'Actor']
+  role varchar [note: 'Student / Patron, Librarian Staff, School Admin, Super Admin']
+  device varchar [note: 'Web Browser / Mobile Client']
+  Note: 'Initiates request or consumes library services'
+}
+
+// -------------------------------------------------------------
+// STEP 2: AUTHENTICATION
+// -------------------------------------------------------------
+Table 2_AUTHENTICATION {
+  auth_id varchar [pk]
+  process varchar [note: 'Login & Identity Verification']
+  credentials varchar [note: 'Email / Password / Student ID']
+  security varchar [note: 'Bcrypt Hash, JWT Session Token, RBAC Guard']
+  Note: 'Authenticates identity and sets role-based permissions'
+}
+
+// -------------------------------------------------------------
+// STEP 3: INPUT
+// -------------------------------------------------------------
+Table 3_INPUT {
+  input_id varchar [pk]
+  action varchar [note: 'Data Entry']
+  data_payload varchar [note: 'Book Search Query, Borrow Request Form, ISBN Scan, QR Access Token']
+  client_state varchar [note: 'React Form State & Validation']
+  Note: 'Captures user input and parameters from the interface'
+}
+
+// -------------------------------------------------------------
+// STEP 4: PROCESSING
+// -------------------------------------------------------------
+Table 4_PROCESSING {
+  process_id varchar [pk]
+  stage varchar [note: 'Validate & Process']
+  controller varchar [note: 'Express.js Route Handlers & Middlewares']
+  tasks varchar [note: 'Sanitize input, parse payload, verify active sessions']
+  Note: 'Validates structure and prepares payload for business rule checks'
+}
+
+// -------------------------------------------------------------
+// STEP 5: BUSINESS_RULES
+// -------------------------------------------------------------
+Table 5_BUSINESS_RULES {
+  rule_id varchar [pk]
+  policy varchar [note: 'Apply Rules']
+  checks varchar [note: 'Max borrow limit (3 books), Overdue fines status, Home vs. Inter-School permission']
+  validation varchar [note: 'Copy availability check (available vs borrowed/maintenance)']
+  Note: 'Enforces institutional library policies and consortium permissions'
+}
+
+// -------------------------------------------------------------
+// STEP 6: DATABASE
+// -------------------------------------------------------------
+Table 6_DATABASE {
+  query_id varchar [pk]
+  operation varchar [note: 'Store / Retrieve']
+  engine varchar [note: 'Supabase PostgreSQL Database']
+  tables varchar [note: 'users, books, book_copies, borrow_requests, fines, audit_logs']
+  integrity varchar [note: 'ACID transactions, Foreign keys, Row-Level Security (RLS)']
+  Note: 'Central persistence store for state, catalog, and transactions'
+}
+
+// -------------------------------------------------------------
+// STEP 7: OUTPUT
+// -------------------------------------------------------------
+Table 7_OUTPUT {
+  output_id varchar [pk]
+  presentation varchar [note: 'Display / Generate']
+  artifacts varchar [note: 'QR Code Access Pass, Digital Permission Letter (PDF), Dashboard Analytics, Catalog Search Results']
+  interface varchar [note: 'Role-based React Portals (Student / Librarian / Admin)']
+  Note: 'Renders response data, downloadable passes, and interface updates'
+}
+
+// -------------------------------------------------------------
+// STEP 8: NOTIFICATION
+// -------------------------------------------------------------
+Table 8_NOTIFICATION {
+  notif_id varchar [pk]
+  channel varchar [note: 'Email / Realtime Alerts / In-App']
+  triggers varchar [note: 'Request Approved, Ready for Pickup, Due Date Reminder, Overdue Alert']
+  dispatch varchar [note: 'Supabase Realtime WebSockets & Email Service']
+  Note: 'Dispatches automated alerts to keep patrons and librarians informed'
+}
+
+// -------------------------------------------------------------
+// STEP 9: COMMUNICATION
+// -------------------------------------------------------------
+Table 9_COMMUNICATION {
+  comm_id varchar [pk]
+  interaction varchar [note: 'Feedback & Loopback']
+  feedback_type varchar [note: 'Success toast notifications, Borrow receipts, Action confirmations']
+  recipient varchar [note: 'Delivered directly back to User device']
+  Note: 'Completes the information cycle back to the active user'
+}
+
+// =====================================================================
+// FLOW CONNECTIONS (Direct sequence arrows matching the diagram)
+// =====================================================================
+
+Ref: 1_USER.actor_id > 2_AUTHENTICATION.auth_id
+Ref: 2_AUTHENTICATION.auth_id > 3_INPUT.input_id
+Ref: 3_INPUT.input_id > 4_PROCESSING.process_id
+Ref: 4_PROCESSING.process_id > 5_BUSINESS_RULES.rule_id
+Ref: 4_PROCESSING.process_id > 6_DATABASE.query_id
+Ref: 5_BUSINESS_RULES.rule_id > 6_DATABASE.query_id
+Ref: 6_DATABASE.query_id > 7_OUTPUT.output_id
+Ref: 7_OUTPUT.output_id > 8_NOTIFICATION.notif_id
+Ref: 8_NOTIFICATION.notif_id > 9_COMMUNICATION.comm_id
+Ref: 9_COMMUNICATION.comm_id > 1_USER.actor_id
+
+// =====================================================================
+// COLOR-CODED MODULE GROUPS FOR DBDATABASE.IO
+// =====================================================================
+
+TableGroup Entry_and_Authentication [color: #2563EB] {
+  1_USER
+  2_AUTHENTICATION
+  3_INPUT
+}
+
+TableGroup Logic_and_Rules [color: #059669] {
+  4_PROCESSING
+  5_BUSINESS_RULES
+}
+
+TableGroup Persistence_Store [color: #D97706] {
+  6_DATABASE
+}
+
+TableGroup Delivery_and_Feedback [color: #7C3AED] {
+  7_OUTPUT
+  8_NOTIFICATION
+  9_COMMUNICATION
+}

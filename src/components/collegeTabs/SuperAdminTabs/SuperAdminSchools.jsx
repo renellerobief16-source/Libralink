@@ -11,6 +11,7 @@ import Modal from '../../../components/ui/Modal';
 import { LoadingOverlay } from '../../../components/common/Loading';
 import EmptyState from '../../../components/ui/EmptyState';
 import useAlert from '../../../hooks/useAlert';
+import CampusLocationPicker from '../../common/CampusLocationPicker';
 
 function SuperAdminSchools() {
   const [schools, setSchools] = useState([]);
@@ -30,7 +31,9 @@ function SuperAdminSchools() {
     contact_number: '', 
     email: '', 
     status: 'active', 
-    logo: '' 
+    logo: '',
+    latitude: null,
+    longitude: null,
   });
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState('');
@@ -84,7 +87,9 @@ function SuperAdminSchools() {
       contact_number: '', 
       email: '', 
       status: 'active', 
-      logo: '' 
+      logo: '',
+      latitude: null,
+      longitude: null,
     });
     setLogoFile(null);
     setLogoPreview('');
@@ -101,7 +106,9 @@ function SuperAdminSchools() {
       contact_number: school.contact_number || '', 
       email: school.email || '', 
       status: school.status || 'active', 
-      logo: school.logo || '' 
+      logo: school.logo || '',
+      latitude: school.latitude !== undefined && school.latitude !== null ? Number(school.latitude) : null,
+      longitude: school.longitude !== undefined && school.longitude !== null ? Number(school.longitude) : null,
     });
     setLogoPreview(school.logo ? getLogoUrl(school.logo) : '');
     setLogoFile(null);
@@ -140,6 +147,8 @@ function SuperAdminSchools() {
         contact_number: formData.contact_number.trim(),
         email: formData.email.trim(),
         status: formData.status,
+        latitude: formData.latitude !== null && formData.latitude !== undefined && !isNaN(Number(formData.latitude)) ? Number(formData.latitude) : null,
+        longitude: formData.longitude !== null && formData.longitude !== undefined && !isNaN(Number(formData.longitude)) ? Number(formData.longitude) : null,
       };
 
       if (editingSchool) {
@@ -487,7 +496,16 @@ function SuperAdminSchools() {
                   <div className="space-y-1.5 text-xs text-slate-600 mb-4">
                     <div className="flex items-center gap-2">
                       <FiMapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                      <span className="truncate">{school.address || 'Address not configured'}</span>
+                      <span className="truncate flex-1">{school.address || 'Address not configured'}</span>
+                      {school.latitude && school.longitude ? (
+                        <span className="shrink-0 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200" title={`GPS: ${school.latitude}, ${school.longitude}`}>
+                          📍 Pinned
+                        </span>
+                      ) : (
+                        <span className="shrink-0 text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" title="Map coordinates not configured">
+                          No Pin
+                        </span>
+                      )}
                     </div>
                     {school.email && (
                       <div className="flex items-center gap-2">
@@ -573,7 +591,14 @@ function SuperAdminSchools() {
                         </span>
                       </td>
                       <td className="px-5 py-4 text-slate-600 text-xs">
-                        {school.address || '—'}
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate max-w-[200px]">{school.address || '—'}</span>
+                          {school.latitude && school.longitude ? (
+                            <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0" title={`Pinned: ${school.latitude}, ${school.longitude}`}>📍 Pinned</span>
+                          ) : (
+                            <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 shrink-0" title="Coordinates missing">⚠️ No Pin</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-4 text-slate-600 text-xs">
                         <div>{school.email || '—'}</div>
@@ -625,7 +650,7 @@ function SuperAdminSchools() {
           onClose={() => setShowAddModal(false)}
           title={editingSchool ? `Configure Campus: ${editingSchool.school_name}` : 'Onboard New Consortium Campus'}
           description="Enter institutional identity, unique consortium code, and local contact specifications."
-          size="lg"
+          size="xl"
           footer={
             <div className="flex items-center justify-end gap-3 w-full">
               <Button
@@ -734,6 +759,37 @@ function SuperAdminSchools() {
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 placeholder="e.g. Quiapo, Manila, Metro Manila"
                 className="w-full px-3.5 py-2.5 rounded-xl text-sm border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              />
+            </div>
+
+            {/* Interactive Leaflet Pin & Search Location Picker */}
+            <div className="pt-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span>Campus Map Coordinates (Leaflet Pin)</span>
+                {formData.latitude && formData.longitude ? (
+                  <span className="text-[11px] font-mono text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-normal normal-case">
+                    📍 {Number(formData.latitude).toFixed(4)}, {Number(formData.longitude).toFixed(4)}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-normal normal-case">
+                    ⚠️ Not pinned yet (students will see fallback notice)
+                  </span>
+                )}
+              </label>
+              <CampusLocationPicker
+                latitude={formData.latitude}
+                longitude={formData.longitude}
+                address={formData.address}
+                schoolName={formData.school_name || 'Campus Library'}
+                schoolLogo={logoPreview || getLogoUrl(formData.logo)}
+                onChange={({ latitude, longitude, address: newAddr }) => {
+                  setFormData(prev => ({
+                    ...prev,
+                    latitude,
+                    longitude,
+                    address: (!prev.address.trim() && newAddr) ? newAddr : prev.address
+                  }));
+                }}
               />
             </div>
 

@@ -47,7 +47,7 @@ router.get('/', async (req, res) => {
         call_number,
         school_id,
         cover_image,
-        schools(school_name, school_code),
+        schools(school_id, school_name, school_code, address, latitude, longitude, logo),
         categories(category_name)
       `, { count: 'exact' })
       .order('title');
@@ -98,7 +98,7 @@ router.get('/', async (req, res) => {
               call_number,
               school_id,
               cover_image,
-              schools(school_name, school_code),
+              schools(school_id, school_name, school_code, address, latitude, longitude, logo),
               categories(category_name)
             `, { count: 'exact' })
             .order('title');
@@ -824,7 +824,7 @@ router.get('/consortium-catalog', auth, requireRole(['Super Admin', 'Librarian A
         available_quantity,
         borrowed_quantity,
         created_at,
-        schools(school_id, school_name, school_code),
+        schools(school_id, school_name, school_code, address, latitude, longitude, logo),
         categories(category_id, category_name)
       `, { count: 'exact' });
 

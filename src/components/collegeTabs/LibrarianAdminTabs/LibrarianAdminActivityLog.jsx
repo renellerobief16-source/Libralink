@@ -4,7 +4,8 @@ import {
   FiLogIn, FiDollarSign, FiCheckCircle, FiShield, FiSliders, FiCalendar 
 } from "react-icons/fi";
 import api, { getBackendAssetUrl } from "../../../utils/api";
-import { AnimatedCounter } from "../../common";
+
+
 
 function LibrarianAdminActivityLog({ darkMode }) {
   const [activities, setActivities] = useState([]);
@@ -204,75 +205,44 @@ function LibrarianAdminActivityLog({ darkMode }) {
   }, [activities]);
 
   return (
-    <div className="animate-slide-up space-y-6">
-      {/* Header Banner */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-4">
+      {/* Compact page header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
-              <FiActivity className="w-5 h-5" />
+          <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <FiActivity className="w-5 h-5 text-slate-500" />
+            Activity &amp; Audit Log
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5">Live operational logs, member logins, and circulation transactions</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-semibold text-slate-700">
+            <span className="font-black">{stats.total}</span>
+            <span className="opacity-70">Total</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-xs font-semibold text-emerald-700">
+            <span className="font-black">{stats.logins}</span>
+            <span className="opacity-70">Logins</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-xs font-semibold text-blue-700">
+            <span className="font-black">{stats.borrows + stats.returns}</span>
+            <span className="opacity-70">Circulation</span>
+          </div>
+          {stats.fines > 0 && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-xs font-semibold text-amber-700">
+              <span className="font-black">{stats.fines}</span>
+              <span className="opacity-70">Fines</span>
             </div>
-            <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Activity & Audit Stream</h2>
-              <p className="text-xs text-slate-500">Live operational logs, member logins, and circulation transactions</p>
-            </div>
-          </div>
-        </div>
+          )}
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition disabled:opacity-40"
+            title="Refresh"
+          >
+            <FiRefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
 
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all cursor-pointer shadow-xs disabled:opacity-50"
-        >
-          <FiRefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-          <span>{refreshing ? 'Refreshing...' : 'Refresh Logs'}</span>
-        </button>
-      </div>
-
-      {/* KPI Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Events</span>
-            <span className="p-1.5 rounded-lg bg-slate-100 text-slate-600"><FiActivity className="w-3.5 h-3.5" /></span>
-          </div>
-          <p className="text-2xl font-black text-slate-900">
-            <AnimatedCounter value={stats.total} />
-          </p>
-          <span className="text-[11px] text-slate-400">Captured in audit log</span>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Member Logins</span>
-            <span className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100"><FiLogIn className="w-3.5 h-3.5" /></span>
-          </div>
-          <p className="text-2xl font-black text-emerald-700">
-            <AnimatedCounter value={stats.logins} />
-          </p>
-          <span className="text-[11px] text-slate-400">Student & staff sign-ins</span>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">Circulation</span>
-            <span className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-100"><FiBook className="w-3.5 h-3.5" /></span>
-          </div>
-          <p className="text-2xl font-black text-blue-700">
-            <AnimatedCounter value={stats.borrows + stats.returns} />
-          </p>
-          <span className="text-[11px] text-slate-400">{stats.borrows} loans • {stats.returns} returns</span>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">Fines & Fees</span>
-            <span className="p-1.5 rounded-lg bg-amber-50 text-amber-600 border border-amber-100"><FiDollarSign className="w-3.5 h-3.5" /></span>
-          </div>
-          <p className="text-2xl font-black text-amber-700">
-            <AnimatedCounter value={stats.fines} />
-          </p>
-          <span className="text-[11px] text-slate-400">Assessments & settlements</span>
+          </button>
         </div>
       </div>
 

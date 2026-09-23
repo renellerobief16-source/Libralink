@@ -11,7 +11,12 @@ import {
   FiBook, FiExternalLink, FiCheck, FiFilter, FiCompass, FiLayers, FiMessageSquare,
   FiArrowRight, FiSearch, FiX, FiUser, FiFileText, FiShield
 } from "react-icons/fi";
-import { formatPhilippineDateTime, formatRelativeTime } from "../../../utils/timeUtils";
+import { 
+  formatPhilippineDateTime, 
+  formatRelativeTime, 
+  formatSmartTime, 
+  formatPhilippineFullTooltip 
+} from "../../../utils/timeUtils";
 
 function AdminInbox({ darkMode, onNavigateTab }) {
   const [activeInboxTab, setActiveInboxTab] = useState('alerts'); // 'alerts' | 'announcements'
@@ -460,8 +465,11 @@ Campus Library Team`);
                             <span className="w-2 h-2 rounded-full bg-blue-600 flex-shrink-0" />
                           )}
                         </div>
-                        <span className="text-[11px] text-slate-400">
-                          {notification.created_at ? formatPhilippineDateTime(notification.created_at) : ''} ({notification.created_at ? formatRelativeTime(notification.created_at) : ''})
+                        <span 
+                          className="text-[11px] text-slate-400 font-medium cursor-help"
+                          title={formatPhilippineFullTooltip(notification.created_at)}
+                        >
+                          {formatSmartTime(notification.created_at)}
                         </span>
                       </div>
 
@@ -560,8 +568,12 @@ Campus Library Team`);
                   </p>
 
                   <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 pl-10">
-                    <span>Published: {item.created_at ? formatPhilippineDateTime(item.created_at) : ''}</span>
-                    <span>{item.created_at ? formatRelativeTime(item.created_at) : ''}</span>
+                    <span title={formatPhilippineFullTooltip(item.created_at)} className="cursor-help font-medium">
+                      Published: {formatSmartTime(item.created_at)}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {formatPhilippineDateTime(item.created_at)}
+                    </span>
                   </div>
                 </div>
               ))}

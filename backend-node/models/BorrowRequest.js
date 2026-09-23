@@ -144,7 +144,7 @@ class BorrowRequest {
 
       const { data: student, error: studentError } = await supabase
         .from('users')
-        .select('firstname, lastname, student_number')
+        .select('firstname, lastname, student_number, profile_image')
         .eq('user_id', request.student_id)
         .single();
 
@@ -158,7 +158,6 @@ class BorrowRequest {
         .eq('status', 'active');
 
       if (staffError) throw staffError;
-      if (!staff || staff.length === 0) return;
 
       const studentName = [student?.firstname, student?.lastname].filter(Boolean).join(' ') || 'A student';
       const bookCount = requestData.items?.length || 0;
@@ -168,7 +167,9 @@ class BorrowRequest {
       const bookSummary = bookTitles.length > 0
         ? bookTitles.join(', ')
         : `${bookCount} ${bookCount === 1 ? 'book' : 'books'}`;
-      const notifications = staff.map(member => ({
+
+      const nowIso = new Date().toISOString();
+      const notifications = (staff || []).map(member => ({
         user_id: member.user_id,
         school_id: member.school_id,
         type: 'request_submitted',
@@ -176,21 +177,38 @@ class BorrowRequest {
           ? 'New Inter-School Borrow Request'
           : 'New Borrow Request',
         message: `${studentName} submitted request ${request_id} for: ${bookSummary}. Please review the request.`,
-        // related_id is an integer in the existing database; the request ID is kept in the message.
         related_id: null,
         is_read: false,
         is_admin_notification: false,
+        created_at: nowIso,
       }));
 
-      const { error: notificationError } = await supabase
-        .from('notifications')
-        .insert(notifications);
+      // Also create a confirmation notification for the student
+      if (request.student_id) {
+        notifications.push({
+          user_id: request.student_id,
+          school_id: homeSchoolId || request.home_school_id || null,
+          type: 'request_submitted',
+          title: 'Borrow Request Submitted 📋',
+          message: `Your borrow request ${request_id} for ${bookSummary} has been submitted successfully and is pending librarian review.`,
+          related_id: null,
+          is_read: false,
+          is_admin_notification: false,
+          created_at: nowIso,
+        });
+      }
 
-      if (notificationError) throw notificationError;
-      console.log('[BORROW REQUEST] Staff notifications created:', notifications.length);
+      if (notifications.length > 0) {
+        const { error: notificationError } = await supabase
+          .from('notifications')
+          .insert(notifications);
+
+        if (notificationError) throw notificationError;
+        console.log('[BORROW REQUEST] Notifications created (staff + student):', notifications.length);
+      }
     } catch (error) {
       // A notification failure must not invalidate a successfully created request.
-      console.error('[BORROW REQUEST] Error creating staff notifications:', error);
+      console.error('[BORROW REQUEST] Error creating staff/student notifications:', error);
     }
   }
 
@@ -200,6 +218,7 @@ class BorrowRequest {
         .from('borrow_requests')
         .select(`
           *,
+          student:student_id(firstname, lastname, student_number, email, contact_number, profile_image),
           home_school:home_school_id(school_name, school_code),
           items:borrow_request_items(
             *,

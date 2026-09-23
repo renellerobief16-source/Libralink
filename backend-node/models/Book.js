@@ -95,7 +95,7 @@ class Book {
             total_copies,
             available_copies,
             borrowed_copies,
-            schools(school_name, school_code),
+            schools(school_id, school_name, school_code, address, latitude, longitude, logo),
             categories(category_name)
           `)
           .order('title')
@@ -185,7 +185,7 @@ class Book {
           .from('books')
           .select(`
             *,
-            schools(school_name, school_code),
+            schools(school_id, school_name, school_code, address, latitude, longitude, logo),
             categories(category_name)
           `)
           .eq('school_id', school_id)
@@ -222,7 +222,7 @@ class Book {
         .from('books')
         .select(`
           *,
-          schools(school_name, school_code),
+          schools(school_id, school_name, school_code, address, latitude, longitude, logo),
           categories(category_name)
         `)
         .or(`title.ilike.%${search_term}%,subtitle.ilike.%${search_term}%,author.ilike.%${search_term}%,isbn.ilike.%${search_term}%,call_number.ilike.%${search_term}%,keywords.ilike.%${search_term}%`);
@@ -247,7 +247,7 @@ class Book {
         .from('books')
         .select(`
           *,
-          schools(school_name, school_code),
+          schools(school_id, school_name, school_code, address, latitude, longitude, logo),
           categories(category_name)
         `)
         .textSearch('title', search_term, {
@@ -345,7 +345,7 @@ class Book {
         .from('books')
         .select(`
           *,
-          schools(school_name, school_code)
+          schools(school_id, school_name, school_code, address, latitude, longitude, logo)
         `)
         .order('borrowed_quantity', { ascending: false })
         .limit(limit);
@@ -364,7 +364,7 @@ class Book {
         .from('books')
         .select(`
           *,
-          schools(school_name, school_code),
+          schools(school_id, school_name, school_code, address, latitude, longitude, logo),
           categories(category_name)
         `)
         .eq('category_id', category_id);
@@ -389,7 +389,7 @@ class Book {
         .from('books')
         .select(`
           *,
-          schools(school_name, school_code)
+          schools(school_id, school_name, school_code, address, latitude, longitude, logo)
         `)
         .eq('status', status);
 

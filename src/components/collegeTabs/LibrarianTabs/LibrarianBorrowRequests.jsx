@@ -33,6 +33,8 @@ import {
   formatPhilippineDate,
   formatPhilippineTime,
   formatTimeWithRelative,
+  formatSmartTime,
+  formatPhilippineFullTooltip,
   getDueStatusDetails 
 } from "../../../utils/timeUtils";
 
@@ -1786,10 +1788,10 @@ function AdminBorrowRequests() {
                           {request.request_id}
                         </td>
 
-                        {/* Borrower Student with Clickable Physical School ID Picture */}
+                        {/* Borrower Student with Profile Picture & Clickable School ID */}
                         <td className="py-1.5 px-2 min-w-[150px] max-w-[190px]">
-                          <div className="flex items-center gap-1.5">
-                            {/* Rectangular School ID Card Preview */}
+                          <div className="flex items-center gap-2">
+                            {/* Circular Student Profile Avatar */}
                             <div 
                               onClick={() => setZoomIdModal({
                                 isOpen: true,
@@ -1798,37 +1800,42 @@ function AdminBorrowRequests() {
                                 studentNumber: student.student_number || request.student_id || 'N/A',
                                 schoolName: homeSchool.school_name || 'Campus'
                               })}
-                              className="relative w-10 h-7 rounded-md overflow-hidden cursor-pointer group shrink-0 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-blue-500 transition-all bg-slate-100 flex items-center justify-center"
-                              title="Click to zoom physical School ID card"
+                              className="relative w-8 h-8 rounded-full cursor-pointer group shrink-0 ring-2 ring-blue-500/20 shadow-2xs hover:ring-blue-600 transition-all bg-slate-100 flex items-center justify-center overflow-hidden"
+                              title="Click to view student profile picture / ID card"
                             >
                               {studentIdPic ? (
                                 <img
                                   src={getBackendAssetUrl(studentIdPic)}
-                                  alt={`${studentIdentity.name}'s School ID`}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                  alt={studentIdentity.name}
+                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
                                   onError={(e) => {
                                     e.currentTarget.style.display = 'none';
                                     if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
                                   }}
                                 />
                               ) : null}
-                              <div className={`w-full h-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-[8px] flex flex-col items-center justify-center ${studentIdPic ? 'hidden' : 'flex'}`}>
-                                <span>ID</span>
+                              <div className={`w-full h-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-[10px] flex items-center justify-center ${studentIdPic ? 'hidden' : 'flex'}`}>
+                                {(student.firstname?.[0] || studentIdentity.name?.[0] || 'S').toUpperCase()}
+                                {(student.lastname?.[0] || '').toUpperCase()}
                               </div>
-                              <div className="absolute top-0.5 left-0.5 bg-slate-900/80 text-white text-[7px] font-black px-0.5 rounded-xs leading-tight tracking-tighter backdrop-blur-xs pointer-events-none">
-                                ID
-                              </div>
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                                <FiMaximize2 className="w-2 h-2" />
+                              <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                <FiMaximize2 className="w-2.5 h-2.5" />
                               </div>
                             </div>
 
-                            <div className="min-w-0 max-w-[115px]">
-                              <div className="font-bold text-slate-900 truncate text-[11px]" title={studentIdentity.name}>
+                            <div className="min-w-0 max-w-[125px]">
+                              <div 
+                                className="font-bold text-slate-900 truncate text-[11px] hover:text-blue-600 transition-colors cursor-pointer" 
+                                title={studentIdentity.name}
+                                onClick={() => handleViewDetails(request)}
+                              >
                                 {studentIdentity.name}
                               </div>
-                              <div className="text-[10px] text-slate-500 font-mono truncate">
-                                {student.student_number || request.student_id || 'No ID'}
+                              <div className="text-[10px] text-slate-500 font-mono truncate flex items-center gap-1">
+                                <span>{student.student_number || request.student_id || 'No ID'}</span>
+                                {request.id_picture_url && (
+                                  <span className="text-[8px] bg-blue-50 text-blue-600 px-1 py-0.2 rounded font-semibold">ID</span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1875,8 +1882,11 @@ function AdminBorrowRequests() {
                         </td>
 
                         {/* Requested Date */}
-                        <td className="py-1.5 px-2 text-slate-600 whitespace-nowrap min-w-[95px] text-[10px]" title={formatDateTimeWithRelative(request.created_at)}>
-                          {formatPhilippineDate(request.created_at)}
+                        <td 
+                          className="py-1.5 px-2 text-slate-600 whitespace-nowrap min-w-[95px] text-[10px] cursor-help font-medium" 
+                          title={formatPhilippineFullTooltip(request.created_at)}
+                        >
+                          {formatSmartTime(request.created_at)}
                         </td>
 
                         {/* Status */}
@@ -2518,10 +2528,10 @@ function AdminBorrowRequests() {
                           {requestId}
                         </td>
 
-                        {/* Borrower Student with Clickable Physical School ID Picture */}
+                        {/* Borrower Student with Profile Picture & Clickable School ID */}
                         <td className="py-1.5 px-2 min-w-[150px] max-w-[190px]">
-                          <div className="flex items-center gap-1.5">
-                            {/* Rectangular School ID Card Preview */}
+                          <div className="flex items-center gap-2">
+                            {/* Circular Student Profile Avatar */}
                             <div 
                               onClick={() => setZoomIdModal({
                                 isOpen: true,
@@ -2530,37 +2540,42 @@ function AdminBorrowRequests() {
                                 studentNumber: student.student_number || parentReq.student_id || 'N/A',
                                 schoolName: homeSchool.school_name || 'Partner Campus'
                               })}
-                              className="relative w-10 h-7 rounded-md overflow-hidden cursor-pointer group shrink-0 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-indigo-500 transition-all bg-slate-100 flex items-center justify-center"
-                              title="Click to zoom physical School ID card"
+                              className="relative w-8 h-8 rounded-full cursor-pointer group shrink-0 ring-2 ring-indigo-500/20 shadow-2xs hover:ring-indigo-600 transition-all bg-slate-100 flex items-center justify-center overflow-hidden"
+                              title="Click to view student profile picture / ID card"
                             >
                               {studentIdPic ? (
                                 <img
                                   src={getBackendAssetUrl(studentIdPic)}
-                                  alt={`${studentIdentity.name}'s School ID`}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                  alt={studentIdentity.name}
+                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
                                   onError={(e) => {
                                     e.currentTarget.style.display = 'none';
                                     if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
                                   }}
                                 />
                               ) : null}
-                              <div className={`w-full h-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-black text-[8px] flex flex-col items-center justify-center ${studentIdPic ? 'hidden' : 'flex'}`}>
-                                <span>ID</span>
+                              <div className={`w-full h-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-bold text-[10px] flex items-center justify-center ${studentIdPic ? 'hidden' : 'flex'}`}>
+                                {(student.firstname?.[0] || studentIdentity.name?.[0] || 'S').toUpperCase()}
+                                {(student.lastname?.[0] || '').toUpperCase()}
                               </div>
-                              <div className="absolute top-0.5 left-0.5 bg-slate-900/80 text-white text-[7px] font-black px-0.5 rounded-xs leading-tight tracking-tighter backdrop-blur-xs pointer-events-none">
-                                ID
-                              </div>
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                                <FiMaximize2 className="w-2 h-2" />
+                              <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                <FiMaximize2 className="w-2.5 h-2.5" />
                               </div>
                             </div>
 
-                            <div className="min-w-0 max-w-[115px]">
-                              <div className="font-bold text-slate-900 truncate text-[11px]" title={studentIdentity.name}>
+                            <div className="min-w-0 max-w-[125px]">
+                              <div 
+                                className="font-bold text-slate-900 truncate text-[11px] hover:text-indigo-600 transition-colors cursor-pointer" 
+                                title={studentIdentity.name}
+                                onClick={() => handleViewDetails(parentReq)}
+                              >
                                 {studentIdentity.name}
                               </div>
-                              <div className="text-[10px] text-slate-500 font-mono truncate">
-                                {student.student_number || parentReq.student_id || 'No ID'}
+                              <div className="text-[10px] text-slate-500 font-mono truncate flex items-center gap-1">
+                                <span>{student.student_number || parentReq.student_id || 'No ID'}</span>
+                                {parentReq.id_picture_url && (
+                                  <span className="text-[8px] bg-indigo-50 text-indigo-600 px-1 py-0.2 rounded font-semibold">ID</span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -2603,12 +2618,11 @@ function AdminBorrowRequests() {
                         </td>
 
                         {/* Requested At */}
-                        <td className="py-1.5 px-2 text-slate-600 whitespace-nowrap min-w-[95px] text-[10px]">
-                          <div title={formatDateTimeWithRelative(requestedAt)} className="cursor-default">
-                            <div className="font-mono text-slate-700 text-[11px]">
-                              {formatPhilippineDate(requestedAt)}
-                            </div>
-                          </div>
+                        <td 
+                          className="py-1.5 px-2 text-slate-600 whitespace-nowrap min-w-[95px] text-[10px] cursor-help font-medium"
+                          title={formatPhilippineFullTooltip(requestedAt)}
+                        >
+                          {formatSmartTime(requestedAt)}
                         </td>
 
                         {/* Status */}
@@ -4574,10 +4588,10 @@ function AdminBorrowRequests() {
                           {record.request_id || record.borrow_id}
                         </td>
 
-                        {/* Borrower Student with Clickable Physical School ID Picture */}
+                        {/* Borrower Student with Profile Picture & Clickable School ID */}
                         <td className="py-1.5 px-2 min-w-[150px] max-w-[190px]">
-                          <div className="flex items-center gap-1.5">
-                            {/* Rectangular School ID Card Preview */}
+                          <div className="flex items-center gap-2">
+                            {/* Circular Student Profile Avatar */}
                             <div 
                               onClick={() => setZoomIdModal({
                                 isOpen: true,
@@ -4586,37 +4600,42 @@ function AdminBorrowRequests() {
                                 studentNumber: student.student_number || record.student_id || 'N/A',
                                 schoolName: homeSchool.school_name || 'Campus'
                               })}
-                              className="relative w-10 h-7 rounded-md overflow-hidden cursor-pointer group shrink-0 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-purple-500 transition-all bg-slate-100 flex items-center justify-center"
-                              title="Click to zoom physical School ID card"
+                              className="relative w-8 h-8 rounded-full cursor-pointer group shrink-0 ring-2 ring-purple-500/20 shadow-2xs hover:ring-purple-600 transition-all bg-slate-100 flex items-center justify-center overflow-hidden"
+                              title="Click to view student profile picture / ID card"
                             >
                               {studentIdPic ? (
                                 <img
                                   src={getBackendAssetUrl(studentIdPic)}
-                                  alt={`${studentIdentity.name}'s School ID`}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                  alt={studentIdentity.name}
+                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
                                   onError={(e) => {
                                     e.currentTarget.style.display = 'none';
                                     if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
                                   }}
                                 />
                               ) : null}
-                              <div className={`w-full h-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white font-black text-[8px] flex flex-col items-center justify-center ${studentIdPic ? 'hidden' : 'flex'}`}>
-                                <span>ID</span>
+                              <div className={`w-full h-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white font-bold text-[10px] flex items-center justify-center ${studentIdPic ? 'hidden' : 'flex'}`}>
+                                {(student.firstname?.[0] || studentIdentity.name?.[0] || 'S').toUpperCase()}
+                                {(student.lastname?.[0] || '').toUpperCase()}
                               </div>
-                              <div className="absolute top-0.5 left-0.5 bg-slate-900/80 text-white text-[7px] font-black px-0.5 rounded-xs leading-tight tracking-tighter backdrop-blur-xs pointer-events-none">
-                                ID
-                              </div>
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                                <FiMaximize2 className="w-2 h-2" />
+                              <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                <FiMaximize2 className="w-2.5 h-2.5" />
                               </div>
                             </div>
 
-                            <div className="min-w-0 max-w-[115px]">
-                              <div className="font-bold text-slate-900 truncate text-[11px]" title={studentIdentity.name}>
+                            <div className="min-w-0 max-w-[125px]">
+                              <div 
+                                className="font-bold text-slate-900 truncate text-[11px] hover:text-purple-600 transition-colors cursor-pointer" 
+                                title={studentIdentity.name}
+                                onClick={() => handleViewDetails(record)}
+                              >
                                 {studentIdentity.name}
                               </div>
-                              <div className="text-[10px] text-slate-500 font-mono truncate">
-                                {student.student_number || record.student_id || 'No ID'}
+                              <div className="text-[10px] text-slate-500 font-mono truncate flex items-center gap-1">
+                                <span>{student.student_number || record.student_id || 'No ID'}</span>
+                                {record.id_picture_url && (
+                                  <span className="text-[8px] bg-purple-50 text-purple-600 px-1 py-0.2 rounded font-semibold">ID</span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -4658,14 +4677,15 @@ function AdminBorrowRequests() {
                         </td>
 
                         {/* Completed Date */}
-                        <td className="py-1.5 px-2 text-slate-600 whitespace-nowrap min-w-[110px] text-[10px]">
-                          <div title={formatDateTimeWithRelative(completedDate)} className="cursor-default">
-                            <div className="font-mono text-slate-800 text-[11px] font-semibold">
-                              {formatPhilippineDate(completedDate)}
-                            </div>
-                            <div className="text-[9px] text-slate-400 font-medium">
-                              {formatTimeWithRelative(completedDate)}
-                            </div>
+                        <td 
+                          className="py-1.5 px-2 text-slate-600 whitespace-nowrap min-w-[110px] text-[10px] cursor-help"
+                          title={formatPhilippineFullTooltip(completedDate)}
+                        >
+                          <div className="font-mono text-slate-800 text-[11px] font-semibold">
+                            {formatSmartTime(completedDate)}
+                          </div>
+                          <div className="text-[9px] text-slate-400 font-medium">
+                            {formatPhilippineDateTime(completedDate)}
                           </div>
                         </td>
 

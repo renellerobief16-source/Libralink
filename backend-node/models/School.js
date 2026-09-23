@@ -43,11 +43,32 @@ class School {
     }
   }
 
+  static sanitizePayload(data) {
+    const allowed = ['school_name', 'school_code', 'address', 'contact_number', 'email', 'logo', 'status', 'latitude', 'longitude'];
+    const payload = {};
+    for (const key of allowed) {
+      if (data[key] !== undefined) {
+        if (key === 'latitude' || key === 'longitude') {
+          if (data[key] === null || data[key] === '' || data[key] === undefined) {
+            payload[key] = null;
+          } else {
+            const num = Number(data[key]);
+            payload[key] = Number.isFinite(num) ? num : null;
+          }
+        } else {
+          payload[key] = data[key];
+        }
+      }
+    }
+    return payload;
+  }
+
   static async create(data) {
     try {
+      const cleanData = this.sanitizePayload(data);
       const { data: result, error } = await supabase
         .from('schools')
-        .insert(data)
+        .insert(cleanData)
         .select('school_id')
         .single();
       
@@ -61,9 +82,10 @@ class School {
 
   static async update(school_id, data) {
     try {
+      const cleanData = this.sanitizePayload(data);
       const { error } = await supabase
         .from('schools')
-        .update(data)
+        .update(cleanData)
         .eq('school_id', school_id);
       
       if (error) throw error;

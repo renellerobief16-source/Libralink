@@ -26,7 +26,13 @@ import api, { getAnnouncements, getUserNotifications, getBackendAssetUrl } from 
 import NotificationModal from "./inbox/NotificationModal";
 import NotificationEmptyState from "./inbox/NotificationEmptyState";
 import QRCodeDisplay from "./QRCodeDisplay";
-import { formatPhilippineDate, formatDateTimeWithRelative, getDueStatusDetails } from "../../../utils/timeUtils";
+import { 
+  formatPhilippineDate, 
+  formatDateTimeWithRelative, 
+  formatSmartTime, 
+  formatPhilippineFullTooltip, 
+  getDueStatusDetails 
+} from "../../../utils/timeUtils";
 
 function StudentInbox({ isDrawer = false, onClose }) {
   const navigate = useNavigate();
@@ -595,8 +601,11 @@ function StudentInbox({ isDrawer = false, onClose }) {
                             {n.title}
                           </h4>
                         </div>
-                        <span className="shrink-0 text-[11px] text-slate-400 font-normal">
-                          {formatTimeAgo(n.createdAt || n.created_at)}
+                        <span 
+                          className="shrink-0 text-[11px] text-slate-400 font-medium cursor-help"
+                          title={formatPhilippineFullTooltip(n.createdAt || n.created_at)}
+                        >
+                          {formatSmartTime(n.createdAt || n.created_at)}
                         </span>
                       </div>
 
@@ -749,8 +758,11 @@ function StudentInbox({ isDrawer = false, onClose }) {
                         </div>
                       </div>
 
-                      <span className="text-[11px] text-slate-400 shrink-0 font-normal">
-                        {formatTimeAgo(a.created_at)}
+                      <span 
+                        className="text-[11px] text-slate-400 shrink-0 font-medium cursor-help"
+                        title={formatPhilippineFullTooltip(a.created_at)}
+                      >
+                        {formatSmartTime(a.created_at)}
                       </span>
                     </div>
 

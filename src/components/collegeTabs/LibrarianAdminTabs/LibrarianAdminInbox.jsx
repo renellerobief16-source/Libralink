@@ -8,6 +8,7 @@ import {
   FiMail, FiSend, FiBell, FiTrash2, FiClock, FiCheck, FiUsers, 
   FiAlertCircle, FiRefreshCw, FiVolume2, FiShield, FiUser 
 } from "react-icons/fi";
+import { formatSmartTime, formatPhilippineFullTooltip } from "../../../utils/timeUtils";
 
 function LibrarianAdminInbox({ darkMode }) {
   const [notifications, setNotifications] = useState([]);
@@ -263,14 +264,11 @@ function LibrarianAdminInbox({ darkMode }) {
                               </span>
                             )}
                           </div>
-                          <p className="text-[11px] text-slate-400 font-medium">
-                            {new Date(ann.created_at).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
+                          <p 
+                            className="text-[11px] text-slate-400 font-medium cursor-help"
+                            title={formatPhilippineFullTooltip(ann.created_at)}
+                          >
+                            {formatSmartTime(ann.created_at)}
                           </p>
                         </div>
                       </div>
@@ -395,9 +393,12 @@ function LibrarianAdminInbox({ darkMode }) {
                           <span className="w-2 h-2 rounded-full bg-blue-600"></span>
                         )}
                       </div>
-                      <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                      <span 
+                        className="text-[11px] text-slate-400 flex items-center gap-1 font-medium cursor-help"
+                        title={formatPhilippineFullTooltip(notification.created_at)}
+                      >
                         <FiClock className="w-3 h-3" />
-                        {new Date(notification.created_at).toLocaleDateString()}
+                        {formatSmartTime(notification.created_at)}
                       </span>
                     </div>
 

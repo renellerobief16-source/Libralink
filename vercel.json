@@ -5,7 +5,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob: http://localhost:5173 http://127.0.0.1:5173; script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https: blob: http://localhost:5173 http://127.0.0.1:5173; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; img-src 'self' data: blob: https: http://localhost:5000; connect-src 'self' https: http://localhost:5000 http://localhost:5173 http://127.0.0.1:5173 ws: wss:;"
+          "value": "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:; script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https: blob:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; img-src 'self' data: blob: https: http:; connect-src 'self' https: http: ws: wss:;"
         }
       ]
     }

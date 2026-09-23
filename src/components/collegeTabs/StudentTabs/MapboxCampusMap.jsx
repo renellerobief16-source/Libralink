@@ -28,39 +28,29 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-/* ─── Tile Providers (all verified, no auth needed) ─────────────────────
- *  Primary: OpenStreetMap  →  always works, free, high-res
- *  Satellite: ESRI World Imagery  →  free, no key, sharp aerial
- *  Clean: Carto Voyager (fixed, no {r})  →  modern minimalist
+/* ─── Tile Providers ───────────────────────────────────────────────────
+ *  Roadmap:  Google Maps standard street map  (default)
+ *  Satellite: Google Maps aerial imagery
+ *  Note: using unofficial tile endpoint — no API key required
  * ────────────────────────────────────────────────────────────────────── */
 const TILES = {
   map: {
     id: 'map',
     label: 'Map',
     emoji: '🗺️',
-    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    subdomains: undefined,
-    attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
-    maxZoom: 19,
+    url: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+    subdomains: '0123',
+    attribution: '© <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer">Google Maps</a>',
+    maxZoom: 20,
     tileSize: 256,
   },
   satellite: {
     id: 'satellite',
     label: 'Satellite',
     emoji: '🛰️',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    subdomains: undefined,
-    attribution: '© Esri, Maxar',
-    maxZoom: 19,
-    tileSize: 256,
-  },
-  clean: {
-    id: 'clean',
-    label: 'Clean',
-    emoji: '✨',
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-    subdomains: 'abcd',
-    attribution: '© CARTO © OSM',
+    url: 'https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+    subdomains: '0123',
+    attribution: '© <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer">Google Maps</a>',
     maxZoom: 20,
     tileSize: 256,
   },
@@ -190,6 +180,51 @@ const gpsIcon = L.divIcon({
   popupAnchor: [0, -16],
 });
 
+/* ─── Google Maps Style Floating ETA Bubble Callout ─────────────────── */
+function createEtaMarkerIcon({ time, dist, travelMode = 'driving' }) {
+  const iconEmoji = travelMode === 'walking' ? '🚶' : '🚗';
+  return L.divIcon({
+    className: 'custom-google-eta-badge',
+    html: `
+      <div style="
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #ffffff;
+        border: 2px solid #1a73e8;
+        border-radius: 20px;
+        padding: 5px 12px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+        font-family: 'Poppins', system-ui, sans-serif;
+        white-space: nowrap;
+        transform: translate(-50%, -100%);
+        pointer-events: auto;
+      ">
+        <span style="font-size: 13px;">${iconEmoji}</span>
+        <div style="display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1;">
+          <span style="font-size: 12px; font-weight: 800; color: #15803d;">${time}</span>
+          <span style="font-size: 10px; font-weight: 600; color: #64748b;">${dist}</span>
+        </div>
+        <!-- Speech bubble pointer -->
+        <div style="
+          position: absolute;
+          bottom: -6px;
+          left: 50%;
+          transform: translateX(-50%) rotate(45deg);
+          width: 10px;
+          height: 10px;
+          background: #ffffff;
+          border-right: 2px solid #1a73e8;
+          border-bottom: 2px solid #1a73e8;
+        "></div>
+      </div>
+    `,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  });
+}
+
 /* ─── Map Sub-components ─────────────────────────────────────────────── */
 function MapSetup({ center, zoom }) {
   const map = useMap();
@@ -225,6 +260,7 @@ function FitRoute({ route }) {
 export default function MapboxCampusMap({ school, book, height = 340, onExpand }) {
   const markerRef = useRef(null);
   const [tileKey, setTileKey] = useState('map');
+  const [travelMode, setTravelMode] = useState('driving'); // 'driving' or 'walking'
   const [userLoc, setUserLoc] = useState(null);
   const [locating, setLocating] = useState(false);
   const [route, setRoute] = useState(null);
@@ -233,6 +269,12 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
   const [copied, setCopied] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [showLayers, setShowLayers] = useState(false);
+
+  // Compute middle coordinate of route for floating ETA callout badge
+  const routeMidpoint = useMemo(() => {
+    if (!route || route.length < 2) return null;
+    return route[Math.floor(route.length / 2)];
+  }, [route]);
 
   const [resolvedLat, setResolvedLat] = useState(() => {
     const l = Number(school?.latitude);
@@ -337,14 +379,15 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
   }, [fullscreen]);
 
   /* ── Calculate route between user GPS and school library ── */
-  const calculateRouteFromCoords = useCallback(async (uLat, uLng, targetLat, targetLng) => {
+  const calculateRouteFromCoords = useCallback(async (uLat, uLng, targetLat, targetLng, mode = travelMode) => {
     setUserLoc({ lat: uLat, lng: uLng });
     setLocating(true);
     setPermissionStatus('granted');
 
+    const profile = mode === 'walking' ? 'foot' : 'driving';
     try {
       const r = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${uLng},${uLat};${targetLng},${targetLat}?overview=full&geometries=geojson`
+        `https://router.project-osrm.org/route/v1/${profile}/${uLng},${uLat};${targetLng},${targetLat}?overview=full&geometries=geojson`
       );
       const d = await r.json();
       if (d.routes?.[0]) {
@@ -352,7 +395,7 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
         setRoute(pts);
         setRouteInfo({
           dist: (d.routes[0].distance / 1000).toFixed(1) + ' km',
-          time: Math.round(d.routes[0].duration / 60) + ' min drive',
+          time: Math.round(d.routes[0].duration / 60) + (mode === 'walking' ? ' min walk' : ' min drive'),
         });
       } else {
         setRoute([[uLat, uLng], [targetLat, targetLng]]);
@@ -371,7 +414,15 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
     } finally {
       setLocating(false);
     }
-  }, []);
+  }, [travelMode]);
+
+  /* ── Mode Change Handler ── */
+  const handleTravelModeChange = (newMode) => {
+    setTravelMode(newMode);
+    if (userLoc && valid) {
+      calculateRouteFromCoords(userLoc.lat, userLoc.lng, resolvedLat, resolvedLng, newMode);
+    }
+  };
 
   /* ── GPS + OSRM route trigger ── */
   const handleRoute = useCallback((showPromptAlert = false) => {
@@ -386,7 +437,7 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
 
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
-        calculateRouteFromCoords(coords.latitude, coords.longitude, resolvedLat, resolvedLng);
+        calculateRouteFromCoords(coords.latitude, coords.longitude, resolvedLat, resolvedLng, travelMode);
       },
       (err) => {
         setLocating(false);
@@ -398,7 +449,7 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
       },
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
     );
-  }, [valid, resolvedLat, resolvedLng, calculateRouteFromCoords]);
+  }, [valid, resolvedLat, resolvedLng, calculateRouteFromCoords, travelMode]);
 
   // Automatically request location and calculate route upon viewing map
   useEffect(() => {
@@ -504,6 +555,10 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
           border-radius: 8px 0 0 0 !important;
           padding: 2px 6px !important;
           color: #94a3b8 !important;
+        }
+        .custom-google-eta-badge {
+          background: transparent !important;
+          border: none !important;
         }
       `}</style>
 
@@ -663,19 +718,32 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
             </>
           )}
 
-          {/* Route Line */}
+          {/* Route Line with Google Maps Style & Floating ETA Callout */}
           {animRoute && (
             <>
-              {/* Outline / glow */}
+              {/* Outer dark blue casing */}
               <Polyline
                 positions={animRoute}
-                pathOptions={{ color: '#93C5FD', weight: 10, opacity: 0.35 }}
+                pathOptions={{ color: '#1E40AF', weight: 8, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }}
               />
-              {/* Main line */}
+              {/* Vibrant inner road line */}
               <Polyline
                 positions={animRoute}
-                pathOptions={{ color: '#2563EB', weight: 5, opacity: 0.95 }}
+                pathOptions={{ color: '#2563EB', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }}
               />
+
+              {/* Floating Google Maps Style ETA Bubble Callout */}
+              {routeMidpoint && routeInfo && (
+                <Marker
+                  position={routeMidpoint}
+                  icon={createEtaMarkerIcon({
+                    time: routeInfo.time,
+                    dist: routeInfo.dist,
+                    travelMode,
+                  })}
+                  interactive={false}
+                />
+              )}
             </>
           )}
         </MapContainer>
@@ -684,7 +752,7 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
         <div className="absolute inset-x-0 top-0 z-[800] pointer-events-none px-3 pt-3">
           <div className="flex items-start justify-between gap-2">
             {/* Campus name badge with school logo */}
-            <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/70 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm max-w-[calc(100%-120px)]">
+            <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/70 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm max-w-[calc(100%-190px)] sm:max-w-[calc(100%-220px)]">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white p-0.5 shadow-2xs">
                 <img
                   src={logoUrl}
@@ -705,6 +773,36 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
 
             {/* Right controls */}
             <div className="pointer-events-auto flex items-center gap-1.5">
+              {/* Drive / Walk Mode Switcher */}
+              <div className="flex items-center rounded-xl border border-white/70 bg-white/95 p-0.5 shadow-lg backdrop-blur-sm">
+                <button
+                  type="button"
+                  onClick={() => handleTravelModeChange('driving')}
+                  className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10.5px] font-bold transition active:scale-95 ${
+                    travelMode === 'driving'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-blue-600'
+                  }`}
+                  title="Driving route"
+                >
+                  <span>🚗</span>
+                  <span className="hidden sm:inline">Drive</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTravelModeChange('walking')}
+                  className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10.5px] font-bold transition active:scale-95 ${
+                    travelMode === 'walking'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-blue-600'
+                  }`}
+                  title="Walking route"
+                >
+                  <span>🚶</span>
+                  <span className="hidden sm:inline">Walk</span>
+                </button>
+              </div>
+
               {/* Layer switcher */}
               <div className="relative">
                 <button
