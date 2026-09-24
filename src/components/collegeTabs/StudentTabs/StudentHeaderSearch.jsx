@@ -486,13 +486,13 @@ export function StudentHeaderSearch({ className = "" }) {
     setIsOpen(false);
     setActiveIndex(-1);
 
+    if (hadPushedState && window.history.state?.studentSearchOpen) {
+      window.history.replaceState(null, "");
+    }
     if (isSearchPage) {
-      if (hadPushedState && window.history.state?.studentSearchOpen) {
-        window.history.back();
-      }
       window.dispatchEvent(new CustomEvent("libralink-search-input", { detail: trimmed }));
     } else {
-      navigate("/studentpage/search", { replace: hadPushedState, state: { query: trimmed } });
+      navigate("/studentpage/search", { state: { query: trimmed } });
     }
   };
 
@@ -568,6 +568,10 @@ export function StudentHeaderSearch({ className = "" }) {
   const handleSelectHomeBook = (book) => {
     saveToHistory(book.title);
     setSearchQuery(book.title);
+    // Clean up pushed state without going back to avoid navigation conflicts
+    if (searchStatePushedRef.current && window.history.state?.studentSearchOpen) {
+      window.history.replaceState(null, "");
+    }
     searchStatePushedRef.current = false;
     setIsOpen(false);
     setActiveIndex(-1);
@@ -577,10 +581,6 @@ export function StudentHeaderSearch({ className = "" }) {
       id: book.id || book.book_id,
       book_id: book.book_id || book.id,
     };
-
-    if (window.history.state?.studentSearchOpen) {
-      window.history.replaceState(null, "");
-    }
 
     if (isSearchPage) {
       window.dispatchEvent(new CustomEvent("libralink-search-input", { detail: book.title }));
@@ -595,6 +595,10 @@ export function StudentHeaderSearch({ className = "" }) {
   const handleSelectPartnerBook = (partnerBook) => {
     saveToHistory(partnerBook.title);
     setSearchQuery(partnerBook.title);
+    // Clean up pushed state without going back to avoid navigation conflicts
+    if (searchStatePushedRef.current && window.history.state?.studentSearchOpen) {
+      window.history.replaceState(null, "");
+    }
     searchStatePushedRef.current = false;
     setIsOpen(false);
     setActiveIndex(-1);
@@ -604,10 +608,6 @@ export function StudentHeaderSearch({ className = "" }) {
       id: partnerBook.id || partnerBook.book_id,
       book_id: partnerBook.book_id || partnerBook.id,
     };
-
-    if (window.history.state?.studentSearchOpen) {
-      window.history.replaceState(null, "");
-    }
 
     if (isSearchPage) {
       window.dispatchEvent(new CustomEvent("libralink-search-input", { detail: partnerBook.title }));
@@ -627,13 +627,13 @@ export function StudentHeaderSearch({ className = "" }) {
     setIsOpen(false);
     setActiveIndex(-1);
 
+    if (hadPushedState && window.history.state?.studentSearchOpen) {
+      window.history.replaceState(null, "");
+    }
     if (isSearchPage) {
-      if (hadPushedState && window.history.state?.studentSearchOpen) {
-        window.history.back();
-      }
       window.dispatchEvent(new CustomEvent("libralink-search-input", { detail: topicQuery }));
     } else {
-      navigate("/studentpage/search", { replace: hadPushedState, state: { query: topicQuery } });
+      navigate("/studentpage/search", { state: { query: topicQuery } });
     }
   };
 
@@ -645,13 +645,13 @@ export function StudentHeaderSearch({ className = "" }) {
     setIsOpen(false);
     setActiveIndex(-1);
 
+    if (hadPushedState && window.history.state?.studentSearchOpen) {
+      window.history.replaceState(null, "");
+    }
     if (isSearchPage) {
-      if (hadPushedState && window.history.state?.studentSearchOpen) {
-        window.history.back();
-      }
       window.dispatchEvent(new CustomEvent("libralink-search-input", { detail: term }));
     } else {
-      navigate("/studentpage/search", { replace: hadPushedState, state: { query: term } });
+      navigate("/studentpage/search", { state: { query: term } });
     }
   };
 
@@ -672,14 +672,15 @@ export function StudentHeaderSearch({ className = "" }) {
   }, [isHomePage, hasQuery, trimmedQuery]);
 
   const handleSelectController = (item) => {
-    const hadPushedState = searchStatePushedRef.current;
+    // Clear the mobile history state WITHOUT going back — avoids
+    // conflicting with the subsequent navigate() call on mobile.
+    if (searchStatePushedRef.current && window.history.state?.studentSearchOpen) {
+      window.history.replaceState(null, "");
+    }
     searchStatePushedRef.current = false;
     setIsOpen(false);
     setActiveIndex(-1);
     setSearchQuery("");
-    if (hadPushedState && window.history.state?.studentSearchOpen) {
-      window.history.back();
-    }
     if (item.action === "open-cart") {
       navigate("/studentpage/search?cart=open");
     } else if (item.path) {
