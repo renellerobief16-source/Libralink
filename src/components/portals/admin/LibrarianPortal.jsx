@@ -393,7 +393,13 @@ function LibrarianPortal() {
             {activeTab === 'borrow-requests' && <AdminBorrowRequests darkMode={darkMode} />}
             {(activeTab === 'book-approved' || activeTab === 'circulation-counter') && <AdminQRScanner darkMode={darkMode} />}
             {activeTab === 'history' && <AdminHistory darkMode={darkMode} />}
-            {activeTab === 'overdue-books' && <AdminOverdueBooks darkMode={darkMode} schoolId={localStorage.getItem('schoolId')} librarianId={localStorage.getItem('userId')} />}
+            {activeTab === 'overdue-books' && (
+              <AdminOverdueBooks 
+                darkMode={darkMode} 
+                schoolId={localStorage.getItem('schoolId') || schoolInfo?.school_id} 
+                librarianId={localStorage.getItem('currentUserId') || localStorage.getItem('userId') || userInfo?.user_id} 
+              />
+            )}
             {activeTab === 'permission-letter' && <AdminPermissionLetter darkMode={darkMode} />}
             {activeTab === 'books' && <AdminBooks darkMode={darkMode} />}
             {activeTab === 'books-management' && <AdminBooksManagement darkMode={darkMode} onNavigateTab={setActiveTab} />}

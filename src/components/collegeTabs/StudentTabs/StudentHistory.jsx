@@ -41,7 +41,11 @@ function StudentHistory({ isDrawer = false, onClose }) {
     if (location.state?.tab) {
       setActiveTab(location.state.tab);
     }
+    if (location.state?.filter) {
+      setActiveFilter(location.state.filter);
+    }
   }, [location.state]);
+  const [activeFilter, setActiveFilter] = useState(() => location.state?.filter || null); // null | 'overdue' | 'dueSoon'
   const [selectedRequestForQR, setSelectedRequestForQR] = useState(null);
 
   // Cancellation States (Inline Accordion, No Overlay)
@@ -202,25 +206,39 @@ function StudentHistory({ isDrawer = false, onClose }) {
     }
   };
 
-  // Filter items
-  const filteredItems = historyItems.filter((item) => {
-    if (activeTab === "active") {
-      return item.status === "released" || item.status === "borrowed" || item.status === "approved";
+  // Filter + sort items — when arriving from a badge, sort urgent items first
+  const filteredItems = (() => {
+    let items = historyItems.filter((item) => {
+      if (activeTab === "active") {
+        return item.status === "released" || item.status === "borrowed" || item.status === "approved";
+      }
+      if (activeTab === "returned") {
+        return item.status === "returned";
+      }
+      if (activeTab === "requests") {
+        return (
+          item.status === "pending" ||
+          item.status === "cancel_requested" ||
+          item.status === "cancellation_requested" ||
+          item.status === "rejected" ||
+          item.status === "cancelled"
+        );
+      }
+      return true;
+    });
+
+    // When arriving from Due Soon / Overdue badge, sort those items first
+    if (activeFilter === "overdue" || activeFilter === "dueSoon") {
+      items = [...items].sort((a, b) => {
+        const aStatus = getDueStatusDetails(a.dueDate);
+        const bStatus = getDueStatusDetails(b.dueDate);
+        const aUrgent = activeFilter === "overdue" ? (aStatus.isOverdue ? -1 : 1) : (aStatus.isDueSoon || aStatus.isDueToday ? -1 : 1);
+        const bUrgent = activeFilter === "overdue" ? (bStatus.isOverdue ? -1 : 1) : (bStatus.isDueSoon || bStatus.isDueToday ? -1 : 1);
+        return aUrgent - bUrgent;
+      });
     }
-    if (activeTab === "returned") {
-      return item.status === "returned";
-    }
-    if (activeTab === "requests") {
-      return (
-        item.status === "pending" ||
-        item.status === "cancel_requested" ||
-        item.status === "cancellation_requested" ||
-        item.status === "rejected" ||
-        item.status === "cancelled"
-      );
-    }
-    return true;
-  });
+    return items;
+  })();
 
   const activeCount = historyItems.filter(
     (item) => item.status === "released" || item.status === "borrowed" || item.status === "approved"
@@ -348,6 +366,31 @@ function StudentHistory({ isDrawer = false, onClose }) {
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />
         </button>
       </div>
+
+      {/* Filter Banner — appears when arriving from Overdue / Due Soon badge */}
+      {activeFilter && activeTab === "active" && (
+        <div className={`mb-3 flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${
+          activeFilter === "overdue"
+            ? "bg-rose-50 border-rose-200 text-rose-800"
+            : "bg-amber-50 border-amber-200 text-amber-800"
+        }`}>
+          <span className="flex items-center gap-1.5">
+            {activeFilter === "overdue" ? (
+              <><AlertTriangle className="h-3.5 w-3.5" /> Showing overdue books first</>
+            ) : (
+              <><Clock className="h-3.5 w-3.5" /> Showing due-soon books first</>
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={() => setActiveFilter(null)}
+            className="ml-auto p-0.5 rounded opacity-60 hover:opacity-100 transition"
+            aria-label="Clear filter"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Content */}
       {loading && historyItems.length === 0 ? (

@@ -20,13 +20,28 @@ function LibrarianOverdueBooks({ schoolId, librarianId }) {
   const [reminding, setReminding] = useState(false);
   const [reminderSent, setReminderSent] = useState(false);
   const [settleSuccess, setSettleSuccess] = useState(false);
+  const [headLibrarian, setHeadLibrarian] = useState(null);
 
   // Standard institutional fine policy (₱5.00 per day overdue)
   const DAILY_FINE_RATE = 5.0;
 
   useEffect(() => {
     fetchOverdueBooks();
+    fetchHeadLibrarian();
   }, [schoolId]);
+
+  const fetchHeadLibrarian = async () => {
+    const activeSchoolId = schoolId || localStorage.getItem('schoolId');
+    if (!activeSchoolId) return;
+    try {
+      const response = await api.get(`/users/head-librarian/${activeSchoolId}`);
+      if (response.data?.success && response.data?.data) {
+        setHeadLibrarian(response.data.data);
+      }
+    } catch (err) {
+      console.warn('[OVERDUE] Could not fetch head librarian details:', err.message);
+    }
+  };
 
   const fetchOverdueBooks = async () => {
     if (!schoolId) {
@@ -75,8 +90,30 @@ function LibrarianOverdueBooks({ schoolId, librarianId }) {
   const totalAccruedFines = overdueBooks.reduce((acc, b) => acc + ((b.days_overdue || 0) * DAILY_FINE_RATE), 0);
 
   const handleReportToAdmin = async (borrowId) => {
-    if (!librarianId || !schoolId) {
-      alert('Missing librarian or campus identifier');
+    let resolvedUser = null;
+    try {
+      const stored = localStorage.getItem('currentUser');
+      if (stored) resolvedUser = JSON.parse(stored);
+    } catch (e) {
+      // ignore JSON parse error
+    }
+
+    const activeSchoolId = 
+      schoolId || 
+      localStorage.getItem('schoolId') || 
+      resolvedUser?.school_id || 
+      selectedBook?.book_copies?.books?.school_id || 
+      '1';
+
+    const activeLibrarianId = 
+      librarianId || 
+      localStorage.getItem('currentUserId') || 
+      localStorage.getItem('userId') || 
+      resolvedUser?.user_id || 
+      resolvedUser?.id;
+
+    if (!activeLibrarianId || !activeSchoolId) {
+      alert('Missing librarian or campus identifier. Please try re-logging in.');
       return;
     }
 
@@ -84,12 +121,12 @@ function LibrarianOverdueBooks({ schoolId, librarianId }) {
     try {
       const response = await api.post('/borrow/overdue/report', {
         borrow_id: borrowId,
-        librarian_id: librarianId,
-        school_id: schoolId,
+        librarian_id: activeLibrarianId,
+        school_id: activeSchoolId,
         notes: `Overdue patron reported by librarian on duty`
       });
 
-      if (response.data.success) {
+      if (response.data.success || response.success) {
         setReportSuccess(true);
         setTimeout(() => {
           setReportSuccess(false);
@@ -99,7 +136,7 @@ function LibrarianOverdueBooks({ schoolId, librarianId }) {
       }
     } catch (error) {
       console.error('Error reporting overdue book:', error);
-      alert(error.response?.data?.message || 'Failed to file overdue report');
+      alert(error.response?.data?.message || error.message || 'Failed to file overdue report');
     } finally {
       setReporting(false);
     }
@@ -466,33 +503,107 @@ function LibrarianOverdueBooks({ schoolId, librarianId }) {
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
+              {/* Executive Escalation Card — Premium Style */}
+              <div className="rounded-2xl border-2 border-amber-300 bg-gradient-to-br from-amber-50/90 via-amber-100/40 to-amber-50/90 p-4 shadow-sm space-y-3">
+                <div className="flex items-center justify-between gap-2 border-b border-amber-200/80 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-600 text-white shadow-xs">
+                      <FiShield className="w-4 h-4" />
+                    </span>
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-amber-950">
+                        Administrative Incident Escalation
+                      </h4>
+                      <p className="text-[11px] font-medium text-amber-800">
+                        Official delinquency reporting to Head Librarian
+                      </p>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-amber-200/80 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-900 border border-amber-300">
+                    Audit Trail
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                  {/* Recipient Profile Info */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="relative shrink-0">
+                      {headLibrarian?.profile_image ? (
+                        <img 
+                          src={headLibrarian.profile_image} 
+                          alt={headLibrarian.name || "Head Librarian"} 
+                          className="h-10 w-10 rounded-xl object-cover border-2 border-amber-400 shadow-xs" 
+                        />
+                      ) : (
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-amber-600 to-amber-500 font-black text-sm text-white border-2 border-amber-300 shadow-xs">
+                          {headLibrarian?.firstname?.[0] || 'L'}
+                        </div>
+                      )}
+                      <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white">
+                        <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                      </span>
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-black text-slate-900 truncate">
+                          {headLibrarian?.name || "Head Librarian (Office of the Chief)"}
+                        </span>
+                        <span className="rounded-md bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
+                          {headLibrarian?.role_name || "Librarian Admin"}
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-medium text-slate-600 truncate mt-0.5">
+                        {headLibrarian?.email || "Chief Library Officer"} • Designated Recipient
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Primary Escalate Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleReportToAdmin(selectedBook.borrow_id)}
+                    disabled={reporting || reportSuccess}
+                    className="shrink-0 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 via-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 px-4 py-2.5 text-xs font-black text-white shadow-md transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    <FiSend className={`w-4 h-4 ${reporting ? "animate-spin" : ""}`} />
+                    <span>
+                      {reporting
+                        ? "Submitting Escalation..."
+                        : reportSuccess
+                        ? "Report Logged & Filed!"
+                        : headLibrarian?.name
+                        ? `Report to Head Librarian (${headLibrarian.name})`
+                        : "Report to Head Librarian"}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Secondary Routine Actions */}
+              <div className="pt-1 flex flex-col sm:flex-row gap-2.5">
                 <button
+                  type="button"
                   onClick={() => handleSendReminder(selectedBook)}
                   disabled={reminding || reminderSent}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-colors flex items-center justify-center gap-2 border border-blue-200"
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all flex items-center justify-center gap-2 border border-slate-200 active:scale-95 disabled:opacity-50"
                 >
-                  <FiMail className="w-4 h-4" />
-                  {reminding ? 'Sending Notice...' : reminderSent ? 'Notice Dispatched!' : 'Send Return Email Notice'}
+                  <FiMail className="w-4 h-4 text-blue-600" />
+                  <span>
+                    {reminding ? 'Sending Notice...' : reminderSent ? 'Notice Dispatched!' : 'Send Return Email Notice'}
+                  </span>
                 </button>
 
                 <button
-                  onClick={() => handleReportToAdmin(selectedBook.borrow_id)}
-                  disabled={reporting || reportSuccess}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-xs"
-                >
-                  <FiSend className="w-4 h-4" />
-                  {reporting ? 'Reporting...' : reportSuccess ? 'Report Filed!' : 'Report to Head Librarian'}
-                </button>
-
-                <button
+                  type="button"
                   onClick={handleSettleFine}
                   disabled={settleSuccess}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-xs"
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-xs active:scale-95 disabled:opacity-50"
                 >
                   <FiCheckCircle className="w-4 h-4" />
-                  {settleSuccess ? 'Settled / Waived!' : 'Settle / Waive Fine'}
+                  <span>
+                    {settleSuccess ? 'Settled / Waived!' : 'Settle / Waive Fine'}
+                  </span>
                 </button>
               </div>
             </div>

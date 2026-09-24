@@ -30,22 +30,18 @@ router.get('/sessions', auth, requireRole(['Super Admin', 'Librarian Admin', 'Li
       .select(`
         log_id,
         user_id,
-        school_id,
-        action,
-        activity_type,
-        description,
-        ip_address,
+        activity,
         created_at,
         users (
           user_id,
           firstname,
           lastname,
           email,
-          role,
-          role_name,
+          role_id,
           profile_image,
           student_number,
           employee_number,
+          school_id,
           schools (
             school_id,
             school_name,
@@ -53,17 +49,20 @@ router.get('/sessions', auth, requireRole(['Super Admin', 'Librarian Admin', 'Li
           )
         )
       `)
-      .or('activity_type.in.(login,logout),action.in.(login,logout),description.ilike.%signed in%,description.ilike.%signed out%')
+      .or('activity.ilike.%signed in%,activity.ilike.%signed out%,activity.ilike.%login%,activity.ilike.%logout%')
       .order('created_at', { ascending: false })
       .limit(limit);
 
     if (error) {
       console.warn('[SESSIONS LOG] Query fallback due to error:', error.message);
       const allLogs = await ActivityLog.getAll(limit);
-      const filtered = (allLogs || []).filter(l => 
-        l.activity_type === 'login' || l.activity_type === 'logout' ||
-        l.action === 'login' || l.action === 'logout' ||
-        (l.description && (l.description.toLowerCase().includes('signed in') || l.description.toLowerCase().includes('signed out') || l.description.toLowerCase().includes('login')))
+      const filtered = (allLogs || []).filter(l =>
+        l.activity && (
+          l.activity.toLowerCase().includes('signed in') ||
+          l.activity.toLowerCase().includes('signed out') ||
+          l.activity.toLowerCase().includes('login') ||
+          l.activity.toLowerCase().includes('logout')
+        )
       );
       return res.json({ success: true, data: filtered });
     }

@@ -176,32 +176,41 @@ function isSuperAdminRole(user) {
   return role === 'super admin' || role === 'super_admin' || role === 'admin';
 }
 
+function isStudentRole(user) {
+  const role = String(user?.role_name || user?.role || '').toLowerCase();
+  const roleId = Number(user?.role_id || 0);
+  return roleId === 4 || role === 'student';
+}
+
 /**
  * Build a reusable notification query that is scoped to the current user's
- * school by default. Super admins see all schools (global) so they can review
- * cross-school notifications and issue global announcements.
+ * school by default. Students are strictly 1-to-1 (user_id only).
  *
  * @param {object} user  Decoded JWT payload (req.user)
- * @returns {object} { query, scopeLabel } where query is an executable Supabase builder
+ * @returns {object} Supabase query builder
  */
 function buildScopedNotificationsQuery(user, { limit = 50 } = {}) {
   const userId = user?.user_id || user?.id;
   const schoolId = user?.school_id || null;
   const isSuperAdmin = isSuperAdminRole(user);
+  const isStudent = isStudentRole(user);
 
   let query = supabase
     .from('notifications')
     .select('*');
 
-  if (isSuperAdmin) {
+  if (isStudent) {
+    // Strictly 1-to-1 for Students: Only notifications addressed directly to this specific student
+    query = query.eq('user_id', userId);
+  } else if (isSuperAdmin) {
     // Super admins get a global view: their own direct notifications plus
     // system-wide (global) announcements. They are not limited to one school.
     query = query.or(
       `user_id.eq.${userId},type.eq.announcement`
     );
   } else {
-    // School-scoped staff and students see notifications addressed to them
-    // OR global announcements broadcast to every school.
+    // School-scoped librarians/staff see notifications addressed to them
+    // OR announcements for their school.
     query = query.or(
       `and(user_id.eq.${userId},or(school_id.eq.${schoolId},school_id.is.null,type.eq.announcement)),and(school_id.eq.${schoolId},type.eq.announcement)`
     );
@@ -212,6 +221,8 @@ function buildScopedNotificationsQuery(user, { limit = 50 } = {}) {
 
 async function ensureBorrowRequestNotification(user) {
   if (!user?.school_id || !user?.user_id) return;
+  // Students do not receive librarian staff review notifications
+  if (isStudentRole(user)) return;
 
   const { data: items, error: itemsError } = await supabase
     .from('borrow_request_items')

@@ -136,6 +136,102 @@ router.get('/school', auth, async (req, res) => {
     res.status(500).json({ success: false, message: 'Unable to retrieve school users. Please try again.' });
   }
 });
+// @route   GET /api/users/head-librarian/:school_id
+// @desc    Get the Head Librarian / Librarian Admin for a specific school
+// @access  Private
+router.get('/head-librarian/:school_id', auth, async (req, res) => {
+  try {
+    const schoolId = req.params.school_id;
+    if (!schoolId) {
+      return res.status(400).json({ success: false, message: 'school_id is required' });
+    }
+
+    const supabase = require('../config/database');
+    // Look for users with 'Librarian Admin' or 'Super Admin' role in this school
+    const { data: users, error } = await supabase
+      .from('users')
+      .select(`
+        user_id,
+        firstname,
+        middle_name,
+        lastname,
+        email,
+        contact_number,
+        position,
+        profile_image,
+        roles!inner(role_name)
+      `)
+      .eq('school_id', schoolId)
+      .in('roles.role_name', ['Librarian Admin', 'Super Admin'])
+      .limit(1);
+
+    if (error) throw error;
+
+    if (users && users.length > 0) {
+      const u = users[0];
+      return res.json({
+        success: true,
+        data: {
+          user_id: u.user_id,
+          name: `${u.firstname || ''} ${u.lastname || ''}`.trim(),
+          firstname: u.firstname,
+          lastname: u.lastname,
+          email: u.email,
+          contact_number: u.contact_number,
+          position: u.position || 'Head Librarian',
+          role_name: u.roles?.role_name || 'Librarian Admin',
+          profile_image: u.profile_image
+        }
+      });
+    }
+
+    // Fallback: look for any Librarian in the school
+    const { data: fallbackUsers } = await supabase
+      .from('users')
+      .select(`
+        user_id,
+        firstname,
+        middle_name,
+        lastname,
+        email,
+        contact_number,
+        position,
+        profile_image,
+        roles!inner(role_name)
+      `)
+      .eq('school_id', schoolId)
+      .in('roles.role_name', ['Librarian'])
+      .limit(1);
+
+    if (fallbackUsers && fallbackUsers.length > 0) {
+      const u = fallbackUsers[0];
+      return res.json({
+        success: true,
+        data: {
+          user_id: u.user_id,
+          name: `${u.firstname || ''} ${u.lastname || ''}`.trim(),
+          firstname: u.firstname,
+          lastname: u.lastname,
+          email: u.email,
+          contact_number: u.contact_number,
+          position: u.position || 'Librarian In-Charge',
+          role_name: u.roles?.role_name || 'Librarian',
+          profile_image: u.profile_image
+        }
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: null,
+      message: 'No head librarian found for this school'
+    });
+  } catch (error) {
+    console.error('Error fetching head librarian:', error);
+    res.status(500).json({ success: false, message: 'Server error fetching head librarian' });
+  }
+});
+
 
 // @route   GET /api/users/:id
 // @desc    Get user by ID

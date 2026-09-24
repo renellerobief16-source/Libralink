@@ -475,12 +475,25 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
     return () => window.removeEventListener("libralink-preferences-updated", handlePrefsUpdate);
   }, [allCatalogBooks]);
 
+  /** Pending requests count: number of borrow requests still awaiting librarian approval */
+  const pendingRequestsCount = borrowRequests.filter(
+    (r) => r.status === "pending"
+  ).length;
+
   const handleBorrowedClick = () => {
-    navigate("/studentpage/history");
+    navigate("/studentpage/history", { state: { tab: "active" } });
   };
 
   const handleDueSoonClick = () => {
-    navigate("/studentpage/history");
+    navigate("/studentpage/history", { state: { tab: "active", filter: "dueSoon" } });
+  };
+
+  const handleOverdueClick = () => {
+    navigate("/studentpage/history", { state: { tab: "active", filter: "overdue" } });
+  };
+
+  const handlePendingClick = () => {
+    navigate("/studentpage/history", { state: { tab: "requests" } });
   };
 
   const handleBookSelect = (book) => {
@@ -576,9 +589,6 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
   const approvedRequestsWithQR = borrowRequests.filter(
     (req) => (req.status === "approved" || req.status === "ready") && req.qr_token
   );
-  const pendingRequestsCount = borrowRequests.filter(
-    (req) => req.status === "pending"
-  ).length;
 
   // Filtered books in the "All" view (search is removed as requested)
   const filteredCatalogBooks = useMemo(() => {
@@ -989,9 +999,9 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
                 {/* Pending Requests */}
                 <button
                   type="button"
-                  onClick={() => navigate("/studentpage/inbox")}
+                  onClick={handlePendingClick}
                   className="inline-flex items-center gap-2 rounded-xl bg-indigo-50/80 hover:bg-indigo-100/80 border border-indigo-200/60 px-3 py-1.5 text-xs font-semibold text-indigo-900 transition-all active:scale-95"
-                  title="View requests in inbox"
+                  title="View requests in borrow history"
                 >
                   <Hourglass className="h-3.5 w-3.5 text-indigo-600" />
                   <span>Pending:</span>
@@ -1003,7 +1013,7 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
                 {/* Overdue Status */}
                 <button
                   type="button"
-                  onClick={handleBorrowedClick}
+                  onClick={overdueCount > 0 ? handleOverdueClick : handleBorrowedClick}
                   className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 ${
                     overdueCount > 0
                       ? "bg-rose-50 hover:bg-rose-100 border-rose-300 text-rose-900"

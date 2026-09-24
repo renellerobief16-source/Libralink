@@ -247,6 +247,21 @@ router.post('/register', auth, requireRole(['Librarian Admin', 'Librarian']), as
       }
     }
 
+    // Send personalized 1-to-1 welcome notification directly to the newly registered student
+    try {
+      await supabase.from('notifications').insert({
+        user_id,
+        school_id,
+        type: 'general',
+        title: 'Welcome to LibraLink Library!',
+        message: `Welcome ${firstname}! Your student library account is now officially active. You may browse catalog titles, reserve books, and track borrow history.`,
+        is_read: false,
+        created_at: new Date().toISOString()
+      });
+    } catch (notifErr) {
+      console.warn('[AUTH] Could not create welcome notification for new student:', notifErr.message);
+    }
+
     res.status(201).json({
       success: true,
       message: 'User registered successfully',

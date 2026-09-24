@@ -21,7 +21,7 @@ class ActivityLog {
     try {
       const { data, error } = await supabase
         .from('activity_logs')
-        .select('*, users(firstname, lastname, email, schools(school_name))')
+        .select('log_id, user_id, activity, created_at, users(user_id, firstname, lastname, school_id, email, profile_image, schools(school_name))')
         .order('created_at', { ascending: false })
         .limit(limit);
       
@@ -37,7 +37,7 @@ class ActivityLog {
     try {
       const { data, error } = await supabase
         .from('activity_logs')
-        .select('*, users(firstname, lastname)')
+        .select('log_id, user_id, activity, created_at, users(user_id, firstname, lastname, school_id, profile_image)')
         .eq('user_id', user_id)
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -52,43 +52,42 @@ class ActivityLog {
 
   static async getBySchool(school_id, limit = 100) {
     try {
+      const targetSchool = parseInt(school_id);
+
+      // Fetch logs with user join - only using existing columns
       const { data, error } = await supabase
         .from('activity_logs')
         .select(`
-          *,
+          log_id,
+          user_id,
+          activity,
+          created_at,
           users (
             user_id,
             firstname,
             lastname,
-            role,
-            role_id,
-            student_number,
-            employee_number,
+            school_id,
             profile_image,
             email,
-            school_id
+            role_id,
+            student_number,
+            employee_number
           )
         `)
         .order('created_at', { ascending: false })
-        .limit(limit);
+        .limit(limit * 3); // fetch more to allow for JS filtering
 
       if (error) throw error;
-      
-      const targetSchool = String(school_id);
+
       const normalized = (data || []).map(log => {
         const u = Array.isArray(log.users) ? log.users[0] : log.users;
-        return {
-          ...log,
-          users: u || null
-        };
+        return { ...log, users: u || null };
       });
 
-      const filtered = normalized.filter(log => {
-        if (log.school_id && String(log.school_id) === targetSchool) return true;
-        if (log.users?.school_id && String(log.users.school_id) === targetSchool) return true;
-        if (!log.school_id && !log.users?.school_id) return true;
-        return false;
-      });
+      // Filter by school via user's school_id
+      const filtered = normalized.filter(log =>
+        log.users?.school_id === targetSchool
+      ).slice(0, limit);
 
       return filtered;
     } catch (error) {
@@ -101,7 +100,7 @@ class ActivityLog {
     try {
       const { data, error } = await supabase
         .from('activity_logs')
-        .select('*, users(firstname, lastname, schools(school_name))')
+        .select('log_id, user_id, activity, created_at, users(user_id, firstname, lastname, school_id, profile_image, schools(school_name))')
         .order('created_at', { ascending: false })
         .limit(limit);
       
