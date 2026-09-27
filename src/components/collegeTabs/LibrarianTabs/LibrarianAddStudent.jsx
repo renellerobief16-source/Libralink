@@ -798,16 +798,16 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
         } catch (_) {}
       }
 
-      // Upload the scanned ID photo as the student's profile picture if captured
+      // Upload the scanned ID card photo into the dedicated id_card_picture field (not the profile avatar)
       if (idImageFile && newUserId) {
         try {
           const formData = new FormData();
-          formData.append('profile_picture', idImageFile);
-          await api.post(`/users/${newUserId}/profile-picture`, formData, {
+          formData.append('id_card_picture', idImageFile);
+          await api.post(`/users/${newUserId}/id-card`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
           });
         } catch (picErr) {
-          console.warn('[SCAN] Could not upload ID photo as profile picture:', picErr);
+          console.warn('[SCAN] Could not upload student ID card photo:', picErr);
         }
       }
 

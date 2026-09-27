@@ -132,6 +132,45 @@ router.post('/:id/profile-picture', auth, requireRole(['Librarian Admin', 'Libra
   }
 });
 
+// @route   POST /api/users/:id/id-card
+// @desc    Upload the scanned student ID card photo for a specific user (set by librarian).
+//          Stored in id_card_picture column — separate from the student's profile_image avatar.
+// @access  Private (Librarian Admin, Librarian)
+router.post('/:id/id-card', auth, requireRole(['Librarian Admin', 'Librarian']), uploadProfile.single('id_card_picture'), async (req, res) => {
+  try {
+    const targetUserId = req.params.id;
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    const targetUser = await User.getById(targetUserId);
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    if (String(targetUser.school_id) !== String(req.user.school_id)) {
+      return res.status(403).json({ success: false, message: 'Access denied: user belongs to a different school' });
+    }
+
+    const idCardUrl = `/uploads/profiles/${req.file.filename}`;
+    const result = await User.update(targetUserId, { id_card_picture: idCardUrl });
+
+    if (result) {
+      return res.json({
+        success: true,
+        message: 'Student ID card photo uploaded successfully',
+        id_card_picture: idCardUrl,
+      });
+    }
+
+    return res.status(400).json({ success: false, message: 'Failed to save student ID card photo' });
+  } catch (error) {
+    console.error('[STUDENT ID CARD] Upload error:', error);
+    return res.status(500).json({ success: false, message: 'Unable to upload student ID card photo. Please try again.' });
+  }
+});
+
+
 // @route   GET /api/users/student/:student_id
 // @desc    Get student by student ID (student_number)
 // @access  Private (Librarian, Librarian Admin)

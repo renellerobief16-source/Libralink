@@ -820,6 +820,8 @@ function normalizeUser(user) {
     academic_level: user.academic_level || user.academicLevel || '',
     profile_picture: profilePicture,
     profile_image: profilePicture,
+    id_card_picture: user.id_card_picture || null,
+
     user_metadata: {
       college: user.school_code,
       role: normalizedRole,

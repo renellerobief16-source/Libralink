@@ -72,6 +72,7 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
 
   const idCardFileInputRef = useRef(null);
   const [isZoomIdOpen, setIsZoomIdOpen] = useState(false);
+  const [idCardPicture, setIdCardPicture] = useState(''); // Separate from profile avatar
 
   const [editForm, setEditForm] = useState({
     firstName: '',
@@ -142,6 +143,11 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
             setImageError(false);
             const picUrl = getProfilePictureUrl(normalized.profile_picture);
             setProfilePreview(picUrl || cached || '');
+            // Load dedicated ID card picture (set by librarian)
+            const idCardUrl = normalized.id_card_picture
+              ? getProfilePictureUrl(normalized.id_card_picture)
+              : '';
+            setIdCardPicture(idCardUrl);
 
             const fName = normalized.first_name || normalized.name?.split(' ')[0] || '';
             const lName =
@@ -185,6 +191,10 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
             if (livePic || liveCached) {
               setProfilePreview(livePic || liveCached);
               setImageError(false);
+            }
+            // Sync id_card_picture from live server data
+            if (mergedUser.id_card_picture) {
+              setIdCardPicture(getProfilePictureUrl(mergedUser.id_card_picture));
             }
           }
         } catch (fetchErr) {
@@ -739,7 +749,7 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
         </button>
       </div>
 
-      {/* ─── Official Student ID Photo (Clean, Light-themed ID Display) ───────── */}
+      {/* ─── Official Student ID Photo (Read-only, set by librarian during registration) ─── */}
       <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-2xs mb-4">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div>
@@ -751,53 +761,32 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
           </div>
 
           <div className="flex items-center gap-2">
-            {profilePreview && (
+            {idCardPicture && (
               <button
                 type="button"
                 onClick={() => setIsZoomIdOpen(true)}
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 transition-colors cursor-pointer"
-                title="View full size ID picture"
+                title="View full size ID card picture"
               >
                 <ZoomIn className="h-3.5 w-3.5" />
                 <span>View Full</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => idCardFileInputRef.current?.click()}
-              disabled={uploadingPhoto}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors cursor-pointer disabled:opacity-50"
-              title="Upload or change student ID photo"
-            >
-              {uploadingPhoto ? (
-                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Camera className="h-3.5 w-3.5" />
-              )}
-              <span>{profilePreview ? 'Change Photo' : 'Upload ID'}</span>
-            </button>
+            {/* No Change Photo button — ID card photo is set by librarian only */}
           </div>
         </div>
 
-        <input
-          ref={idCardFileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleIdPhotoUpload}
-        />
-
         <div className="mt-4 flex flex-col sm:flex-row items-center gap-4">
           <div
-            onClick={() => profilePreview && setIsZoomIdOpen(true)}
+            onClick={() => idCardPicture && setIsZoomIdOpen(true)}
             className={`relative w-40 h-52 sm:w-44 sm:h-56 rounded-xl overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 shadow-2xs group ${
-              profilePreview ? 'cursor-pointer hover:border-blue-400' : ''
+              idCardPicture ? 'cursor-pointer hover:border-blue-400' : ''
             }`}
           >
-            {profilePreview && !imageError ? (
+            {idCardPicture ? (
               <>
                 <img
-                  src={profilePreview}
+                  src={idCardPicture}
                   alt="Student ID"
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
@@ -809,7 +798,8 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
             ) : (
               <div className="flex flex-col items-center justify-center p-3 text-center text-slate-400">
                 <ImageIcon className="h-8 w-8 mb-1 text-slate-400" />
-                <span className="text-[11px] font-medium">No ID photo uploaded</span>
+                <span className="text-[11px] font-medium">No ID photo on file</span>
+                <span className="text-[10px] text-slate-300 mt-0.5">Set by librarian during registration</span>
               </div>
             )}
           </div>
@@ -833,6 +823,12 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
               </span>
               <span className="text-xs font-medium text-slate-700">{schoolName}</span>
             </div>
+            {idCardPicture && (
+              <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                <span>Verified by librarian</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1279,7 +1275,7 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
         </div>
       )}
       {/* ─── MODAL: Full ID Photo Zoom Modal ─────────────────────────────── */}
-      {isZoomIdOpen && profilePreview && (
+      {isZoomIdOpen && idCardPicture && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm animate-fade-in"
           onClick={() => setIsZoomIdOpen(false)}
@@ -1306,7 +1302,7 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
             </div>
             <div className="rounded-2xl overflow-hidden bg-slate-950 flex items-center justify-center max-h-[75vh]">
               <img
-                src={profilePreview}
+                src={idCardPicture}
                 alt="Student ID Card Full View"
                 className="w-full h-full object-contain max-h-[70vh] rounded-xl"
               />

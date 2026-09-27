@@ -55,6 +55,7 @@ function normalizeUserUpdateData(data = {}) {
     password: updateData.password,
     position: updateData.position,
     profile_image: updateData.profile_image,
+    id_card_picture: updateData.id_card_picture,
     username: updateData.username,
     recovery_email: updateData.recovery_email,
     policy_accepted: updateData.policy_accepted,
