@@ -121,7 +121,7 @@ function StudentPortal() {
           if (isAdminOrLibrarian) {
             setShowProfileSetup(false);
           } else {
-            setShowProfileSetup(!hasUsername || !hasCellphone || !hasRecoveryEmail || !hasProfilePicture || !hasPolicyAccepted);
+            setShowProfileSetup(!hasUsername || !hasCellphone || !hasRecoveryEmail || !hasPolicyAccepted);
           }
         }
       } catch (err) {
@@ -188,11 +188,6 @@ function StudentPortal() {
       return;
     }
 
-    if (!profileSetupPhoto && !(userInfo?.profile_picture || userInfo?.profile_image)) {
-      alert('Please upload a profile picture.');
-      return;
-    }
-
     if (!profileSetupForm.policyAccepted) {
       alert('Please accept the policy before accessing the system.');
       return;
@@ -201,7 +196,10 @@ function StudentPortal() {
     try {
       setProfileSetupLoading(true);
 
-      let uploadedPicture = userInfo?.profile_picture || userInfo?.profile_image || '';
+      const existingPic = userInfo?.profile_picture || userInfo?.profile_image;
+      const safeExistingPic = (existingPic && existingPic !== userInfo?.id_card_picture) ? existingPic : null;
+      let uploadedPicture = safeExistingPic;
+
       if (profileSetupPhoto) {
         const { data, error } = await updateProfilePicture(profileSetupPhoto);
         if (error) throw error;

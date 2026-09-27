@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const fs = require('fs');
 const User = require('../models/User');
 const { auth, requireRole } = require('../middleware/auth');
 const { uploadProfile, uploadBorrowingId } = require('../middleware/upload');
@@ -135,24 +137,39 @@ router.post('/:id/profile-picture', auth, requireRole(['Librarian Admin', 'Libra
 // @route   POST /api/users/:id/id-card
 // @desc    Upload the scanned student ID card photo for a specific user (set by librarian).
 //          Stored in id_card_picture column — separate from the student's profile_image avatar.
-// @access  Private (Librarian Admin, Librarian)
-router.post('/:id/id-card', auth, requireRole(['Librarian Admin', 'Librarian']), uploadProfile.single('id_card_picture'), async (req, res) => {
+// @access  Private (Super Admin, Librarian Admin, Librarian)
+router.post('/:id/id-card', auth, requireRole(['Super Admin', 'Librarian Admin', 'Librarian']), uploadProfile.single('id_card_picture'), async (req, res) => {
   try {
     const targetUserId = req.params.id;
-
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: 'No file uploaded' });
-    }
 
     const targetUser = await User.getById(targetUserId);
     if (!targetUser) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    if (String(targetUser.school_id) !== String(req.user.school_id)) {
+    const isSuperAdmin = req.user?.role === 'Super Admin' || req.user?.role_name === 'Super Admin';
+    if (!isSuperAdmin && String(targetUser.school_id) !== String(req.user?.school_id)) {
       return res.status(403).json({ success: false, message: 'Access denied: user belongs to a different school' });
     }
 
-    const idCardUrl = `/uploads/profiles/${req.file.filename}`;
+    let idCardUrl = null;
+    if (req.file) {
+      idCardUrl = `/uploads/profiles/${req.file.filename}`;
+    } else if (req.body?.id_card_picture && typeof req.body.id_card_picture === 'string' && req.body.id_card_picture.startsWith('data:')) {
+      const match = req.body.id_card_picture.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+      if (match) {
+        const rawExt = match[1].toLowerCase();
+        const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
+        const filename = `profile-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
+        const savePath = path.join(__dirname, '../uploads/profiles', filename);
+        fs.writeFileSync(savePath, Buffer.from(match[2], 'base64'));
+        idCardUrl = `/uploads/profiles/${filename}`;
+      }
+    }
+
+    if (!idCardUrl) {
+      return res.status(400).json({ success: false, message: 'No file or valid ID card image uploaded' });
+    }
+
     const result = await User.update(targetUserId, { id_card_picture: idCardUrl });
 
     if (result) {

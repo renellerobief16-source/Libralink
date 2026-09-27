@@ -167,7 +167,9 @@ router.post('/register', auth, requireRole(['Librarian Admin', 'Librarian']), as
       academic_level,
       course,
       department,
-      send_email_credentials
+      send_email_credentials,
+      id_card_picture,
+      profile_image
     } = req.body;
 
     if (!email || !password || !firstname || !lastname) {
@@ -198,7 +200,9 @@ router.post('/register', auth, requireRole(['Librarian Admin', 'Librarian']), as
       contact_number,
       address,
       email,
-      password
+      password,
+      id_card_picture: id_card_picture || null,
+      profile_image: profile_image || null
     });
 
     // If personal email provided and sending enabled, dispatch welcome credentials email

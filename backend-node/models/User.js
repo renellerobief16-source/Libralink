@@ -21,6 +21,7 @@ function normalizeUserCreateData(data = {}) {
     password: data.password,
     position: data.position?.trim() || null,
     profile_image: data.profile_image || data.profile_picture || null,
+    id_card_picture: data.id_card_picture || null,
     status: data.status || 'active',
   };
 }
@@ -91,6 +92,7 @@ class User {
       password,
       position,
       profile_image,
+      id_card_picture,
       status = 'active'
     } = normalizedData;
 
@@ -119,6 +121,7 @@ class User {
       initial_temp_password: password,
       position: position || null,
       profile_image: profile_image || null,
+      id_card_picture: id_card_picture || null,
       status
     };
 
@@ -475,6 +478,7 @@ class User {
       'password',
       'position',
       'profile_image',
+      'id_card_picture',
       'status',
       'is_archived',
       'username',
@@ -500,7 +504,7 @@ class User {
 
       if (isMissingColumnError) {
         const fallbackData = Object.fromEntries(
-          Object.entries(otherData).filter(([key]) => ['contact_number', 'email', 'password', 'position', 'profile_image', 'status', 'is_archived'].includes(key))
+          Object.entries(otherData).filter(([key]) => ['contact_number', 'email', 'password', 'position', 'profile_image', 'id_card_picture', 'status', 'is_archived'].includes(key))
         );
 
         if (Object.keys(fallbackData).length === 0) {

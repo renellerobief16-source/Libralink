@@ -1849,7 +1849,7 @@ function AdminBorrowRequests() {
                     const firstBook = items[0]?.book || booksData[request.book_id] || {};
                     const status = String(request.status || '').toLowerCase();
                     const isOverdue = status === 'borrowed' && request.due_date && new Date(request.due_date) < new Date();
-                    const studentIdPic = request.id_picture_url || request.id_photo_url || student.id_picture_url || student.profile_image || student.profile_picture;
+                    const studentIdPic = request.id_picture_url || request.id_photo_url || student.id_picture_url || student.id_card_picture || student.profile_image || student.profile_picture;
 
                     return (
                       <tr key={request.request_id} className="hover:bg-blue-50/20 transition-colors">
@@ -2587,7 +2587,7 @@ function AdminBorrowRequests() {
                     const firstBook = request.book || items[0]?.book || booksData[request.book_id] || {};
                     const requestId = parentReq.request_id || request.request_id;
                     const itemStatus = String(request.status || request.item_status || parentReq.status || 'pending').toLowerCase();
-                    const studentIdPic = parentReq.id_picture_url || parentReq.id_photo_url || request.id_picture_url || student.id_picture_url || student.profile_image || student.profile_picture;
+                    const studentIdPic = parentReq.id_picture_url || parentReq.id_photo_url || request.id_picture_url || student.id_picture_url || student.id_card_picture || student.profile_image || student.profile_picture;
                     const purpose = parentReq.purpose || request.purpose || 'Inter-library Study';
                     const requestedAt = parentReq.created_at || request.created_at;
 
@@ -4867,7 +4867,7 @@ function AdminBorrowRequests() {
                     const bookCount = items.length || 0;
                     const firstBook = items[0]?.book || booksData[record.book_id] || {};
                     const status = String(record.status || '').toLowerCase();
-                    const studentIdPic = record.id_picture_url || record.id_photo_url || student.id_picture_url || student.profile_image || student.profile_picture;
+                    const studentIdPic = record.id_picture_url || record.id_photo_url || student.id_picture_url || student.id_card_picture || student.profile_image || student.profile_picture;
                     const completedDate = record.return_date || record.updated_at || record.created_at;
                     const hasFine = Number(record.fine_amount || record.damage_fee || 0) > 0;
                     const fineAmount = record.fine_amount || record.damage_fee || '0';

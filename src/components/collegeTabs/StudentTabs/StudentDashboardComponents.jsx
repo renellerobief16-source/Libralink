@@ -200,11 +200,10 @@ function MobileBellButton() {
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 active:scale-95 ${
-          isOpen
+        className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 active:scale-95 ${isOpen
             ? "bg-blue-50 text-blue-600 ring-2 ring-blue-500/30"
             : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-        }`}
+          }`}
         aria-label="Notifications"
         aria-expanded={isOpen}
       >
@@ -249,22 +248,20 @@ function MobileBellButton() {
             <button
               type="button"
               onClick={() => setFilter("all")}
-              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition ${
-                filter === "all"
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition ${filter === "all"
                   ? "bg-blue-600 text-white shadow-2xs"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
+                }`}
             >
               All ({(notifications || []).length})
             </button>
             <button
               type="button"
               onClick={() => setFilter("unread")}
-              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition ${
-                filter === "unread"
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition ${filter === "unread"
                   ? "bg-blue-600 text-white shadow-2xs"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
+                }`}
             >
               Unread ({unreadCount})
             </button>
@@ -285,9 +282,8 @@ function MobileBellButton() {
                 <div
                   key={item.id}
                   onClick={() => handleNotificationClick(item)}
-                  className={`flex items-start gap-2.5 p-2.5 cursor-pointer transition hover:bg-slate-50 ${
-                    !item.read ? "bg-blue-50/40" : ""
-                  }`}
+                  className={`flex items-start gap-2.5 p-2.5 cursor-pointer transition hover:bg-slate-50 ${!item.read ? "bg-blue-50/40" : ""
+                    }`}
                 >
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600 mt-0.5">
                     <Bell className="h-3.5 w-3.5" />
@@ -395,8 +391,7 @@ export function StudentBottomNav() {
               to={tab.to}
               end={tab.end}
               className={({ isActive }) =>
-                `group relative flex flex-col items-center justify-center gap-[3px] h-full w-full transition-all duration-200 active:scale-90 ${
-                  isActive ? "text-blue-600" : "text-slate-400 hover:text-slate-600"
+                `group relative flex flex-col items-center justify-center gap-[3px] h-full w-full transition-all duration-200 active:scale-90 ${isActive ? "text-blue-600" : "text-slate-400 hover:text-slate-600"
                 }`
               }
             >
@@ -404,9 +399,8 @@ export function StudentBottomNav() {
                 <>
                   {/* Active indicator — thin line at top */}
                   <span
-                    className={`absolute top-0 left-1/2 -translate-x-1/2 h-[2px] w-5 rounded-b-full transition-all duration-300 ${
-                      isActive ? "bg-blue-600 opacity-100" : "opacity-0"
-                    }`}
+                    className={`absolute top-0 left-1/2 -translate-x-1/2 h-[2px] w-5 rounded-b-full transition-all duration-300 ${isActive ? "bg-blue-600 opacity-100" : "opacity-0"
+                      }`}
                   />
 
                   {/* Icon */}
@@ -416,28 +410,24 @@ export function StudentBottomNav() {
                         <img
                           src={profileImageUrl}
                           alt="Profile"
-                          className={`h-[22px] w-[22px] rounded-full object-cover transition-all duration-200 ${
-                            isActive ? "ring-2 ring-blue-600 ring-offset-1" : "ring-1 ring-slate-300"
-                          }`}
+                          className={`h-[22px] w-[22px] rounded-full object-cover transition-all duration-200 ${isActive ? "ring-2 ring-blue-600 ring-offset-1" : "ring-1 ring-slate-300"
+                            }`}
                         />
                       ) : (
                         <div
-                          className={`flex h-[22px] w-[22px] items-center justify-center rounded-full text-[10px] font-bold transition-all duration-200 ${
-                            isActive
+                          className={`flex h-[22px] w-[22px] items-center justify-center rounded-full text-[10px] font-bold transition-all duration-200 ${isActive
                               ? "bg-blue-600 text-white ring-2 ring-blue-600 ring-offset-1"
                               : "bg-slate-200 text-slate-600"
-                          }`}
+                            }`}
                         >
                           {initial}
                         </div>
                       )
                     ) : (
                       <tab.icon
-                        className={`transition-all duration-200 ${
-                          isActive ? "h-[22px] w-[22px] text-blue-600" : "h-[21px] w-[21px] text-slate-400"
-                        } ${
-                          tab.icon === Heart && isActive ? "fill-current" : ""
-                        }`}
+                        className={`transition-all duration-200 ${isActive ? "h-[22px] w-[22px] text-blue-600" : "h-[21px] w-[21px] text-slate-400"
+                          } ${tab.icon === Heart && isActive ? "fill-current" : ""
+                          }`}
                         strokeWidth={isActive ? 2.2 : 1.8}
                       />
                     )}
@@ -452,9 +442,8 @@ export function StudentBottomNav() {
 
                   {/* Label */}
                   <span
-                    className={`text-[10px] leading-none tracking-tight transition-all duration-200 ${
-                      isActive ? "font-semibold text-blue-600" : "font-normal text-slate-400"
-                    }`}
+                    className={`text-[10px] leading-none tracking-tight transition-all duration-200 ${isActive ? "font-semibold text-blue-600" : "font-normal text-slate-400"
+                      }`}
                   >
                     {tab.label}
                   </span>
@@ -729,13 +718,12 @@ function StudentFloatingCart() {
         top: 0,
         transition: isDragging ? 'none' : 'transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.4s ease, box-shadow 0.25s ease',
       }}
-      className={`fixed z-[70] flex h-12 w-12 sm:h-[50px] sm:w-[50px] touch-none select-none items-center justify-center rounded-2xl border border-blue-400/40 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/30 will-change-transform ${
-        isDragging
+      className={`fixed z-[70] flex h-12 w-12 sm:h-[50px] sm:w-[50px] touch-none select-none items-center justify-center rounded-2xl border border-blue-400/40 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/30 will-change-transform ${isDragging
           ? 'shadow-2xl cursor-grabbing opacity-100 scale-105'
           : isIdle
-          ? 'opacity-50 hover:opacity-100 cursor-grab transition-opacity'
-          : 'opacity-100 hover:opacity-100 cursor-grab active:scale-95 transition-opacity'
-      }`}
+            ? 'opacity-50 hover:opacity-100 cursor-grab transition-opacity'
+            : 'opacity-100 hover:opacity-100 cursor-grab active:scale-95 transition-opacity'
+        }`}
       aria-label={`Open borrowing list, ${cartCount} books in cart`}
       title="Borrowing Cart (Drag to move)"
     >
@@ -744,9 +732,8 @@ function StudentFloatingCart() {
       {/* Clean iOS-style red notification badge on top right */}
       {!isCartOpen && cartCount > 0 && (
         <span
-          className={`absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#FF3B30] px-1 text-[10px] font-bold text-white shadow-xs ring-2 ring-blue-600 transition-all duration-200 ${
-            badgeBouncing ? 'scale-110' : 'scale-100'
-          }`}
+          className={`absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#FF3B30] px-1 text-[10px] font-bold text-white shadow-xs ring-2 ring-blue-600 transition-all duration-200 ${badgeBouncing ? 'scale-110' : 'scale-100'
+            }`}
         >
           {cartCount > 99 ? '99+' : cartCount}
         </span>
@@ -1630,9 +1617,8 @@ export function StudentLayout({
 
       {/* LEFT SIDEBAR (Expandable w-[72px] to w-[240px]) */}
       <aside
-        className={`fixed left-0 bottom-0 z-40 hidden flex-col border-r border-[#E5E7EB] bg-white transition-all duration-300 ease-in-out lg:flex ${
-          isPreviewMode ? "top-[40px]" : "top-0"
-        } ${sidebarExpanded ? "w-[240px]" : "w-[72px]"}`}
+        className={`fixed left-0 bottom-0 z-40 hidden flex-col border-r border-[#E5E7EB] bg-white transition-all duration-300 ease-in-out lg:flex ${isPreviewMode ? "top-[40px]" : "top-0"
+          } ${sidebarExpanded ? "w-[240px]" : "w-[72px]"}`}
       >
         {/* Top Branding & Toggle */}
         <div className="flex h-[64px] shrink-0 items-center border-b border-slate-100 px-3.5">
@@ -1708,8 +1694,8 @@ export function StudentLayout({
             className={({ isActive }) => `
               group relative flex items-center rounded-xl transition-all duration-200
               ${sidebarExpanded ? "gap-3 px-3 py-2.5 text-sm font-medium" : "justify-center p-3"}
-              ${isActive && !activePanel 
-                ? "text-blue-600 bg-blue-50/90 font-semibold shadow-2xs" 
+              ${isActive && !activePanel
+                ? "text-blue-600 bg-blue-50/90 font-semibold shadow-2xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"}
             `}
           >
@@ -1736,8 +1722,8 @@ export function StudentLayout({
             className={({ isActive }) => `
               group relative flex items-center rounded-xl transition-all duration-200
               ${sidebarExpanded ? "gap-3 px-3 py-2.5 text-sm font-medium" : "justify-center p-3"}
-              ${isActive && !activePanel 
-                ? "text-blue-600 bg-blue-50/90 font-semibold shadow-2xs" 
+              ${isActive && !activePanel
+                ? "text-blue-600 bg-blue-50/90 font-semibold shadow-2xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"}
             `}
           >
@@ -1767,8 +1753,8 @@ export function StudentLayout({
             className={({ isActive }) => `
               group relative flex items-center rounded-xl transition-all duration-200
               ${sidebarExpanded ? "gap-3 px-3 py-2.5 text-sm font-medium" : "justify-center p-3"}
-              ${isActive || activePanel === "favorites" 
-                ? "text-blue-600 bg-blue-50/90 font-semibold shadow-2xs" 
+              ${isActive || activePanel === "favorites"
+                ? "text-blue-600 bg-blue-50/90 font-semibold shadow-2xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"}
             `}
           >
@@ -1947,13 +1933,11 @@ export function StudentLayout({
       {activePanel && (
         <section
           aria-label={`${activePanel} panel`}
-          className={`student-expanded-panel fixed inset-x-0 bottom-0 z-40 flex flex-col w-full min-w-0 border-r border-slate-300 bg-[#F7FAFC] overflow-hidden transition-all duration-300 ${
-            isPreviewMode
+          className={`student-expanded-panel fixed inset-x-0 bottom-0 z-40 flex flex-col w-full min-w-0 border-r border-slate-300 bg-[#F7FAFC] overflow-hidden transition-all duration-300 ${isPreviewMode
               ? "top-[40px] md:top-[96px] lg:top-[40px] lg:h-[calc(100dvh-40px)]"
               : "top-0 md:top-[56px] lg:top-0 lg:h-dvh"
-          } md:w-[380px] lg:w-[380px] ${
-            sidebarExpanded ? "lg:left-[240px]" : "lg:left-[72px]"
-          }`}
+            } md:w-[380px] lg:w-[380px] ${sidebarExpanded ? "lg:left-[240px]" : "lg:left-[72px]"
+            }`}
         >
           {/* Fixed Drawer Header - Never Scrolls */}
           <div className="flex h-[64px] shrink-0 items-center justify-between border-b border-slate-200/90 px-4 bg-white/95 backdrop-blur-md z-20">
@@ -2020,11 +2004,9 @@ export function StudentLayout({
       {/* TOP HEADER — two variants depending on route                    */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       <header
-        className={`fixed inset-x-0 z-[50] flex items-center border-b border-[#E5E7EB]/80 bg-white/95 backdrop-blur-md transition-all duration-300 ${
-          isPreviewMode ? "top-[40px]" : "top-0"
-        } ${sidebarExpanded ? "lg:left-[240px]" : "lg:left-[72px]"} ${
-          activePanel ? (sidebarExpanded ? "lg:left-[620px]" : "lg:left-[452px]") : ""
-        }`}
+        className={`fixed inset-x-0 z-[50] flex items-center border-b border-[#E5E7EB]/80 bg-white/95 backdrop-blur-md transition-all duration-300 ${isPreviewMode ? "top-[40px]" : "top-0"
+          } ${sidebarExpanded ? "lg:left-[240px]" : "lg:left-[72px]"} ${activePanel ? (sidebarExpanded ? "lg:left-[620px]" : "lg:left-[452px]") : ""
+          }`}
         style={{ height: 56 }}
         aria-label="Student account toolbar"
       >
@@ -2084,9 +2066,8 @@ export function StudentLayout({
           }`}
       >
         <main
-          className={`w-full min-w-0 overflow-x-visible bg-[#F7FAFC] ${
-            isPreviewMode ? "pt-[96px]" : "pt-[56px]"
-          } ${activePanel ? "lg:pl-[380px]" : ""}`}
+          className={`w-full min-w-0 overflow-x-visible bg-[#F7FAFC] ${isPreviewMode ? "pt-[96px]" : "pt-[56px]"
+            } ${activePanel ? "lg:pl-[380px]" : ""}`}
         >
           <div
             className={`box-border mx-auto min-w-0 w-full bg-[#F7FAFC] px-3 pb-28 sm:pb-24 sm:px-4 md:px-6 md:pb-6 lg:px-6 lg:pb-8 ${isSearchRoute ? "max-w-none" : "max-w-[1280px]"

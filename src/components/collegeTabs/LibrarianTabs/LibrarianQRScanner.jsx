@@ -1073,6 +1073,7 @@ function LibrarianQRScanner({ darkMode }) {
                     const renderUrl = request.id_picture_url
                       ? `https://libralink-50ig.onrender.com${request.id_picture_url.startsWith('/') ? '' : '/'}${request.id_picture_url}`
                       : null;
+                    const idCardUrl = request.student?.id_card_picture ? getBackendAssetUrl(request.student.id_card_picture) : null;
                     const profileUrl = request.student?.profile_image ? getBackendAssetUrl(request.student.profile_image) : null;
 
                     let currentSrc = null;
@@ -1080,6 +1081,8 @@ function LibrarianQRScanner({ darkMode }) {
                       currentSrc = primaryUrl;
                     } else if (idPhotoFallback && !idPhotoFailed && renderUrl) {
                       currentSrc = renderUrl;
+                    } else if (idCardUrl) {
+                      currentSrc = idCardUrl;
                     } else if (profileUrl) {
                       currentSrc = profileUrl;
                     }
@@ -1568,8 +1571,10 @@ function LibrarianQRScanner({ darkMode }) {
                     const renderUrl = request?.id_picture_url
                       ? `https://libralink-50ig.onrender.com${request.id_picture_url.startsWith('/') ? '' : '/'}${request.id_picture_url}`
                       : null;
+                    const idCardUrl = request?.student?.id_card_picture ? getBackendAssetUrl(request.student.id_card_picture) : null;
                     const profileUrl = request?.student?.profile_image ? getBackendAssetUrl(request.student.profile_image) : null;
                     if (!idPhotoFallback && primaryUrl) return primaryUrl;
+                    if (idCardUrl) return idCardUrl;
                     if (renderUrl) return renderUrl;
                     return profileUrl || primaryUrl;
                   })()

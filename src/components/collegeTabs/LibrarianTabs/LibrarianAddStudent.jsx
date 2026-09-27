@@ -790,22 +790,28 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
 
       const newUserId = data?.user_id;
 
-      // Preserve captured ID photo URL for success modal display and local avatar cache
+      // Preserve captured ID photo URL for success modal display and local ID cache
       const savedPhotoUrl = idImageDataUrl;
       if (newUserId && savedPhotoUrl) {
         try {
-          localStorage.setItem(`libralink_avatar_${newUserId}`, savedPhotoUrl);
+          localStorage.setItem(`libralink_id_card_${newUserId}`, savedPhotoUrl);
         } catch (_) {}
       }
 
       // Upload the scanned ID card photo into the dedicated id_card_picture field (not the profile avatar)
-      if (idImageFile && newUserId) {
+      if (newUserId && (idImageFile || idImageDataUrl)) {
         try {
-          const formData = new FormData();
-          formData.append('id_card_picture', idImageFile);
-          await api.post(`/users/${newUserId}/id-card`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          });
+          if (idImageFile) {
+            const formData = new FormData();
+            formData.append('id_card_picture', idImageFile);
+            await api.post(`/users/${newUserId}/id-card`, formData, {
+              headers: { 'Content-Type': 'multipart/form-data' }
+            });
+          } else if (idImageDataUrl) {
+            await api.post(`/users/${newUserId}/id-card`, {
+              id_card_picture: idImageDataUrl
+            });
+          }
         } catch (picErr) {
           console.warn('[SCAN] Could not upload student ID card photo:', picErr);
         }

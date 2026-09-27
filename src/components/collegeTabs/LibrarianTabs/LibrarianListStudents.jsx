@@ -3,7 +3,7 @@ import {
   FiUsers, FiEdit, FiSearch, FiEye, FiX, FiBook, FiClock, 
   FiAlertTriangle, FiCheckCircle, FiPhone, FiMail, FiHash, FiCalendar,
   FiShield, FiUserCheck, FiBookOpen, FiRefreshCw, FiMapPin, FiLayers,
-  FiAward, FiFilter, FiCheck, FiInfo
+  FiAward, FiFilter, FiCheck, FiInfo, FiCreditCard, FiUpload, FiImage, FiMaximize2
 } from "react-icons/fi";
 import api, { getBackendAssetUrl } from "../../../utils/api";
 import Card from "../../ui/Card";
@@ -181,6 +181,11 @@ function AdminListStudents() {
   const [saveError, setSaveError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Student Physical ID Card Photo state in Edit modal
+  const [editingIdCardFile, setEditingIdCardFile] = useState(null);
+  const [editingIdCardPreview, setEditingIdCardPreview] = useState('');
+  const [zoomIdCardUrl, setZoomIdCardUrl] = useState(null);
+
   // Borrower 360° Drawer state
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [studentLoansLoading, setStudentLoansLoading] = useState(false);
@@ -192,6 +197,8 @@ function AdminListStudents() {
     const detectedLevel = detectAcademicLevel(student);
     setEditLevel(detectedLevel);
     setEditingStudent(student);
+    setEditingIdCardFile(null);
+    setEditingIdCardPreview(student.id_card_picture ? getBackendAssetUrl(student.id_card_picture) : '');
     setSaveError('');
     setSaveSuccess(false);
 
@@ -243,10 +250,21 @@ function AdminListStudents() {
         status: editForm.status
       });
 
+      // If a new physical ID card photo was chosen, upload it to /api/users/:id/id-card
+      if (editingIdCardFile && editingStudent?.user_id) {
+        const formData = new FormData();
+        formData.append('id_card_picture', editingIdCardFile);
+        await api.post(`/users/${editingStudent.user_id}/id-card`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+
       setSaveSuccess(true);
       await fetchStudents();
       setTimeout(() => {
         setEditingStudent(null);
+        setEditingIdCardFile(null);
+        setEditingIdCardPreview('');
         setSaveSuccess(false);
       }, 700);
     } catch (error) {
@@ -259,6 +277,8 @@ function AdminListStudents() {
 
   const handleCancelEdit = () => {
     setEditingStudent(null);
+    setEditingIdCardFile(null);
+    setEditingIdCardPreview('');
     setSaveError('');
     setSaveSuccess(false);
   };
@@ -644,9 +664,27 @@ function AdminListStudents() {
 
                           {/* Student ID / LRN */}
                           <td className="py-3.5 px-4 font-mono font-semibold text-slate-700">
-                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-xs">
-                              <FiHash className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{student.student_number || '—'}</span>
+                            <div className="space-y-1">
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-xs">
+                                <FiHash className="w-3.5 h-3.5 text-slate-400" />
+                                <span>{student.student_number || '—'}</span>
+                              </div>
+                              {student.id_card_picture ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setZoomIdCardUrl(getBackendAssetUrl(student.id_card_picture))}
+                                  className="flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
+                                  title="Click to view Physical Student ID Photo"
+                                >
+                                  <FiCreditCard className="w-3 h-3 text-emerald-600" />
+                                  <span>ID Photo on file</span>
+                                </button>
+                              ) : (
+                                <span className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                                  <span>No ID Photo</span>
+                                </span>
+                              )}
                             </div>
                           </td>
 
@@ -792,9 +830,72 @@ function AdminListStudents() {
                   <div className="flex items-start gap-2">
                     <FiShield className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
                     <p className="text-[11px] text-blue-900 leading-relaxed font-medium">
-                      <strong className="block text-blue-950 mb-0.5">Patron Photo Policy:</strong>
-                      Profile picture can only be modified directly by the student through their personal onboarding & profile settings.
+                      <strong className="block text-blue-950 mb-0.5">Patron Avatar Policy:</strong>
+                      Personal profile avatar is chosen by the student. Physical ID card below is the official librarian-managed credential photo.
                     </p>
+                  </div>
+                </div>
+
+                {/* Official Physical Student ID Photo Box */}
+                <div className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-left shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <div className="flex items-center gap-1.5">
+                      <FiCreditCard className="w-4 h-4 text-blue-600" />
+                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Physical ID Photo</span>
+                    </div>
+                    {editingIdCardPreview && (
+                      <button
+                        type="button"
+                        onClick={() => setZoomIdCardUrl(editingIdCardPreview)}
+                        className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                        title="View Full Size"
+                      >
+                        <FiMaximize2 className="w-3 h-3" />
+                        <span>View</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col items-center justify-center">
+                    {editingIdCardPreview ? (
+                      <div 
+                        onClick={() => setZoomIdCardUrl(editingIdCardPreview)}
+                        className="relative w-full h-36 rounded-xl overflow-hidden border border-slate-200 bg-slate-50 cursor-pointer group shadow-2xs"
+                      >
+                        <img
+                          src={editingIdCardPreview}
+                          alt="Official Student ID"
+                          className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold gap-1">
+                          <FiMaximize2 className="w-3.5 h-3.5" />
+                          <span>Zoom</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-full h-28 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/70 flex flex-col items-center justify-center p-3 text-center text-slate-400">
+                        <FiImage className="w-7 h-7 mb-1 text-slate-300" />
+                        <span className="text-xs font-medium text-slate-600">No Student ID Photo</span>
+                        <span className="text-[10px] text-slate-400 mt-0.5">Upload scanned school ID card</span>
+                      </div>
+                    )}
+
+                    <label className="mt-3 w-full inline-flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer transition-colors border border-slate-200">
+                      <FiUpload className="w-3.5 h-3.5 text-blue-600" />
+                      <span>{editingIdCardPreview ? 'Replace ID Photo' : 'Upload ID Photo'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setEditingIdCardFile(file);
+                            setEditingIdCardPreview(URL.createObjectURL(file));
+                          }
+                        }}
+                      />
+                    </label>
                   </div>
                 </div>
 
@@ -1291,21 +1392,85 @@ function AdminListStudents() {
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2">
+            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between gap-2">
+              <div>
+                {selectedStudent.id_card_picture ? (
+                  <button
+                    type="button"
+                    onClick={() => setZoomIdCardUrl(getBackendAssetUrl(selectedStudent.id_card_picture))}
+                    className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <FiCreditCard className="w-3.5 h-3.5 text-blue-600" />
+                    <span>View Student ID Photo</span>
+                  </button>
+                ) : (
+                  <span className="text-[11px] text-slate-400 italic">No physical ID photo registered</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    handleCloseProfile();
+                    handleEditClick(selectedStudent);
+                  }}
+                  className="px-4 py-2 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl hover:bg-white transition-colors"
+                >
+                  Edit Student Data
+                </button>
+                <button
+                  onClick={handleCloseProfile}
+                  className="px-5 py-2 bg-slate-900 text-white text-xs font-semibold rounded-xl hover:bg-slate-800 transition-colors"
+                >
+                  Close Drawer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL: ZOOM PHYSICAL STUDENT ID PHOTO                          */}
+      {/* ============================================================== */}
+      {zoomIdCardUrl && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+          onClick={() => setZoomIdCardUrl(null)}
+        >
+          <div
+            className="relative max-w-lg w-full bg-white rounded-3xl overflow-hidden shadow-2xl p-5 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <FiCreditCard className="w-5 h-5 text-blue-600" />
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">Official Student ID Card</h4>
+                  <p className="text-[11px] text-slate-500">Physical credential photo verified by librarian</p>
+                </div>
+              </div>
               <button
-                onClick={() => {
-                  handleCloseProfile();
-                  handleEditClick(selectedStudent);
-                }}
-                className="px-4 py-2 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl hover:bg-white transition-colors"
+                type="button"
+                onClick={() => setZoomIdCardUrl(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
               >
-                Edit Student Data
+                <FiX className="w-5 h-5" />
               </button>
+            </div>
+            <div className="flex items-center justify-center bg-slate-50 rounded-2xl p-2 max-h-[70vh] overflow-hidden">
+              <img
+                src={zoomIdCardUrl}
+                alt="Student ID Card Full View"
+                className="max-h-[65vh] w-auto object-contain rounded-xl shadow-xs"
+              />
+            </div>
+            <div className="flex items-center justify-end pt-2 border-t border-slate-100 text-xs">
               <button
-                onClick={handleCloseProfile}
-                className="px-5 py-2 bg-slate-900 text-white text-xs font-semibold rounded-xl hover:bg-slate-800 transition-colors"
+                type="button"
+                onClick={() => setZoomIdCardUrl(null)}
+                className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800 transition"
               >
-                Close Drawer
+                Close
               </button>
             </div>
           </div>

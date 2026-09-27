@@ -86,7 +86,7 @@ function StudentOnboarding() {
     username: 'Create a unique username that others can recognize.',
     cellphone: 'Enter your active mobile number in case we need to contact you.',
     email: 'Use a valid Gmail account for password recovery and account safety.',
-    photo: 'Confirm your profile photo. You can use your scanned ID photo or upload a new headshot.',
+    photo: 'Personalize your profile picture with your own personal headshot or photo (Optional). Your official Student ID card is separately kept on file by the librarian.',
     policy: 'Review the terms carefully before continuing. You must agree before entering the system.',
   };
 
@@ -120,7 +120,9 @@ function StudentOnboarding() {
       favorite_topics: Array.isArray(storedTopics) ? storedTopics : [],
       policyAccepted: !!parsedUser.policy_accepted,
     });
-    setPreview(parsedUser.profile_picture || parsedUser.profile_image || '');
+    const rawPic = parsedUser.profile_picture || parsedUser.profile_image || '';
+    const safePic = (rawPic && rawPic !== parsedUser.id_card_picture) ? rawPic : '';
+    setPreview(safePic);
 
     const schoolId = localStorage.getItem('schoolId');
     if (schoolId) {
@@ -178,11 +180,6 @@ function StudentOnboarding() {
       return;
     }
 
-    if (!photo && !preview) {
-      alert('Please upload or confirm your profile picture.');
-      return;
-    }
-
     if (!form.policyAccepted) {
       alert('Please accept the policy before continuing.');
       return;
@@ -191,11 +188,13 @@ function StudentOnboarding() {
     try {
       setLoading(true);
 
-      let uploadedPicture = userInfo?.profile_picture || userInfo?.profile_image || preview || '';
+      let uploadedPicture = null;
       if (photo) {
         const { data, error } = await updateProfilePicture(photo);
         if (error) throw error;
-        uploadedPicture = data?.profile_picture || data?.profile_image || uploadedPicture;
+        uploadedPicture = data?.profile_picture || data?.profile_image || null;
+      } else if (preview && preview !== userInfo?.id_card_picture) {
+        uploadedPicture = userInfo?.profile_picture || userInfo?.profile_image || preview;
       }
 
       // Save course and favorite topics via shared recommendations helper
@@ -602,38 +601,46 @@ function StudentOnboarding() {
 
     // STEP 7: Profile Picture
     if (currentStep === 7) {
+      const studentInitial = (userInfo?.firstname?.[0] || 'S').toUpperCase();
       return (
         <div className="space-y-4">
           <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
             {reminders.photo}
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Profile Picture</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Personal Profile Picture (Optional)</label>
             <div className="flex flex-col sm:flex-row items-center gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
-              <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-blue-400 bg-white shadow-sm">
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-blue-400 bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-2xl shadow-sm">
                 {preview ? (
                   <img src={preview} alt="Profile preview" className="h-full w-full object-cover" />
                 ) : (
-                  <span className="text-2xl font-bold text-slate-400">+</span>
+                  <span>{studentInitial}</span>
                 )}
               </div>
 
               <div className="flex-1 space-y-2 text-center sm:text-left">
-                {preview && !photo && (
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    <FiCheck className="w-3.5 h-3.5" /> ID Photo Scanned by Librarian
-                  </div>
-                )}
                 <p className="text-xs text-slate-500">
                   {preview 
-                    ? "Your scanned ID photo is set as your default avatar. You can keep it or upload a new photo."
-                    : "Upload a clear headshot photo for your digital borrower ID."}
+                    ? "Your personal profile photo is ready. You can change or remove it anytime."
+                    : "Upload your personal avatar/photo if you'd like. Otherwise, your account will use a default avatar with your initials."}
                 </p>
-                <div>
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                   <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-xl border border-[#0077B6] px-4 text-xs font-semibold text-[#0077B6] transition hover:bg-[#E0F2FE]">
                     <FiCamera /> {preview ? 'Change Photo' : 'Upload photo'}
                     <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
                   </label>
+                  {preview && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPhoto(null);
+                        setPreview('');
+                      }}
+                      className="px-3 py-2 text-xs text-slate-500 hover:text-rose-600 font-medium cursor-pointer"
+                    >
+                      Use default avatar
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
