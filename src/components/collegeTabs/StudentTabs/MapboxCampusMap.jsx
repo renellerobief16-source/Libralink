@@ -226,7 +226,7 @@ function createEtaMarkerIcon({ time, dist, travelMode = 'driving' }) {
 }
 
 /* ─── Map Sub-components ─────────────────────────────────────────────── */
-function MapSetup({ center, zoom }) {
+function MapSetup({ center, zoom, sidebarOffset }) {
   const map = useMap();
   const ready = useRef(false);
 
@@ -238,26 +238,44 @@ function MapSetup({ center, zoom }) {
         map.invalidateSize({ animate: false });
         if (!ready.current) {
           map.setView(center, zoom, { animate: false });
+          if (sidebarOffset && typeof window !== 'undefined' && window.innerWidth >= 1024) {
+            // Offset view so campus pin and popup are positioned cleanly in the visible right portion of the map
+            map.panBy([-220, 0], { animate: false });
+          }
           ready.current = true;
         }
       }, ms)
     );
     return () => tasks.forEach(clearTimeout);
-  }, [center, zoom, map]);
+  }, [center, zoom, map, sidebarOffset]);
 
   return null;
 }
 
-function FitRoute({ route }) {
+function FitRoute({ route, sidebarOffset }) {
   const map = useMap();
   useEffect(() => {
-    if (route?.length > 1) map.fitBounds(route, { padding: [44, 44], animate: true });
-  }, [map, route]);
+    if (route?.length > 1) {
+      const isLg = typeof window !== 'undefined' && window.innerWidth >= 1024;
+      map.fitBounds(route, {
+        paddingTopLeft: [sidebarOffset && isLg ? 510 : 44, 44],
+        paddingBottomRight: [44, 96],
+        animate: true,
+      });
+    }
+  }, [map, route, sidebarOffset]);
   return null;
 }
 
 /* ─── Main Component ─────────────────────────────────────────────────── */
-export default function MapboxCampusMap({ school, book, height = 340, onExpand }) {
+export default function MapboxCampusMap({
+  school,
+  book,
+  height = 340,
+  onExpand,
+  className = '',
+  sidebarOffset = false,
+}) {
   const markerRef = useRef(null);
   const [tileKey, setTileKey] = useState('map');
   const [travelMode, setTravelMode] = useState('driving'); // 'driving' or 'walking'
@@ -479,8 +497,10 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
   if (isGeocoding && !valid) {
     return (
       <div
-        className="flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50"
-        style={{ height: typeof height === 'number' ? height : 280 }}
+        className={`flex w-full items-center justify-center ${
+          height === '100%' ? 'h-full rounded-none border-0' : 'rounded-2xl border border-slate-200'
+        } bg-gradient-to-br from-slate-50 to-blue-50`}
+        style={{ height: height === '100%' ? '100%' : (typeof height === 'number' ? height : 280) }}
       >
         <div className="flex items-center gap-2.5 text-blue-600">
           <Navigation className="h-5 w-5 animate-spin" />
@@ -494,8 +514,10 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
   if (!valid) {
     return (
       <div
-        className="flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50"
-        style={{ height: typeof height === 'number' ? height : 280 }}
+        className={`flex w-full items-center justify-center ${
+          height === '100%' ? 'h-full rounded-none border-0' : 'rounded-2xl border border-slate-200'
+        } bg-gradient-to-br from-slate-50 to-blue-50`}
+        style={{ height: height === '100%' ? '100%' : (typeof height === 'number' ? height : 280) }}
       >
         <div className="text-center p-6">
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-100 text-blue-500">
@@ -517,10 +539,16 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
         .ll-map-wrap .leaflet-container { background: #e8edf2 !important; }
         .ll-map-wrap .leaflet-tile-pane img { border-radius: 0 !important; }
         .ll-map-wrap .leaflet-control-zoom {
+          position: absolute !important;
+          right: 14px !important;
+          bottom: 88px !important;
+          top: auto !important;
+          left: auto !important;
           border: none !important;
-          box-shadow: 0 4px 16px rgba(0,0,0,.13) !important;
+          box-shadow: 0 4px 16px rgba(0,0,0,.15) !important;
           border-radius: 12px !important;
           overflow: hidden;
+          z-index: 750 !important;
         }
         .ll-map-wrap .leaflet-control-zoom-in,
         .ll-map-wrap .leaflet-control-zoom-out {
@@ -566,8 +594,10 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
         className={`ll-map-wrap relative w-full overflow-hidden transition-all duration-300 ${
           fullscreen
             ? 'fixed inset-0 z-[9999] rounded-none border-0 shadow-none'
+            : height === '100%' || height === '100vh'
+            ? 'h-full rounded-none border-0 shadow-none'
             : 'rounded-2xl border border-slate-200/80 shadow-lg'
-        }`}
+        } ${className}`}
         style={{ height: heightPx, minHeight: fullscreen ? '100vh' : (height === '100%' ? '100%' : '260px') }}
       >
         {/* ── Leaflet Map ── */}
@@ -587,8 +617,8 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
             tileSize={tile.tileSize}
             crossOrigin=""
           />
-          <MapSetup center={center} zoom={16} />
-          {route && <FitRoute route={route} />}
+          <MapSetup center={center} zoom={16} sidebarOffset={sidebarOffset} />
+          {route && <FitRoute route={route} sidebarOffset={sidebarOffset} />}
 
           {/* Campus Marker */}
           <Marker
@@ -603,100 +633,155 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
           >
             <Popup closeButton={false}>
               {book ? (
-                <div className="flex items-start gap-2.5 p-2 min-w-[210px] max-w-[255px] sm:max-w-[270px]">
-                  {/* Left: Book Cover Thumbnail */}
-                  <div className="relative h-16 w-11 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100 shadow-2xs">
-                    {bookCoverUrl ? (
-                      <img
-                        src={bookCoverUrl}
-                        alt={book.title || 'Book cover'}
-                        className="h-full w-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          const fallback = e.currentTarget.parentElement?.querySelector('.ll-book-fallback');
-                          if (fallback) fallback.classList.remove('hidden');
-                        }}
-                      />
-                    ) : null}
-                    <div
-                      className={`ll-book-fallback h-full w-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 p-0.5 text-center ${
-                        bookCoverUrl ? 'hidden' : ''
-                      }`}
-                    >
-                      <BookOpen className="h-4 w-4 text-slate-400 mb-0.5" />
-                      <span className="text-[6.5px] font-bold text-slate-500 uppercase tracking-tight">Book</span>
+                <div className="w-[270px] sm:w-[290px] overflow-hidden rounded-[14px] bg-white font-sans text-slate-800 shadow-xl border border-slate-200/80">
+                  {/* 1. Header: School Badge & Identity */}
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-50/90 border-b border-slate-100">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="h-5 w-5 shrink-0 overflow-hidden rounded-full border border-slate-200/90 bg-white p-0.5 shadow-2xs">
+                        <img
+                          src={logoUrl}
+                          alt={name}
+                          className="h-full w-full object-contain rounded-full"
+                          onError={(e) => { e.currentTarget.src = '/L.png'; }}
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-bold text-slate-800 truncate leading-tight">{name}</p>
+                        {address && (
+                          <p className="text-[9px] text-slate-400 truncate leading-none mt-0.5">{address}</p>
+                        )}
+                      </div>
+                    </div>
+                    {school?.school_code && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white text-slate-600 border border-slate-200/80 shadow-2xs shrink-0">
+                        {school.school_code}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 2. Middle Body: Book Artwork & Specifications */}
+                  <div className="flex items-center gap-3 p-3">
+                    {/* Book Cover */}
+                    <div className="relative h-[68px] w-[48px] shrink-0 overflow-hidden rounded-lg border border-slate-200/90 bg-gradient-to-br from-slate-50 to-slate-100 shadow-xs">
+                      {bookCoverUrl ? (
+                        <img
+                          src={bookCoverUrl}
+                          alt={book.title || 'Book cover'}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            const fallback = e.currentTarget.parentElement?.querySelector('.ll-book-fallback');
+                            if (fallback) fallback.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        className={`ll-book-fallback h-full w-full flex flex-col items-center justify-center p-1 text-center ${
+                          bookCoverUrl ? 'hidden' : ''
+                        }`}
+                      >
+                        <BookOpen className="h-4 w-4 text-slate-400 mb-0.5" />
+                        <span className="text-[6.5px] font-bold text-slate-400 uppercase tracking-wider">Book</span>
+                      </div>
+                    </div>
+
+                    {/* Book Info */}
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="text-xs font-bold text-slate-900 leading-snug line-clamp-2" title={book.title}>
+                        {book.title || 'Academic Resource'}
+                      </p>
+                      {book.author && (
+                        <p className="text-[10px] font-medium text-slate-500 truncate">
+                          by {book.author}
+                        </p>
+                      )}
+
+                      {/* Badges */}
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                        <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-bold border ${
+                          (book.available_copies !== undefined ? book.available_copies : 1) > 0
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                            : 'bg-rose-50 text-rose-700 border-rose-100'
+                        }`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${
+                            (book.available_copies !== undefined ? book.available_copies : 1) > 0 ? 'bg-emerald-500' : 'bg-rose-500'
+                          }`} />
+                          <span>
+                            {(book.available_copies !== undefined ? book.available_copies : 1) > 0
+                              ? `${book.available_copies || 1} available`
+                              : 'All in use'}
+                          </span>
+                        </span>
+
+                        <span className="inline-flex items-center rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 border border-amber-100">
+                          Library Use Only
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Right: Book Details & Campus Info */}
-                  <div className="min-w-0 flex-1">
-                    {/* Book Title */}
-                    <p className="text-[11px] font-bold text-slate-900 leading-snug line-clamp-2" title={book.title}>
-                      {book.title || 'Academic Resource'}
-                    </p>
-
-                    {/* Author */}
-                    {book.author && (
-                      <p className="text-[9.5px] font-medium text-slate-500 truncate mt-0.5">
-                        by {book.author}
-                      </p>
-                    )}
-
-                    {/* Availability Badges */}
-                    <div className="mt-1 flex flex-wrap items-center gap-1">
-                      <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[8.5px] font-bold text-emerald-700 border border-emerald-100">
-                        <span className="h-1 w-1 rounded-full bg-emerald-500" />
-                        <span>{book.available_copies || 1} available</span>
-                      </span>
-                      <span className="inline-flex items-center rounded bg-amber-50 px-1.5 py-0.5 text-[8.5px] font-semibold text-amber-700 border border-amber-100">
-                        Library Use Only
-                      </span>
-                    </div>
-
-                    {/* Campus Info Row with mini 16px logo */}
-                    <div className="mt-1 pt-1 border-t border-slate-100">
-                      <div className="flex items-center gap-1.5">
-                        <div className="h-4 w-4 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-white p-0.5 shadow-2xs">
-                          <img
-                            src={logoUrl}
-                            alt={name}
-                            className="h-full w-full object-contain rounded-full"
-                            onError={(e) => { e.currentTarget.src = '/L.png'; }}
-                          />
-                        </div>
-                        <p className="text-[9.5px] font-bold text-slate-800 truncate leading-tight">{name}</p>
+                  {/* 3. Footer: Route Info & Quick Directions Link */}
+                  <div className="flex items-center justify-between px-3 py-2 bg-slate-50/80 border-t border-slate-100">
+                    {routeInfo ? (
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-700">
+                        <Navigation className="h-3 w-3 text-emerald-600 shrink-0" />
+                        <span>{routeInfo.dist} • {routeInfo.time}</span>
                       </div>
-                      <p className="text-[8.5px] text-slate-400 truncate mt-0.5">{address}</p>
-                    </div>
-
-                    {/* Live Route */}
-                    {routeInfo && (
-                      <div className="mt-0.5 flex items-center gap-1 text-[9px] font-bold text-emerald-600">
-                        <Compass className="h-2.5 w-2.5 shrink-0" />
-                        <span>{routeInfo.dist} · {routeInfo.time}</span>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-400">
+                        <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
+                        <span>Campus Library</span>
                       </div>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openGMaps();
+                      }}
+                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#0077B6] hover:text-[#005f8f] transition hover:underline cursor-pointer"
+                      title="Open directions in Google Maps"
+                    >
+                      <span>Directions</span>
+                      <ExternalLink className="h-2.5 w-2.5" />
+                    </button>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-start gap-2.5 p-2.5 min-w-[200px]">
-                  <div className="h-9 w-9 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-0.5 shadow-2xs">
-                    <img
-                      src={logoUrl}
-                      alt={name}
-                      className="h-full w-full object-contain rounded-lg"
-                      onError={(e) => { e.currentTarget.src = '/L.png'; }}
-                    />
+                <div className="w-[240px] overflow-hidden rounded-[14px] bg-white font-sans text-slate-800 shadow-xl border border-slate-200/80">
+                  <div className="flex items-center gap-2.5 p-3">
+                    <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-white p-0.5 shadow-2xs">
+                      <img
+                        src={logoUrl}
+                        alt={name}
+                        className="h-full w-full object-contain rounded-full"
+                        onError={(e) => { e.currentTarget.src = '/L.png'; }}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-900 leading-tight truncate">{name}</p>
+                      <p className="text-[10px] text-slate-500 truncate mt-0.5">{address}</p>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-bold text-slate-900 leading-tight">{name}</p>
-                    <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{address}</p>
-                    {routeInfo && (
-                      <div className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
-                        <Compass className="h-3 w-3" /> {routeInfo.dist} · {routeInfo.time}
+                  {routeInfo && (
+                    <div className="px-3 py-2 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                      <div className="flex items-center gap-1 font-bold text-emerald-700">
+                        <Navigation className="h-3 w-3 text-emerald-600 shrink-0" />
+                        <span>{routeInfo.dist} • {routeInfo.time}</span>
                       </div>
-                    )}
-                  </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openGMaps();
+                        }}
+                        className="font-semibold text-[#0077B6] hover:underline cursor-pointer"
+                      >
+                        Directions
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </Popup>
@@ -749,10 +834,14 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
         </MapContainer>
 
         {/* ── Top HUD ── */}
-        <div className="absolute inset-x-0 top-0 z-[800] pointer-events-none px-3 pt-3">
+        <div
+          className={`absolute inset-x-0 top-0 z-[800] pointer-events-none px-3 pt-3 transition-all duration-300 ${
+            sidebarOffset ? 'lg:pl-[500px] xl:pl-[540px]' : 'lg:pl-3'
+          }`}
+        >
           <div className="flex items-start justify-between gap-2">
             {/* Campus name badge with school logo */}
-            <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/70 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm max-w-[calc(100%-190px)] sm:max-w-[calc(100%-220px)]">
+            <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/70 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm max-w-[calc(100%-200px)] sm:max-w-[calc(100%-240px)]">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white p-0.5 shadow-2xs">
                 <img
                   src={logoUrl}
@@ -772,7 +861,7 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
             </div>
 
             {/* Right controls */}
-            <div className="pointer-events-auto flex items-center gap-1.5">
+            <div className="pointer-events-auto flex items-center gap-1.5 mr-12 sm:mr-14">
               {/* Drive / Walk Mode Switcher */}
               <div className="flex items-center rounded-xl border border-white/70 bg-white/95 p-0.5 shadow-lg backdrop-blur-sm">
                 <button
@@ -859,7 +948,11 @@ export default function MapboxCampusMap({ school, book, height = 340, onExpand }
         </div>
 
         {/* ── Compact Bottom Action Card (Slim 2-Row Design) ── */}
-        <div className="absolute inset-x-0 bottom-0 z-[800] px-2.5 pb-2.5 pointer-events-none">
+        <div
+          className={`absolute inset-x-0 bottom-0 z-[800] px-2.5 pb-2.5 pointer-events-none transition-all duration-300 ${
+            sidebarOffset ? 'lg:pl-[500px] xl:pl-[540px]' : 'lg:pl-2.5'
+          }`}
+        >
           <div className="pointer-events-auto rounded-2xl border border-white/90 bg-white/95 p-2 sm:p-2.5 shadow-lg backdrop-blur-md">
             {/* Row 1: Address + Live Route Pill / Status */}
             <div className="flex items-center justify-between gap-1.5 mb-1.5">

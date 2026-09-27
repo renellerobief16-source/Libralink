@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   FiPlus, 
   FiSearch, 
@@ -64,6 +65,8 @@ function LibrarianAdminAddLibrarian() {
   const [schoolInfo, setSchoolInfo] = useState(null);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'grid'
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'inactive'
+  const [viewTargetUser, setViewTargetUser] = useState(null);
+  const [zoomIdPhotoUrl, setZoomIdPhotoUrl] = useState(null);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -680,15 +683,15 @@ function LibrarianAdminAddLibrarian() {
           {viewMode === 'table' ? (
             <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
               <div className="overflow-x-auto custom-scrollbar">
-                <table className="w-full text-left border-collapse min-w-[760px] table-fixed">
+                <table className="w-full text-left border-collapse min-w-[780px] table-fixed">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                      <th className="py-3.5 px-4 w-[32%]">Member Profile</th>
-                      <th className="py-3.5 px-4 w-[22%]">Contact Info</th>
-                      <th className="py-3.5 px-4 w-[16%]">{activeTab === 'students' ? 'Student ID' : 'Employee ID'}</th>
+                      <th className="py-3.5 px-4 w-[29%]">Member Profile</th>
+                      <th className="py-3.5 px-4 w-[21%]">Contact Info</th>
+                      <th className="py-3.5 px-4 w-[15%]">{activeTab === 'students' ? 'Student ID' : 'Employee ID'}</th>
                       <th className="py-3.5 px-4 w-[14%]">Campus</th>
                       <th className="py-3.5 px-4 w-[8%] text-center">Status</th>
-                      <th className="py-3.5 px-4 w-[8%] text-center">Actions</th>
+                      <th className="py-3.5 px-4 w-[13%] text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
@@ -698,19 +701,24 @@ function LibrarianAdminAddLibrarian() {
                       const avatarGradient = getAvatarGradient(fullName);
                       const idNumber = activeTab === 'students' ? (user.student_number || '—') : (user.employee_number || '—');
                       const status = (user.status || 'active').toLowerCase();
-                      const profilePic = user.profile_image || user.profile_picture;
+                      const profilePic = user.profile_image || user.profile_picture || user.id_card_picture || user.id_picture;
 
                       return (
                         <tr key={user.user_id} className="hover:bg-blue-50/40 transition-colors group">
-                          {/* Member Profile with Avatar Picture */}
+                          {/* Member Profile with Avatar / ID Picture */}
                           <td className="py-3.5 px-4">
                             <div className="flex items-center gap-3 min-w-0">
-                              <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0 border border-slate-200/80 bg-slate-100 shadow-2xs">
+                              <button
+                                type="button"
+                                onClick={() => setViewTargetUser(user)}
+                                className="relative w-10 h-10 rounded-full overflow-hidden shrink-0 border border-slate-200/80 bg-slate-100 shadow-2xs group-hover:scale-105 transition-transform cursor-pointer"
+                                title="View Member Profile & ID"
+                              >
                                 {profilePic ? (
                                   <img 
                                     src={getBackendAssetUrl(profilePic)} 
                                     alt={fullName} 
-                                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                                    className="w-full h-full object-cover"
                                     onError={(e) => {
                                       e.target.style.display = 'none';
                                       if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
@@ -722,17 +730,25 @@ function LibrarianAdminAddLibrarian() {
                                 >
                                   {initials}
                                 </div>
-                              </div>
+                              </button>
 
                               <div className="min-w-0 flex-1">
-                                <div className="font-bold text-slate-900 truncate group-hover:text-blue-600 transition-colors">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewTargetUser(user)}
+                                  className="font-bold text-slate-900 truncate group-hover:text-blue-600 transition-colors block text-left w-full cursor-pointer"
+                                  title="View Member Profile & ID"
+                                >
                                   {fullName}
-                                </div>
+                                </button>
                                 <div className="text-[11px] text-slate-400 truncate flex items-center gap-1.5">
                                   {activeTab === 'librarians' && user.position ? (
                                     <span className="font-medium text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-100">{user.position}</span>
                                   ) : (
                                     <span className="capitalize">{user.gender || 'Member'}</span>
+                                  )}
+                                  {user.id_card_picture && (
+                                    <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1 rounded font-semibold border border-emerald-100">ID Attached</span>
                                   )}
                                 </div>
                               </div>
@@ -785,6 +801,15 @@ function LibrarianAdminAddLibrarian() {
                           <td className="py-3.5 px-4 text-center">
                             <div className="flex items-center justify-center gap-1">
                               <button
+                                type="button"
+                                onClick={() => setViewTargetUser(user)}
+                                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all cursor-pointer shadow-2xs"
+                                title={`View ${activeTab === 'students' ? 'Student' : 'User'} Details & ID Photo`}
+                              >
+                                <FiEye className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => handleToggleUserStatus(user)}
                                 className={`p-1.5 rounded-lg border transition-all cursor-pointer shadow-2xs ${
                                   status === 'active'
@@ -796,6 +821,7 @@ function LibrarianAdminAddLibrarian() {
                                 {status === 'active' ? <FiUserCheck className="w-3.5 h-3.5" /> : <FiAlertCircle className="w-3.5 h-3.5" />}
                               </button>
                               <button
+                                type="button"
                                 onClick={() => handleEditUser(user)}
                                 className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all cursor-pointer shadow-2xs"
                                 title="Edit User Details"
@@ -803,6 +829,7 @@ function LibrarianAdminAddLibrarian() {
                                 <FiEdit3 className="w-3.5 h-3.5" />
                               </button>
                               <button
+                                type="button"
                                 onClick={() => setDeleteTargetUser(user)}
                                 className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-all cursor-pointer shadow-2xs"
                                 title="Delete User Account"
@@ -827,7 +854,7 @@ function LibrarianAdminAddLibrarian() {
                 const avatarGradient = getAvatarGradient(fullName);
                 const idNumber = activeTab === 'students' ? (user.student_number || '—') : (user.employee_number || '—');
                 const status = (user.status || 'active').toLowerCase();
-                const profilePic = user.profile_image || user.profile_picture;
+                const profilePic = user.profile_image || user.profile_picture || user.id_card_picture || user.id_picture;
 
                 return (
                   <div 
@@ -896,10 +923,20 @@ function LibrarianAdminAddLibrarian() {
                       </div>
                     </div>
 
-                    <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                    <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-end gap-1.5">
                       <button
+                        type="button"
+                        onClick={() => setViewTargetUser(user)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 text-slate-700 text-xs font-semibold transition-all cursor-pointer shadow-2xs"
+                        title="View Details & ID Photo"
+                      >
+                        <FiEye className="w-3.5 h-3.5" />
+                        <span>View</span>
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => handleToggleUserStatus(user)}
-                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
+                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
                           status === 'active'
                             ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                             : 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
@@ -910,13 +947,15 @@ function LibrarianAdminAddLibrarian() {
                         <span>{status === 'active' ? 'Active' : 'Inactive'}</span>
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleEditUser(user)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 text-slate-700 text-xs font-semibold transition-all cursor-pointer shadow-2xs"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 text-slate-700 text-xs font-semibold transition-all cursor-pointer shadow-2xs"
                       >
                         <FiEdit3 className="w-3.5 h-3.5" />
                         <span>Edit</span>
                       </button>
                       <button
+                        type="button"
                         onClick={() => setDeleteTargetUser(user)}
                         className="p-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-slate-400 text-xs transition-all cursor-pointer shadow-2xs"
                         title="Delete User"
@@ -1411,6 +1450,253 @@ function LibrarianAdminAddLibrarian() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ─── Full-Site View User / Student Profile Modal ─────────────────── */}
+      {typeof document !== 'undefined' && viewTargetUser && createPortal(
+        <div 
+          className="fixed inset-0 z-[99999] bg-slate-900/35 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fade-in"
+          onClick={() => setViewTargetUser(null)}
+        >
+          <div 
+            role="dialog"
+            aria-modal="true"
+            className="bg-white rounded-3xl shadow-2xl border border-slate-200/90 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold shadow-2xs">
+                  <FiUser className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 leading-tight">
+                    {activeTab === 'students' ? 'Student Profile & ID Record' : 'Staff Member Profile'}
+                  </h3>
+                  <p className="text-xs text-slate-400 font-medium">
+                    Institutional library directory record
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setViewTargetUser(null)}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                title="Close"
+              >
+                <FiX className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="p-5 overflow-y-auto space-y-4 custom-scrollbar flex-1">
+              {/* Member Summary Header Card */}
+              <div className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-slate-50/70 border border-slate-100">
+                <div className="relative w-14 h-14 rounded-full overflow-hidden shrink-0 border-2 border-white shadow-xs bg-slate-200">
+                  {(() => {
+                    const avatarPic = viewTargetUser.profile_image || viewTargetUser.profile_picture || viewTargetUser.id_card_picture || viewTargetUser.id_picture;
+                    const name = `${viewTargetUser.firstname || ''} ${viewTargetUser.lastname || ''}`.trim() || 'User';
+                    const inits = `${(viewTargetUser.firstname?.[0] || '').toUpperCase()}${(viewTargetUser.lastname?.[0] || '').toUpperCase()}` || 'U';
+                    const grad = getAvatarGradient(name);
+                    return avatarPic ? (
+                      <img 
+                        src={getBackendAssetUrl(avatarPic)} 
+                        alt={name} 
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <div className={`w-full h-full bg-gradient-to-br ${grad} text-white font-bold text-base flex items-center justify-center`}>
+                        {inits}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-base font-bold text-slate-900 truncate">
+                      {viewTargetUser.firstname} {viewTargetUser.lastname}
+                    </h4>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                      (viewTargetUser.status || 'active').toLowerCase() === 'active'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
+                        : 'bg-slate-100 text-slate-500 border border-slate-200'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${(viewTargetUser.status || 'active').toLowerCase() === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                      {(viewTargetUser.status || 'active').toLowerCase() === 'active' ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 truncate mt-0.5">
+                    {viewTargetUser.email || 'No email registered'}
+                  </p>
+                  <p className="text-[11px] font-mono text-slate-400 mt-0.5">
+                    {activeTab === 'students' ? `Student ID / LRN: ${viewTargetUser.student_number || '—'}` : `Employee ID: ${viewTargetUser.employee_number || '—'}`}
+                  </p>
+                </div>
+              </div>
+
+              {/* Official Physical Student ID Picture Card */}
+              {activeTab === 'students' && (
+                <div className="rounded-2xl border border-slate-200/90 bg-white p-3.5 space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                      <FiShield className="w-3.5 h-3.5 text-blue-600" />
+                      Official Physical Student ID Card
+                    </span>
+                    {viewTargetUser.id_card_picture && (
+                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/70">
+                        Scanned & Verified
+                      </span>
+                    )}
+                  </div>
+
+                  {viewTargetUser.id_card_picture || viewTargetUser.id_picture ? (
+                    <div 
+                      onClick={() => setZoomIdPhotoUrl(getBackendAssetUrl(viewTargetUser.id_card_picture || viewTargetUser.id_picture))}
+                      className="relative aspect-[16/10] w-full rounded-xl overflow-hidden border border-slate-200/90 bg-slate-50 flex items-center justify-center p-1 cursor-pointer group shadow-2xs"
+                      title="Click to view enlarged Student ID Photo"
+                    >
+                      <img 
+                        src={getBackendAssetUrl(viewTargetUser.id_card_picture || viewTargetUser.id_picture)} 
+                        alt="Physical Student ID Card"
+                        className="w-full h-full object-contain rounded-lg transition-transform duration-200 group-hover:scale-[1.02]"
+                      />
+                      <div className="absolute inset-0 bg-slate-900/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold gap-1.5 backdrop-blur-[1px]">
+                        <FiEye className="w-3.5 h-3.5" />
+                        <span>Click to Enlarge</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-center">
+                      <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-1.5">
+                        <FiUser className="w-5 h-5" />
+                      </div>
+                      <p className="text-xs font-semibold text-slate-600">No Physical ID Card Uploaded</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Physical card can be scanned by librarian at circulation desk</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Detailed Specs Grid */}
+              <div className="p-3.5 rounded-2xl bg-slate-50/70 border border-slate-100 grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Campus / Institution
+                  </span>
+                  <span className="font-semibold text-slate-800 mt-0.5 block truncate">
+                    {schoolInfo?.school_name || 'Santa Rita College'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    {activeTab === 'students' ? 'Academic Program' : 'Role Designation'}
+                  </span>
+                  <span className="font-semibold text-slate-800 mt-0.5 block truncate">
+                    {viewTargetUser.position || (activeTab === 'students' ? 'General Academics' : 'Staff Librarian')}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Contact Phone
+                  </span>
+                  <span className="font-semibold text-slate-800 mt-0.5 block truncate">
+                    {viewTargetUser.contact_number || '—'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Gender
+                  </span>
+                  <span className="font-semibold text-slate-800 mt-0.5 block capitalize truncate">
+                    {viewTargetUser.gender || 'Not specified'}
+                  </span>
+                </div>
+
+                <div className="col-span-2 pt-1 border-t border-slate-200/60">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Residence / Address
+                  </span>
+                  <span className="font-medium text-slate-700 mt-0.5 block truncate">
+                    {viewTargetUser.address || 'No address provided'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <button
+                type="button"
+                onClick={() => {
+                  const target = viewTargetUser;
+                  setViewTargetUser(null);
+                  handleEditUser(target);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 text-slate-700 text-xs font-semibold transition-all cursor-pointer shadow-2xs"
+              >
+                <FiEdit3 className="w-3.5 h-3.5" />
+                <span>Edit {activeTab === 'students' ? 'Student' : 'User'} Record</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewTargetUser(null)}
+                className="px-4 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-colors cursor-pointer shadow-2xs"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ─── Lightbox Modal for Enlarged Physical ID Photo ──────────────── */}
+      {typeof document !== 'undefined' && zoomIdPhotoUrl && createPortal(
+        <div 
+          className="fixed inset-0 z-[100000] bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setZoomIdPhotoUrl(null)}
+        >
+          <div 
+            className="relative max-w-[380px] w-full rounded-2xl bg-white p-4 shadow-2xl border border-slate-100 space-y-3 animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <span className="text-xs font-bold text-slate-900">Enlarged Student ID Card</span>
+              <button
+                type="button"
+                onClick={() => setZoomIdPhotoUrl(null)}
+                className="p-1 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer"
+              >
+                <FiX className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center aspect-[16/10] p-1">
+              <img 
+                src={zoomIdPhotoUrl} 
+                alt="Enlarged Student ID Photo" 
+                className="w-full h-full object-contain rounded-lg"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setZoomIdPhotoUrl(null)}
+              className="w-full py-1.5 px-3 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

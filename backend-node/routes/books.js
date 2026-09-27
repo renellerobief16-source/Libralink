@@ -570,14 +570,76 @@ router.get('/search-other-schools', auth, async (req, res) => {
     console.log('[INTER-SCHOOL SEARCH] Exclude school ID:', excludeId);
 
     console.log('[INTER-SCHOOL SEARCH] Querying books...');
-    const { data: books, error } = await supabase
+    const cleanTitle = normalizedTitle.replace(/[\u2018\u2019]/g, "'");
+    let { data: books, error } = await supabase
       .from('books')
-      .select('book_id, title, author, isbn, school_id, cover_image, shelf_location, call_number, copyright_year')
-      .ilike('title', '%' + normalizedTitle + '%');
+      .select(`
+        book_id,
+        title,
+        author,
+        isbn,
+        school_id,
+        cover_image,
+        shelf_location,
+        call_number,
+        copyright_year,
+        quantity,
+        available_quantity,
+        accession_number,
+        barcode,
+        condition,
+        status,
+        book_copies (
+          copy_id,
+          accession_number,
+          barcode,
+          shelf_location,
+          condition,
+          status
+        )
+      `)
+      .ilike('title', '%' + cleanTitle + '%');
 
     if (error) {
       console.error('[INTER-SCHOOL SEARCH] Error searching books:', error);
       return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+
+    if (!books || books.length === 0) {
+      const stripped = cleanTitle.replace(/['"]/g, '');
+      if (stripped !== cleanTitle) {
+        const { data: fallbackBooks } = await supabase
+          .from('books')
+          .select(`
+            book_id,
+            title,
+            author,
+            isbn,
+            school_id,
+            cover_image,
+            shelf_location,
+            call_number,
+            copyright_year,
+            quantity,
+            available_quantity,
+            accession_number,
+            barcode,
+            condition,
+            status,
+            book_copies (
+              copy_id,
+              accession_number,
+              barcode,
+              shelf_location,
+              condition,
+              status
+            )
+          `)
+          .ilike('title', '%' + stripped + '%');
+        if (fallbackBooks && fallbackBooks.length > 0) {
+          books = fallbackBooks;
+        }
+      }
     }
 
     console.log('[INTER-SCHOOL SEARCH] Books found:', books?.length || 0);
@@ -598,30 +660,69 @@ router.get('/search-other-schools', auth, async (req, res) => {
     const schoolIds = [...new Set(filtered.map(book => book.school_id))];
     console.log('[INTER-SCHOOL SEARCH] School IDs:', schoolIds);
 
-    // Get borrow items for these books to show current borrowers
+    // Get borrow items for all matched books to calculate accurate availability & active requesters
     const bookIds = filtered.map(book => book.book_id);
     const { data: borrowItems, error: borrowError } = await supabase
       .from('borrow_request_items')
       .select(`
+        item_id,
         book_id,
+        copy_id,
+        assigned_copy_id,
         status,
-        borrow_requests(request_id, student_id, status, due_date, users!borrow_requests_student_id_fkey(username))
+        borrow_type,
+        created_at,
+        borrow_requests (
+          request_id,
+          student_id,
+          status,
+          due_date,
+          student:student_id (
+            user_id,
+            username,
+            firstname,
+            lastname,
+            school_id,
+            schools:school_id (
+              school_name,
+              school_code
+            )
+          )
+        )
       `)
       .in('book_id', bookIds)
-      .in('status', ['pending', 'approved', 'released']);
+      .in('status', ['pending', 'cancel_requested', 'approved', 'permission_ready', 'released', 'borrowed', 'active', 'picked_up']);
 
     if (borrowError) {
       console.error('[INTER-SCHOOL SEARCH] Error fetching borrow items:', borrowError);
     }
 
-    const borrowItemsByBook = {};
-    if (borrowItems) {
-      borrowItems.forEach(item => {
-        if (!borrowItemsByBook[item.book_id]) {
-          borrowItemsByBook[item.book_id] = [];
-        }
-        borrowItemsByBook[item.book_id].push(item);
-      });
+    // Also get active borrow transactions for direct loans
+    const { data: transactions, error: transError } = await supabase
+      .from('borrow_transactions')
+      .select(`
+        borrow_id,
+        status,
+        borrow_date,
+        due_date,
+        book_copies!inner (book_id, copy_id),
+        student:student_id (
+          user_id,
+          username,
+          firstname,
+          lastname,
+          school_id,
+          schools:school_id (
+            school_name,
+            school_code
+          )
+        )
+      `)
+      .in('book_copies.book_id', bookIds)
+      .eq('status', 'active');
+
+    if (transError) {
+      console.error('[INTER-SCHOOL SEARCH] Error fetching transactions:', transError);
     }
 
     console.log('[INTER-SCHOOL SEARCH] Querying schools...');
@@ -659,9 +760,22 @@ router.get('/search-other-schools', auth, async (req, res) => {
       schools.forEach(school => schoolMap.set(String(school.school_id), school));
     }
 
-    const result = filtered.map(book => {
-      const school = schoolMap.get(String(book.school_id));
-      const schoolSetting = settingsBySchool[String(book.school_id)] || {};
+    // Group filtered books by school_id + normalized title to capture all copies (either in book_copies or multiple book rows)
+    const groupedBySchoolAndTitle = new Map();
+    filtered.forEach(book => {
+      const normalizedGroupKey = `${book.school_id}_${String(book.title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+      if (!groupedBySchoolAndTitle.has(normalizedGroupKey)) {
+        groupedBySchoolAndTitle.set(normalizedGroupKey, []);
+      }
+      groupedBySchoolAndTitle.get(normalizedGroupKey).push(book);
+    });
+
+    const finalResult = [];
+
+    groupedBySchoolAndTitle.forEach((siblingBooks) => {
+      const primaryBook = siblingBooks[0];
+      const school = schoolMap.get(String(primaryBook.school_id));
+      const schoolSetting = settingsBySchool[String(primaryBook.school_id)] || {};
       const enableVisitingFee = schoolSetting.enable_visiting_fee === true || schoolSetting.enable_visiting_fee === 'true';
       const visitingFeeAmount = parseFloat(schoolSetting.visiting_fee_amount) || 0.00;
       const visitingFeeType = schoolSetting.visiting_fee_type || 'per_visit';
@@ -670,54 +784,187 @@ router.get('/search-other-schools', auth, async (req, res) => {
         ? (schoolSetting.inter_school_library_use_only === true || schoolSetting.inter_school_library_use_only === 'true')
         : true;
 
-      const bookBorrowItems = borrowItemsByBook[book.book_id] || [];
-      const currentBorrowers = bookBorrowItems
-        .filter(i => i.status === 'released' || i.status === 'approved')
-        .map(i => ({
-          username: i.borrow_requests?.users?.username || 'Student',
-          status: i.status === 'released' ? 'borrowed' : 'waiting_pickup'
-        }));
+      const groupBookIds = new Set(siblingBooks.map(b => b.book_id));
 
-      return {
-        school_id: book.school_id,
+      // Build physical copies list across all sibling records
+      const copies = [];
+      siblingBooks.forEach((b) => {
+        if (Array.isArray(b.book_copies) && b.book_copies.length > 0) {
+          b.book_copies.forEach((c) => {
+            copies.push({
+              copy_id: c.copy_id,
+              book_id: b.book_id,
+              copy_number: copies.length + 1,
+              accession_number: c.accession_number || `ACC-${copies.length + 1}`,
+              barcode: c.barcode || null,
+              shelf_location: c.shelf_location || b.shelf_location || null,
+              call_number: b.call_number || null,
+              condition: c.condition || b.condition || 'Good',
+              status: 'available',
+              status_label: 'Available',
+              borrower: null,
+            });
+          });
+        } else {
+          const qty = Math.max(parseInt(b.quantity, 10) || 1, 1);
+          for (let i = 0; i < qty; i++) {
+            let acc = b.accession_number;
+            if (!acc) {
+              acc = `ACC-${copies.length + 1}`;
+            } else if (qty > 1 && i > 0) {
+              acc = `${b.accession_number}-C${i + 1}`;
+            }
+            copies.push({
+              copy_id: qty === 1 ? b.book_id : (b.book_id * 1000 + i),
+              book_id: b.book_id,
+              copy_number: copies.length + 1,
+              accession_number: acc,
+              barcode: b.barcode || null,
+              shelf_location: b.shelf_location || null,
+              call_number: b.call_number || null,
+              condition: b.condition || 'Good',
+              status: 'available',
+              status_label: 'Available',
+              borrower: null,
+            });
+          }
+        }
+      });
+
+      // Filter borrow items and transactions for this group
+      const groupBorrowers = [];
+
+      (transactions || []).forEach(tx => {
+        if (groupBookIds.has(tx.book_copies?.book_id)) {
+          const student = tx.student;
+          const username = student?.username || (student?.firstname ? `${student.firstname} ${student.lastname || ''}`.trim() : 'Student');
+          groupBorrowers.push({
+            id: `tx-${tx.borrow_id}`,
+            user_id: student?.user_id,
+            username: username,
+            full_name: student?.firstname ? `${student.firstname} ${student.lastname || ''}`.trim() : username,
+            school_name: student?.schools?.school_name || school?.school_name || 'Consortium Member',
+            school_code: student?.schools?.school_code || '',
+            status: 'borrowed',
+            status_label: 'Borrowed',
+            borrow_type: 'HOME',
+            date: tx.borrow_date,
+            copy_id: tx.book_copies?.copy_id || null,
+            book_id: tx.book_copies?.book_id || null
+          });
+        }
+      });
+
+      (borrowItems || []).forEach(item => {
+        if (groupBookIds.has(item.book_id)) {
+          const reqInfo = item.borrow_requests;
+          const student = reqInfo?.student;
+          const studentId = student?.user_id || reqInfo?.student_id;
+
+          let normStatus = 'requested';
+          let statusLabel = 'Requested';
+          const rawStatus = String(item.status || reqInfo?.status || '').toLowerCase();
+          if (['borrowed', 'active', 'picked_up', 'released'].includes(rawStatus)) {
+            normStatus = 'borrowed';
+            statusLabel = 'Borrowed';
+          } else if (['approved', 'permission_ready', 'ready_for_pickup'].includes(rawStatus)) {
+            normStatus = 'waiting_pickup';
+            statusLabel = 'Waiting for Pickup';
+          } else {
+            normStatus = 'requested';
+            statusLabel = 'Requested';
+          }
+
+          // Skip duplicate if already marked as borrowed
+          if (groupBorrowers.some(b => b.user_id === studentId && b.status === 'borrowed' && normStatus === 'borrowed')) {
+            return;
+          }
+
+          const username = student?.username || (student?.firstname ? `${student.firstname} ${student.lastname || ''}`.trim() : 'Student');
+          groupBorrowers.push({
+            id: `req-${item.item_id}`,
+            request_id: reqInfo?.request_id,
+            user_id: studentId,
+            username: username,
+            full_name: student?.firstname ? `${student.firstname} ${student.lastname || ''}`.trim() : username,
+            school_name: student?.schools?.school_name || 'Partner Library',
+            school_code: student?.schools?.school_code || '',
+            status: normStatus,
+            status_label: statusLabel,
+            borrow_type: item.borrow_type || 'INTER_SCHOOL_LIBRARY_USE',
+            date: item.created_at || reqInfo?.created_at,
+            copy_id: item.copy_id || item.assigned_copy_id || null,
+            book_id: item.book_id || null
+          });
+        }
+      });
+
+      // Allocate active borrowers to copies and deduct availability
+      const claimedCopyIndices = new Set();
+      groupBorrowers.forEach(borrower => {
+        let matchIdx = -1;
+        if (borrower.copy_id) {
+          matchIdx = copies.findIndex((c, idx) => !claimedCopyIndices.has(idx) && c.copy_id === borrower.copy_id);
+        }
+        if (matchIdx === -1 && borrower.book_id) {
+          matchIdx = copies.findIndex((c, idx) => !claimedCopyIndices.has(idx) && c.book_id === borrower.book_id);
+        }
+        if (matchIdx === -1) {
+          matchIdx = copies.findIndex((c, idx) => !claimedCopyIndices.has(idx));
+        }
+
+        if (matchIdx !== -1) {
+          claimedCopyIndices.add(matchIdx);
+          copies[matchIdx].status = borrower.status;
+          copies[matchIdx].status_label = borrower.status_label;
+          copies[matchIdx].borrower = {
+            username: borrower.username,
+            school_name: borrower.school_name,
+            status: borrower.status,
+            status_label: borrower.status_label,
+          };
+        }
+      });
+
+      const totalCopies = copies.length;
+      const availableCopies = Math.max(0, totalCopies - claimedCopyIndices.size);
+      const availableCopy = copies.find((c, idx) => !claimedCopyIndices.has(idx));
+      const targetBookId = availableCopy ? availableCopy.book_id : primaryBook.book_id;
+
+      finalResult.push({
+        school_id: primaryBook.school_id,
         school_name: school?.school_name || 'Unknown School',
         address: school?.address || 'Unknown Address',
         school_code: school?.school_code,
         latitude: school?.latitude || null,
         longitude: school?.longitude || null,
         logo: school?.logo || null,
-        book_id: book.book_id,
-        title: book.title,
-        author: book.author,
-        isbn: book.isbn,
-        shelf_location: book.shelf_location || null,
-        call_number: book.call_number || null,
-        publication_year: book.copyright_year || null,
-        copyright_year: book.copyright_year || null,
-        cover_image: book.cover_image || null,
-        available_copies: 1,
-        total_copies: 1,
-        current_borrowers: currentBorrowers,
-        real_time_status: 'available',
+        book_id: targetBookId,
+        primary_book_id: primaryBook.book_id,
+        grouped_book_ids: Array.from(groupBookIds),
+        available_book_id: targetBookId,
+        title: primaryBook.title,
+        author: primaryBook.author,
+        isbn: primaryBook.isbn,
+        shelf_location: primaryBook.shelf_location || null,
+        call_number: primaryBook.call_number || null,
+        publication_year: primaryBook.copyright_year || null,
+        copyright_year: primaryBook.copyright_year || null,
+        cover_image: primaryBook.cover_image || null,
+        total_copies: totalCopies,
+        available_copies: availableCopies,
+        copies: copies,
+        current_borrowers: groupBorrowers,
+        real_time_status: availableCopies > 0 ? 'available' : 'unavailable',
         enable_visiting_fee: enableVisitingFee,
         visiting_fee_amount: visitingFeeAmount,
         visiting_fee_type: visitingFeeType,
         visiting_policy_notes: visitingPolicyNotes,
         inter_school_library_use_only: interSchoolLibraryUseOnly,
-      };
+      });
     });
 
-    const grouped = new Map();
-    result.forEach(book => {
-      if (!grouped.has(book.school_id)) {
-        grouped.set(book.school_id, book);
-      }
-    });
-
-    const finalResult = Array.from(grouped.values());
     console.log('[INTER-SCHOOL SEARCH] Final result count:', finalResult.length);
-    console.log('[INTER-SCHOOL SEARCH] Final result sample:', JSON.stringify(finalResult[0] || null));
-    console.log('[INTER-SCHOOL SEARCH] Sending response:', JSON.stringify({ success: true, data: finalResult }));
     res.json({ success: true, data: finalResult });
   } catch (error) {
     console.error('[INTER-SCHOOL SEARCH] Server error:', error);
@@ -1466,11 +1713,58 @@ router.get('/:id/borrowers', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid book ID' });
     }
 
-    // 1. Fetch active items from borrow_request_items + borrow_requests + student info
+    // 1. Fetch current book to locate sibling copies at the same school
+    const { data: currentBook } = await supabase
+      .from('books')
+      .select('book_id, school_id, title')
+      .eq('book_id', bookId)
+      .single();
+
+    let siblingBooks = [];
+    let siblingIds = [bookId];
+
+    if (currentBook) {
+      const cleanTitle = (currentBook.title || '').trim().replace(/[\u2018\u2019]/g, "'");
+      const { data: siblings } = await supabase
+        .from('books')
+        .select(`
+          book_id,
+          title,
+          author,
+          school_id,
+          shelf_location,
+          call_number,
+          quantity,
+          accession_number,
+          barcode,
+          condition,
+          status,
+          book_copies (
+            copy_id,
+            accession_number,
+            barcode,
+            shelf_location,
+            condition,
+            status
+          )
+        `)
+        .eq('school_id', currentBook.school_id)
+        .ilike('title', '%' + cleanTitle + '%');
+
+      if (siblings && siblings.length > 0) {
+        siblingBooks = siblings;
+        siblingIds = siblings.map(s => s.book_id);
+      }
+    }
+
+    // 2. Fetch active items from borrow_request_items + borrow_requests + student info for all sibling book copies
     const { data: requestItems, error: reqErr } = await supabase
       .from('borrow_request_items')
       .select(`
         item_id,
+        book_id,
+        copy_id,
+        assigned_copy_id,
         status,
         borrow_type,
         created_at,
@@ -1494,15 +1788,15 @@ router.get('/:id/borrowers', async (req, res) => {
           )
         )
       `)
-      .eq('book_id', bookId)
-      .in('status', ['pending', 'cancel_requested', 'approved', 'permission_ready', 'borrowed', 'active', 'picked_up'])
+      .in('book_id', siblingIds)
+      .in('status', ['pending', 'cancel_requested', 'approved', 'permission_ready', 'released', 'borrowed', 'active', 'picked_up'])
       .order('created_at', { ascending: false });
 
     if (reqErr) {
       console.error('[BOOK BORROWERS] Error fetching request items:', reqErr);
     }
 
-    // 2. Fetch active transactions for direct loans
+    // 3. Fetch active transactions for direct loans
     const { data: transactions, error: transErr } = await supabase
       .from('borrow_transactions')
       .select(`
@@ -1510,7 +1804,7 @@ router.get('/:id/borrowers', async (req, res) => {
         status,
         borrow_date,
         due_date,
-        book_copies!inner (book_id),
+        book_copies!inner (book_id, copy_id),
         student:student_id (
           user_id,
           username,
@@ -1523,7 +1817,7 @@ router.get('/:id/borrowers', async (req, res) => {
           )
         )
       `)
-      .eq('book_copies.book_id', bookId)
+      .in('book_copies.book_id', siblingIds)
       .eq('status', 'active')
       .order('borrow_date', { ascending: false });
 
@@ -1531,7 +1825,52 @@ router.get('/:id/borrowers', async (req, res) => {
       console.error('[BOOK BORROWERS] Error fetching transactions:', transErr);
     }
 
-    // Map and deduplicate by student/item
+    // Build physical copies list across all sibling records
+    const copies = [];
+    siblingBooks.forEach((b) => {
+      if (Array.isArray(b.book_copies) && b.book_copies.length > 0) {
+        b.book_copies.forEach((c) => {
+          copies.push({
+            copy_id: c.copy_id,
+            book_id: b.book_id,
+            copy_number: copies.length + 1,
+            accession_number: c.accession_number || `ACC-${copies.length + 1}`,
+            barcode: c.barcode || null,
+            shelf_location: c.shelf_location || b.shelf_location || null,
+            call_number: b.call_number || null,
+            condition: c.condition || b.condition || 'Good',
+            status: 'available',
+            status_label: 'Available',
+            borrower: null,
+          });
+        });
+      } else {
+        const qty = Math.max(parseInt(b.quantity, 10) || 1, 1);
+        for (let i = 0; i < qty; i++) {
+          let acc = b.accession_number;
+          if (!acc) {
+            acc = `ACC-${copies.length + 1}`;
+          } else if (qty > 1 && i > 0) {
+            acc = `${b.accession_number}-C${i + 1}`;
+          }
+          copies.push({
+            copy_id: qty === 1 ? b.book_id : (b.book_id * 1000 + i),
+            book_id: b.book_id,
+            copy_number: copies.length + 1,
+            accession_number: acc,
+            barcode: b.barcode || null,
+            shelf_location: b.shelf_location || null,
+            call_number: b.call_number || null,
+            condition: b.condition || 'Good',
+            status: 'available',
+            status_label: 'Available',
+            borrower: null,
+          });
+        }
+      }
+    });
+
+    // Map and deduplicate borrowers
     const borrowerMap = new Map();
 
     // First process active transactions (definitely borrowed)
@@ -1539,7 +1878,7 @@ router.get('/:id/borrowers', async (req, res) => {
       const student = tx.student;
       const studentId = student?.user_id || tx.student_id;
       const key = `user_${studentId}_borrowed`;
-      const username = student?.username || (student?.firstname ? `${student.firstname} ${student.lastname || ''}`.trim() : 'Anonymous Student');
+      const username = student?.username || (student?.firstname ? `${student.firstname} ${student.lastname || ''}`.trim() : 'Student');
 
       borrowerMap.set(key, {
         id: `tx-${tx.borrow_id}`,
@@ -1552,7 +1891,9 @@ router.get('/:id/borrowers', async (req, res) => {
         status_label: 'Borrowed',
         date: tx.borrow_date,
         due_date: tx.due_date,
-        type: 'transaction'
+        type: 'transaction',
+        copy_id: tx.book_copies?.copy_id || null,
+        book_id: tx.book_copies?.book_id || null
       });
     });
 
@@ -1562,12 +1903,11 @@ router.get('/:id/borrowers', async (req, res) => {
       const student = reqInfo?.student;
       const studentId = student?.user_id || reqInfo?.student_id;
 
-      // Determine normalized status and label
       let normStatus = 'requested';
       let statusLabel = 'Requested';
 
       const rawStatus = (item.status || reqInfo?.status || '').toLowerCase();
-      if (['borrowed', 'active', 'picked_up'].includes(rawStatus)) {
+      if (['borrowed', 'active', 'picked_up', 'released'].includes(rawStatus)) {
         normStatus = 'borrowed';
         statusLabel = 'Borrowed';
       } else if (['approved', 'permission_ready', 'ready_for_pickup'].includes(rawStatus)) {
@@ -1584,7 +1924,7 @@ router.get('/:id/borrowers', async (req, res) => {
         return;
       }
 
-      const username = student?.username || (student?.firstname ? `${student.firstname} ${student.lastname || ''}`.trim() : 'Anonymous Student');
+      const username = student?.username || (student?.firstname ? `${student.firstname} ${student.lastname || ''}`.trim() : 'Student');
 
       borrowerMap.set(`req_${item.item_id}`, {
         id: `req-${item.item_id}`,
@@ -1597,17 +1937,56 @@ router.get('/:id/borrowers', async (req, res) => {
         status: normStatus,
         status_label: statusLabel,
         date: item.created_at || reqInfo?.created_at,
-        borrow_type: item.borrow_type || 'HOME',
-        type: 'request'
+        due_date: reqInfo?.due_date || null,
+        borrow_type: item.borrow_type || 'INTER_SCHOOL_LIBRARY_USE',
+        type: 'request',
+        copy_id: item.copy_id || item.assigned_copy_id || null,
+        book_id: item.book_id || null
       });
     });
 
     const borrowers = Array.from(borrowerMap.values());
 
+    // Allocate borrowers to copies
+    const claimedCopyIndices = new Set();
+    borrowers.forEach(borrower => {
+      let matchIdx = -1;
+      if (borrower.copy_id) {
+        matchIdx = copies.findIndex((c, idx) => !claimedCopyIndices.has(idx) && c.copy_id === borrower.copy_id);
+      }
+      if (matchIdx === -1 && borrower.book_id) {
+        matchIdx = copies.findIndex((c, idx) => !claimedCopyIndices.has(idx) && c.book_id === borrower.book_id);
+      }
+      if (matchIdx === -1) {
+        matchIdx = copies.findIndex((c, idx) => !claimedCopyIndices.has(idx));
+      }
+
+      if (matchIdx !== -1) {
+        claimedCopyIndices.add(matchIdx);
+        copies[matchIdx].status = borrower.status;
+        copies[matchIdx].status_label = borrower.status_label;
+        copies[matchIdx].borrower = {
+          username: borrower.username,
+          school_name: borrower.school_name,
+          status: borrower.status,
+          status_label: borrower.status_label,
+        };
+      }
+    });
+
+    const totalCopies = copies.length;
+    const availableCopies = Math.max(0, totalCopies - claimedCopyIndices.size);
+    const availableCopy = copies.find((c, idx) => !claimedCopyIndices.has(idx));
+    const availableBookId = availableCopy ? availableCopy.book_id : bookId;
+
     return res.json({
       success: true,
       data: borrowers,
-      total_active_borrowers: borrowers.length
+      total_active_borrowers: borrowers.length,
+      copies: copies,
+      total_copies: totalCopies,
+      available_copies: availableCopies,
+      available_book_id: availableBookId
     });
   } catch (error) {
     console.error('[BOOK BORROWERS] Error getting book borrowers:', error);

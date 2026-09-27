@@ -13,6 +13,8 @@ import {
   BookOpen,
   Check,
   AlertTriangle,
+  Shield,
+  Sparkles,
 } from "lucide-react";
 import QRCodeDisplay from "../QRCodeDisplay";
 import { formatPhilippineDate, formatPhilippineDateTime } from "../../../../utils/timeUtils";
@@ -43,146 +45,270 @@ function NotificationModal({ notification, requestDetails, loading, onClose, onV
   };
 
   const isDueOrOverdue =
-    String(notification.type || "").toLowerCase().includes("due") ||
-    String(notification.type || "").toLowerCase().includes("overdue");
+    String(notification?.type || "").toLowerCase().includes("due") ||
+    String(notification?.type || "").toLowerCase().includes("overdue");
+
+  const isApproved =
+    requestDetails?.status === "approved" ||
+    String(notification?.title || "").toLowerCase().includes("approved");
 
   return (
     <div className="flex flex-col w-full h-[100dvh] bg-white overflow-hidden select-text">
       {/* ─── Sticky Top Header ─── */}
-      <div className="flex h-14 sm:h-16 shrink-0 items-center justify-between border-b border-slate-200 px-4 sm:px-6 bg-white/95 backdrop-blur-sm z-20">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200/90 px-3 sm:px-4 bg-white/95 backdrop-blur-sm z-20">
+        <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 active:scale-95 transition shadow-2xs"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 active:scale-95 transition shadow-2xs cursor-pointer shrink-0"
             aria-label="Back to Notifications"
           >
-            <ArrowLeft className="w-4 h-4 text-slate-600" />
-            <span className="hidden sm:inline">Back to Inbox</span>
-            <span className="sm:hidden">Back</span>
+            <ArrowLeft className="w-3.5 h-3.5 text-slate-600" />
+            <span>Back to Inbox</span>
           </button>
 
-          <div className="min-w-0">
-            <h3 className="truncate text-sm sm:text-base font-bold text-slate-900 leading-tight">
-              {notification.title}
-            </h3>
-          </div>
+          {isApproved && (
+            <span className="hidden xs:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+              <CheckCircle className="w-3 h-3 text-emerald-600" />
+              <span>Approved Pass</span>
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center gap-1 rounded-xl p-2 sm:px-3 sm:py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition active:scale-95"
+            className="inline-flex items-center justify-center h-8 w-8 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-800 transition active:scale-95 cursor-pointer"
             aria-label="Close"
           >
             <X className="w-5 h-5 text-slate-600" />
-            <span className="hidden md:inline text-[10px] text-slate-400 font-mono ml-0.5">(Esc)</span>
           </button>
         </div>
       </div>
 
       {/* ─── Scrollable Body ─── */}
-      <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50/60 p-4 sm:p-6 scrollbar-thin">
-        <div className="max-w-2xl mx-auto w-full space-y-4">
-          {/* Notification Message Card */}
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-3">
-            <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
-              <div className="flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                <span>
-                  {new Date(notification.createdAt).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </span>
-                <span>•</span>
-                <span>
-                  {new Date(notification.createdAt).toLocaleTimeString("en-US", {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </div>
-
-              {notification.type && (
-                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-mono font-semibold uppercase tracking-wider text-slate-600">
-                  {notification.type.replace(/_/g, " ")}
-                </span>
-              )}
-            </div>
-
-            <p className="text-sm sm:text-base leading-relaxed text-slate-800 font-medium break-words">
-              {notification.message}
-            </p>
-          </div>
-
-          {/* Dedicated Alert Card for Due Reminders & Overdue */}
-          {isDueOrOverdue && (
-            <div className="p-4 rounded-2xl border bg-amber-50/90 border-amber-200 text-amber-950 space-y-2.5 shadow-xs">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600" />
-                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800">
-                  Circulation Reminder Guidelines
-                </h4>
-              </div>
-              <ul className="text-xs space-y-1.5 text-amber-900 list-disc list-inside">
-                <li>Visit the circulation desk at your campus library counter before the closing hours.</li>
-                <li>Bring your physical Student ID / Library Card when returning or requesting an extension/renewal.</li>
-                <li>Ensure the book is in good physical condition with intact barcode/accession tags.</li>
-              </ul>
-            </div>
-          )}
-
+      <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50/70 p-3.5 sm:p-5 scrollbar-thin">
+        <div className="max-w-xl mx-auto w-full space-y-3.5">
           {/* Loading Indicator */}
           {loading && (
-            <div className="flex flex-col items-center justify-center py-12 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-2">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            <div className="flex flex-col items-center justify-center py-12 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
               <p className="text-xs text-slate-500 font-medium">Loading borrow request details…</p>
             </div>
           )}
 
-          {/* Request Details Card */}
-          {requestDetails && !loading && (
-            <RequestDetails
-              requestDetails={requestDetails}
-              onCopyToken={handleCopyQRToken}
-              copiedToken={copiedToken}
-            />
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* APPROVED DIGITAL PASS LAYOUT (Clean, No Nested Clutter)       */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {isApproved && requestDetails && !loading && (
+            <>
+              {/* Status & Request ID Hero Card */}
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs space-y-3">
+                {/* Top Badge Row */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>Ready for Counter Pickup</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 border border-blue-200/60">
+                    <MapPin className="w-3 h-3 text-blue-600" />
+                    <span>{requestDetails?.request_type === "INTER_SCHOOL" ? "Inter-School" : "Home Library"}</span>
+                  </span>
+                </div>
+
+                {/* Request ID Display - Clean Single Line (No Wrapping) */}
+                <div className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 border border-slate-200/80 p-3">
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">
+                      Request ID
+                    </span>
+                    <span className="font-mono font-bold text-sm sm:text-base text-slate-900 tracking-wide select-all whitespace-nowrap">
+                      {requestDetails.request_id || "LL-PASS"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyQRToken(requestDetails.request_id)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 active:scale-95 transition shadow-2xs cursor-pointer shrink-0"
+                    title="Copy Request ID"
+                  >
+                    {copiedToken ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-emerald-700 font-bold">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Show this branded digital pass to the circulation desk librarian for book release and counter verification.
+                </p>
+              </div>
+
+              {/* Centered QR Pass Card */}
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+                <QRCodeDisplay
+                  request={requestDetails}
+                  token={requestDetails.qr_token}
+                  requestId={requestDetails.request_id || "LL-PASS"}
+                  compact={true}
+                />
+              </div>
+
+              {/* Books Included & Due Date Card */}
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Books Included ({requestDetails.items?.length || 1})</span>
+                  </h4>
+                  {requestDetails.due_date && (
+                    <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                      Due: {formatPhilippineDate(requestDetails.due_date)}
+                    </span>
+                  )}
+                </div>
+
+                {/* Book Items List */}
+                <div className="space-y-2">
+                  {requestDetails.items?.map((item, index) => (
+                    <div
+                      key={index}
+                      className="flex items-start gap-2.5 p-2.5 bg-slate-50 rounded-xl border border-slate-100"
+                    >
+                      <Book className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-slate-900 leading-snug">
+                          {item.book?.title || item.book_title || item.title || "Unknown Book"}
+                        </p>
+                        {(item.owner_school?.school_name || item.owner_school_name || item.partner_school?.school_name || item.partner_school_name) && (
+                          <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                            <MapPin className="w-3 h-3 text-slate-400" />
+                            <span>{item.owner_school?.school_name || item.owner_school_name || item.partner_school?.school_name || item.partner_school_name}</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {requestDetails.created_at && (
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                    <span>Date Submitted</span>
+                    <span className="font-medium text-slate-600">{formatPhilippineDate(requestDetails.created_at)}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Security & Verification Reminder */}
+              <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-xs text-slate-700 space-y-1.5">
+                <div className="flex items-center gap-1.5 font-bold text-blue-950 text-xs">
+                  <Shield className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>Verification Protocol</span>
+                </div>
+                <ul className="text-[11px] text-slate-600 space-y-1 list-disc list-inside">
+                  <li>Please present your <strong>Physical Student ID Card</strong> at the counter.</li>
+                  <li>This pass securely switches to <em>Active Loan</em> status upon physical book release.</li>
+                </ul>
+              </div>
+            </>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* STANDARD NOTIFICATION / NON-APPROVED LAYOUT                   */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {!isApproved && (
+            <>
+              {/* Notification Message Card */}
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-3">
+                <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <span>
+                      {new Date(notification.createdAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </span>
+                    <span>•</span>
+                    <span>
+                      {new Date(notification.createdAt).toLocaleTimeString("en-US", {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+
+                  {notification.type && (
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-mono font-semibold uppercase tracking-wider text-slate-600">
+                      {notification.type.replace(/_/g, " ")}
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-sm sm:text-base leading-relaxed text-slate-800 font-medium break-words">
+                  {notification.message}
+                </p>
+              </div>
+
+              {/* Dedicated Alert Card for Due Reminders & Overdue */}
+              {isDueOrOverdue && (
+                <div className="p-4 rounded-2xl border bg-amber-50/90 border-amber-200 text-amber-950 space-y-2.5 shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800">
+                      Circulation Reminder Guidelines
+                    </h4>
+                  </div>
+                  <ul className="text-xs space-y-1.5 text-amber-900 list-disc list-inside">
+                    <li>Visit the circulation desk at your campus library counter before the closing hours.</li>
+                    <li>Bring your physical Student ID / Library Card when returning or requesting an extension/renewal.</li>
+                    <li>Ensure the book is in good physical condition with intact barcode/accession tags.</li>
+                  </ul>
+                </div>
+              )}
+
+              {/* Request Details Card for Non-Approved */}
+              {requestDetails && !loading && (
+                <RequestDetails
+                  requestDetails={requestDetails}
+                  onCopyToken={handleCopyQRToken}
+                  copiedToken={copiedToken}
+                />
+              )}
+            </>
           )}
         </div>
       </div>
 
       {/* ─── Sticky Bottom Action Bar ─── */}
-      <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-4 sm:px-6 py-3.5 bg-white z-20 shrink-0">
-        <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500 truncate">
-          <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          <span className="truncate">
-            Received {new Date(notification.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-          </span>
-        </div>
+      <div className="flex items-center justify-between gap-2.5 border-t border-slate-200 px-4 py-3 bg-white z-20 shrink-0">
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex-1 rounded-xl border border-slate-200 bg-white py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition text-center cursor-pointer shadow-2xs"
+        >
+          Close
+        </button>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
+        {requestDetails?.request_id && (
           <button
             type="button"
-            onClick={onClose}
-            className="flex-1 sm:flex-initial rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 active:scale-95 transition text-center"
+            onClick={onViewHistory}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 py-2 text-xs font-bold text-white shadow-sm active:scale-95 transition cursor-pointer"
           >
-            Close
+            <BookOpen className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">View in Borrow History</span>
           </button>
-
-          {requestDetails?.request_id && (
-            <button
-              type="button"
-              onClick={onViewHistory}
-              className="flex-[2] sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-md hover:bg-indigo-700 active:scale-95 transition"
-            >
-              <BookOpen className="w-4 h-4 shrink-0" />
-              <span className="truncate">View in Borrow History</span>
-            </button>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );
@@ -345,6 +471,7 @@ function BorrowingRequirements({ requestDetails, hasOtherSchoolItems }) {
               request={requestDetails}
               token={requestDetails.qr_token}
               requestId={requestDetails.request_id || "LL-2026-000001"}
+              compact={true}
             />
           ) : (
             <div className="text-center">

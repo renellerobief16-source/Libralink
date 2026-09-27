@@ -1,288 +1,276 @@
-import { HelpCircle, Mail, MessageSquare, Book, Calendar, RotateCcw, AlertTriangle, CreditCard, Lock, Bell, ImageIcon, Key, Palette, Search, Zap, Smartphone } from "lucide-react";
-import { useState } from "react";
+import React, { useState, useMemo } from "react";
+import {
+  Search,
+  BookOpen,
+  Building2,
+  Calendar,
+  AlertCircle,
+  CreditCard,
+  QrCode,
+  ShieldCheck,
+  ChevronDown,
+  Mail,
+  Clock,
+  Sparkles,
+  HelpCircle,
+} from "lucide-react";
+import StudentKnowledgeNav from "./StudentKnowledgeNav";
 
-function StudentHelp() {
-  const [searchTerm, setSearchTerm] = useState("");
+const FAQ_CATEGORIES = [
+  { id: "all", label: "All Topics" },
+  { id: "consortium", label: "Inter-School & SRC", icon: Building2 },
+  { id: "borrowing", label: "Borrowing & Loans", icon: BookOpen },
+  { id: "fines", label: "Fines & Penalties", icon: CreditCard },
+  { id: "qr", label: "Digital QR Pass", icon: QrCode },
+  { id: "account", label: "Account & Security", icon: ShieldCheck },
+];
 
-  const faqs = [
-    {
-      category: "Borrowing",
-      icon: Book,
-      items: [
-        {
-          icon: Book,
-          question: "How do I borrow a book?",
-          answer: "Browse books in the Explore section, click 'Request', and submit. Librarians will review and approve your request within 2-3 business days. Once approved, you can pick up the book at your library.",
-        },
-        {
-          icon: Calendar,
-          question: "What's the borrowing period?",
-          answer: "Standard borrowing period is 14 days from the date you pick up the book. You can renew books up to 2 times if there are no pending requests for them. Extensions are not available for books requested by other students.",
-        },
-        {
-          icon: RotateCcw,
-          question: "Can I return a book early?",
-          answer: "Yes, you can return books anytime during the borrowing period. Early returns help other students access the books they need. There are no penalties for early returns.",
-        },
-      ],
-    },
-    {
-      category: "Fines & Penalties",
-      icon: AlertTriangle,
-      items: [
-        {
-          icon: CreditCard,
-          question: "How are fines calculated?",
-          answer: "Late fees are ₱10 per day per book after the due date. Check the 'Fines' section in your profile to see any outstanding balances. Fines must be settled before you can borrow more books.",
-        },
-        {
-          icon: CreditCard,
-          question: "How do I pay fines?",
-          answer: "You can pay fines through the Libralink app or in person at your library. Both online and offline payment options are available. Keep your receipt for records.",
-        },
-        {
-          icon: AlertTriangle,
-          question: "What happens if I lose a book?",
-          answer: "If you lose a book, you're responsible for its replacement cost. The librarian will calculate the replacement cost based on the book's original price. Contact your library immediately if you lose a book.",
-        },
-      ],
-    },
-    {
-      category: "Account & Notifications",
-      icon: Bell,
-      items: [
-        {
-          icon: Bell,
-          question: "How do I manage notifications?",
-          answer: "Go to Settings → Notifications to customize which alerts you receive. You can enable/disable notifications for approvals, reminders, rejections, and updates. Email notifications are also available.",
-        },
-        {
-          icon: ImageIcon,
-          question: "How do I change my profile picture?",
-          answer: "Go to Profile → Edit Profile → Click the camera icon on your profile picture to upload and crop a new image. Supported formats are JPG and PNG. Maximum file size is 5MB.",
-        },
-        {
-          icon: Key,
-          question: "How do I reset my password?",
-          answer: "Go to Settings → Change Password. Enter your current password and your new password (minimum 8 characters). For security, use a combination of letters, numbers, and special characters.",
-        },
-        {
-          icon: Palette,
-          question: "How do I customize my interface?",
-          answer: "Go to Settings → Appearance to customize your theme (Light/Dark/System), font size, and UI density. Changes are applied immediately and saved to your account.",
-        },
-      ],
-    },
-    {
-      category: "Technical Support",
-      icon: Zap,
-      items: [
-        {
-          icon: Search,
-          question: "Why can't I see some books?",
-          answer: "Some books may be unavailable if they're currently borrowed, reserved, or not yet catalogued. You can still request them if available. Check with your librarian for more information.",
-        },
-        {
-          icon: Zap,
-          question: "What should I do if the app isn't working?",
-          answer: "Try refreshing the page or clearing your browser cache. If the issue persists, contact your school administrator or librarian. You can also check our system status for any ongoing issues.",
-        },
-        {
-          icon: Smartphone,
-          question: "Is Libralink available on mobile?",
-          answer: "Libralink is optimized for all devices including smartphones and tablets. You can access it through your mobile browser. A dedicated mobile app may be available soon.",
-        },
-      ],
-    },
-  ];
+const FAQS_DATA = [
+  {
+    category: "consortium",
+    question: "How does inter-school borrowing work between GNC and Santa Rita College (SRC)?",
+    shortAnswer: "Search for books with the 'SRC • Partner Campus' badge and request an Inter-School Hold pass.",
+    fullAnswer:
+      "When you search on Libralink, the catalog queries both Guagua National College (GNC) and Santa Rita College (SRC) in real time. If a title is held by SRC, you can place a hold request directly in the Explore tab. Once approved by the librarian, Libralink issues a digital QR referral pass. You can then visit SRC's library, present your pass and active student ID, and access the copy.",
+  },
+  {
+    category: "consortium",
+    question: "Is there a visiting fee when entering Santa Rita College or partner campuses?",
+    shortAnswer: "A standard ₱50.00 research fee applies unless waived under institutional reciprocity agreements.",
+    fullAnswer:
+      "Partner campuses like Santa Rita College enforce a nominal visiting research fee (typically ₱50.00 per visit or per day) for visiting students from other consortium schools. This fee is automatically indicated on the book details card and included in your request slip. Some research visits are complimentary depending on active consortium reciprocity arrangements.",
+  },
+  {
+    category: "consortium",
+    question: "Can I take home a book borrowed from Santa Rita College?",
+    shortAnswer: "Items labeled 'Library Use Only' must be studied in their reading hall; circulating copies depend on policy.",
+    fullAnswer:
+      "Rare reference books, single-copy encyclopedias, and special collection items marked 'Library Use Only' must be consulted on-site inside SRC's reading rooms. For regular circulating titles, off-campus loans are subject to the host librarian's discretion and your verified Libralink good-standing status.",
+  },
+  {
+    category: "borrowing",
+    question: "How many books can I borrow at the same time?",
+    shortAnswer: "Undergraduate students can hold up to 5 active loans concurrently.",
+    fullAnswer:
+      "Students in good standing can borrow up to a maximum of 5 books simultaneously across all connected campuses. If you have reached your 5-book limit, you must return an existing loan before new borrowing requests can be submitted.",
+  },
+  {
+    category: "borrowing",
+    question: "What is the standard borrowing period and can I renew online?",
+    shortAnswer: "14 calendar days with up to 2 online renewals if no other student has placed a hold.",
+    fullAnswer:
+      "Standard student loan duration is 14 calendar days from the date of physical pickup. You can renew eligible loans up to 2 consecutive times via the 'Activity' tab, provided the book has not been requested or waitlisted by another student.",
+  },
+  {
+    category: "borrowing",
+    question: "How do I claim my book once my request is approved?",
+    shortAnswer: "Present your digital QR pickup code at the circulation desk within 3 business days.",
+    fullAnswer:
+      "Once a librarian approves your request, you will receive an alert in your Inbox with a pickup deadline (usually 3 business days). Visit the circulation counter of the holding library, open your transaction slip, and let the desk staff scan your QR code to record the release.",
+  },
+  {
+    category: "fines",
+    question: "How are overdue fines computed and tracked?",
+    shortAnswer: "₱10.00 per day per book past the due date (excluding recognized holidays).",
+    fullAnswer:
+      "Overdue fees accumulate automatically at ₱10.00 per calendar day per overdue book until the item is checked in. You can check any active fines in your Profile or Activity summary. Outstanding overdue fines temporarily restrict new loan requests.",
+  },
+  {
+    category: "fines",
+    question: "What should I do if I misplace or damage a library book?",
+    shortAnswer: "Report it immediately to avoid accumulating daily overdue fines while replacement is arranged.",
+    fullAnswer:
+      "Notify the circulation librarian promptly. Daily fines are paused once a formal loss report is logged. The borrower is responsible for replacing the book with an exact or newer edition, or remitting the assessed replacement value plus administrative processing charges.",
+  },
+  {
+    category: "qr",
+    question: "What is the digital QR code and is it secure?",
+    shortAnswer: "An encrypted, dynamic authorization token linked directly to your authenticated student ID.",
+    fullAnswer:
+      "Libralink replaces manual paper call slips with dynamic, encrypted QR tokens. These codes contain verified transaction identifiers that only authorized librarian scanners can validate, preventing unauthorized use or ticket tampering.",
+  },
+  {
+    category: "account",
+    question: "How do I update my password or security credentials?",
+    shortAnswer: "Navigate to Settings → Security to change your login credentials.",
+    fullAnswer:
+      "You can update your login password anytime under Settings → Security. For account safety, passwords must contain at least 8 characters including letters and numbers. If you lose access to your account, visit your school library desk with your physical student ID for identity verification.",
+  },
+];
 
-  const filteredFaqs = faqs.map(section => ({
-    ...section,
-    items: section.items.filter(item => 
-      item.question.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.answer.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  })).filter(section => section.items.length > 0);
+export default function StudentHelp() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [openItems, setOpenItems] = useState({});
+
+  const toggleItem = (idx) => {
+    setOpenItems((prev) => ({ ...prev, [idx]: !prev[idx] }));
+  };
+
+  const filteredFaqs = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return FAQS_DATA.filter((item) => {
+      const matchesCat = selectedCategory === "all" || item.category === selectedCategory;
+      const matchesQuery =
+        !q ||
+        item.question.toLowerCase().includes(q) ||
+        item.shortAnswer.toLowerCase().includes(q) ||
+        item.fullAnswer.toLowerCase().includes(q);
+      return matchesCat && matchesQuery;
+    });
+  }, [searchQuery, selectedCategory]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="mx-auto w-full max-w-4xl min-w-0 overflow-x-hidden px-4 py-8 md:py-12">
-        
-        {/* Header */}
-        <div className="mb-10 animate-fade-in-down">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg animate-bounce">
-              <HelpCircle className="h-6 w-6" aria-hidden="true" />
-            </div>
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Help & Support</h1>
-              <p className="mt-1 text-base text-slate-600">Find answers to your questions</p>
-            </div>
-          </div>
-        </div>
+    <div className="min-h-screen bg-white">
+      {/* Shared Knowledge Top Navigation */}
+      <StudentKnowledgeNav
+        activeTab="help"
+        title="Help & Support Center"
+        subtitle="Frequently asked questions, consortium borrowing rules, and library circulation guidelines."
+        badgeText="Guides & FAQs"
+      />
 
-        {/* Search Section */}
-        <div className="mb-10 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-          <div className="relative group">
-            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" aria-hidden="true" />
-            <input
-              type="text"
-              placeholder="Search for help..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-12 pr-4 text-base shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all hover:shadow-md"
-            />
-          </div>
-        </div>
-
-        {/* FAQ Sections */}
-        <div className="space-y-10">
-          {filteredFaqs.length > 0 ? (
-            filteredFaqs.map((section, sectionIdx) => {
-              const CategoryIcon = section.icon;
-              return (
-                <section key={sectionIdx} className="animate-fade-in-up" style={{ animationDelay: `${0.2 + sectionIdx * 0.1}s` }}>
-                  <div className="flex items-center gap-3 mb-5 group">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-600 group-hover:scale-110 transition-transform">
-                      <CategoryIcon className="h-5 w-5" aria-hidden="true" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-slate-900 group-hover:text-blue-600 transition-colors">{section.category}</h2>
-                  </div>
-
-                  <div className="space-y-3">
-                    {section.items.map((item, itemIdx) => {
-                      const ItemIcon = item.icon;
-                      return (
-                        <details 
-                          key={itemIdx} 
-                          className="group/item rounded-lg border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow overflow-hidden animate-fade-in-up"
-                          style={{ animationDelay: `${0.25 + sectionIdx * 0.1 + itemIdx * 0.05}s` }}
-                        >
-                          <summary className="flex cursor-pointer items-start justify-between gap-4 px-6 py-4 text-left hover:bg-slate-50/50 transition">
-                            <div className="flex items-start gap-3 min-w-0 flex-1">
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 group-hover/item:bg-blue-100 group-hover/item:text-blue-600 transition-colors">
-                                <ItemIcon className="h-5 w-5" aria-hidden="true" />
-                              </div>
-                              <h3 className="font-semibold text-slate-900 text-base leading-snug pt-0.5 group-open/item:text-blue-600 transition-colors">{item.question}</h3>
-                            </div>
-                            <svg
-                              className="h-5 w-5 shrink-0 text-slate-400 transition group-open/item:rotate-180 group-hover/item:text-blue-500"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                              aria-hidden="true"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                            </svg>
-                          </summary>
-                          <div className="border-t border-slate-100 px-6 py-4 bg-slate-50/30 animate-slide-down">
-                            <p className="text-slate-700 leading-relaxed">{item.answer}</p>
-                          </div>
-                        </details>
-                      );
-                    })}
-                  </div>
-                </section>
-              );
-            })
-          ) : (
-            <div className="text-center py-12 animate-fade-in">
-              <HelpCircle className="h-12 w-12 text-slate-300 mx-auto mb-3 animate-pulse" aria-hidden="true" />
-              <p className="text-slate-600 font-medium">No results found for "{searchTerm}"</p>
-              <p className="text-sm text-slate-500 mt-1">Try searching with different keywords</p>
-            </div>
+      <main className="mx-auto max-w-4xl px-4 sm:px-6 py-8 sm:py-10">
+        {/* Minimalist Search Bar */}
+        <div className="relative mb-6">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search policies, Santa Rita College loans, fines, QR passes..."
+            className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-slate-400 focus:outline-none transition-all"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-700"
+            >
+              Clear
+            </button>
           )}
         </div>
 
-        {/* Contact Support */}
-        <section className="mt-12 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-8 animate-fade-in-up hover:shadow-lg transition-shadow" style={{ animationDelay: '0.5s' }}>
-          <h3 className="text-2xl font-bold text-slate-900 mb-3">Still need help?</h3>
-          <p className="text-slate-700 mb-6 leading-relaxed">
-            Couldn't find the answer you're looking for? Reach out to your school librarian or administrator for additional support. They're here to help!
+        {/* Minimalist Category Filter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-4 mb-6 border-b border-slate-100">
+          {FAQ_CATEGORIES.map((cat) => {
+            const isSelected = selectedCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs whitespace-nowrap transition-colors ${
+                  isSelected
+                    ? "bg-slate-900 text-white font-medium shadow-2xs"
+                    : "bg-slate-100/70 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <span>{cat.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Results Counter */}
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+            {filteredFaqs.length} {filteredFaqs.length === 1 ? "Guide" : "Guides"} Available
           </p>
-          <div className="flex flex-col sm:flex-row gap-3">
+          {selectedCategory !== "all" && (
             <button
               type="button"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-3 text-base font-semibold text-white transition hover:shadow-lg hover:from-blue-600 hover:to-blue-700 active:scale-95 transform hover:scale-105"
+              onClick={() => setSelectedCategory("all")}
+              className="text-xs text-blue-600 hover:underline"
             >
-              <Mail className="h-5 w-5" aria-hidden="true" />
-              Email Support
+              View all topics
             </button>
-            <button
-              type="button"
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-500 bg-white px-6 py-3 text-base font-semibold text-blue-600 transition hover:bg-blue-50 active:scale-95 transform hover:scale-105"
-            >
-              <MessageSquare className="h-5 w-5" aria-hidden="true" />
-              Ask a Question
-            </button>
+          )}
+        </div>
+
+        {/* FAQ Accordion List (Minimalist Notion/Stripe Style) */}
+        {filteredFaqs.length === 0 ? (
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-8 text-center my-6">
+            <HelpCircle className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm font-semibold text-slate-700">No guides match your search</p>
+            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+              Try searching with different terms like "overdue", "Santa Rita", or "renewals".
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100 border-t border-b border-slate-100">
+            {filteredFaqs.map((faq, idx) => {
+              const isOpen = Boolean(openItems[idx]);
+              return (
+                <div key={idx} className="py-4 sm:py-5 group">
+                  <button
+                    type="button"
+                    onClick={() => toggleItem(idx)}
+                    className="w-full flex items-start justify-between gap-4 text-left transition-colors"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm sm:text-base font-semibold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug">
+                        {faq.question}
+                      </h3>
+                      {!isOpen && (
+                        <p className="text-xs text-slate-500 mt-1 line-clamp-1">
+                          {faq.shortAnswer}
+                        </p>
+                      )}
+                    </div>
+                    <ChevronDown
+                      className={`h-4 w-4 shrink-0 text-slate-400 mt-1 transition-transform duration-200 ${
+                        isOpen ? "rotate-180 text-slate-800" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {isOpen && (
+                    <div className="mt-3 text-xs sm:text-sm text-slate-600 leading-relaxed pl-0 pr-4 animate-in fade-in duration-150">
+                      <p className="p-3.5 rounded-xl bg-slate-50 border border-slate-100/80 text-slate-700">
+                        {faq.fullAnswer}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Minimalist Support Desk Footer */}
+        <section className="mt-12 rounded-2xl border border-slate-100 bg-slate-50/60 p-6 sm:p-7">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Need specific library assistance?</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Contact the circulation desk for account clearance, fine settlements, or special research permits.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href="mailto:library@gnc.edu.ph"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800 transition"
+              >
+                <Mail className="h-3.5 w-3.5" />
+                <span>Email Helpdesk</span>
+              </a>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-slate-200/60 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-500">
+            <div>
+              <span className="font-semibold text-slate-700 block">Host Libraries:</span>
+              <span>Guagua National College & Santa Rita College</span>
+            </div>
+            <div>
+              <span className="font-semibold text-slate-700 block">Service Hours:</span>
+              <span>Monday – Saturday, 8:00 AM – 5:00 PM</span>
+            </div>
           </div>
         </section>
-
-        {/* Footer */}
-        <div className="mt-12 text-center py-8 border-t border-slate-200 animate-fade-in" style={{ animationDelay: '0.6s' }}>
-          <p className="text-sm text-slate-600">
-            Last updated: August 30, 2026 • Version 1.2.0
-          </p>
-        </div>
-      </div>
-      
-      <style jsx>{`
-        @keyframes fadeInDown {
-          from {
-            opacity: 0;
-            transform: translateY(-20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
-        @keyframes slideDown {
-          from {
-            opacity: 0;
-            max-height: 0;
-          }
-          to {
-            opacity: 1;
-            max-height: 500px;
-          }
-        }
-        .animate-fade-in-down {
-          animation: fadeInDown 0.6s ease-out forwards;
-          opacity: 0;
-        }
-        .animate-fade-in-up {
-          animation: fadeInUp 0.6s ease-out forwards;
-          opacity: 0;
-        }
-        .animate-fade-in {
-          animation: fadeIn 0.6s ease-out forwards;
-          opacity: 0;
-        }
-        .animate-slide-down {
-          animation: slideDown 0.3s ease-out forwards;
-        }
-      `}</style>
+      </main>
     </div>
   );
 }
-
-export default StudentHelp;

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   Book,
   User,
@@ -331,70 +332,115 @@ function StudentBorrowingForm({
         )}
       </div>
 
-      {errorMessage && (
-        <div className="mb-5 flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-rose-50 p-3.5 text-xs text-rose-800">
-          <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
-          <div className="flex-1 font-medium">{errorMessage}</div>
-          <button
-            type="button"
-            onClick={() => setErrorMessage("")}
-            className="text-rose-500 hover:text-rose-800"
+      {/* ─── Full-Site Minimalist Error / Limit Modal Overlay ────────────── */}
+      {typeof document !== "undefined" && errorMessage && createPortal(
+        <div
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-[2px] animate-fade-in"
+          onClick={() => setErrorMessage("")}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            className="relative w-full max-w-[340px] bg-white rounded-2xl p-5 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
           >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => setErrorMessage("")}
+              className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Close notice"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            {/* Icon & Title */}
+            <div className="flex items-start gap-3 mb-3">
+              <div className="h-9 w-9 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 shrink-0 shadow-2xs">
+                <AlertCircle className="h-4 w-4 stroke-[2.2]" />
+              </div>
+              <div className="pt-0.5 min-w-0 pr-5">
+                <h3 className="text-sm font-bold text-slate-900 tracking-tight leading-snug">
+                  {errorMessage.toLowerCase().includes("limit")
+                    ? "Borrowing Limit Reached"
+                    : "Borrow Request Notice"}
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Campus Circulation Policy
+                </p>
+              </div>
+            </div>
+
+            {/* Message Body */}
+            <div className="rounded-xl bg-slate-50/90 border border-slate-100 p-3.5 mb-4">
+              <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                {errorMessage}
+              </p>
+            </div>
+
+            {/* Action Button */}
+            <button
+              type="button"
+              onClick={() => setErrorMessage("")}
+              className="w-full py-2 px-3 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-colors shadow-2xs cursor-pointer"
+            >
+              Got It
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
 
       <form onSubmit={handleSubmitCheckout} className="space-y-4">
-        {/* ================= 1. PATRON / BORROWER INFO CARD (Shopee Delivery Address Banner) ================= */}
-        <div className="relative overflow-hidden rounded-2xl border border-blue-200/90 bg-white p-4 sm:p-5 shadow-xs">
-          {/* Subtle Shopee-style diagonal pattern header banner */}
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-blue-700 uppercase tracking-wider">
-              <MapPin className="h-4 w-4 text-blue-600" />
-              <span>Borrower & Circulation Records</span>
+        {/* ================= 1. PATRON / BORROWER INFO CARD ================= */}
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs">
+          {/* Header */}
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5 mb-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <User className="h-4 w-4 text-blue-600 shrink-0" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 truncate">
+                Borrower Details
+              </h3>
             </div>
             <button
               type="button"
               onClick={() => setIsEditingContact(!isEditingContact)}
-              className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 transition"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 transition shrink-0 cursor-pointer"
             >
-              <Edit2 className="h-3.5 w-3.5" />
-              <span>{isEditingContact ? "Done Editing" : "Change Contact / Address"}</span>
+              <Edit2 className="h-3 w-3" />
+              <span>{isEditingContact ? "Done" : "Edit"}</span>
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
+          <div className="space-y-2.5 text-xs">
             {/* Student Identity Meta */}
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-sm text-slate-900">{studentFullName}</span>
-                <span className="rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200/70 px-1.5 py-0.5 text-[10px] font-bold flex items-center gap-1">
-                  <BadgeCheck className="h-3 w-3 text-emerald-600" />
-                  Verified
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-bold text-sm text-slate-900">{studentFullName}</span>
+              <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/70 px-2 py-0.5 text-[10px] font-semibold inline-flex items-center gap-1">
+                <BadgeCheck className="h-3 w-3 text-emerald-600" />
+                Verified
+              </span>
+              <span className="font-mono text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">
+                ID: <strong>{studentNumber}</strong>
+              </span>
+              {studentCourse && (
+                <span className="text-slate-500 text-[11px] inline-flex items-center gap-1">
+                  <GraduationCap className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                  <span>{studentCourse}</span>
                 </span>
-              </div>
+              )}
+            </div>
 
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-600 text-[11px]">
-                <span className="flex items-center gap-1 font-mono text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">
-                  ID: <strong>{studentNumber}</strong>
-                </span>
-                <span className="flex items-center gap-1 font-medium text-slate-700">
-                  <GraduationCap className="h-3.5 w-3.5 text-indigo-500" />
-                  {studentCourse}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1.5 text-slate-600 text-[11px]">
-                <Building2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                <span className="truncate">{studentCampus}</span>
-              </div>
+            {/* Campus Info */}
+            <div className="flex items-center gap-1.5 text-slate-600 text-[11px]">
+              <Building2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+              <span className="truncate">{studentCampus}</span>
             </div>
 
             {/* Contact & Address (Live or Editable) */}
-            <div className="space-y-2 border-t sm:border-t-0 sm:border-l sm:border-slate-100 sm:pl-4 pt-2 sm:pt-0">
+            <div className="pt-2 border-t border-slate-100 space-y-1.5">
               {isEditingContact ? (
-                <div className="space-y-2">
+                <div className="space-y-2 pt-1">
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase">Contact Phone</label>
                     <input
@@ -417,14 +463,14 @@ function StudentBorrowingForm({
                   </div>
                 </div>
               ) : (
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2 text-slate-700">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-x-4 gap-y-1 text-[11px] text-slate-600">
+                  <div className="flex items-center gap-2 text-slate-700 shrink-0">
                     <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                    <span className="font-semibold text-slate-900">{contactNumber || "No phone number set"}</span>
+                    <span className="font-semibold text-slate-800">{contactNumber || "No phone number set"}</span>
                   </div>
-                  <div className="flex items-start gap-2 text-slate-600">
-                    <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
-                    <span className="line-clamp-2">{address || "No address on record (using campus library desk)"}</span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <span className="truncate">{address || "Campus Library Circulation Desk"}</span>
                   </div>
                 </div>
               )}
@@ -432,16 +478,16 @@ function StudentBorrowingForm({
           </div>
         </div>
 
-        {/* ================= 2. ORDER ITEMS / BOOKS SUMMARY (Shopee Cart Items) ================= */}
+        {/* ================= 2. ORDER ITEMS / BOOKS SUMMARY ================= */}
         <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-            <div className="flex items-center gap-2">
-              <Book className="h-4 w-4 text-blue-600" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                Selected Books for Borrowing ({borrowingList.length})
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <Book className="h-4 w-4 text-blue-600 shrink-0" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 truncate">
+                Selected Books ({borrowingList.length})
               </h3>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 shrink-0">
               {homeCount > 0 && (
                 <span className="rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/70 px-2 py-0.5 text-[10px] font-bold">
                   {homeCount} Home Loan
@@ -449,52 +495,56 @@ function StudentBorrowingForm({
               )}
               {interSchoolCount > 0 && (
                 <span className="rounded-md bg-amber-50 text-amber-800 border border-amber-200/70 px-2 py-0.5 text-[10px] font-bold">
-                  {interSchoolCount} Partner Library
+                  {interSchoolCount} Partner
                 </span>
               )}
             </div>
           </div>
 
-          <div className="space-y-2.5 divide-y divide-slate-100/80">
+          <div className="space-y-3 divide-y divide-slate-100/80">
             {borrowingList.map((item, idx) => {
               const isInterSchool = item.borrow_type === "INTER_SCHOOL_LIBRARY_USE";
               return (
                 <div
                   key={item.book_id || idx}
-                  className="pt-2.5 first:pt-0 flex items-start gap-3.5 group"
+                  className="pt-3 first:pt-0 flex items-start gap-3.5 group"
                 >
-                  <div className="h-16 w-12 sm:h-20 sm:w-14 shrink-0 rounded-xl overflow-hidden border border-slate-200/90 shadow-2xs bg-slate-100">
+                  {/* Book Cover Thumbnail */}
+                  <div className="h-20 w-14 shrink-0 rounded-xl overflow-hidden border border-slate-200/90 shadow-2xs bg-slate-100">
                     <CartBookCover book={item} className="h-full w-full object-cover" />
                   </div>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <h4 
-                          onClick={() => handleOpenBookDetails(item)}
-                          className="text-xs sm:text-sm font-bold text-slate-900 hover:text-blue-600 transition-colors line-clamp-1 cursor-pointer"
-                          title="Click to view full details"
-                        >
-                          {item.title}
-                        </h4>
-                        <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{item.author}</p>
-                      </div>
+                  {/* Book Content */}
+                  <div className="min-w-0 flex-1 flex flex-col justify-between self-stretch">
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <h4 
+                            onClick={() => handleOpenBookDetails(item)}
+                            className="text-xs sm:text-sm font-bold text-slate-900 hover:text-blue-600 transition-colors line-clamp-1 cursor-pointer"
+                            title="Click to view full details"
+                          >
+                            {item.title}
+                          </h4>
+                          <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{item.author || "Unknown Author"}</p>
+                        </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleOpenBookDetails(item)}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50/80 hover:bg-blue-100 px-2.5 py-1 rounded-lg border border-blue-200/60 transition shadow-2xs shrink-0 cursor-pointer"
-                        title="View complete book information & library record"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        <span>View</span>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenBookDetails(item)}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 hover:text-blue-600 bg-slate-50 hover:bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200/80 transition shrink-0 cursor-pointer"
+                          title="View complete book information"
+                        >
+                          <Eye className="h-3.5 w-3.5 text-slate-500" />
+                          <span>View</span>
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700 bg-slate-100/80 px-2 py-0.5 rounded-md border border-slate-200/70">
-                        <Building2 className="h-3 w-3 text-blue-600" />
-                        <span className="truncate max-w-[140px]">
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                        <Building2 className="h-3 w-3 text-blue-500 shrink-0" />
+                        <span className="truncate max-w-[130px]">
                           {item.owner_school_name || item.school_name || "Home Campus Library"}
                         </span>
                       </span>
@@ -502,15 +552,15 @@ function StudentBorrowingForm({
                       <span
                         className={`rounded-md px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
                           isInterSchool
-                            ? "bg-amber-100 text-amber-800 border border-amber-200"
-                            : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                            ? "bg-amber-50 text-amber-800 border border-amber-200/80"
+                            : "bg-emerald-50 text-emerald-800 border border-emerald-200/80"
                         }`}
                       >
-                        {isInterSchool ? "Inter-School Reading Room" : "Home Loan (Take-Home)"}
+                        {isInterSchool ? "Inter-School" : "Home Loan"}
                       </span>
 
                       {isInterSchool && Number(item.visiting_fee) > 0 && (
-                        <span className="rounded-md bg-amber-100 text-amber-900 px-1.5 py-0.5 text-[9px] font-extrabold border border-amber-300">
+                        <span className="rounded-md bg-amber-50 text-amber-900 px-1.5 py-0.5 text-[9px] font-bold border border-amber-200">
                           Fee: ₱{Number(item.visiting_fee).toFixed(2)}
                         </span>
                       )}
@@ -693,40 +743,63 @@ function StudentBorrowingForm({
         </div>
       </form>
 
-      {/* Zoom Modal for Student ID Card */}
-      {zoomIdModal && (
+      {/* Full-Site Minimalist Zoom Modal for Student ID Card */}
+      {typeof document !== "undefined" && zoomIdModal && createPortal(
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 p-4 backdrop-blur-xs animate-fadeIn"
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-[2px] animate-fade-in"
           onClick={() => setZoomIdModal(false)}
         >
           <div
-            className="relative max-w-lg w-full rounded-2xl bg-white p-4 shadow-2xl space-y-3"
+            role="dialog"
+            aria-modal="true"
+            className="relative max-w-[360px] w-full rounded-2xl bg-white p-5 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150 space-y-3.5"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b pb-2">
-              <h4 className="text-sm font-bold text-slate-900">
-                Student Institutional ID ({studentNumber})
-              </h4>
+            {/* Top Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="min-w-0 pr-3">
+                <h4 className="text-sm font-bold text-slate-900 truncate">
+                  Student Institutional ID
+                </h4>
+                <p className="text-[11px] font-mono text-slate-400 mt-0.5">
+                  LRN / ID: {studentNumber || "—"}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setZoomIdModal(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer"
+                title="Close"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100 flex items-center justify-center max-h-[70vh]">
+
+            {/* ID Card Image Container */}
+            <div className="overflow-hidden rounded-xl border border-slate-200/90 bg-slate-50 flex items-center justify-center aspect-[16/10] p-1 shadow-2xs">
               <img
                 src={fallbackPreview || idCardUrl}
                 alt="Institutional ID Zoom"
-                className="max-h-[65vh] w-auto object-contain rounded-lg"
+                className="w-full h-full object-contain rounded-lg"
               />
             </div>
-            <p className="text-[11px] text-slate-500 text-center">
+
+            {/* Verification Caption */}
+            <p className="text-[11px] text-slate-500 text-center truncate">
               Verified Student Institutional ID on file for {studentFullName}
             </p>
+
+            {/* Compact Close Button */}
+            <button
+              type="button"
+              onClick={() => setZoomIdModal(false)}
+              className="w-full py-2 px-3 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-colors shadow-2xs cursor-pointer"
+            >
+              Close
+            </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Full Book Details Quick-View Modal */}

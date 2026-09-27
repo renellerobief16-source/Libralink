@@ -1,137 +1,98 @@
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import React from "react";
+import StudentKnowledgeNav from "./StudentKnowledgeNav";
+
+const TERMS_SECTIONS = [
+  {
+    number: "01",
+    title: "Scope, Acceptance & Student Eligibility",
+    content:
+      "By signing into Libralink and utilizing the inter-library borrowing platform, you agree to comply with all rules and guidelines established by the consortium between Guagua National College, Santa Rita College, and member institutions. Access is granted exclusively to currently enrolled students possessing active institutional credentials in good academic standing.",
+  },
+  {
+    number: "02",
+    title: "Borrowing Allowances, Loan Durations & Renewals",
+    content:
+      "Eligible undergraduate students may hold a maximum of five (5) active circulating books concurrently across all connected campus libraries. The standard loan duration is fourteen (14) calendar days from physical release. Eligible titles may be renewed online up to two (2) consecutive times, provided no other student has placed an active hold request on the copy.",
+  },
+  {
+    number: "03",
+    title: "Inter-School Campus Visitation & Visiting Terms",
+    content:
+      "Students requesting materials from partner campuses (e.g., Santa Rita College) must abide by host library regulations. Visiting students must present their physical school ID card along with an approved Libralink Digital QR Pass upon entry. Applicable research visiting fees (such as SRC's ₱50.00 research fee) must be settled upon entrance, and materials designated 'Library Use Only' must not be removed from the host reading room.",
+  },
+  {
+    number: "04",
+    title: "Overdue Penalties, Daily Fines & Account Holds",
+    content:
+      "Borrowed materials must be returned on or before the indicated due date. Overdue penalties accumulate automatically at ₱10.00 per calendar day per book (excluding official institutional holidays). Students with unresolved fines or unreturned overdue books are placed on temporary circulation hold, preventing any new hold requests until full clearance is issued.",
+  },
+  {
+    number: "05",
+    title: "Care of Materials & Replacement Liability for Loss",
+    content:
+      "Borrowers are strictly liable for the physical integrity of borrowed volumes. Writing, highlighting, folding pages, or water damage constitutes property defacement. In the event of an irreparable or lost volume, the borrower must either furnish an identical replacement copy in brand-new condition or reimburse the current market retail value plus institutional processing costs.",
+  },
+  {
+    number: "06",
+    title: "Digital QR Code Pass & Identity Integrity",
+    content:
+      "The Libralink Digital QR Pass generated for pickups and campus entry is encrypted and strictly non-transferable. Attempting to share tokens, borrow on behalf of unverified third parties, or forge circulation credentials constitutes serious academic dishonesty subject to institutional disciplinary review.",
+  },
+  {
+    number: "07",
+    title: "Clearance Holds & Academic Record Impact",
+    content:
+      "At the conclusion of each academic semester, all borrowed materials must be returned and outstanding financial liabilities settled. Failure to clear library obligations results in an administrative block on semester grade viewing, enrollment validation, and the release of official scholastic transcripts.",
+  },
+];
 
 export default function StudentTermsOfService() {
-  const navigate = useNavigate();
-
-  const sections = [
-    {
-      title: '1. Acceptance of Terms',
-      content:
-        'By accessing and using Libralink, you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by the above, please do not use this service.',
-    },
-    {
-      title: '2. Use License',
-      content:
-        'Permission is granted to temporarily download one copy of the materials (information or software) on Libralink for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title, and under this license you may not:\n• Modify or copy the materials\n• Use the materials for any commercial purpose or for any public display\n• Attempt to decompile or reverse engineer any software contained on Libralink\n• Remove any copyright or other proprietary notations from the materials\n• Transfer the materials to another person or "mirror" the materials on any other server',
-    },
-    {
-      title: '3. Disclaimer',
-      content:
-        'The materials on Libralink are provided on an "as is" basis. Libralink makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions of merchantability, fitness for a particular purpose, or non-infringement of intellectual property or other violation of rights.',
-    },
-    {
-      title: '4. Limitations',
-      content:
-        'In no event shall Libralink or its suppliers be liable for any damages (including, without limitation, damages for loss of data or profit, or due to business interruption) arising out of the use or inability to use the materials on Libralink, even if Libralink or an authorized representative has been notified orally or in writing of the possibility of such damage.',
-    },
-    {
-      title: '5. Accuracy of Materials',
-      content:
-        'The materials appearing on Libralink could include technical, typographical, or photographic errors. Libralink does not warrant that any of the materials on its website are accurate, complete, or current. Libralink may make changes to the materials contained on its website at any time without notice.',
-    },
-    {
-      title: '6. Materials and Links',
-      content:
-        'Libralink has not reviewed all of the sites linked to its website and is not responsible for the contents of any such linked site. The inclusion of any link does not imply endorsement by Libralink of the site. Use of any such linked website is at the user\'s own risk.',
-    },
-    {
-      title: '7. Modifications',
-      content:
-        'Libralink may revise these terms of service for its website at any time without notice. By using this website, you are agreeing to be bound by the then current version of these terms of service.',
-    },
-    {
-      title: '8. Governing Law',
-      content:
-        'These terms and conditions are governed by and construed in accordance with the laws of the jurisdiction where Libralink operates, and you irrevocably submit to the exclusive jurisdiction of the courts located in that location.',
-    },
-    {
-      title: '9. User Responsibilities',
-      content:
-        'You are responsible for maintaining the confidentiality of your account information and password and for restricting access to your computer. You agree to accept responsibility for all activities that occur under your account or password. You must notify Libralink immediately of any unauthorized uses of your account.',
-    },
-    {
-      title: '10. Borrowing Policies',
-      content:
-        'Users agree to follow all library borrowing policies and regulations. This includes returning books by the due date, maintaining the condition of borrowed materials, and paying any fines or fees associated with overdue or damaged books. Failure to comply may result in account suspension.',
-    },
-  ];
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
-            title="Go back"
-          >
-            <ArrowLeft className="w-6 h-6 text-slate-700" />
-          </button>
-          <h1 className="text-4xl font-bold text-slate-900">Terms of Service</h1>
-        </div>
+    <div className="min-h-screen bg-white">
+      {/* Shared Knowledge Top Navigation */}
+      <StudentKnowledgeNav
+        activeTab="terms"
+        title="Terms of Service & Borrower Agreement"
+        subtitle="Institutional regulations, borrowing privileges, overdue obligations, and consortium access policies."
+        badgeText="Effective Academic Year 2026–2027"
+      />
 
-        {/* Last Updated */}
-        <div className="bg-white rounded-lg shadow-sm p-4 mb-8 border-l-4 border-blue-500">
-          <p className="text-slate-600">
-            <strong>Last Updated:</strong> August 30, 2026
+      <main className="mx-auto max-w-4xl px-4 sm:px-6 py-8 sm:py-10">
+        {/* Preamble / Summary Callout */}
+        <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 mb-8 text-xs sm:text-sm text-slate-700 space-y-1.5">
+          <p className="font-semibold text-slate-900">
+            Important Notice for Consortium Borrowers:
           </p>
-          <p className="text-slate-600 mt-2">
-            Please read these terms carefully before using Libralink. Your access and use of the
-            platform constitutes your agreement to be bound by these terms.
+          <p className="text-slate-600 leading-relaxed">
+            Borrowing privileges are a shared trust across Guagua National College and Santa Rita College. All loans, cross-campus requests, and returns are tracked centrally through your Libralink account.
           </p>
         </div>
 
-        {/* Sections */}
-        <div className="space-y-6">
-          {sections.map((section, index) => (
-            <div key={index} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
-              <h2 className="text-xl font-semibold text-slate-900 mb-3">{section.title}</h2>
-              <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{section.content}</p>
-            </div>
+        {/* Detailed Sections List */}
+        <div className="divide-y divide-slate-100 border-t border-b border-slate-100">
+          {TERMS_SECTIONS.map((section) => (
+            <article key={section.number} className="py-6 sm:py-7 space-y-2">
+              <div className="flex items-center gap-2.5">
+                <span className="font-mono text-xs font-bold text-slate-400">
+                  {section.number}
+                </span>
+                <h2 className="text-sm sm:text-base font-bold text-slate-900">
+                  {section.title}
+                </h2>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed pl-7">
+                {section.content}
+              </p>
+            </article>
           ))}
         </div>
 
-        {/* Contact Section */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-sm p-8 mt-12">
-          <h3 className="text-xl font-semibold text-slate-900 mb-3">Questions About These Terms?</h3>
-          <p className="text-slate-700 mb-4">
-            If you have any questions or concerns about our Terms of Service, please don't hesitate
-            to contact our support team.
-          </p>
-          <button
-            onClick={() => navigate('/studentpage/help')}
-            className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
-          >
-            Contact Support
-          </button>
+        {/* Closing Contact Note */}
+        <div className="mt-10 pt-6 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400">
+          <span>Official Regulation Code: LIB-TOS-2026.4</span>
+          <span>Inquiries: legal-compliance@libralink.edu.ph</span>
         </div>
-
-        {/* Footer Links */}
-        <div className="flex gap-6 justify-center mt-12 text-sm">
-          <button
-            onClick={() => navigate('/studentpage/privacy')}
-            className="text-blue-500 hover:text-blue-600 font-medium"
-          >
-            Privacy Policy
-          </button>
-          <span className="text-slate-300">•</span>
-          <button
-            onClick={() => navigate('/studentpage/about')}
-            className="text-blue-500 hover:text-blue-600 font-medium"
-          >
-            About Libralink
-          </button>
-          <span className="text-slate-300">•</span>
-          <button
-            onClick={() => navigate('/studentpage/help')}
-            className="text-blue-500 hover:text-blue-600 font-medium"
-          >
-            Help & Support
-          </button>
-        </div>
-      </div>
+      </main>
     </div>
   );
 }

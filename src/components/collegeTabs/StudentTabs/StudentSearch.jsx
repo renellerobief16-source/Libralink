@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
 import React from "react";
 
 import { useLocation, useSearchParams, useNavigate } from "react-router-dom";
@@ -356,19 +356,22 @@ function CategoryShelfRow({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (isAvailable) {
+                            if (book.is_from_other_school) {
+                              handleBookClick(book);
+                            } else if (isAvailable) {
                               handleAddToBorrowingList(book);
                             } else {
                               searchBookInOtherSchools(book);
                             }
                           }}
-                          className={`rounded-md px-2 py-1 text-[10px] font-semibold transition ${isAvailable
+                          className={`rounded-md px-2 py-1 text-[10px] font-semibold transition ${
+                            book.is_from_other_school
                               ? "bg-blue-600 text-white hover:bg-blue-700"
-                              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                            }`}
+                              : (isAvailable ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-100 text-slate-700 hover:bg-slate-200")
+                          }`}
                           type="button"
                         >
-                          {isAvailable ? "Borrow" : "Check"}
+                          {book.is_from_other_school ? "Partner Loan" : (isAvailable ? "Borrow" : "Check")}
                         </button>
                       </div>
                     </div>
@@ -441,8 +444,12 @@ function CategoryShelfRow({
                       <div className="pointer-events-none absolute inset-y-0 left-0 w-3 bg-gradient-to-r from-black/25 via-black/5 to-transparent z-[2]" />
 
                       {/* Top Badges & Actions */}
-                      <div className="absolute top-2 left-2 max-w-[calc(100%-3rem)] truncate rounded-full bg-slate-900/60 backdrop-blur-md px-2 py-0.5 text-[8px] font-bold text-white shadow-xs z-10 pointer-events-none">
-                        {book.library || "Campus Library"}
+                      <div className={`absolute top-2 left-2 max-w-[calc(100%-3rem)] truncate rounded-full px-2 py-0.5 text-[8px] font-bold shadow-xs z-10 pointer-events-none ${
+                        book.is_from_other_school
+                          ? "bg-blue-600 text-white shadow-blue-500/30"
+                          : "bg-slate-900/60 backdrop-blur-md text-white"
+                      }`}>
+                        {book.is_from_other_school ? `${book.school_code || 'SRC'} • Partner Campus` : (book.library || "Campus Library")}
                       </div>
 
                       <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-90 transition-opacity group-hover:opacity-100 z-10 pointer-events-auto">
@@ -462,7 +469,19 @@ function CategoryShelfRow({
                               }`}
                           />
                         </button>
-                        {isAvailable && (
+                        {book.is_from_other_school ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleBookClick(book);
+                            }}
+                            className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-white shadow-md transition hover:bg-blue-700 hover:scale-110 active:scale-95"
+                            title="View partner school book details and map"
+                          >
+                            <Globe className="h-4 w-4" />
+                          </button>
+                        ) : isAvailable && (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -849,6 +868,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
   const [expandedSchoolId, setExpandedSchoolId] = useState(null);
   const [partnerBookDetailModal, setPartnerBookDetailModal] = useState(null);
   const [partnerModalMobileTab, setPartnerModalMobileTab] = useState('map'); // 'map' | 'details'
+  const [partnerPanelCollapsed, setPartnerPanelCollapsed] = useState(false);
   const [mobileSheetState, setMobileSheetState] = useState("half"); // "half" | "full"
   const [recoFilter, setRecoFilter] = useState("all"); // 'all' | 'trending' | 'course' | 'available'
   const [studentPrefs, setStudentPrefs] = useState(() => getStudentPreferences());
@@ -916,6 +936,18 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
         if (isMounted) {
           if (res?.success && Array.isArray(res.data)) {
             setPartnerBookBorrowers(res.data);
+            if (res.copies && res.copies.length > 0) {
+              setPartnerBookDetailModal((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  copies: res.copies,
+                  total_copies: res.total_copies !== undefined ? res.total_copies : prev.total_copies,
+                  available_copies: res.available_copies !== undefined ? res.available_copies : prev.available_copies,
+                  available_book_id: res.available_book_id || prev.available_book_id || prev.book_id
+                };
+              });
+            }
           } else {
             setPartnerBookBorrowers([]);
           }
@@ -1107,6 +1139,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
         const raw = event.detail;
         const bookId = raw.id || raw.book_id;
         setPartnerModalMobileTab('map');
+        setPartnerPanelCollapsed(false);
         setPartnerBookDetailModal({ ...raw, id: bookId, book_id: bookId });
       }
     };
@@ -1137,6 +1170,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
 
     if (location.state?.partnerBook) {
       setPartnerModalMobileTab('map');
+      setPartnerPanelCollapsed(false);
       setPartnerBookDetailModal(location.state.partnerBook);
     }
   }, [location.state, searchParams]);
@@ -1735,17 +1769,19 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
     return matchesSearch && matchesCategory && matchesAvailability;
   });
 
-  // Check if no results and search other schools for suggestions
+  // Check other consortium schools (e.g. Santa Rita College) for matching books
   useEffect(() => {
     const checkOtherSchools = async () => {
-      if (debouncedQuery.trim().length > 0 && filteredBooks.length === 0 && !showOtherSchoolsModal) {
+      const searchTitle = debouncedQuery.trim();
+      if (searchTitle.length > 0 && !showOtherSchoolsModal) {
         const currentSchoolId = localStorage.getItem("schoolId");
-        const searchTitle = debouncedQuery.trim();
 
         try {
           const searchParams = new URLSearchParams();
           searchParams.append("title", searchTitle);
-          searchParams.append("exclude_school_id", currentSchoolId);
+          if (currentSchoolId) {
+            searchParams.append("exclude_school_id", currentSchoolId);
+          }
 
           const response = await api.get(
             `/books/search-other-schools?${searchParams.toString()}`,
@@ -1757,19 +1793,40 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
             // Map the other school books to the same format as home library books
             const mappedOtherSchoolBooks = schoolsData.map((item) => ({
               id: item.book_id,
+              book_id: item.book_id,
               title: item.title || "Untitled",
               author: item.author || "Unknown Author",
               isbn: item.isbn || "Unknown",
               school_id: item.school_id,
               school_name: item.school_name,
+              library: item.school_name || "Partner Library",
               address: item.address,
               school_code: item.school_code,
-              available_copies: item.available_copies,
-              total_copies: item.total_copies,
+              latitude: item.latitude,
+              longitude: item.longitude,
+              logo: item.logo,
+              call_number: item.call_number || "Catalogue",
+              shelf: item.call_number || "Catalogue",
+              shelf_location: item.shelf_location || "Library",
+              location: item.shelf_location || "Partner Library",
+              publication_year: item.copyright_year || "",
+              year: item.copyright_year || "",
+              enable_visiting_fee: item.enable_visiting_fee,
+              visiting_fee_amount: item.visiting_fee_amount,
+              visiting_fee_type: item.visiting_fee_type,
+              visiting_policy_notes: item.visiting_policy_notes,
+              inter_school_library_use_only: item.inter_school_library_use_only,
+              available_copies: item.available_copies !== undefined ? item.available_copies : 1,
+              total_copies: item.total_copies || 1,
+              availability_ratio: `${item.available_copies !== undefined ? item.available_copies : 1}/${item.total_copies || 1}`,
+              copies: item.copies || [],
+              available_book_id: item.available_book_id || item.book_id,
+              grouped_book_ids: item.grouped_book_ids || [item.book_id],
               current_borrowers: item.current_borrowers || [],
               is_from_other_school: true, // Flag to indicate this is from another school
               category: getBookCategoryValue(item),
-              real_time_status: "available",
+              real_time_status: item.real_time_status || (item.available_copies > 0 ? "available" : "unavailable"),
+              available: (item.available_copies !== undefined ? item.available_copies : 1) > 0,
               cover_image: item.cover_image || '',
             }));
 
@@ -1794,11 +1851,24 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
     };
 
     checkOtherSchools();
-  }, [debouncedQuery, filteredBooks.length, showOtherSchoolsModal]);
+  }, [debouncedQuery, showOtherSchoolsModal]);
 
   const getBookCategory = (book) => getBookCategoryValue(book);
 
-  const orderedBooks = [...filteredBooks].sort((firstBook, secondBook) => {
+  // Combine Home Library books first, followed by Partner School books (e.g. SRC)
+  const combinedFilteredBooks = useMemo(() => {
+    if (debouncedQuery.trim().length > 0 && otherSchoolBooks.length > 0) {
+      return [...filteredBooks, ...otherSchoolBooks];
+    }
+    return filteredBooks;
+  }, [filteredBooks, otherSchoolBooks, debouncedQuery]);
+
+  const orderedBooks = [...combinedFilteredBooks].sort((firstBook, secondBook) => {
+    // Keep home library books first, followed by partner library books
+    if (Boolean(firstBook.is_from_other_school) !== Boolean(secondBook.is_from_other_school)) {
+      return firstBook.is_from_other_school ? 1 : -1;
+    }
+
     if (sortBy === "title") return (firstBook.title || "").localeCompare(secondBook.title || "");
     if (sortBy === "author") return (firstBook.author || "").localeCompare(secondBook.author || "");
     if (sortBy === "available") {
@@ -2203,8 +2273,13 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
   };
 
   const handleBookClick = (book) => {
-    setSelectedBook(book);
+    if (book?.is_from_other_school) {
+      setPartnerModalMobileTab('map');
+      setPartnerBookDetailModal(book);
+      return;
+    }
 
+    setSelectedBook(book);
     setShowBookDetailModal(true);
   };
 
@@ -2254,6 +2329,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
       }
     }
     setPartnerBookDetailModal(null);
+    setPartnerPanelCollapsed(false);
     setSearchQuery("");
     setDebouncedQuery("");
     window.dispatchEvent(new CustomEvent("libralink-clear-search"));
@@ -3043,7 +3119,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
               Showing matches for <span className="font-bold text-slate-900">“{searchQuery.trim()}”</span>
             </p>
             <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-100 shadow-2xs">
-              <AnimatedCounter value={filteredBooks.length} suffix=" results" />
+              <AnimatedCounter value={combinedFilteredBooks.length} suffix=" results" />
             </span>
             <button
               type="button"
@@ -3844,8 +3920,8 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                 </div>
               )}
 
-              {/* No Results */}
-              {filteredBooks.length === 0 && debouncedQuery.trim().length > 0 && !loading && (
+              {/* No Results (When neither Home Library nor Partner Consortium Libraries have matches) */}
+              {combinedFilteredBooks.length === 0 && debouncedQuery.trim().length > 0 && !loading && (
                 <div className="py-12 text-center">
                   <div className="w-16 h-16 bg-[#F7FAFC] rounded-full flex items-center justify-center mx-auto mb-4">
                     <Search className="w-8 h-8 text-[#64748B]" />
@@ -3854,12 +3930,34 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                     No books found
                   </h3>
                   <p className="text-sm text-[#64748B]">
-                    "{debouncedQuery}" is not available in your library.
+                    "{debouncedQuery}" is not available in your campus library or consortium partner libraries.
                   </p>
                 </div>
               )}
 
-              {filteredBooks.length > 0 && (
+              {/* Informative Banner when books are found in partner libraries (e.g. Santa Rita College) */}
+              {debouncedQuery.trim().length > 0 && filteredBooks.length === 0 && otherSchoolBooks.length > 0 && (
+                <div className="mb-4 flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50/90 p-3.5 sm:p-4 text-blue-900 shadow-2xs animate-in fade-in duration-200">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-2xs">
+                    <Globe className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="text-xs sm:text-sm font-bold text-blue-950">
+                        Available in Consortium Partner Libraries
+                      </h4>
+                      <span className="rounded-full bg-blue-200/80 px-2 py-0.5 text-[10px] font-bold text-blue-800">
+                        {otherSchoolBooks.length} {otherSchoolBooks.length === 1 ? 'Title' : 'Titles'} Available
+                      </span>
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-blue-800/90 mt-1 leading-relaxed">
+                      This book was not found in your Home Campus library, but is available at <strong>{otherSchoolBooks[0]?.school_name || 'Santa Rita College (SRC)'}</strong>. Click any card below to view details, campus directions, and request an Inter-School borrow.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {combinedFilteredBooks.length > 0 && (
                 <div className="space-y-6">
                   {categoryView && (
                     <button type="button" onClick={() => setSearchParams({})} className="mb-1 inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700">
@@ -5084,8 +5182,14 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                                     {/* Book Specific Details & Status Badges */}
                                     <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 text-[10px]">
                                       <div className="flex flex-wrap items-center gap-1.5 text-slate-600">
-                                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-bold text-emerald-700 border border-emerald-100">
-                                          {schoolCopy.available_copies || 1} available
+                                        <span className={`rounded-full px-2 py-0.5 font-bold border ${
+                                          (schoolCopy.available_copies !== undefined ? schoolCopy.available_copies : 1) > 0
+                                            ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                                            : "bg-rose-50 text-rose-700 border-rose-100"
+                                        }`}>
+                                          {(schoolCopy.available_copies !== undefined ? schoolCopy.available_copies : 1) > 0
+                                            ? `${schoolCopy.available_copies !== undefined ? schoolCopy.available_copies : 1} of ${schoolCopy.total_copies || 1} available`
+                                            : `0 of ${schoolCopy.total_copies || 1} available (Reserved)`}
                                         </span>
                                         <span className="font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
                                           Library Use Only
@@ -5848,76 +5952,18 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
       {/* 6. PARTNER BOOK DETAIL MODAL */}
       {partnerBookDetailModal && (
         <div
-          className="fixed inset-0 z-[2000] flex flex-col bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200"
+          className="fixed inset-0 z-[2000] flex flex-col bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200"
           onClick={handleClosePartnerModal}
         >
           <div
-            className="relative w-full h-[100dvh] flex flex-col bg-white overflow-hidden shadow-2xl"
+            className="relative w-full h-[100dvh] flex flex-col bg-slate-100 overflow-hidden shadow-2xl"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-label="Partner Library Book Details"
           >
-            {/* Modal Sticky Header */}
-            <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200/90 px-4 sm:px-6 bg-slate-50/90 z-20">
-              <div className="flex items-center gap-3 min-w-0">
-                {/* Official School Logo */}
-                <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-2xs shrink-0 overflow-hidden">
-                  <img
-                    src={
-                      partnerBookDetailModal.logo
-                        ? (partnerBookDetailModal.logo.startsWith("http") ? partnerBookDetailModal.logo : `${API_ORIGIN}${partnerBookDetailModal.logo.startsWith("/") ? "" : "/"}${partnerBookDetailModal.logo}`)
-                        : "/L.png"
-                    }
-                    alt={partnerBookDetailModal.school_name}
-                    className="h-full w-full object-contain rounded-lg"
-                    onError={(e) => { e.currentTarget.src = "/L.png"; }}
-                  />
-                </div>
-
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700 border border-blue-200">
-                      <Globe className="h-3 w-3 text-blue-600" />
-                      Partner Library Catalogue
-                    </span>
-                    {partnerBookDetailModal.school_code && (
-                      <span className="hidden sm:inline-block rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-600">
-                        {partnerBookDetailModal.school_code}
-                      </span>
-                    )}
-                  </div>
-                  <h3 className="truncate text-sm sm:text-base font-bold text-slate-900 leading-tight mt-0.5">
-                    {partnerBookDetailModal.school_name}
-                  </h3>
-                </div>
-              </div>
-
-              {/* Book Title Pill (Center on large screens) */}
-              <div className="hidden md:flex items-center gap-2 max-w-sm lg:max-w-md xl:max-w-lg px-3 py-1 rounded-xl bg-white border border-slate-200 shadow-2xs">
-                <Book className="h-4 w-4 text-slate-400 shrink-0" />
-                <span className="text-xs font-semibold text-slate-700 truncate">
-                  {partnerBookDetailModal.title || selectedBook?.title}
-                </span>
-              </div>
-
-              {/* Window Controls */}
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleClosePartnerModal}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition shadow-2xs active:scale-95"
-                  aria-label="Close full-screen catalogue"
-                >
-                  <X className="h-4 w-4" />
-                  <span className="hidden sm:inline">Close</span>
-                  <span className="hidden lg:inline text-[10px] text-slate-400 font-mono ml-0.5">(Esc)</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Mobile Tab Switcher (Visible on screens < lg) - Campus Location First */}
-            <div className="lg:hidden flex items-center border-b border-slate-200 bg-white px-3 py-2 shrink-0 gap-2 shadow-2xs z-20">
+            {/* Mobile Tab Switcher (Visible on screens < lg) */}
+            <div className="lg:hidden flex items-center border-b border-slate-100 bg-white px-4 py-2 shrink-0 gap-2 z-30">
               <button
                 type="button"
                 onClick={() => {
@@ -5926,326 +5972,509 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                     window.dispatchEvent(new Event('resize'));
                   }, 80);
                 }}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 active:scale-95 ${
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 active:scale-95 ${
                   partnerModalMobileTab === 'map'
-                    ? 'bg-[#0077B6] text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    ? 'bg-[#0077B6] text-white'
+                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
                 }`}
               >
                 <MapPin className="h-3.5 w-3.5" />
-                <span>Campus Location & Map</span>
+                <span>Campus Location</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setPartnerModalMobileTab('details')}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 active:scale-95 ${
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 active:scale-95 ${
                   partnerModalMobileTab === 'details'
-                    ? 'bg-[#0077B6] text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    ? 'bg-[#0077B6] text-white'
+                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
                 }`}
               >
                 <Book className="h-3.5 w-3.5" />
                 <span>Book Details</span>
               </button>
+
+              <button
+                type="button"
+                onClick={handleClosePartnerModal}
+                className="p-2 rounded-lg text-slate-400 hover:text-slate-800"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
 
-            {/* Modal Body: 2-Column Split View on Desktop, Tabbed on Mobile */}
-            <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden bg-slate-50/50">
-              {/* Left Column: Book Details, Policies, and Borrowers (Scrollable) */}
-              <div className={`w-full lg:w-[480px] xl:w-[540px] shrink-0 border-r border-slate-200 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5 bg-white scrollbar-thin ${
-                partnerModalMobileTab === 'details' ? 'flex flex-col flex-1 lg:flex-initial' : 'hidden lg:flex lg:flex-col'
-              }`}>
-                {/* Book Info Card */}
-                <div className="flex gap-4 p-4 rounded-2xl border border-slate-200 bg-white shadow-xs">
-                  {/* Book Cover / Thumbnail */}
-                  <div className="relative h-32 w-24 sm:h-36 sm:w-28 shrink-0 overflow-hidden rounded-xl bg-slate-100 shadow-sm border border-slate-200">
-                    {partnerBookDetailModal.cover_image ? (
-                      <img
-                        src={partnerBookDetailModal.cover_image.startsWith("http") ? partnerBookDetailModal.cover_image : `${API_ORIGIN}${partnerBookDetailModal.cover_image.startsWith("/") ? "" : "/"}${partnerBookDetailModal.cover_image}`}
-                        alt={partnerBookDetailModal.title}
-                        className="h-full w-full object-cover"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                          if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex';
-                        }}
-                      />
-                    ) : null}
-                    <div
-                      className="absolute inset-0 flex flex-col items-center justify-center p-2 text-slate-400 bg-slate-100"
-                      style={{ display: partnerBookDetailModal.cover_image ? 'none' : 'flex' }}
-                    >
-                      <Book className="h-8 w-8 text-slate-400" />
-                      <span className="mt-1 text-center text-[9px] font-bold uppercase tracking-wider text-slate-500 line-clamp-1">
-                        Partner Copy
-                      </span>
-                    </div>
-                  </div>
+            {/* Modal Body: Left Panel with Google Maps Curved Right Edge + Full-Bleed Map */}
+            <div className="relative flex-1 min-h-0 w-full h-full overflow-hidden bg-slate-100">
+              {/* Full-Bleed Background Map */}
+              <div
+                className={`w-full h-full absolute inset-0 z-10 bg-slate-100 ${
+                  partnerModalMobileTab === 'map' ? 'block' : 'hidden lg:block'
+                }`}
+              >
+                <MinimalSchoolMap
+                  school={{
+                    school_id: partnerBookDetailModal.school_id,
+                    latitude: partnerBookDetailModal.latitude,
+                    longitude: partnerBookDetailModal.longitude,
+                    school_name: partnerBookDetailModal.school_name,
+                    address: partnerBookDetailModal.address,
+                    logo: partnerBookDetailModal.logo || partnerBookDetailModal.school_logo,
+                  }}
+                  book={{
+                    title: partnerBookDetailModal.title,
+                    cover_image: partnerBookDetailModal.cover_image,
+                    author: partnerBookDetailModal.author,
+                    available_copies: partnerBookDetailModal.available_copies,
+                    call_number: partnerBookDetailModal.call_number,
+                  }}
+                  height="100%"
+                  sidebarOffset={!partnerPanelCollapsed}
+                />
 
-                  {/* Metadata */}
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <span className="inline-block rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-100">
-                      Inter-School Collection
-                    </span>
-                    <h4 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
-                      {partnerBookDetailModal.title || selectedBook?.title}
-                    </h4>
-                    <p className="text-xs text-slate-600">
-                      By <span className="font-semibold text-slate-800">{partnerBookDetailModal.author || selectedBook?.author || "Unknown Author"}</span>
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] text-slate-500">
-                      {(partnerBookDetailModal.isbn || selectedBook?.isbn) && (
-                        <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-700 text-[10px]">
-                          ISBN: {partnerBookDetailModal.isbn || selectedBook?.isbn}
-                        </span>
-                      )}
-                      {(partnerBookDetailModal.publication_year || selectedBook?.publication_year) && (
-                        <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-700 text-[10px]">
-                          Year: {partnerBookDetailModal.publication_year || selectedBook?.publication_year}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Physical Cataloguing & Status */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                      Physical Cataloguing & Status
-                    </span>
-                    <BookStatusBadge
-                      availableCopies={partnerBookDetailModal.available_copies !== undefined ? partnerBookDetailModal.available_copies : 1}
-                      totalCopies={partnerBookDetailModal.total_copies || 1}
-                      availabilityRatio={`${partnerBookDetailModal.available_copies !== undefined ? partnerBookDetailModal.available_copies : 1}/${partnerBookDetailModal.total_copies || 1}`}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase">Shelf Location</p>
-                      <p className="font-bold text-slate-800 mt-1 flex items-center gap-1.5">
-                        <MapPin className="h-4 w-4 text-blue-600" />
-                        <span>{partnerBookDetailModal.shelf_location || "Circulation Stacks"}</span>
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase">Call Number</p>
-                      <p className="font-mono font-bold text-slate-800 mt-1">
-                        {partnerBookDetailModal.call_number || "Desk Catalogue"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase">Accession Number</p>
-                      <p className="font-mono font-bold text-slate-800 mt-1">
-                        {partnerBookDetailModal.accession_number || "N/A"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase">Barcode</p>
-                      <p className="font-mono font-bold text-slate-800 mt-1 truncate">
-                        {partnerBookDetailModal.barcode || "N/A"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Inter-Library Policy & Access Terms Card */}
-                <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/40 via-white to-white p-4 space-y-3 shadow-xs">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 font-bold text-slate-900 text-xs sm:text-sm">
-                      <AlertCircle className="h-4 w-4 text-blue-600 shrink-0" />
-                      <span>Visiting & Inter-Library Policy</span>
-                    </div>
-
-                    {partnerBookDetailModal.enable_visiting_fee && Number(partnerBookDetailModal.visiting_fee_amount) > 0 ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-900 border border-amber-200 shrink-0">
-                        ₱{Number(partnerBookDetailModal.visiting_fee_amount).toFixed(2)} / {partnerBookDetailModal.visiting_fee_type === 'per_day' ? 'Day' : 'Visit'}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200 shrink-0">
-                        Free Consortium Access
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    {partnerBookDetailModal.visiting_policy_notes ||
-                      "This book belongs to a consortium partner campus library. You may place a hold request and visit the host campus library by presenting your active student ID and approved permission pass."}
-                  </p>
-
-                  <div className="rounded-xl border border-blue-100/80 bg-white/90 p-3 space-y-1.5 text-xs text-slate-600">
-                    <div className="flex items-center gap-2">
-                      <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                      <span>Valid for on-site reading and library room study</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                      <span>Present generated digital QR permission pass upon entry</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Currently Borrowed By (Consortium Public Transparency) */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-blue-600" />
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                        Currently Borrowed By
-                      </span>
-                    </div>
-                    {partnerBookBorrowers.length > 0 && (
-                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-100">
-                        {partnerBookBorrowers.length} active
-                      </span>
-                    )}
-                  </div>
-
-                  {loadingPartnerBorrowers ? (
-                    <div className="flex items-center justify-center py-4 text-xs text-slate-400 gap-2">
-                      <Clock className="h-3.5 w-3.5 animate-spin text-blue-500" />
-                      <span>Loading active borrowers…</span>
-                    </div>
-                  ) : partnerBookBorrowers.length === 0 ? (
-                    <div className="rounded-xl bg-slate-50 border border-slate-100 p-3.5 text-center">
-                      <p className="text-xs font-medium text-slate-500">
-                        No active borrowers for this copy right now.
-                      </p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">
-                        Available for immediate hold or library-use visit.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
-                      {partnerBookBorrowers.map((borrower, idx) => {
-                        const isApproved = borrower.status === 'approved';
-                        const isReleased = borrower.status === 'released';
-                        const isOverdue = borrower.status === 'overdue';
-
-                        let statusBadgeClass = "bg-amber-50 text-amber-700 border-amber-200";
-                        let StatusIcon = Clock;
-
-                        if (isReleased) {
-                          statusBadgeClass = "bg-sky-50 text-sky-700 border-sky-200";
-                          StatusIcon = BookOpen;
-                        } else if (isApproved) {
-                          statusBadgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
-                          StatusIcon = CheckCircle;
-                        } else if (isOverdue) {
-                          statusBadgeClass = "bg-rose-50 text-rose-700 border-rose-200";
-                          StatusIcon = AlertCircle;
-                        }
-
-                        return (
-                          <div
-                            key={borrower.request_id || idx}
-                            className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-xs transition hover:bg-slate-100/80"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-800">
-                                {(borrower.username || "S").substring(0, 2).toUpperCase()}
-                              </div>
-                              <div className="min-w-0">
-                                <span className="font-bold text-slate-800 block truncate">@{borrower.username}</span>
-                                <span className="text-[10px] text-slate-500 block truncate">{borrower.school_name}</span>
-                              </div>
-                            </div>
-                            <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-bold shrink-0 ${statusBadgeClass}`}>
-                              <StatusIcon className="h-3 w-3 shrink-0" />
-                              <span>{borrower.status_label}</span>
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Right Column: Full-Height Interactive Campus Map with GPS Directions */}
-              <div className={`flex-1 min-h-[350px] lg:min-h-full flex flex-col bg-slate-100 relative overflow-hidden ${
-                partnerModalMobileTab === 'map' ? 'flex flex-col flex-1' : 'hidden lg:flex'
-              }`}>
-                <div className="h-full w-full flex-1">
-                  <MinimalSchoolMap
-                    school={{
-                      school_id: partnerBookDetailModal.school_id,
-                      latitude: partnerBookDetailModal.latitude,
-                      longitude: partnerBookDetailModal.longitude,
-                      school_name: partnerBookDetailModal.school_name,
-                      address: partnerBookDetailModal.address,
-                      logo: partnerBookDetailModal.logo || partnerBookDetailModal.school_logo,
-                    }}
-                    book={{
-                      title: partnerBookDetailModal.title,
-                      cover_image: partnerBookDetailModal.cover_image,
-                      author: partnerBookDetailModal.author,
-                      available_copies: partnerBookDetailModal.available_copies,
-                      call_number: partnerBookDetailModal.call_number,
-                    }}
-                    height="100%"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Sticky Footer Actions (Responsive for all screen sizes) */}
-            <div className="flex items-center justify-between gap-2 sm:gap-3 border-t border-slate-200 px-3.5 sm:px-6 py-2.5 sm:py-3.5 bg-white z-20 shrink-0">
-              <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500 min-w-0">
-                <Building2 className="h-4 w-4 text-slate-400 shrink-0" />
-                <span className="truncate max-w-[200px] md:max-w-md">
-                  {partnerBookDetailModal.address || "Consortium Partner Campus"}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
+                {/* Google Maps Floating Circular Close Button on Top-Right of Map */}
                 <button
                   type="button"
-                  onClick={() => setPartnerBookDetailModal(null)}
-                  className="flex-1 sm:flex-initial rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 active:scale-95 transition text-center"
+                  onClick={handleClosePartnerModal}
+                  className="absolute top-3 right-3 sm:top-3.5 sm:right-3.5 z-40 flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-white/95 backdrop-blur-md shadow-lg border border-slate-200/90 text-slate-700 hover:text-slate-950 hover:bg-white active:scale-95 transition"
+                  aria-label="Close"
+                  title="Close (Esc)"
                 >
-                  Close
+                  <X className="h-5 w-5" />
                 </button>
+              </div>
 
+              {/* Left Column: Google Maps Style Floating Side Panel with Curved Right Edge */}
+              <div
+                className={`w-full lg:w-[480px] xl:w-[520px] h-full lg:absolute lg:left-0 lg:top-0 lg:bottom-0 z-20 transition-transform duration-300 ease-in-out ${
+                  partnerPanelCollapsed ? 'lg:-translate-x-full' : 'lg:translate-x-0'
+                } ${
+                  partnerModalMobileTab === 'details' ? 'flex flex-col flex-1' : 'hidden lg:flex'
+                }`}
+              >
+                {/* The Card Panel with Curved Right Edge */}
+                <div className="relative w-full h-full bg-white lg:rounded-r-3xl lg:shadow-[14px_0_40px_rgba(0,0,0,0.15)] lg:border-r lg:border-slate-200/80 overflow-hidden flex flex-col justify-between">
+                  {/* Integrated Header inside Left Panel */}
+                  <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-100 px-6 sm:px-7 bg-white sticky top-0 z-10 lg:rounded-tr-3xl">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-slate-50 border border-slate-200/80 p-1 shrink-0 overflow-hidden shadow-2xs">
+                        <img
+                          src={
+                            partnerBookDetailModal.logo
+                              ? (partnerBookDetailModal.logo.startsWith("http") ? partnerBookDetailModal.logo : `${API_ORIGIN}${partnerBookDetailModal.logo.startsWith("/") ? "" : "/"}${partnerBookDetailModal.logo}`)
+                              : "/L.png"
+                          }
+                          alt={partnerBookDetailModal.school_name}
+                          className="h-full w-full object-contain"
+                          onError={(e) => { e.currentTarget.src = "/L.png"; }}
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="truncate text-sm sm:text-base font-bold text-slate-900 leading-tight">
+                            {partnerBookDetailModal.school_name}
+                          </h3>
+                          {partnerBookDetailModal.school_code && (
+                            <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-500 uppercase">
+                              {partnerBookDetailModal.school_code}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                          Consortium Partner Campus
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Header Close button */}
+                    <button
+                      type="button"
+                      onClick={handleClosePartnerModal}
+                      className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition"
+                      aria-label="Close"
+                      title="Close"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Scrollable details: Book hero, Specs 2x2, Guidelines, Active Borrowers */}
+                  <div className="overflow-y-auto flex-1 p-6 sm:p-7 space-y-6 scrollbar-thin">
+                    {/* Book Hero */}
+                    <div className="flex gap-5 items-start">
+                      {/* Sleek Cover */}
+                      <div className="relative h-32 w-24 sm:h-36 sm:w-28 shrink-0 overflow-hidden rounded-xl bg-slate-50 border border-slate-200/70 shadow-2xs select-none">
+                        {partnerBookDetailModal.cover_image ? (
+                          <img
+                            src={partnerBookDetailModal.cover_image.startsWith("http") ? partnerBookDetailModal.cover_image : `${API_ORIGIN}${partnerBookDetailModal.cover_image.startsWith("/") ? "" : "/"}${partnerBookDetailModal.cover_image}`}
+                            alt={partnerBookDetailModal.title}
+                            className="h-full w-full object-cover"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div
+                          className="absolute inset-0 flex flex-col items-center justify-center p-2 text-slate-400 bg-slate-50"
+                          style={{ display: partnerBookDetailModal.cover_image ? 'none' : 'flex' }}
+                        >
+                          <Book className="h-7 w-7 text-slate-300 mb-1" />
+                          <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 text-center leading-tight">
+                            Partner Copy
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Hero Meta */}
+                      <div className="min-w-0 flex-1 space-y-1.5 pt-0.5">
+                        <span className="inline-block text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                          Inter-School Collection
+                        </span>
+                        <h2 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
+                          {partnerBookDetailModal.title || selectedBook?.title}
+                        </h2>
+                        <p className="text-xs text-slate-500">
+                          By <span className="font-medium text-slate-700">{partnerBookDetailModal.author || selectedBook?.author || "Unknown Author"}</span>
+                        </p>
+
+                        {/* Muted Metadata */}
+                        <div className="flex flex-wrap items-center gap-2 pt-2 text-[11px] text-slate-400">
+                          {(partnerBookDetailModal.isbn || selectedBook?.isbn) && (
+                            <span>ISBN {partnerBookDetailModal.isbn || selectedBook?.isbn}</span>
+                          )}
+                          {(partnerBookDetailModal.isbn || selectedBook?.isbn) && (partnerBookDetailModal.publication_year || selectedBook?.publication_year) && (
+                            <span>•</span>
+                          )}
+                          {(partnerBookDetailModal.publication_year || selectedBook?.publication_year) && (
+                            <span>{partnerBookDetailModal.publication_year || selectedBook?.publication_year}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Hairline Divider */}
+                    <div className="h-px bg-slate-100" />
+
+                    {/* Minimalist Specs Grid (Clean 2x2, no boxed cards) */}
+                    <div>
+                      <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-3">
+                        Physical Cataloguing
+                      </h4>
+                      <div className="grid grid-cols-2 gap-y-3.5 gap-x-4">
+                        <div>
+                          <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Shelf Location</p>
+                          <p className="text-xs font-semibold text-slate-800 mt-0.5 flex items-center gap-1.5">
+                            <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                            <span className="truncate">{partnerBookDetailModal.shelf_location || "Circulation Stacks"}</span>
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Call Number</p>
+                          <p className="font-mono text-xs font-semibold text-slate-800 mt-0.5 truncate">
+                            {partnerBookDetailModal.call_number || "Desk Catalogue"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Availability</p>
+                          {(() => {
+                            const totalCopiesCount = partnerBookDetailModal.total_copies || (partnerBookDetailModal.copies?.length) || 1;
+                            const rawAvail = partnerBookDetailModal.available_copies !== undefined 
+                              ? partnerBookDetailModal.available_copies 
+                              : (totalCopiesCount - partnerBookBorrowers.length);
+                            const safeAvailCount = Math.max(0, rawAvail);
+                            const isZeroAvailable = safeAvailCount <= 0;
+
+                            return (
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className={`h-2 w-2 rounded-full shrink-0 ${
+                                  !isZeroAvailable ? "bg-emerald-500" : "bg-rose-400"
+                                }`} />
+                                <span className="text-xs font-semibold text-slate-800">
+                                  {!isZeroAvailable
+                                    ? `${safeAvailCount} of ${totalCopiesCount} ${totalCopiesCount === 1 ? 'copy' : 'copies'} available`
+                                    : `0 of ${totalCopiesCount} ${totalCopiesCount === 1 ? 'copy' : 'copies'} available (All Reserved)`}
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Visiting Fee</p>
+                          <p className="text-xs font-semibold text-slate-800 mt-0.5">
+                            {partnerBookDetailModal.enable_visiting_fee && Number(partnerBookDetailModal.visiting_fee_amount) > 0
+                              ? `₱${Number(partnerBookDetailModal.visiting_fee_amount).toFixed(2)} / ${partnerBookDetailModal.visiting_fee_type === 'per_day' ? 'Day' : 'Visit'}`
+                              : "Free"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Campus Physical Copies Cards */}
+                      {(() => {
+                        const totalCopiesCount = partnerBookDetailModal.total_copies || (partnerBookDetailModal.copies?.length) || 1;
+                        const rawAvail = partnerBookDetailModal.available_copies !== undefined 
+                          ? partnerBookDetailModal.available_copies 
+                          : (totalCopiesCount - partnerBookBorrowers.length);
+                        const safeAvailCount = Math.max(0, rawAvail);
+                        const copiesList = Array.isArray(partnerBookDetailModal.copies) && partnerBookDetailModal.copies.length > 0
+                          ? partnerBookDetailModal.copies
+                          : Array.from({ length: totalCopiesCount }, (_, i) => ({
+                              copy_number: i + 1,
+                              accession_number: partnerBookDetailModal.accession_number || `ACC-${i + 1}`,
+                              shelf_location: partnerBookDetailModal.shelf_location || null,
+                              status: i < (totalCopiesCount - safeAvailCount) ? "requested" : "available",
+                              status_label: i < (totalCopiesCount - safeAvailCount) ? "Requested" : "Available"
+                            }));
+
+                        return (
+                          <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                                Campus Copies ({copiesList.length})
+                              </p>
+                              <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                                {safeAvailCount} Available
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {copiesList.map((copy, cIdx) => {
+                                const isAvail = copy.status === 'available';
+                                const isReq = copy.status === 'requested';
+                                const isWaiting = copy.status === 'waiting_pickup';
+                                const isBorrowed = copy.status === 'borrowed';
+
+                                return (
+                                  <div
+                                    key={copy.copy_id || copy.accession_number || cIdx}
+                                    className={`p-2.5 rounded-xl border text-xs transition space-y-1 ${
+                                      isAvail
+                                        ? "bg-slate-50/70 border-slate-200/90 text-slate-800"
+                                        : isReq
+                                        ? "bg-amber-50/50 border-amber-200/80 text-amber-950"
+                                        : isWaiting
+                                        ? "bg-sky-50/50 border-sky-200/80 text-sky-950"
+                                        : "bg-purple-50/50 border-purple-200/80 text-purple-950"
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-1.5">
+                                      <span className="font-semibold text-slate-900 truncate">
+                                        Copy #{copy.copy_number || cIdx + 1}
+                                      </span>
+                                      <span
+                                        className={`text-[9.5px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                                          isAvail
+                                            ? "bg-emerald-100 text-emerald-700"
+                                            : isReq
+                                            ? "bg-amber-100 text-amber-800"
+                                            : isWaiting
+                                            ? "bg-sky-100 text-sky-800"
+                                            : "bg-purple-100 text-purple-800"
+                                        }`}
+                                      >
+                                        {copy.status_label || (isAvail ? "Available" : isReq ? "Requested" : isWaiting ? "Waiting for Pickup" : "Borrowed")}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-[10.5px] text-slate-500 pt-0.5">
+                                      <span className="font-mono text-slate-600">
+                                        {copy.accession_number ? `Acc: ${copy.accession_number}` : 'Standard Copy'}
+                                      </span>
+                                      {copy.shelf_location && (
+                                        <span className="truncate text-slate-400">
+                                          {copy.shelf_location}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {copy.borrower && (
+                                      <p className="text-[10px] text-slate-500 font-medium truncate pt-1 border-t border-slate-200/60">
+                                        Held by <span className="font-semibold text-slate-700">@{copy.borrower.username}</span>
+                                      </p>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Hairline Divider */}
+                    <div className="h-px bg-slate-100" />
+
+                    {/* Visiting Terms & Guidelines */}
+                    <div className="space-y-2.5">
+                      <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                        Visiting Guidelines
+                      </h4>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        {partnerBookDetailModal.visiting_policy_notes ||
+                          "Visiting research fee applies for partner library access. Valid School ID and library referral slip required upon entry."}
+                      </p>
+
+                      <div className="space-y-1.5 pt-1 text-xs text-slate-500">
+                        <div className="flex items-center gap-2">
+                          <Check className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                          <span>Valid for on-site reading and library room study</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Check className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                          <span>Present digital QR approval pass at campus entrance</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Active Borrowers & Requesters (Clean Minimal List if any) */}
+                    {(() => {
+                      const activeBorrowersList = partnerBookBorrowers.length > 0
+                        ? partnerBookBorrowers
+                        : (partnerBookDetailModal.current_borrowers || []);
+
+                      if (activeBorrowersList.length === 0) return null;
+
+                      return (
+                        <>
+                          <div className="h-px bg-slate-100" />
+                          <div className="space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                                Active Requests & Loans
+                              </h4>
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                {activeBorrowersList.length} student{activeBorrowersList.length > 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            <div className="space-y-1.5">
+                              {activeBorrowersList.map((borrower, idx) => {
+                                const isReq = borrower.status === 'requested';
+                                const isWaiting = borrower.status === 'waiting_pickup';
+                                const isBorrowed = borrower.status === 'borrowed';
+
+                                return (
+                                  <div
+                                    key={borrower.id || borrower.request_id || idx}
+                                    className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-slate-50/80 text-xs"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0 pr-2">
+                                      <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-700 shrink-0 uppercase">
+                                        {(borrower.username || "S")[0]}
+                                      </div>
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <span className="font-semibold text-slate-800 truncate">@{borrower.username}</span>
+                                        <span className="text-[11px] text-slate-400 truncate">• {borrower.school_name}</span>
+                                      </div>
+                                    </div>
+                                    <span
+                                      className={`text-[9.5px] font-medium px-2 py-0.5 rounded-full shrink-0 ${
+                                        isReq
+                                          ? "bg-amber-100 text-amber-800"
+                                          : isWaiting
+                                          ? "bg-sky-100 text-sky-800"
+                                          : "bg-purple-100 text-purple-800"
+                                      }`}
+                                    >
+                                      {borrower.status_label || (isReq ? "Requested" : isWaiting ? "Waiting for Pickup" : "Borrowed")}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Primary Action Button at Bottom of Left Panel */}
+                  <div className="p-6 sm:p-7 pt-4 border-t border-slate-100 bg-white sticky bottom-0 z-10 lg:rounded-br-3xl">
+                    {(() => {
+                      const totalCopiesCount = partnerBookDetailModal.total_copies || (partnerBookDetailModal.copies?.length) || 1;
+                      const rawAvail = partnerBookDetailModal.available_copies !== undefined 
+                        ? partnerBookDetailModal.available_copies 
+                        : (totalCopiesCount - partnerBookBorrowers.length);
+                      const safeAvailCount = Math.max(0, rawAvail);
+                      const isZeroAvailable = safeAvailCount <= 0;
+
+                      return (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const currentSchoolId = parseInt(localStorage.getItem("schoolId"));
+                              const partner = partnerBookDetailModal || {};
+                              const selected = selectedBook || {};
+                              const targetBookId = Number(partner.available_book_id || partner.book_id || partner.id || selected.id || selected.book_id);
+                              setBorrowingFormList([
+                                {
+                                  book_id: targetBookId,
+                                  title: partner.title || selected.title || "Untitled Book",
+                                  author: partner.author || selected.author || "Unknown Author",
+                                  isbn: partner.isbn || selected.isbn || "N/A",
+                                  owner_school_id: partner.school_id || selected.school_id,
+                                  owner_school_name: partner.school_name || selected.library || "Partner School",
+                                  partner_school_id:
+                                    partner.school_id && partner.school_id !== currentSchoolId ? currentSchoolId : null,
+                                  borrow_type:
+                                    partner.school_id && partner.school_id !== currentSchoolId
+                                      ? "INTER_SCHOOL_LIBRARY_USE"
+                                      : "HOME",
+                                  visiting_fee: partner.enable_visiting_fee ? (Number(partner.visiting_fee_amount) || 0) : 0,
+                                  visiting_fee_type: partner.visiting_fee_type || "per_visit",
+                                  visiting_policy_notes: partner.visiting_policy_notes || "",
+                                },
+                              ]);
+                              setPartnerBookDetailModal(null);
+                              setShowBorrowingForm(true);
+                            }}
+                            disabled={isZeroAvailable || studentActiveLoanCount >= (selectedBookPolicy?.max_borrow_limit || 5)}
+                            className={`w-full h-11 inline-flex items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold text-white shadow-xs active:scale-[0.99] disabled:cursor-not-allowed transition ${
+                              isZeroAvailable
+                                ? "bg-slate-400 cursor-not-allowed opacity-75"
+                                : "bg-[#0077B6] hover:bg-[#005f8f]"
+                            }`}
+                          >
+                            {isZeroAvailable ? (
+                              <>
+                                <Clock className="h-4 w-4 shrink-0" />
+                                <span>All Copies Reserved / In Use</span>
+                              </>
+                            ) : (
+                              <>
+                                <Book className="h-4 w-4 shrink-0" />
+                                <span>Borrow This Copy</span>
+                              </>
+                            )}
+                          </button>
+                          <p className="text-center text-[11px] text-slate-400 mt-2 truncate">
+                            Host library pass for {partnerBookDetailModal.school_name}
+                          </p>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Google Maps Collapse/Expand Toggle Tab on Right Curve */}
                 <button
                   type="button"
                   onClick={() => {
-                    const currentSchoolId = parseInt(localStorage.getItem("schoolId"));
-                    const partner = partnerBookDetailModal || {};
-                    const selected = selectedBook || {};
-                    setBorrowingFormList([
-                      {
-                        book_id: Number(partner.book_id || partner.id || selected.id || selected.book_id),
-                        title: partner.title || selected.title || "Untitled Book",
-                        author: partner.author || selected.author || "Unknown Author",
-                        isbn: partner.isbn || selected.isbn || "N/A",
-                        owner_school_id: partner.school_id || selected.school_id,
-                        owner_school_name: partner.school_name || selected.library || "Partner School",
-                        partner_school_id:
-                          partner.school_id && partner.school_id !== currentSchoolId ? currentSchoolId : null,
-                        borrow_type:
-                          partner.school_id && partner.school_id !== currentSchoolId
-                            ? "INTER_SCHOOL_LIBRARY_USE"
-                            : "HOME",
-                        visiting_fee: partner.enable_visiting_fee ? (Number(partner.visiting_fee_amount) || 0) : 0,
-                        visiting_fee_type: partner.visiting_fee_type || "per_visit",
-                        visiting_policy_notes: partner.visiting_policy_notes || "",
-                      },
-                    ]);
-                    setPartnerBookDetailModal(null);
-                    setShowBorrowingForm(true);
+                    setPartnerPanelCollapsed((prev) => !prev);
+                    setTimeout(() => {
+                      window.dispatchEvent(new Event('resize'));
+                    }, 310);
                   }}
-                  disabled={studentActiveLoanCount >= (selectedBookPolicy?.max_borrow_limit || 5)}
-                  className="flex-[2] sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl bg-[#0077B6] px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-md hover:bg-[#005f8f] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  className="absolute top-1/2 -translate-y-1/2 -right-6 z-30 hidden lg:flex items-center justify-center w-6 h-14 bg-white rounded-r-xl shadow-[6px_0_16px_rgba(0,0,0,0.12)] border-y border-r border-slate-200/90 text-slate-600 hover:text-slate-950 hover:bg-slate-50 transition cursor-pointer group"
+                  aria-label={partnerPanelCollapsed ? "Expand panel" : "Collapse panel"}
+                  title={partnerPanelCollapsed ? "Expand panel" : "Collapse panel"}
                 >
-                  <Book className="h-4 w-4 shrink-0" />
-                  <span className="truncate">Borrow This Copy</span>
+                  {partnerPanelCollapsed ? (
+                    <ChevronRight className="h-4 w-4 transition-transform group-hover:scale-110" />
+                  ) : (
+                    <ChevronLeft className="h-4 w-4 transition-transform group-hover:scale-110" />
+                  )}
                 </button>
               </div>
             </div>

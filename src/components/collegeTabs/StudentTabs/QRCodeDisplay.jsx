@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { QrCode, Download, Share2, X, CheckCircle, AlertCircle, Copy, Shield, Lock, Sparkles, Building2, CheckCircle2, ArrowLeft } from 'lucide-react';
 import QRCode from 'qrcode';
 
-function QRCodeDisplay({ request, token, requestId, onClose, onShare }) {
+function QRCodeDisplay({ request, token, requestId, onClose, onShare, compact = false }) {
   const [qrCodeUrl, setQrCodeUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -373,6 +373,119 @@ function QRCodeDisplay({ request, token, requestId, onClose, onShare }) {
   const currentRequestId = request?.request_id || requestId || 'LL-PASS';
   const displayStatus = getDisplayStatus();
 
+  // Compact mode for Side Panel / Embedded views (no outer nested card, no duplicate dark blue header)
+  if (compact) {
+    return (
+      <div className="w-full flex flex-col items-center">
+        {/* Floating Download Security Toast */}
+        {downloadSuccessToast && (
+          <div className="fixed top-6 right-6 z-50 flex items-start gap-3 rounded-2xl bg-slate-900 text-white p-4 shadow-2xl border border-slate-700 max-w-sm animate-slide-up">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
+              <Shield className="h-4 w-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h5 className="text-xs font-bold text-white flex items-center gap-1.5">
+                <span>Pass Downloaded</span>
+                <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.2 text-[9px] text-emerald-300 font-bold">Secure</span>
+              </h5>
+              <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                Present this pass along with your physical ID card at the library counter.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDownloadSuccessToast(false)}
+              className="text-slate-400 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {/* QR Code Container */}
+        <div className="w-full flex flex-col items-center">
+          {loading && (
+            <div className="w-56 h-56 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-200">
+              <div className="text-center">
+                <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                <p className="text-xs text-slate-500 font-medium">Generating verified pass...</p>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="w-56 h-56 bg-rose-50 rounded-2xl flex items-center justify-center border border-rose-200 p-4">
+              <div className="text-center">
+                <AlertCircle className="w-8 h-8 text-rose-500 mx-auto mb-2" />
+                <p className="text-xs font-semibold text-rose-800">{error}</p>
+              </div>
+            </div>
+          )}
+
+          {!loading && !error && qrCodeUrl && (
+            <div className="flex flex-col items-center rounded-2xl bg-white p-3.5 border border-slate-200/90 shadow-2xs w-full max-w-[270px]">
+              <div className="relative p-2 bg-white rounded-xl border border-slate-100 shadow-2xs">
+                <img
+                  src={qrCodeUrl}
+                  alt="Official LibraLink QR Pass"
+                  className="h-48 w-48 object-contain rounded-lg"
+                />
+              </div>
+              <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-bold text-blue-900 bg-blue-50 px-3 py-1 rounded-full border border-blue-200/70 text-center">
+                <Shield className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                <span>LibraLink Verified Digital Pass</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="w-full flex flex-col gap-2 mt-3.5">
+          <button
+            type="button"
+            onClick={downloadQRCode}
+            disabled={loading || !qrCodeUrl}
+            className="w-full py-2.5 px-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+          >
+            <Download className="w-4 h-4 text-white" />
+            <span>Download Official Pass</span>
+          </button>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={copyQRCode}
+              disabled={loading || !qrCodeUrl}
+              className="py-2 px-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:scale-[0.98] text-slate-700 font-semibold text-xs transition-all flex items-center justify-center gap-1 disabled:opacity-50 cursor-pointer shadow-2xs"
+            >
+              {copied ? (
+                <>
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-emerald-700 font-bold">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Copy Image</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={shareQRCode}
+              disabled={loading || !qrCodeUrl}
+              className="py-2 px-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:scale-[0.98] text-slate-700 font-semibold text-xs transition-all flex items-center justify-center gap-1 disabled:opacity-50 cursor-pointer shadow-2xs"
+            >
+              <Share2 className="w-3.5 h-3.5 text-slate-500" />
+              <span>Share Pass</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const passCardContent = (
     <div className="box-border w-full max-w-md mx-auto rounded-3xl bg-white p-5 sm:p-7 shadow-xl border border-slate-200/80 relative my-2 sm:my-4">
       {/* Header */}
@@ -412,7 +525,7 @@ function QRCodeDisplay({ request, token, requestId, onClose, onShare }) {
               Request ID
             </span>
             <div className="flex items-center gap-1.5">
-              <span className="font-mono font-bold text-sm sm:text-base text-white tracking-wide break-all">
+              <span className="font-mono font-bold text-sm sm:text-base text-white tracking-wide whitespace-nowrap">
                 {currentRequestId}
               </span>
               <button

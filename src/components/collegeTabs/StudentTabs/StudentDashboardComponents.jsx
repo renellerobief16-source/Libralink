@@ -19,6 +19,10 @@ import {
   User,
   Home,
   Search,
+  Compass,
+  Bookmark,
+  Inbox as InboxIcon,
+  Clock,
   Heart,
   Mail,
   History as ClockIcon,
@@ -39,31 +43,31 @@ const navigation = [
     primary: true,
   },
   {
-    name: "Search",
+    name: "Explore",
     path: "/studentpage/search",
     icon: "/search.png",
-    mobileIcon: Search,
+    mobileIcon: Compass,
     primary: true,
   },
   {
-    name: "Favorites",
+    name: "Saved",
     path: "/studentpage/favorites",
     icon: "/heart.png",
-    mobileIcon: Heart,
+    mobileIcon: Bookmark,
     primary: true,
   },
   {
     name: "Inbox",
     path: "/studentpage/inbox",
     icon: "/email.png",
-    mobileIcon: Mail,
+    mobileIcon: InboxIcon,
     primary: true,
   },
   {
-    name: "History",
+    name: "Activity",
     path: "/studentpage/history",
     icon: "/history.png",
-    mobileIcon: ClockIcon,
+    mobileIcon: Clock,
     primary: false,
   },
   {
@@ -1694,7 +1698,7 @@ export function StudentLayout({
         )}
 
         {/* Navigation Icons & Links */}
-        <nav className="flex-1 flex flex-col py-4 px-2.5 gap-1.5 overflow-y-auto scrollbar-hide">
+        <nav className="flex-1 flex flex-col py-4 px-2.5 gap-1 overflow-y-auto scrollbar-hide">
           {/* Home */}
           <NavLink
             to="/studentpage"
@@ -1702,82 +1706,91 @@ export function StudentLayout({
             onClick={() => setActivePanel(null)}
             title={!sidebarExpanded ? "Home" : undefined}
             className={({ isActive }) => `
-              group relative flex items-center rounded-xl transition-all duration-200
-              ${sidebarExpanded ? "gap-3 px-3 py-2.5 text-sm font-medium" : "justify-center p-3"}
+              group relative flex items-center rounded-xl transition-all duration-150
+              ${sidebarExpanded ? "gap-3 px-3.5 py-2.5 text-sm" : "justify-center p-3"}
               ${isActive && !activePanel
-                ? "text-blue-600 bg-blue-50/90 font-semibold shadow-2xs"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"}
+                ? "text-slate-900 font-semibold"
+                : "text-slate-500 hover:text-slate-900 hover:bg-slate-50/80 font-normal"}
             `}
           >
             {({ isActive }) => (
               <>
-                <Home className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 group-hover:scale-110 ${isActive && !activePanel ? "text-blue-600" : "text-slate-500 group-hover:text-slate-800"}`} />
+                <Home
+                  className={`w-5 h-5 flex-shrink-0 transition-colors ${isActive && !activePanel ? "text-[#0077B6]" : "text-slate-400 group-hover:text-slate-700"}`}
+                  strokeWidth={isActive && !activePanel ? 2.1 : 1.75}
+                />
                 {sidebarExpanded ? (
                   <span className="truncate">Home</span>
                 ) : (
                   <span className="sr-only">Home</span>
                 )}
                 {isActive && !activePanel && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-blue-600 rounded-r-full shadow-xs" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[#0077B6] rounded-r-full" />
                 )}
               </>
             )}
           </NavLink>
 
-          {/* Search Books */}
+          {/* Explore (formerly Search Books) */}
           <NavLink
             to="/studentpage/search"
             onClick={() => setActivePanel(null)}
-            title={!sidebarExpanded ? "Search Books" : undefined}
+            title={!sidebarExpanded ? "Explore" : undefined}
             className={({ isActive }) => `
-              group relative flex items-center rounded-xl transition-all duration-200
-              ${sidebarExpanded ? "gap-3 px-3 py-2.5 text-sm font-medium" : "justify-center p-3"}
+              group relative flex items-center rounded-xl transition-all duration-150
+              ${sidebarExpanded ? "gap-3 px-3.5 py-2.5 text-sm" : "justify-center p-3"}
               ${isActive && !activePanel
-                ? "text-blue-600 bg-blue-50/90 font-semibold shadow-2xs"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"}
+                ? "text-slate-900 font-semibold"
+                : "text-slate-500 hover:text-slate-900 hover:bg-slate-50/80 font-normal"}
             `}
           >
             {({ isActive }) => (
               <>
-                <Search className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 group-hover:scale-110 ${isActive && !activePanel ? "text-blue-600" : "text-slate-500 group-hover:text-slate-800"}`} />
+                <Compass
+                  className={`w-5 h-5 flex-shrink-0 transition-colors ${isActive && !activePanel ? "text-[#0077B6]" : "text-slate-400 group-hover:text-slate-700"}`}
+                  strokeWidth={isActive && !activePanel ? 2.1 : 1.75}
+                />
                 {sidebarExpanded ? (
-                  <span className="truncate">Search Books</span>
+                  <span className="truncate">Explore</span>
                 ) : (
-                  <span className="sr-only">Search Books</span>
+                  <span className="sr-only">Explore</span>
                 )}
                 {isActive && !activePanel && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-blue-600 rounded-r-full shadow-xs" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[#0077B6] rounded-r-full" />
                 )}
               </>
             )}
           </NavLink>
 
-          {/* Favorites (Drawer) */}
+          {/* Saved (formerly Favorites) */}
           <NavLink
             to="/studentpage/favorites"
             onClick={(event) => {
               event.preventDefault();
               setActivePanel(activePanel === "favorites" ? null : "favorites");
             }}
-            title={!sidebarExpanded ? "Favorites" : undefined}
+            title={!sidebarExpanded ? "Saved" : undefined}
             className={({ isActive }) => `
-              group relative flex items-center rounded-xl transition-all duration-200
-              ${sidebarExpanded ? "gap-3 px-3 py-2.5 text-sm font-medium" : "justify-center p-3"}
+              group relative flex items-center rounded-xl transition-all duration-150
+              ${sidebarExpanded ? "gap-3 px-3.5 py-2.5 text-sm" : "justify-center p-3"}
               ${isActive || activePanel === "favorites"
-                ? "text-blue-600 bg-blue-50/90 font-semibold shadow-2xs"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"}
+                ? "text-slate-900 font-semibold"
+                : "text-slate-500 hover:text-slate-800 hover:bg-slate-50/80 font-normal"}
             `}
           >
             {({ isActive }) => (
               <>
-                <Heart className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 group-hover:scale-110 ${isActive || activePanel === "favorites" ? "text-rose-500 fill-rose-500/20" : "text-slate-500 group-hover:text-rose-500"}`} />
+                <Bookmark
+                  className={`w-5 h-5 flex-shrink-0 transition-colors ${isActive || activePanel === "favorites" ? "text-[#0077B6]" : "text-slate-400 group-hover:text-slate-700"}`}
+                  strokeWidth={isActive || activePanel === "favorites" ? 2.1 : 1.75}
+                />
                 {sidebarExpanded ? (
-                  <span className="truncate">Favorites</span>
+                  <span className="truncate">Saved</span>
                 ) : (
-                  <span className="sr-only">Favorites</span>
+                  <span className="sr-only">Saved</span>
                 )}
                 {(isActive || activePanel === "favorites") && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-blue-600 rounded-r-full shadow-xs" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[#0077B6] rounded-r-full" />
                 )}
               </>
             )}
@@ -1792,50 +1805,60 @@ export function StudentLayout({
             }}
             title={!sidebarExpanded ? "Inbox" : undefined}
             className={({ isActive }) => `
-              relative flex items-center rounded-xl transition-all duration-200
-              ${sidebarExpanded ? "gap-3 px-3 py-2.5 text-sm font-medium" : "justify-center p-3"}
-              ${isActive || activePanel === "inbox" ? "text-[#2563EB] bg-blue-50/80 font-semibold" : "text-[#64748B] hover:text-[#0F172A] hover:bg-slate-50"}
+              group relative flex items-center rounded-xl transition-all duration-150
+              ${sidebarExpanded ? "gap-3 px-3.5 py-2.5 text-sm" : "justify-center p-3"}
+              ${isActive || activePanel === "inbox"
+                ? "text-slate-900 font-semibold"
+                : "text-slate-500 hover:text-slate-800 hover:bg-slate-50/80 font-normal"}
             `}
           >
             {({ isActive }) => (
               <>
-                <Mail className="w-5 h-5 flex-shrink-0" />
+                <InboxIcon
+                  className={`w-5 h-5 flex-shrink-0 transition-colors ${isActive || activePanel === "inbox" ? "text-[#0077B6]" : "text-slate-400 group-hover:text-slate-700"}`}
+                  strokeWidth={isActive || activePanel === "inbox" ? 2.1 : 1.75}
+                />
                 {sidebarExpanded ? (
                   <span className="truncate">Inbox</span>
                 ) : (
                   <span className="sr-only">Inbox</span>
                 )}
                 {(isActive || activePanel === "inbox") && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-[#2563EB] rounded-r-full" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[#0077B6] rounded-r-full" />
                 )}
               </>
             )}
           </NavLink>
 
-          {/* Borrow History (Drawer) */}
+          {/* Activity (formerly Borrow History) */}
           <NavLink
             to="/studentpage/history"
             onClick={(event) => {
               event.preventDefault();
               setActivePanel(activePanel === "history" ? null : "history");
             }}
-            title={!sidebarExpanded ? "Borrowing History" : undefined}
+            title={!sidebarExpanded ? "Activity" : undefined}
             className={({ isActive }) => `
-              relative flex items-center rounded-xl transition-all duration-200
-              ${sidebarExpanded ? "gap-3 px-3 py-2.5 text-sm font-medium" : "justify-center p-3"}
-              ${isActive || activePanel === "history" ? "text-[#2563EB] bg-blue-50/80 font-semibold" : "text-[#64748B] hover:text-[#0F172A] hover:bg-slate-50"}
+              group relative flex items-center rounded-xl transition-all duration-150
+              ${sidebarExpanded ? "gap-3 px-3.5 py-2.5 text-sm" : "justify-center p-3"}
+              ${isActive || activePanel === "history"
+                ? "text-slate-900 font-semibold"
+                : "text-slate-500 hover:text-slate-800 hover:bg-slate-50/80 font-normal"}
             `}
           >
             {({ isActive }) => (
               <>
-                <ClockIcon className="w-5 h-5 flex-shrink-0" />
+                <Clock
+                  className={`w-5 h-5 flex-shrink-0 transition-colors ${isActive || activePanel === "history" ? "text-[#0077B6]" : "text-slate-400 group-hover:text-slate-700"}`}
+                  strokeWidth={isActive || activePanel === "history" ? 2.1 : 1.75}
+                />
                 {sidebarExpanded ? (
-                  <span className="truncate">Borrow History</span>
+                  <span className="truncate">Activity</span>
                 ) : (
-                  <span className="sr-only">Borrowing History</span>
+                  <span className="sr-only">Activity</span>
                 )}
                 {(isActive || activePanel === "history") && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-[#2563EB] rounded-r-full" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[#0077B6] rounded-r-full" />
                 )}
               </>
             )}
@@ -1853,21 +1876,26 @@ export function StudentLayout({
             }}
             title={!sidebarExpanded ? "Settings" : undefined}
             className={({ isActive }) => `
-              relative flex items-center rounded-xl transition-all duration-200
-              ${sidebarExpanded ? "gap-3 px-3 py-2 text-sm font-medium" : "justify-center p-3"}
-              ${isActive || activePanel === "settings" ? "text-[#2563EB] bg-blue-50/80 font-semibold" : "text-[#64748B] hover:text-[#0F172A] hover:bg-slate-50"}
+              group relative flex items-center rounded-xl transition-all duration-150
+              ${sidebarExpanded ? "gap-3 px-3.5 py-2 text-sm" : "justify-center p-3"}
+              ${isActive || activePanel === "settings"
+                ? "text-slate-900 font-semibold"
+                : "text-slate-500 hover:text-slate-800 hover:bg-slate-50/80 font-normal"}
             `}
           >
             {({ isActive }) => (
               <>
-                <Settings className="w-5 h-5 flex-shrink-0" />
+                <Settings
+                  className={`w-5 h-5 flex-shrink-0 transition-colors ${isActive || activePanel === "settings" ? "text-[#0077B6]" : "text-slate-400 group-hover:text-slate-700"}`}
+                  strokeWidth={isActive || activePanel === "settings" ? 2.1 : 1.75}
+                />
                 {sidebarExpanded ? (
                   <span className="truncate">Settings</span>
                 ) : (
                   <span className="sr-only">Settings</span>
                 )}
                 {(isActive || activePanel === "settings") && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-[#2563EB] rounded-r-full" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[#0077B6] rounded-r-full" />
                 )}
               </>
             )}

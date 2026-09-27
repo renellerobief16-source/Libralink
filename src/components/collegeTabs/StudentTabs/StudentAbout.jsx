@@ -1,207 +1,192 @@
-import { Check, Zap, Shield, Heart, MessageCircle } from "lucide-react";
+import React from "react";
+import {
+  Building2,
+  Globe,
+  QrCode,
+  ShieldCheck,
+  BookOpen,
+  Cpu,
+  Layers,
+  CheckCircle,
+  ExternalLink,
+  MapPin,
+} from "lucide-react";
+import StudentKnowledgeNav from "./StudentKnowledgeNav";
 
-function StudentAbout() {
+export default function StudentAbout() {
+  const consortiumCampuses = [
+    {
+      code: "GNC",
+      name: "Guagua National College",
+      location: "San Jose, Guagua, Pampanga",
+      role: "Lead Host Institution & Repository",
+      collections: "General Education, Business, Education, Sciences, Literature",
+    },
+    {
+      code: "SRC",
+      name: "Santa Rita College",
+      location: "Gosioco Street, San Jose, Santa Rita, Pampanga",
+      role: "Consortium Partner Campus",
+      collections: "Theology, Reference Collections, Health & Humanities",
+    },
+  ];
+
+  const platformPillars = [
+    {
+      title: "Consortium Real-time Catalogue Sync",
+      description:
+        "Queries physical library inventories across member institutions simultaneously. Students can see shelf locations, call numbers, and live availability at both GNC and Santa Rita College.",
+      icon: Globe,
+    },
+    {
+      title: "Digital QR Authorization & Passes",
+      description:
+        "Replaces paper circulation slips with dynamic QR tokens. Approved borrowing requests generate an encrypted pass that host campus librarians scan to verify identity and release books.",
+      icon: QrCode,
+    },
+    {
+      title: "Unified Student Account Governance",
+      description:
+        "Maintains a synchronized 5-book borrowing ceiling, automated overdue fee tracking (₱10.00/day), and cross-campus clearance records under a single student profile.",
+      icon: ShieldCheck,
+    },
+    {
+      title: "Interactive Campus Spatial Maps",
+      description:
+        "Integrated mapping engine providing exact geographical coordinates, building guidance, and route directions between Guagua and Santa Rita campuses.",
+      icon: MapPin,
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="mx-auto w-full max-w-4xl min-w-0 overflow-x-hidden px-4 py-8 md:py-12">
-        
-        {/* Header */}
-        <div className="mb-10 animate-fade-in-down">
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">About Libralink</h1>
-          <p className="mt-2 text-base text-slate-600">Learn about our library management platform</p>
-        </div>
+    <div className="min-h-screen bg-white">
+      {/* Shared Knowledge Top Navigation */}
+      <StudentKnowledgeNav
+        activeTab="about"
+        title="About Libralink"
+        subtitle="The unified inter-school library consortium platform empowering collaborative academic research."
+        badgeText="Platform Overview"
+      />
 
-        {/* Hero Section */}
-        <section className="mb-10 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-8 md:p-12 shadow-lg hover:shadow-xl transition-shadow animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-          <div className="flex flex-col items-center text-center">
-            <div className="mb-6 animate-bounce">
-              <img 
-                src="/L.png" 
-                alt="Libralink Logo" 
-                className="h-28 w-28 object-contain drop-shadow-lg hover:scale-110 transition-transform"
-              />
-            </div>
-            <h2 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent animate-fade-in" style={{ animationDelay: '0.2s' }}>Libralink</h2>
-            <p className="mt-3 text-xl text-slate-700 animate-fade-in" style={{ animationDelay: '0.3s' }}>Unified Library Management System</p>
-            <div className="mt-6 flex items-center gap-2 text-sm font-semibold text-slate-600 animate-fade-in" style={{ animationDelay: '0.4s' }}>
-              <span>Version 1.2.0</span>
-              <span className="text-slate-300">•</span>
-              <span>Released Aug 30, 2026</span>
-            </div>
-          </div>
-        </section>
-
-        {/* About Section */}
-        <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-          <h3 className="text-2xl font-bold text-slate-900 mb-4 group">
-            <span className="group-hover:text-blue-600 transition-colors">About</span>
-          </h3>
-          <p className="text-base leading-7 text-slate-700">
-            Libralink is a comprehensive library management platform designed to streamline book borrowing, tracking, and library operations across educational institutions. Built with modern technology, Libralink provides students, librarians, and administrators with an intuitive interface to manage library resources efficiently.
+      <main className="mx-auto max-w-4xl px-4 sm:px-6 py-8 sm:py-10 space-y-10">
+        {/* Mission Statement */}
+        <section className="space-y-3">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+            Consortium Mission
           </p>
-          <p className="mt-5 text-base leading-7 text-slate-700">
-            Our mission is to make library management seamless and accessible, improving the overall experience for everyone involved in library operations.
+          <p className="text-sm sm:text-base text-slate-800 leading-relaxed font-medium">
+            Libralink is an academic inter-institutional library network created to dismantle barriers to educational resources. By digitally linking campus libraries in Pampanga, students gain reciprocal borrowing privileges, expanded research archives, and automated cross-library access.
+          </p>
+          <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+            Rather than confining student research to the physical holdings of a single institution, Libralink provides a shared portal where books catalogued across member schools can be discovered, reserved, and accessed through standardized digital clearance passes.
           </p>
         </section>
 
-        {/* Key Features */}
-        <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
-          <div className="flex items-center gap-3 mb-6 group">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-600 group-hover:scale-110 transition-transform">
-              <Zap className="h-5 w-5" aria-hidden="true" />
-            </div>
-            <h3 className="text-2xl font-bold text-slate-900 group-hover:text-blue-600 transition-colors">Key Features</h3>
+        {/* Member Campuses */}
+        <section className="space-y-4 pt-4 border-t border-slate-100">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              Connected Campuses
+            </p>
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-1">
+              Active Consortium Libraries
+            </h2>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {[
-              { title: "Book Browsing & Discovery", desc: "Explore thousands of books with advanced search and filtering" },
-              { title: "Smart Borrowing Requests", desc: "Request books from partner libraries with ease" },
-              { title: "Due Date Reminders", desc: "Never miss a deadline with timely notifications" },
-              { title: "Fine Management", desc: "Track and manage library fines transparently" },
-              { title: "Real-time Notifications", desc: "Stay updated with instant alerts and updates" },
-              { title: "Personalized Settings", desc: "Customize your experience with flexible preferences" },
-            ].map((feature, idx) => (
-              <div key={idx} className="flex gap-3 p-3 rounded-lg hover:bg-slate-50 transition transform hover:scale-105 animate-fade-in-up" style={{ animationDelay: `${0.35 + idx * 0.05}s` }}>
-                <Check className="h-5 w-5 shrink-0 text-emerald-500 mt-0.5" aria-hidden="true" />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {consortiumCampuses.map((campus) => (
+              <div
+                key={campus.code}
+                className="rounded-2xl border border-slate-100 bg-slate-50/50 p-5 space-y-2.5 transition hover:border-slate-200"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700">
+                    {campus.code}
+                  </span>
+                  <span className="text-[11px] font-medium text-blue-600">Active Node</span>
+                </div>
+
                 <div>
-                  <p className="font-semibold text-slate-900">{feature.title}</p>
-                  <p className="mt-1 text-sm text-slate-600">{feature.desc}</p>
+                  <h3 className="text-sm font-bold text-slate-900">{campus.name}</h3>
+                  <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                    <MapPin className="h-3 w-3 shrink-0" />
+                    <span>{campus.location}</span>
+                  </p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200/60 text-xs text-slate-600 space-y-1">
+                  <p><span className="font-semibold text-slate-700">Role:</span> {campus.role}</p>
+                  <p><span className="font-semibold text-slate-700">Specializations:</span> {campus.collections}</p>
                 </div>
               </div>
             ))}
           </div>
         </section>
 
-        {/* Technology & Stack */}
-        <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
-          <div className="flex items-center gap-3 mb-6 group">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 text-purple-600 group-hover:scale-110 transition-transform">
-              <Shield className="h-5 w-5" aria-hidden="true" />
-            </div>
-            <h3 className="text-2xl font-bold text-slate-900 group-hover:text-purple-600 transition-colors">Built With Modern Technology</h3>
+        {/* Core Pillars */}
+        <section className="space-y-4 pt-4 border-t border-slate-100">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              Key Features
+            </p>
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-1">
+              Engineered for Seamless Collaboration
+            </h2>
           </div>
-          <div className="grid gap-6 md:grid-cols-3">
-            {[
-              { label: "Frontend", tech: "React, Tailwind CSS, Modern UI Components" },
-              { label: "Backend", tech: "Node.js, Express, RESTful API" },
-              { label: "Database", tech: "PostgreSQL, Real-time Sync" },
-            ].map((item, idx) => (
-              <div key={idx} className="p-4 rounded-lg bg-slate-50 hover:bg-slate-100 transition transform hover:scale-105 animate-fade-in-up" style={{ animationDelay: `${0.45 + idx * 0.05}s` }}>
-                <p className="font-semibold text-slate-900 mb-2">{item.label}</p>
-                <p className="text-sm text-slate-600 leading-relaxed">{item.tech}</p>
-              </div>
-            ))}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            {platformPillars.map((pillar) => {
+              const PillarIcon = pillar.icon;
+              return (
+                <div key={pillar.title} className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <PillarIcon className="h-4 w-4 text-[#0077B6] shrink-0" />
+                    <h3 className="text-sm font-bold text-slate-900">{pillar.title}</h3>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed pl-6">
+                    {pillar.description}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </section>
 
-        {/* System Information */}
-        <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
-          <div className="flex items-center gap-3 mb-6 group">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 group-hover:scale-110 transition-transform">
-              <Heart className="h-5 w-5" aria-hidden="true" />
-            </div>
-            <h3 className="text-2xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">System Information</h3>
+        {/* Technical Architecture & Specs */}
+        <section className="space-y-4 pt-4 border-t border-slate-100">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              System Specifications
+            </p>
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-1">
+              Architecture & Data Security
+            </h2>
           </div>
-          <div className="space-y-3 animate-fade-in" style={{ animationDelay: '0.55s' }}>
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100 hover:bg-slate-50 px-2 rounded transition">
-              <span className="text-slate-600">Application Version</span>
-              <span className="font-semibold text-slate-900">1.2.0</span>
+
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-5 divide-y divide-slate-200/60 text-xs">
+            <div className="py-2.5 flex justify-between items-center">
+              <span className="font-medium text-slate-500">Platform Version</span>
+              <span className="font-mono font-semibold text-slate-800">Libralink v2.4.0 (Enterprise Academic)</span>
             </div>
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100 hover:bg-slate-50 px-2 rounded transition">
-              <span className="text-slate-600">Build Number</span>
-              <span className="font-semibold text-slate-900">Latest</span>
+            <div className="py-2.5 flex justify-between items-center">
+              <span className="font-medium text-slate-500">Database Engine</span>
+              <span className="font-semibold text-slate-800">PostgreSQL with Supabase Realtime Replicas</span>
             </div>
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100 hover:bg-slate-50 px-2 rounded transition">
-              <span className="text-slate-600">Release Date</span>
-              <span className="font-semibold text-slate-900">August 30, 2026</span>
+            <div className="py-2.5 flex justify-between items-center">
+              <span className="font-medium text-slate-500">Frontend Technology</span>
+              <span className="font-semibold text-slate-800">React 18, Vite Engine, Tailwind CSS</span>
             </div>
-            <div className="flex justify-between items-center hover:bg-slate-50 px-2 rounded transition">
-              <span className="text-slate-600">Status</span>
-              <span className="font-semibold text-emerald-600 flex items-center gap-1">
-                <span className="w-2 h-2 bg-emerald-600 rounded-full animate-pulse"></span>
-                Active
-              </span>
+            <div className="py-2.5 flex justify-between items-center">
+              <span className="font-medium text-slate-500">Mapping & Geolocation</span>
+              <span className="font-semibold text-slate-800">Interactive OpenStreetMap & Leaflet Vector Engine</span>
+            </div>
+            <div className="py-2.5 flex justify-between items-center">
+              <span className="font-medium text-slate-500">Security Standard</span>
+              <span className="font-semibold text-slate-800">AES Token Authentication & Institutional RBAC</span>
             </div>
           </div>
         </section>
-
-        {/* Legal & Policy */}
-        <section className="mb-10 rounded-xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow animate-fade-in-up" style={{ animationDelay: '0.6s' }}>
-          <div className="flex items-center gap-3 mb-6 group">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-600 group-hover:scale-110 transition-transform">
-              <MessageCircle className="h-5 w-5" aria-hidden="true" />
-            </div>
-            <h3 className="text-2xl font-bold text-slate-900 group-hover:text-slate-700 transition-colors">Legal & Policy</h3>
-          </div>
-          <p className="text-sm text-slate-600 mb-5">© 2026 Libralink. All rights reserved.</p>
-          <div className="space-y-3">
-            <a
-              href="/studentpage/terms"
-              className="block text-blue-600 hover:text-blue-700 font-medium text-sm transition hover:underline transform hover:translate-x-1"
-            >
-              → Terms of Service
-            </a>
-            <a
-              href="/studentpage/privacy"
-              className="block text-blue-600 hover:text-blue-700 font-medium text-sm transition hover:underline transform hover:translate-x-1"
-            >
-              → Privacy Policy
-            </a>
-          </div>
-        </section>
-
-        {/* Footer */}
-        <div className="text-center py-8 border-t border-slate-200 animate-fade-in" style={{ animationDelay: '0.7s' }}>
-          <p className="text-sm text-slate-600 leading-relaxed">
-            Thank you for using Libralink! We're committed to providing the best library management experience.
-          </p>
-        </div>
-      </div>
-
-      <style jsx>{`
-        @keyframes fadeInDown {
-          from {
-            opacity: 0;
-            transform: translateY(-20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
-        .animate-fade-in-down {
-          animation: fadeInDown 0.6s ease-out forwards;
-          opacity: 0;
-        }
-        .animate-fade-in-up {
-          animation: fadeInUp 0.6s ease-out forwards;
-          opacity: 0;
-        }
-        .animate-fade-in {
-          animation: fadeIn 0.6s ease-out forwards;
-          opacity: 0;
-        }
-      `}</style>
+      </main>
     </div>
   );
 }
-
-export default StudentAbout;

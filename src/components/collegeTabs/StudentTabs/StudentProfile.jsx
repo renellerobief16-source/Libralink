@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   User,
   Mail,
@@ -1341,40 +1342,51 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
         </div>
       )}
       {/* ─── MODAL: Full ID Photo Zoom Modal ─────────────────────────────── */}
-      {isZoomIdOpen && idCardPicture && (
+      {typeof document !== 'undefined' && isZoomIdOpen && idCardPicture && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-[2px] animate-fade-in"
           onClick={() => setIsZoomIdOpen(false)}
         >
           <div
             role="dialog"
             aria-modal="true"
-            className="relative max-w-lg w-full bg-slate-900 rounded-3xl p-4 border border-white/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+            className="relative max-w-[360px] w-full bg-white rounded-2xl p-5 border border-slate-100 shadow-2xl space-y-3.5 animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
-              <div>
-                <h4 className="text-sm font-bold text-white">Physical Student ID Card</h4>
-                <p className="text-[11px] text-slate-400">{displayName} · {studentNumber}</p>
+            <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+              <div className="min-w-0 pr-3">
+                <h4 className="text-sm font-bold text-slate-900 truncate">Physical Student ID Card</h4>
+                <p className="text-[11px] font-mono text-slate-400 mt-0.5 truncate">{displayName} · {studentNumber}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsZoomIdOpen(false)}
-                className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer"
                 title="Close"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="rounded-2xl overflow-hidden bg-slate-950 flex items-center justify-center max-h-[75vh]">
+            <div className="rounded-xl overflow-hidden border border-slate-200/90 bg-slate-50 flex items-center justify-center aspect-[16/10] p-1 shadow-2xs">
               <img
                 src={idCardPicture}
                 alt="Student ID Card Full View"
-                className="w-full h-full object-contain max-h-[70vh] rounded-xl"
+                className="w-full h-full object-contain rounded-lg"
               />
             </div>
+            <p className="text-[11px] text-slate-500 text-center truncate">
+              Verified campus identification card on file
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsZoomIdOpen(false)}
+              className="w-full py-2 px-3 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-colors shadow-2xs cursor-pointer"
+            >
+              Close
+            </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

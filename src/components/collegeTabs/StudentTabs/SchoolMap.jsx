@@ -52,7 +52,7 @@ function SchoolMap({ school, book, onClose }) {
  *             Defaults to 280. Do NOT pass '100%'.
  *  onExpand – optional callback when user clicks the expand button
  * ─────────────────────────────────────────────────────────────────────── */
-function MinimalSchoolMap({ school, book, height = 280, onExpand }) {
+function MinimalSchoolMap({ school, book, height = 280, onExpand, className = '', sidebarOffset = false }) {
   const [loading, setLoading] = useState(true);
   const [coords, setCoords] = useState(null);
   const [extraSchoolInfo, setExtraSchoolInfo] = useState(null);
@@ -134,7 +134,7 @@ function MinimalSchoolMap({ school, book, height = 280, onExpand }) {
   if (loading) {
     return (
       <div
-        className="flex w-full items-center justify-center rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-sky-50"
+        className={`flex w-full items-center justify-center ${resolvedHeight === '100%' ? 'h-full rounded-none border-0' : 'rounded-2xl border border-slate-100'} bg-gradient-to-br from-slate-50 to-sky-50 ${className}`}
         style={{ height: resolvedHeight }}
       >
         <div className="flex items-center gap-2.5 text-sky-600">
@@ -148,7 +148,7 @@ function MinimalSchoolMap({ school, book, height = 280, onExpand }) {
   if (!coords) {
     return (
       <div
-        className="flex w-full items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 p-4"
+        className={`flex w-full items-center justify-center ${resolvedHeight === '100%' ? 'h-full rounded-none border-0' : 'rounded-2xl border border-slate-100'} bg-slate-50 p-4 ${className}`}
         style={{ height: resolvedHeight }}
       >
         <div className="text-center">
@@ -172,6 +172,8 @@ function MinimalSchoolMap({ school, book, height = 280, onExpand }) {
       book={book}
       height={resolvedHeight}
       onExpand={onExpand}
+      className={className}
+      sidebarOffset={sidebarOffset}
     />
   );
 }

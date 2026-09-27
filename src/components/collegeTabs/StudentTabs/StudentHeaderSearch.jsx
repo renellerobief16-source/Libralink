@@ -286,12 +286,6 @@ export function StudentHeaderSearch({ className = "" }) {
 
   // Fetch partner school books with debounce when query is typed (1-letter trigger)
   useEffect(() => {
-    if (isHomePage) {
-      setPartnerBooks([]);
-      setSearchingPartner(false);
-      return undefined;
-    }
-
     const trimmed = searchQuery.trim();
     if (trimmed.length < 1) {
       setPartnerBooks([]);
@@ -307,17 +301,17 @@ export function StudentHeaderSearch({ className = "" }) {
           `/books/search-other-schools?title=${encodeURIComponent(trimmed)}&exclude_school_id=${currentSchoolId}`
         );
         const data = res?.success && Array.isArray(res?.data) ? res.data : [];
-        setPartnerBooks(data.slice(0, 4));
+        setPartnerBooks(data.slice(0, 6));
       } catch (error) {
         console.warn("[StudentHeaderSearch] Error checking partner schools:", error);
         setPartnerBooks([]);
       } finally {
         setSearchingPartner(false);
       }
-    }, 140);
+    }, 120);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, isHomePage]);
+  }, [searchQuery]);
 
   const mobileInputRef = useRef(null);
   const mobilePortalRef = useRef(null);
@@ -474,8 +468,9 @@ export function StudentHeaderSearch({ className = "" }) {
       });
       if (match) {
         handleSelectController(match);
+        return;
       }
-      return;
+      // If no navigation controller matches, fall through to regular book search
     }
 
     if (trimmed) {
@@ -518,7 +513,7 @@ export function StudentHeaderSearch({ className = "" }) {
   const trimmedQuery = searchQuery.trim().toLowerCase();
   const hasQuery = trimmedQuery.length > 0;
 
-  // Google-style predictive keywords (from titles, authors, categories)
+  // Google-style predictive keywords (from titles, authors, categories, and partner books)
   const predictions = useMemo(() => {
     if (!hasQuery) return [];
     const pool = new Set();
@@ -528,6 +523,12 @@ export function StudentHeaderSearch({ className = "" }) {
       if (b.author) pool.add(b.author.trim());
       if (b.category) pool.add(b.category.trim());
       if (b.categories?.category_name) pool.add(b.categories.category_name.trim());
+    });
+
+    safePartnerBooks.forEach((b) => {
+      if (b.title) pool.add(b.title.trim());
+      if (b.author) pool.add(b.author.trim());
+      if (b.category) pool.add(b.category.trim());
     });
 
     POPULAR_TOPICS.forEach((t) => {
@@ -549,7 +550,7 @@ export function StudentHeaderSearch({ className = "" }) {
     });
 
     return matches.slice(0, 4);
-  }, [safeHomeBooks, trimmedQuery, hasQuery]);
+  }, [safeHomeBooks, safePartnerBooks, trimmedQuery, hasQuery]);
 
   const homeMatches = useMemo(() => {
     if (!hasQuery) return [];
@@ -607,6 +608,7 @@ export function StudentHeaderSearch({ className = "" }) {
       ...partnerBook,
       id: partnerBook.id || partnerBook.book_id,
       book_id: partnerBook.book_id || partnerBook.id,
+      is_from_other_school: true,
     };
 
     if (isSearchPage) {
@@ -781,31 +783,31 @@ export function StudentHeaderSearch({ className = "" }) {
                             key={ctrl.id}
                             onClick={() => handleSelectController(ctrl)}
                             onMouseEnter={() => setActiveIndex(cIdx)}
-                            className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all border ${
+                            className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${
                               isSelected
-                                ? "bg-blue-50/90 border-blue-300 shadow-2xs"
-                                : "border-transparent hover:bg-blue-50/40 hover:border-blue-200"
+                                ? "bg-slate-100 text-slate-900"
+                                : "hover:bg-slate-50/80 text-slate-700"
                             }`}
                           >
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-100/70 text-blue-700 border border-blue-200/60 shadow-2xs">
-                              <CtrlIcon className="h-4.5 w-4.5" />
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 group-hover:text-slate-900 group-hover:bg-slate-200/60 transition-colors">
+                              <CtrlIcon className="h-4 w-4" strokeWidth={1.8} />
                             </div>
 
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
-                                <h4 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                                <h4 className="text-xs sm:text-sm font-semibold text-slate-900 truncate">
                                   <HighlightMatch text={ctrl.title} query={searchQuery} />
                                 </h4>
-                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${ctrl.badgeColor}`}>
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500">
                                   {ctrl.badge}
                                 </span>
                               </div>
-                              <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                              <p className="text-[11px] text-slate-400 truncate mt-0.5">
                                 <HighlightMatch text={ctrl.description} query={searchQuery} />
                               </p>
                             </div>
 
-                            <ChevronRight className="h-4 w-4 text-slate-300 shrink-0" />
+                            <ChevronRight className="h-3.5 w-3.5 text-slate-300 shrink-0 group-hover:text-slate-500 transition-colors" />
                           </div>
                         );
                       })}

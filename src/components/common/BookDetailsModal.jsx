@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   FiX, 
   FiBook, 
@@ -67,13 +68,15 @@ export default function BookDetailsModal({
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div 
-      className="fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
+      className="fixed inset-0 z-[99999] bg-slate-900/35 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fade-in"
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200/90 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200"
+        className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200/90 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -194,14 +197,14 @@ export default function BookDetailsModal({
             </div>
           </div>
 
-          {/* Bibliographic Classification & Location Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {/* Bibliographic Classification & Location Grid (Clean 4-column layout) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {/* DDC Classification */}
-            <div className="p-3.5 rounded-xl border border-amber-200/90 bg-amber-50/50 relative group">
-              <div className="flex items-center justify-between text-amber-700 mb-1">
-                <div className="flex items-center gap-2">
-                  <FiBookmark className="w-4 h-4 text-amber-600" />
-                  <span className="text-[11px] font-bold uppercase tracking-wider">Dewey Decimal (DDC)</span>
+            <div className="p-3 rounded-xl border border-slate-200/90 bg-slate-50/70 relative group">
+              <div className="flex items-center justify-between text-slate-500 mb-1">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <FiBookmark className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider truncate">DDC</span>
                 </div>
                 {ddc && (
                   <button
@@ -225,11 +228,11 @@ export default function BookDetailsModal({
             </div>
 
             {/* Call Number */}
-            <div className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50 relative group">
+            <div className="p-3 rounded-xl border border-slate-200/90 bg-slate-50/70 relative group">
               <div className="flex items-center justify-between text-slate-500 mb-1">
-                <div className="flex items-center gap-2">
-                  <FiHash className="w-4 h-4 text-slate-400" />
-                  <span className="text-[11px] font-bold uppercase tracking-wider">Call Number</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <FiHash className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider truncate">Call Number</span>
                 </div>
                 {callNumber && (
                   <button
@@ -253,11 +256,11 @@ export default function BookDetailsModal({
             </div>
 
             {/* ISBN */}
-            <div className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50 relative group">
+            <div className="p-3 rounded-xl border border-slate-200/90 bg-slate-50/70 relative group">
               <div className="flex items-center justify-between text-slate-500 mb-1">
-                <div className="flex items-center gap-2">
-                  <FiTag className="w-4 h-4 text-slate-400" />
-                  <span className="text-[11px] font-bold uppercase tracking-wider">ISBN</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <FiTag className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider truncate">ISBN</span>
                 </div>
                 {isbn && (
                   <button
@@ -281,12 +284,12 @@ export default function BookDetailsModal({
             </div>
 
             {/* Shelf Location */}
-            <div className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50">
-              <div className="flex items-center gap-2 text-slate-500 mb-1">
-                <FiMapPin className="w-4 h-4 text-blue-600" />
-                <span className="text-[11px] font-bold uppercase tracking-wider">Shelf Location</span>
+            <div className="p-3 rounded-xl border border-slate-200/90 bg-slate-50/70">
+              <div className="flex items-center gap-1.5 text-slate-500 mb-1 min-w-0">
+                <FiMapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-wider truncate">Shelf Location</span>
               </div>
-              <p className="text-xs font-bold text-slate-800 truncate">
+              <p className="text-xs font-bold text-slate-800 truncate" title={location}>
                 {location}
               </p>
             </div>
@@ -470,6 +473,7 @@ export default function BookDetailsModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
