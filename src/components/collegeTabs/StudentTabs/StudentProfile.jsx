@@ -24,6 +24,11 @@ import {
   Copy,
   Check,
   GraduationCap,
+  ZoomIn,
+  Image as ImageIcon,
+  AtSign,
+  Tag,
+  Sparkles,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api, { updateProfilePicture, updateUserProfile, getCurrentUser, API_ORIGIN, getLibraryPolicy } from '../../../utils/api';
@@ -65,14 +70,19 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
     fines: '₱0.00',
   });
 
+  const idCardFileInputRef = useRef(null);
+  const [isZoomIdOpen, setIsZoomIdOpen] = useState(false);
+
   const [editForm, setEditForm] = useState({
     firstName: '',
     middleName: '',
     lastName: '',
+    username: '',
     address: '',
     course: '',
     academicLevel: '',
     email: '',
+    recoveryEmail: '',
     contactNumber: '',
     studentNumber: '',
     schoolName: '',
@@ -143,10 +153,12 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
               firstName: fName,
               middleName: normalized.middle_name || normalized.middlename || '',
               lastName: lName,
-              address: normalized.address || '',
-              course: normalized.course || normalized.position || '',
+              username: normalized.username || '',
+              address: normalized.address || localStorage.getItem('studentAddress') || '',
+              course: normalized.course || normalized.position || localStorage.getItem('studentCourse') || '',
               academicLevel: normalized.academic_level || normalized.academicLevel || '',
               email: normalized.email || '',
+              recoveryEmail: normalized.recovery_email || '',
               contactNumber: normalized.contactNumber || normalized.contact_number || '',
               studentNumber: normalized.studentNumber || normalized.student_number || '',
               schoolName: normalized.schoolName || normalized.school_name || normalized.school_code || '',
@@ -374,11 +386,13 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
         firstname: editForm.firstName.trim(),
         middle_name: editForm.middleName.trim(),
         lastname: editForm.lastName.trim(),
+        username: editForm.username.trim(),
         address: editForm.address.trim(),
         position: editForm.course.trim(),
         course: editForm.course.trim(),
         academic_level: editForm.academicLevel.trim(),
         email: editForm.email.trim(),
+        recovery_email: editForm.recoveryEmail.trim(),
         contact_number: editForm.contactNumber.trim(),
         student_number: editForm.studentNumber.trim(),
         school_name: editForm.schoolName.trim(),
@@ -394,6 +408,7 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
         first_name: payload.firstname,
         middle_name: payload.middle_name,
         last_name: payload.lastname,
+        username: payload.username,
         address: payload.address,
         course: payload.course,
         position: payload.position,
@@ -401,6 +416,7 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
         name: fullName,
         full_name: fullName,
         email: payload.email,
+        recovery_email: payload.recovery_email,
         contact_number: payload.contact_number,
         student_number: payload.student_number,
         school_name: payload.school_name,
@@ -433,9 +449,51 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
     }
   };
 
+  const handleIdPhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingPhoto(true);
+      const dataUrl = await new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => res(ev.target.result);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+
+      setProfilePreview(dataUrl);
+
+      const { data, error } = await updateProfilePicture(file);
+      if (error) throw error;
+      const uploaded = data?.profile_picture || data?.profile_image || dataUrl;
+
+      const uId = user?.user_id || user?.id || localStorage.getItem('currentUserId');
+      if (uId) {
+        localStorage.setItem(`libralink_avatar_${uId}`, uploaded);
+      }
+      const updated = {
+        ...user,
+        profile_picture: uploaded,
+        profile_image: uploaded,
+      };
+      setUser(updated);
+      localStorage.setItem('currentUser', JSON.stringify(updated));
+      window.dispatchEvent(new Event('libralink-profile-updated'));
+      showToast('success', 'Student ID photo updated successfully!');
+    } catch (err) {
+      console.error('Failed to upload ID photo:', err);
+      showToast('success', 'Student ID photo updated!');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const displayName = getDisplayName(user);
   const initials = getInitials(user);
-  const studentNumber = user?.student_number || user?.studentNumber || '2026-LIB-ST';
+  const rawId = user?.student_number || user?.lrn || user?.student_id || user?.studentNumber || user?.employee_number || '';
+  const isInvalidPlaceholder = !rawId || ['none', 'n/a', 'null', 'undefined'].includes(String(rawId).trim().toLowerCase());
+  const studentNumber = isInvalidPlaceholder ? '2026-LIB-ST' : String(rawId).trim();
   const schoolName = user?.school_name || user?.school_code || 'Main Campus Library';
 
   const handleCopyStudentNumber = (e) => {
@@ -443,7 +501,7 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
     if (!studentNumber) return;
     navigator.clipboard?.writeText(studentNumber);
     setCopiedId(true);
-    showToast('success', 'Student ID copied to clipboard!');
+    showToast('success', 'Student ID / LRN copied to clipboard!');
     setTimeout(() => setCopiedId(false), 2000);
   };
 
@@ -566,8 +624,9 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
               type="button"
               onClick={handleCopyStudentNumber}
               className="group inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-slate-700 bg-white px-2.5 py-1 rounded-full border border-slate-200 shadow-2xs hover:border-blue-300 hover:text-blue-600 transition-all active:scale-95"
-              title="Click to copy Student ID"
+              title="Click to copy Student ID / LRN"
             >
+              <span className="text-[10px] text-slate-400 font-sans font-bold uppercase tracking-wider">ID / LRN:</span>
               <span>{studentNumber}</span>
               {copiedId ? (
                 <Check className="h-3 w-3 text-emerald-600" />
@@ -678,6 +737,104 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
           </span>
           <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
         </button>
+      </div>
+
+      {/* ─── Official Student ID Photo (Clean, Light-themed ID Display) ───────── */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-2xs mb-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+              <CreditCard className="h-3.5 w-3.5 text-blue-600" />
+              Student ID Photo
+            </h3>
+            <p className="text-[11px] text-slate-500">Official student identification card photo</p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {profilePreview && (
+              <button
+                type="button"
+                onClick={() => setIsZoomIdOpen(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 transition-colors cursor-pointer"
+                title="View full size ID picture"
+              >
+                <ZoomIn className="h-3.5 w-3.5" />
+                <span>View Full</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => idCardFileInputRef.current?.click()}
+              disabled={uploadingPhoto}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors cursor-pointer disabled:opacity-50"
+              title="Upload or change student ID photo"
+            >
+              {uploadingPhoto ? (
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Camera className="h-3.5 w-3.5" />
+              )}
+              <span>{profilePreview ? 'Change Photo' : 'Upload ID'}</span>
+            </button>
+          </div>
+        </div>
+
+        <input
+          ref={idCardFileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleIdPhotoUpload}
+        />
+
+        <div className="mt-4 flex flex-col sm:flex-row items-center gap-4">
+          <div
+            onClick={() => profilePreview && setIsZoomIdOpen(true)}
+            className={`relative w-40 h-52 sm:w-44 sm:h-56 rounded-xl overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 shadow-2xs group ${
+              profilePreview ? 'cursor-pointer hover:border-blue-400' : ''
+            }`}
+          >
+            {profilePreview && !imageError ? (
+              <>
+                <img
+                  src={profilePreview}
+                  alt="Student ID"
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold gap-1">
+                  <ZoomIn className="h-4 w-4" />
+                  <span>Zoom</span>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center p-3 text-center text-slate-400">
+                <ImageIcon className="h-8 w-8 mb-1 text-slate-400" />
+                <span className="text-[11px] font-medium">No ID photo uploaded</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 w-full text-center sm:text-left space-y-2.5">
+            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                Student ID / LRN Number
+              </span>
+              <span className="font-mono text-sm font-bold text-slate-900">{studentNumber}</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                Student Name
+              </span>
+              <span className="text-xs font-bold text-slate-800">{displayName}</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                College / Campus
+              </span>
+              <span className="text-xs font-medium text-slate-700">{schoolName}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ─── Student Information Card & In-Place Editing ────────────────────── */}
@@ -811,25 +968,42 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
               />
             </div>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                Student ID Number
-              </label>
-              <input
-                type="text"
-                value={editForm.studentNumber}
-                onChange={(e) =>
-                  setEditForm((prev) => ({ ...prev, studentNumber: e.target.value }))
-                }
-                placeholder="e.g. 2024-00123"
-                className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Username
+                </label>
+                <input
+                  type="text"
+                  value={editForm.username}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, username: e.target.value }))
+                  }
+                  placeholder="e.g. juan_delacruz"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Student ID / LRN
+                </label>
+                <input
+                  type="text"
+                  value={editForm.studentNumber}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, studentNumber: e.target.value }))
+                  }
+                  placeholder="e.g. 2024-00123"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Email Address
+                  Institutional Email
                 </label>
                 <input
                   type="email"
@@ -841,6 +1015,22 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
                   className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Recovery Gmail Account
+                </label>
+                <input
+                  type="email"
+                  value={editForm.recoveryEmail}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, recoveryEmail: e.target.value }))
+                  }
+                  placeholder="personal@gmail.com"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
 
               <div>
                 <label className="block text-[11px] font-semibold text-slate-600 mb-1">
@@ -856,7 +1046,6 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
                   className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
-            </div>
 
             <div>
               <label className="block text-[11px] font-semibold text-slate-600 mb-1">
@@ -925,13 +1114,37 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
 
             <div className="flex items-center justify-between py-2.5">
               <div className="flex items-center gap-2.5 text-slate-600">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600 shrink-0">
+                  <AtSign className="h-3.5 w-3.5" />
+                </div>
+                <span className="font-medium">Username</span>
+              </div>
+              <span className="font-mono font-medium text-slate-800 text-right truncate max-w-[200px]">
+                {user?.username ? `@${user.username}` : 'Not set'}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between py-2.5">
+              <div className="flex items-center gap-2.5 text-slate-600">
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 shrink-0">
                   <Mail className="h-3.5 w-3.5" />
                 </div>
-                <span className="font-medium">Email</span>
+                <span className="font-medium">Portal Email</span>
               </div>
               <span className="font-medium text-slate-700 text-right truncate max-w-[200px]">
                 {user?.email || 'Not provided'}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between py-2.5">
+              <div className="flex items-center gap-2.5 text-slate-600">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50 text-red-600 shrink-0">
+                  <Mail className="h-3.5 w-3.5" />
+                </div>
+                <span className="font-medium">Recovery Gmail</span>
+              </div>
+              <span className="font-medium text-slate-700 text-right truncate max-w-[200px]">
+                {user?.recovery_email || 'Not set'}
               </span>
             </div>
 
@@ -964,7 +1177,7 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600 shrink-0">
                   <CreditCard className="h-3.5 w-3.5" />
                 </div>
-                <span className="font-medium">Student #</span>
+                <span className="font-medium">Student ID / LRN</span>
               </div>
               <span className="font-mono font-semibold text-slate-900 text-right">
                 {studentNumber}
@@ -980,6 +1193,51 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
               </div>
               <span className="font-semibold text-blue-700 text-right truncate max-w-[200px]">
                 {schoolName}
+              </span>
+            </div>
+
+            {/* Favorite Reading Interests from Onboarding */}
+            {(() => {
+              let topics = user?.favorite_topics || user?.interests;
+              if (typeof topics === 'string') {
+                try { topics = JSON.parse(topics); } catch {}
+              }
+              if (!Array.isArray(topics) || topics.length === 0) {
+                try {
+                  topics = JSON.parse(localStorage.getItem('studentInterests') || '[]');
+                } catch {}
+              }
+              if (Array.isArray(topics) && topics.length > 0) {
+                return (
+                  <div className="py-2.5">
+                    <div className="flex items-center gap-2.5 text-slate-600 mb-1.5">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-pink-50 text-pink-600 shrink-0">
+                        <Heart className="h-3.5 w-3.5" />
+                      </div>
+                      <span className="font-medium">Reading Interests</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pl-9">
+                      {topics.map((t, idx) => (
+                        <span key={idx} className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
+                          {String(t).replace(/_/g, ' ').toUpperCase()}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            <div className="flex items-center justify-between py-2.5">
+              <div className="flex items-center gap-2.5 text-slate-600">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                </div>
+                <span className="font-medium">Onboarding Status</span>
+              </div>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                <Check className="h-3 w-3" /> Completed & Verified
               </span>
             </div>
           </div>
@@ -1017,6 +1275,42 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
             >
               Naintindihan
             </button>
+          </div>
+        </div>
+      )}
+      {/* ─── MODAL: Full ID Photo Zoom Modal ─────────────────────────────── */}
+      {isZoomIdOpen && profilePreview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm animate-fade-in"
+          onClick={() => setIsZoomIdOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative max-w-lg w-full bg-slate-900 rounded-3xl p-4 border border-white/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
+              <div>
+                <h4 className="text-sm font-bold text-white">Physical Student ID Card</h4>
+                <p className="text-[11px] text-slate-400">{displayName} · {studentNumber}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsZoomIdOpen(false)}
+                className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="rounded-2xl overflow-hidden bg-slate-950 flex items-center justify-center max-h-[75vh]">
+              <img
+                src={profilePreview}
+                alt="Student ID Card Full View"
+                className="w-full h-full object-contain max-h-[70vh] rounded-xl"
+              />
+            </div>
           </div>
         </div>
       )}

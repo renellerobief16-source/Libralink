@@ -781,6 +781,7 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
           middle_name: registerForm.middle_name.trim(),
           lastname: registerForm.lastname.trim(),
           student_number: registerForm.student_number.trim(),
+          lrn: registerForm.student_number.trim(),
           policy_accepted: false, // will prompt for onboarding on first login
         }
       );
@@ -789,24 +790,26 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
 
       const newUserId = data?.user_id;
 
+      // Preserve captured ID photo URL for success modal display and local avatar cache
+      const savedPhotoUrl = idImageDataUrl;
+      if (newUserId && savedPhotoUrl) {
+        try {
+          localStorage.setItem(`libralink_avatar_${newUserId}`, savedPhotoUrl);
+        } catch (_) {}
+      }
+
       // Upload the scanned ID photo as the student's profile picture if captured
       if (idImageFile && newUserId) {
         try {
           const formData = new FormData();
           formData.append('profile_picture', idImageFile);
-          const token = localStorage.getItem('token');
-          await fetch(`/api/users/${newUserId}/profile-picture`, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}` },
-            body: formData,
+          await api.post(`/users/${newUserId}/profile-picture`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
           });
         } catch (picErr) {
           console.warn('[SCAN] Could not upload ID photo as profile picture:', picErr);
         }
       }
-
-      // Preserve captured ID photo URL for success modal display
-      const savedPhotoUrl = idImageDataUrl;
 
       setRegisteredStudent({
         name: formattedStudentName,

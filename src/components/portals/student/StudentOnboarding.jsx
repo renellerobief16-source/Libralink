@@ -6,16 +6,7 @@ import { STUDENT_COURSES, STUDENT_TOPICS, saveStudentPreferences } from '../../.
 
 function isOnboardingComplete(user) {
   if (!user) return false;
-
-  const username = user.username || user.name || user.first_name || '';
-  const cellphone = user.contact_number || '';
-  const recoveryEmail = user.recovery_email || user.email || '';
-  const profilePicture = user.profile_picture || user.profile_image || '';
-  const policyAccepted = !!user.policy_accepted;
-  const address = user.address || '';
-  const course = user.course || user.position || '';
-
-  return !!(username.trim() && cellphone.trim() && recoveryEmail.trim() && profilePicture && policyAccepted && address.trim() && course.trim());
+  return !!user.policy_accepted;
 }
 
 const ACADEMIC_PROGRAMS = {
@@ -236,6 +227,8 @@ function StudentOnboarding() {
       const updatedUser = {
         ...userInfo,
         ...payload,
+        student_number: userInfo?.student_number || userInfo?.lrn || userInfo?.studentNumber || '',
+        lrn: userInfo?.lrn || userInfo?.student_number || '',
         academic_level: form.academicLevel,
         course: form.course.trim(),
         position: form.course.trim(),
