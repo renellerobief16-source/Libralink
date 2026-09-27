@@ -776,44 +776,50 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
       </div>
 
       {/* ─── Official Student ID Photo (Read-only, set by librarian during registration) ─── */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-2xs mb-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-              <CreditCard className="h-3.5 w-3.5 text-blue-600" />
-              Student ID Photo
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs mb-4">
+        <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
+          <div className="min-w-0">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5 truncate">
+              <CreditCard className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+              <span className="truncate">Student ID Card</span>
             </h3>
-            <p className="text-[11px] text-slate-500">Official student identification card photo</p>
+            <p className="text-[11px] text-slate-500 truncate mt-0.5">Official physical identification</p>
           </div>
 
-          <div className="flex items-center gap-2">
-            {idCardPicture && (
+          <div className="flex items-center gap-1.5 shrink-0">
+            {idCardPicture ? (
               <button
                 type="button"
                 onClick={() => setIsZoomIdOpen(true)}
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 transition-colors cursor-pointer"
                 title="View full size ID card picture"
               >
-                <ZoomIn className="h-3.5 w-3.5" />
+                <ZoomIn className="h-3.5 w-3.5 text-slate-600" />
                 <span>View Full</span>
               </button>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200/70 text-[10px] font-semibold text-amber-700">
+                <ShieldAlert className="h-3 w-3 text-amber-500" />
+                Unverified
+              </span>
             )}
-            {/* No Change Photo button — ID card photo is set by librarian only */}
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col sm:flex-row items-center gap-4">
+        <div className="mt-3.5 flex flex-col items-center gap-3.5">
+          {/* Landscape ID Card Frame matching physical card proportion (16:10 / 1.58:1) */}
           <div
             onClick={() => idCardPicture && setIsZoomIdOpen(true)}
-            className={`relative w-44 h-60 sm:w-48 sm:h-64 rounded-2xl overflow-hidden border border-slate-200 bg-slate-900/[0.03] flex items-center justify-center shrink-0 shadow-2xs group p-1.5 transition-all ${idCardPicture ? 'cursor-pointer hover:border-blue-400 hover:shadow-md' : ''
-              }`}
+            className={`relative w-full max-w-[320px] aspect-[16/10] rounded-xl overflow-hidden border border-slate-200/90 bg-slate-900/[0.02] flex items-center justify-center shrink-0 shadow-2xs group transition-all duration-200 ${
+              idCardPicture ? 'cursor-pointer hover:border-blue-400 hover:shadow-md' : ''
+            }`}
           >
             {idCardPicture ? (
               <>
                 <img
                   src={idCardPicture}
-                  alt="Student ID"
-                  className="w-full h-full object-contain rounded-xl transition-transform duration-300 group-hover:scale-102"
+                  alt="Student ID Card"
+                  className="w-full h-full object-contain p-1 rounded-lg transition-transform duration-300 group-hover:scale-[1.02]"
                   onError={(e) => {
                     const src = e.currentTarget.src || '';
                     if (!src.includes('libralink-50ig.onrender.com') && src.startsWith('http://localhost:5000')) {
@@ -821,54 +827,75 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
                     }
                   }}
                 />
-                <div className="absolute inset-0 bg-slate-900/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold gap-1.5 backdrop-blur-[1px]">
-                  <ZoomIn className="h-4 w-4" />
-                  <span>Click to Zoom</span>
+                <div className="absolute inset-0 bg-slate-900/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center backdrop-blur-[2px]">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 text-slate-900 text-xs font-semibold shadow-md">
+                    <ZoomIn className="h-3.5 w-3.5 text-blue-600" />
+                    <span>Click to Zoom</span>
+                  </span>
                 </div>
               </>
             ) : (
-              <div className="flex flex-col items-center justify-center p-3 text-center text-slate-400">
-                <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-2 text-slate-400">
-                  <CreditCard className="h-6 w-6" />
+              <div className="flex flex-col items-center justify-center p-4 text-center">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center mb-2 text-slate-400">
+                  <CreditCard className="h-5 w-5" />
                 </div>
                 <span className="text-xs font-semibold text-slate-600">No ID photo on file</span>
-                <span className="text-[10px] text-slate-400 mt-1 max-w-[140px] leading-tight">
+                <span className="text-[10px] text-slate-400 mt-0.5 max-w-[180px] leading-tight">
                   Scanned and verified by the librarian during registration
                 </span>
               </div>
             )}
           </div>
 
-          <div className="flex-1 w-full text-center sm:text-left space-y-2.5">
-            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                Student ID / LRN Number
-              </span>
-              <span className="font-mono text-sm font-bold text-slate-900">{studentNumber}</span>
-            </div>
-            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                Student Name
-              </span>
-              <span className="text-xs font-bold text-slate-800">{displayName}</span>
-            </div>
-            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                College / Campus
-              </span>
-              <span className="text-xs font-medium text-slate-700">{schoolName}</span>
-            </div>
-            {idCardPicture ? (
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-100 text-[11px] font-semibold text-emerald-700">
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-                <span>Official School ID · Scanned & Verified</span>
+          {/* Unified Metadata Specification Grid - Clean 2x2 grid */}
+          <div className="w-full bg-slate-50/70 rounded-xl p-3 border border-slate-100 space-y-2.5">
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="min-w-0">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                  Student ID / LRN
+                </span>
+                <span className="font-mono text-xs font-bold text-slate-900 mt-0.5 block truncate">
+                  {studentNumber || '—'}
+                </span>
               </div>
-            ) : (
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-[11px] font-medium text-slate-500">
-                <ShieldAlert className="h-3.5 w-3.5 text-slate-400" />
-                <span>Pending Library ID Verification</span>
+              <div className="min-w-0">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                  Student Name
+                </span>
+                <span className="text-xs font-bold text-slate-800 mt-0.5 block truncate" title={displayName}>
+                  {displayName || '—'}
+                </span>
               </div>
-            )}
+            </div>
+
+            <div className="pt-2 border-t border-slate-200/60 grid grid-cols-2 gap-2.5 items-center">
+              <div className="min-w-0">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                  College / Campus
+                </span>
+                <span className="text-xs font-semibold text-slate-700 mt-0.5 block truncate" title={schoolName}>
+                  {schoolName || '—'}
+                </span>
+              </div>
+              <div className="min-w-0">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                  Status
+                </span>
+                <div className="mt-0.5 flex items-center gap-1 min-w-0">
+                  {idCardPicture ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 truncate">
+                      <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                      <span className="truncate">Official Verified ID</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 truncate">
+                      <ShieldAlert className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                      <span className="truncate">Pending Verification</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
