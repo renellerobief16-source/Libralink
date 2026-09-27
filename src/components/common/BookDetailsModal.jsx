@@ -36,12 +36,27 @@ export default function BookDetailsModal({
     ? book.callNumber 
     : (book.call_number && book.call_number !== 'Unknown' ? book.call_number : null);
   const isbn = (book.isbn && book.isbn !== 'Unknown') ? book.isbn : null;
+  
+  // Extract DDC Classification (either direct property, tagged in remarks/general_note, or valid DDC call number)
+  const ddc = (book.ddc && book.ddc !== 'Unknown')
+    ? book.ddc
+    : (book.remarks?.match(/\[DDC:\s*([^\]]+)\]/i)?.[1]?.trim()) 
+      || (book.general_note?.match(/\[DDC:\s*([^\]]+)\]/i)?.[1]?.trim()) 
+      || (callNumber && /^\d{3}(\.\d+)?/.test(callNumber.trim()) ? callNumber.trim().match(/^\d{3}(\.\d+)?/)?.[0] : null)
+      || null;
+
   const physicalDesc = book.physical_description || null;
   const series = book.series || book.series_title || null;
-  const remarks = book.remarks || book.general_note || null;
+  
+  // Clean remarks: strip raw [DDC: ...] prefix if present for aesthetic display
+  const rawRemarks = book.remarks || book.general_note || null;
+  const remarks = rawRemarks ? rawRemarks.replace(/\[DDC:\s*[^\]]+\]\s*/gi, '').trim() : null;
+  
   const bookId = book.id || book.book_id;
+  const copies = Array.isArray(book.book_copies) ? book.book_copies : [];
+  const mainAccessionNumber = book.accession_number || book.accessionNumber || (copies.length > 0 ? copies[0].accession_number : null);
 
-  const totalCopies = Number(book.total_copies ?? (Array.isArray(book.book_copies) ? book.book_copies.length : 1));
+  const totalCopies = Number(book.total_copies ?? (copies.length > 0 ? copies.length : 1));
   const availableCopies = Number(book.available_copies ?? totalCopies);
   const isAvailable = availableCopies > 0;
 
@@ -181,15 +196,32 @@ export default function BookDetailsModal({
 
           {/* Bibliographic Classification & Location Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {/* Shelf Location */}
-            <div className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50">
-              <div className="flex items-center gap-2 text-slate-500 mb-1">
-                <FiMapPin className="w-4 h-4 text-blue-600" />
-                <span className="text-[11px] font-bold uppercase tracking-wider">Shelf Location</span>
+            {/* DDC Classification */}
+            <div className="p-3.5 rounded-xl border border-amber-200/90 bg-amber-50/50 relative group">
+              <div className="flex items-center justify-between text-amber-700 mb-1">
+                <div className="flex items-center gap-2">
+                  <FiBookmark className="w-4 h-4 text-amber-600" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider">Dewey Decimal (DDC)</span>
+                </div>
+                {ddc && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(ddc, 'ddc')}
+                    className="text-amber-500 hover:text-amber-800 p-0.5 cursor-pointer transition-colors"
+                    title="Copy DDC Number"
+                  >
+                    <FiCopy className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
-              <p className="text-xs font-bold text-slate-800">
-                {location}
+              <p className="text-xs font-mono font-bold text-amber-900 truncate">
+                {ddc || '—'}
               </p>
+              {copiedField === 'ddc' && (
+                <span className="text-[10px] text-emerald-600 font-semibold absolute bottom-1 right-2">
+                  Copied!
+                </span>
+              )}
             </div>
 
             {/* Call Number */}
@@ -248,9 +280,20 @@ export default function BookDetailsModal({
               )}
             </div>
 
+            {/* Shelf Location */}
+            <div className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50">
+              <div className="flex items-center gap-2 text-slate-500 mb-1">
+                <FiMapPin className="w-4 h-4 text-blue-600" />
+                <span className="text-[11px] font-bold uppercase tracking-wider">Shelf Location</span>
+              </div>
+              <p className="text-xs font-bold text-slate-800 truncate">
+                {location}
+              </p>
+            </div>
+
             {/* Physical Description */}
             {physicalDesc && (
-              <div className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50 sm:col-span-2 lg:col-span-1">
+              <div className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50">
                 <div className="flex items-center gap-2 text-slate-500 mb-1">
                   <FiLayers className="w-4 h-4 text-indigo-500" />
                   <span className="text-[11px] font-bold uppercase tracking-wider">Physical Desc</span>
@@ -263,14 +306,109 @@ export default function BookDetailsModal({
 
             {/* Series */}
             {series && (
-              <div className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50 sm:col-span-2 lg:col-span-2">
+              <div className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50">
                 <div className="flex items-center gap-2 text-slate-500 mb-1">
                   <FiBookmark className="w-4 h-4 text-amber-500" />
                   <span className="text-[11px] font-bold uppercase tracking-wider">Series</span>
                 </div>
-                <p className="text-xs font-medium text-slate-800">
+                <p className="text-xs font-medium text-slate-800 truncate">
                   {series}
                 </p>
+              </div>
+            )}
+          </div>
+
+          {/* Physical Copy Holdings & Accession Registry */}
+          <div className="p-4 rounded-2xl border border-slate-200/90 bg-slate-50/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-slate-700">
+                <FiLayers className="w-4 h-4 text-blue-600" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  Physical Copies & Accession Numbers ({copies.length > 0 ? copies.length : totalCopies} { (copies.length > 0 ? copies.length : totalCopies) === 1 ? 'Copy' : 'Copies' })
+                </h3>
+              </div>
+              <span className="text-[11px] font-semibold text-slate-500">
+                {availableCopies} Available on Shelf
+              </span>
+            </div>
+
+            {copies.length > 0 ? (
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      <th className="py-2 px-3">#</th>
+                      <th className="py-2 px-3">Accession Number</th>
+                      <th className="py-2 px-3">Barcode</th>
+                      <th className="py-2 px-3">Shelf Location</th>
+                      <th className="py-2 px-3">Condition</th>
+                      <th className="py-2 px-3 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {copies.map((copy, idx) => {
+                      const copyStatus = copy.status || 'available';
+                      const isCopyAvail = copyStatus === 'available';
+                      const accNum = copy.accession_number || (idx === 0 ? mainAccessionNumber : null) || `ACC-${copy.copy_id || idx + 1}`;
+                      return (
+                        <tr key={copy.copy_id || idx} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-2 px-3 font-semibold text-slate-400">
+                            {idx + 1}
+                          </td>
+                          <td className="py-2 px-3 font-mono font-bold text-slate-900">
+                            <div className="flex items-center gap-1.5">
+                              <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">
+                                {accNum}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(accNum, `acc_${idx}`)}
+                                className="text-slate-300 hover:text-blue-600 cursor-pointer p-0.5"
+                                title="Copy Accession Number"
+                              >
+                                <FiCopy className="w-3 h-3" />
+                              </button>
+                              {copiedField === `acc_${idx}` && (
+                                <span className="text-[9px] text-emerald-600 font-bold">Copied!</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-2 px-3 font-mono text-slate-500">
+                            {copy.barcode || '—'}
+                          </td>
+                          <td className="py-2 px-3 text-slate-600">
+                            {copy.shelf_location || location}
+                          </td>
+                          <td className="py-2 px-3 capitalize text-slate-600">
+                            {copy.condition || 'Good'}
+                          </td>
+                          <td className="py-2 px-3 text-right">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              isCopyAvail 
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                                : 'bg-amber-50 text-amber-800 border border-amber-200'
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${isCopyAvail ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                              <span className="capitalize">{copyStatus}</span>
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase">Primary Accession:</span>
+                  <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 text-xs">
+                    {mainAccessionNumber || 'ACC-AUTO'}
+                  </span>
+                </div>
+                <span className="text-xs text-slate-500">
+                  {totalCopies} {totalCopies === 1 ? 'copy' : 'copies'} tracked
+                </span>
               </div>
             )}
           </div>

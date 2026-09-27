@@ -234,12 +234,23 @@ function LibrarianAdminBooks() {
           ? Number(book.available_quantity)
           : (book.available_copies !== undefined ? Number(book.available_copies) : (hasCopies ? book.book_copies.filter(c => c.status === 'available').length : total));
 
+        const extractedDdc = (book.ddc && book.ddc !== 'Unknown')
+          ? book.ddc
+          : (book.general_note?.match(/\[DDC:\s*([^\]]+)\]/i)?.[1]?.trim())
+            || (book.remarks?.match(/\[DDC:\s*([^\]]+)\]/i)?.[1]?.trim())
+            || (book.call_number && /^\d{3}(\.\d+)?/.test(book.call_number.trim()) ? book.call_number.trim().match(/^\d{3}(\.\d+)?/)?.[0] : null)
+            || null;
+
+        const mainAcc = book.accession_number || (hasCopies && book.book_copies[0]?.accession_number) || '';
+
         return {
           id: book.book_id || book.id,
           title: book.title || 'Untitled',
           author: book.author || 'Unknown Author',
           publisher: book.publisher || '',
           callNumber: book.call_number && book.call_number !== 'Unknown' ? book.call_number : '',
+          ddc: extractedDdc || '',
+          accession_number: mainAcc,
           isbn: book.isbn && book.isbn !== 'Unknown' ? book.isbn : '',
           year: book.copyright_year || book.publication_year || '',
           location: book.shelf_location && book.shelf_location !== 'Unknown' ? book.shelf_location : 'Main Stacks',
@@ -282,6 +293,8 @@ function LibrarianAdminBooks() {
           if (!existing.cover_image && book.cover_image) existing.cover_image = book.cover_image;
           if (!existing.isbn && book.isbn) existing.isbn = book.isbn;
           if (!existing.callNumber && book.callNumber) existing.callNumber = book.callNumber;
+          if (!existing.ddc && book.ddc) existing.ddc = book.ddc;
+          if (!existing.accession_number && book.accession_number) existing.accession_number = book.accession_number;
           if (!existing.year && book.year) existing.year = book.year;
         }
       });
@@ -636,11 +649,11 @@ function LibrarianAdminBooks() {
   };
 
   return (
-    <div className="animate-slide-up space-y-6">
+    <div className="animate-slide-up space-y-6 min-w-0 w-full">
       {/* Header Banner without Import Books button */}
       <div className={`rounded-2xl border border-slate-200/90 bg-gradient-to-r from-white via-blue-50/25 to-indigo-50/20 p-5 sm:p-6 shadow-xs backdrop-blur-sm transition-all ${showExportMenu ? 'relative z-30' : 'relative'}`}>
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-          <div>
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5">
+          <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100/80 border border-blue-200 text-blue-800">
                 <FiBook className="w-3 h-3 text-blue-600" />
@@ -831,7 +844,7 @@ function LibrarianAdminBooks() {
 
         {/* Category Filter Pills */}
         {categories.length > 2 && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar text-xs">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 custom-scrollbar text-xs max-w-full min-w-0">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 shrink-0 mr-1 flex items-center gap-1">
               <FiTag className="w-3 h-3" /> Category:
             </span>
@@ -882,13 +895,13 @@ function LibrarianAdminBooks() {
 
           {/* Redesigned 3D Book Spine Cards */}
           {viewMode === 'card' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-5">
               {paginatedBooks.map((book) => {
                 const isAvail = (book.available_copies ?? 0) > 0;
                 return (
                   <div 
                     key={book.id} 
-                    className="group relative rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs hover:shadow-xl hover:border-blue-300 hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between hover:z-20"
+                    className="group relative rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs hover:shadow-xl hover:border-blue-300 hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between hover:z-20 min-w-0"
                   >
                     {/* Top ambient highlight gradient */}
                     <div className="absolute top-0 inset-x-0 h-1 rounded-t-2xl bg-gradient-to-r from-blue-500 via-indigo-500 to-sky-400 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -928,7 +941,7 @@ function LibrarianAdminBooks() {
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                 onError={(e) => {
                                   e.target.style.display = 'none';
-                                  const fallback = e.target.parentElement.querySelector('.card-fallback');
+                                  const fallback = e.target.parentElement?.querySelector('.card-fallback');
                                   if (fallback) fallback.style.display = 'flex';
                                 }}
                               />
@@ -980,15 +993,23 @@ function LibrarianAdminBooks() {
                           </span>
                         )}
 
+                        {book.ddc && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-amber-800 bg-amber-50 border border-amber-200/90 px-2 py-1 rounded-lg" title={`Dewey Decimal Classification: ${book.ddc}`}>
+                            <FiBookmark className="w-3 h-3 text-amber-600 shrink-0" />
+                            <span>DDC: {book.ddc}</span>
+                          </span>
+                        )}
+
                         {book.callNumber && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-1 rounded-lg">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-1 rounded-lg" title={`Call Number: ${book.callNumber}`}>
                             <FiHash className="w-3 h-3 text-slate-400 shrink-0" />
                             <span>Call: {book.callNumber}</span>
                           </span>
                         )}
 
                         {book.isbn && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-mono text-slate-600 bg-slate-100 border border-slate-200/80 px-2 py-1 rounded-lg">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-mono text-slate-600 bg-slate-100 border border-slate-200/80 px-2 py-1 rounded-lg" title={`ISBN: ${book.isbn}`}>
+                            <FiTag className="w-3 h-3 text-slate-400 shrink-0" />
                             <span>#{book.isbn}</span>
                           </span>
                         )}
@@ -1003,8 +1024,8 @@ function LibrarianAdminBooks() {
                     </div>
 
                     {/* Footer Actions */}
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-[11px] text-slate-400 font-mono font-medium">
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-400 font-mono font-medium shrink-0">
                         ID: #{book.id}
                       </span>
 
@@ -1088,14 +1109,14 @@ function LibrarianAdminBooks() {
             <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
               <div className="overflow-x-auto custom-scrollbar">
                 <table className="w-full text-left border-collapse table-fixed min-w-[780px]">
-                  <thead>
-                    <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                      <th className="py-3 px-3.5 w-[32%]">Book Title & Info</th>
-                      <th className="py-3 px-3 w-[17%]">Academic Category</th>
-                      <th className="py-3 px-3 w-[14%]">Call / ISBN</th>
-                      <th className="py-3 px-3 w-[12%]">Shelf Location</th>
-                      <th className="py-3 px-3 w-[12%] text-center">Stock & Copies</th>
-                      <th className="py-3 px-3.5 w-[13%] text-right pr-4">Actions</th>
+                  <thead className="sticky top-16 z-20 bg-slate-50 shadow-xs">
+                    <tr className="border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3.5 w-[30%]">Book Title & Info</th>
+                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3 w-[15%]">Academic Category</th>
+                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3 w-[18%]">DDC / Call / ISBN</th>
+                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3 w-[12%]">Shelf Location</th>
+                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3 w-[12%] text-center">Stock & Copies</th>
+                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3.5 w-[13%] text-right pr-4">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
@@ -1151,18 +1172,45 @@ function LibrarianAdminBooks() {
                             </span>
                           </td>
 
-                          {/* Call # & ISBN Cell */}
+                          {/* DDC, Call #, ISBN & Accession # Cell */}
                           <td className="py-2.5 px-3">
-                            <div className="space-y-0.5 truncate">
+                            <div className="space-y-1">
+                              {book.ddc ? (
+                                <div className="inline-flex items-center gap-1 font-mono text-[10.5px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/90 max-w-full truncate" title={`Dewey Decimal: ${book.ddc}`}>
+                                  <span className="text-[9px] uppercase tracking-wider text-amber-600 font-extrabold">DDC</span>
+                                  <span className="truncate">{book.ddc}</span>
+                                </div>
+                              ) : null}
+
                               {book.callNumber ? (
-                                <div className="font-mono text-[11px] font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80 inline-block truncate max-w-full" title={book.callNumber}>
-                                  {book.callNumber}
+                                <div className="inline-flex items-center gap-1 font-mono text-[10.5px] font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80 max-w-full truncate" title={`Call Number: ${book.callNumber}`}>
+                                  <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Call</span>
+                                  <span className="truncate">{book.callNumber}</span>
                                 </div>
-                              ) : book.isbn ? (
-                                <div className="font-mono text-[11px] text-slate-500 truncate" title={book.isbn}>
-                                  #{book.isbn}
+                              ) : null}
+
+                              {book.isbn ? (
+                                <div className="font-mono text-[10px] text-slate-500 truncate" title={`ISBN: ${book.isbn}`}>
+                                  <span className="text-slate-400">ISBN:</span> #{book.isbn}
                                 </div>
-                              ) : (
+                              ) : null}
+
+                              {Array.isArray(book.book_copies) && book.book_copies.some(c => c.accession_number) ? (
+                                <div className="font-mono text-[9.5px] text-blue-700 bg-blue-50/70 border border-blue-100 px-1.5 py-0.2 rounded truncate max-w-full" title={`Accession Numbers: ${book.book_copies.map(c => c.accession_number).filter(Boolean).join(', ')}`}>
+                                  <span className="font-bold text-blue-500">ACC: </span>
+                                  <span>{book.book_copies.find(c => c.accession_number)?.accession_number}</span>
+                                  {book.book_copies.filter(c => c.accession_number).length > 1 && (
+                                    <span className="font-bold text-blue-600 ml-1">+{book.book_copies.filter(c => c.accession_number).length - 1}</span>
+                                  )}
+                                </div>
+                              ) : book.accession_number ? (
+                                <div className="font-mono text-[9.5px] text-blue-700 bg-blue-50/70 border border-blue-100 px-1.5 py-0.2 rounded truncate max-w-full" title={`Accession Number: ${book.accession_number}`}>
+                                  <span className="font-bold text-blue-500">ACC: </span>
+                                  <span>{book.accession_number}</span>
+                                </div>
+                              ) : null}
+
+                              {!book.ddc && !book.callNumber && !book.isbn && !book.accession_number && (!book.book_copies || !book.book_copies.some(c => c.accession_number)) && (
                                 <span className="text-[11px] text-slate-400">—</span>
                               )}
                             </div>
@@ -1272,7 +1320,7 @@ function LibrarianAdminBooks() {
           )}
 
           {/* Sleek Modern Sticky Translucent Glassmorphic Floating Island Pagination Toolbar */}
-          <div className="sticky bottom-4 z-20 rounded-2xl border border-slate-200/80 bg-white/75 backdrop-blur-md p-3 sm:p-3.5 shadow-xl shadow-slate-900/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs transition-all">
+          <div className="sticky bottom-4 z-20 rounded-2xl border border-slate-200/80 bg-white/75 backdrop-blur-md p-3 sm:p-3.5 shadow-xl shadow-slate-900/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs transition-all max-w-full">
             <div className="flex items-center gap-3 text-slate-600 font-medium">
               <span>
                 Showing <strong className="text-slate-900 font-bold">{filteredBooks.length > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0}</strong> to <strong className="text-slate-900 font-bold">{Math.min(currentPage * rowsPerPage, filteredBooks.length)}</strong> of <strong className="text-slate-900 font-bold">{filteredBooks.length}</strong> books

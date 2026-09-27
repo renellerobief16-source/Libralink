@@ -293,7 +293,7 @@ function Login() {
       } else if (routeRoleId === 4) {
         console.log('Routing to student portal (role_id 4)');
         const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-        const isComplete = !!(currentUser.username || currentUser.name || currentUser.first_name) && !!currentUser.contact_number && !!(currentUser.recovery_email || currentUser.email) && !!(currentUser.profile_picture || currentUser.profile_image) && !!currentUser.policy_accepted;
+        const isComplete = !!(currentUser.username || currentUser.name || currentUser.first_name) && !!currentUser.contact_number && !!(currentUser.recovery_email || currentUser.email) && !!(currentUser.profile_picture || currentUser.profile_image) && !!currentUser.policy_accepted && !!currentUser.address && !!(currentUser.course || currentUser.position);
         navigate(isComplete ? '/studentpage' : '/student-onboarding');
       } else if (normalizedRole === 'super_admin') {
         console.log('Routing to superadmin portal (role name)');
@@ -307,7 +307,7 @@ function Login() {
       } else if (normalizedRole === 'student') {
         console.log('Routing to student portal (role name)');
         const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-        const isComplete = !!(currentUser.username || currentUser.name || currentUser.first_name) && !!currentUser.contact_number && !!(currentUser.recovery_email || currentUser.email) && !!(currentUser.profile_picture || currentUser.profile_image) && !!currentUser.policy_accepted;
+        const isComplete = !!(currentUser.username || currentUser.name || currentUser.first_name) && !!currentUser.contact_number && !!(currentUser.recovery_email || currentUser.email) && !!(currentUser.profile_picture || currentUser.profile_image) && !!currentUser.policy_accepted && !!currentUser.address && !!(currentUser.course || currentUser.position);
         navigate(isComplete ? '/studentpage' : '/student-onboarding');
       } else {
         // Default to login for unknown roles

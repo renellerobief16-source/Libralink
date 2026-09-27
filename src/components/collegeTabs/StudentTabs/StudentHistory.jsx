@@ -23,6 +23,7 @@ import api, {
   getBackendAssetUrl,
   cancelBorrowRequest,
   requestBorrowCancellation,
+  requestBookRenewal,
 } from "../../../utils/api";
 import QRCodeDisplay from "./QRCodeDisplay";
 import { getDueStatusDetails, formatPhilippineDate } from "../../../utils/timeUtils";
@@ -55,9 +56,34 @@ function StudentHistory({ isDrawer = false, onClose }) {
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [toastFeedback, setToastFeedback] = useState(null);
 
+  // Renewal States (Inline Accordion)
+  const [renewingRequestId, setRenewingRequestId] = useState(null);
+  const [renewalReason, setRenewalReason] = useState("");
+  const [renewalSubmittingId, setRenewalSubmittingId] = useState(null);
+
   const showToast = (message, type = "success") => {
     setToastFeedback({ message, type });
     setTimeout(() => setToastFeedback(null), 4500);
+  };
+
+  const handleRequestRenewal = async (item) => {
+    if (!item) return;
+    setRenewalSubmittingId(item.requestId);
+    try {
+      const { data, error } = await requestBookRenewal(item.requestId, renewalReason);
+      if (error) {
+        showToast(typeof error === "string" ? error : "Failed to submit renewal request.", "error");
+        return;
+      }
+      showToast("Renewal request submitted! Awaiting librarian approval.", "success");
+      setRenewingRequestId(null);
+      setRenewalReason("");
+      await fetchHistory();
+    } catch (err) {
+      showToast(err.message || "Error submitting renewal request.", "error");
+    } finally {
+      setRenewalSubmittingId(null);
+    }
   };
 
   const fetchHistory = async () => {
@@ -96,10 +122,13 @@ function StudentHistory({ isDrawer = false, onClose }) {
 
           const reqStatus = (req.status || "pending").toLowerCase();
           const itemStatus = (item.status || "").toLowerCase();
-          // If parent request is cancelled or cancellation_requested, that takes precedence
-          const rawStatus = (reqStatus === "cancelled" || reqStatus === "cancellation_requested" || !itemStatus)
+          // If parent request is cancelled, cancellation_requested, or renewal_requested, that takes precedence
+          const rawStatus = (reqStatus === "cancelled" || reqStatus === "cancellation_requested" || reqStatus === "renewal_requested" || !itemStatus)
             ? reqStatus
             : itemStatus;
+
+          const renewalCountMatch = (req.rejection_reason || '').match(/RENEWAL_COUNT:(\d+)/i);
+          const renewalCount = renewalCountMatch ? parseInt(renewalCountMatch[1], 10) : 0;
 
           return {
             id: `${req.request_id}_${item.item_id || idx}`,
@@ -112,6 +141,8 @@ function StudentHistory({ isDrawer = false, onClose }) {
             status: rawStatus,
             cancellationReason: req.cancellation_reason || item.cancellation_reason || null,
             requestType: req.request_type || "HOME",
+            isHomeLibraryBook: (req.request_type || "HOME").toUpperCase() === "HOME",
+            renewalCount,
             requestDate: req.created_at,
             dueDate: req.due_date || item.due_date,
             returnedAt: req.returned_at || item.returned_at,
@@ -166,6 +197,13 @@ function StudentHistory({ isDrawer = false, onClose }) {
           dot: "bg-blue-500",
           icon: CheckCircle2,
         };
+      case "renewal_requested":
+        return {
+          label: "Renewal Pending",
+          color: "bg-indigo-50 text-indigo-700 border-indigo-200/80",
+          dot: "bg-indigo-500 animate-pulse",
+          icon: RefreshCw,
+        };
       case "cancel_requested":
       case "cancellation_requested":
         return {
@@ -210,7 +248,12 @@ function StudentHistory({ isDrawer = false, onClose }) {
   const filteredItems = (() => {
     let items = historyItems.filter((item) => {
       if (activeTab === "active") {
-        return item.status === "released" || item.status === "borrowed" || item.status === "approved";
+        return (
+          item.status === "released" ||
+          item.status === "borrowed" ||
+          item.status === "approved" ||
+          item.status === "renewal_requested"
+        );
       }
       if (activeTab === "returned") {
         return item.status === "returned";
@@ -241,7 +284,11 @@ function StudentHistory({ isDrawer = false, onClose }) {
   })();
 
   const activeCount = historyItems.filter(
-    (item) => item.status === "released" || item.status === "borrowed" || item.status === "approved"
+    (item) =>
+      item.status === "released" ||
+      item.status === "borrowed" ||
+      item.status === "approved" ||
+      item.status === "renewal_requested"
   ).length;
 
   const returnedCount = historyItems.filter((item) => item.status === "returned").length;
@@ -577,6 +624,38 @@ function StudentHistory({ isDrawer = false, onClose }) {
                           </button>
                         )}
 
+                        {/* Renewal Action for Home Library Borrowed Books */}
+                        {(item.status === "borrowed" || item.status === "released") && item.isHomeLibraryBook && (
+                          dueStatus?.isUrgent && dueStatus.label.toLowerCase().includes("overdue") ? (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-medium text-slate-400"
+                              title="Overdue books cannot be renewed online. Please return at circulation desk."
+                            >
+                              <RefreshCw className="h-2.5 w-2.5" />
+                              Overdue
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRenewalReason("");
+                                setRenewingRequestId(renewingRequestId === item.requestId ? null : item.requestId);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 transition active:scale-95"
+                            >
+                              <RefreshCw className="h-2.5 w-2.5" />
+                              Request Renewal
+                            </button>
+                          )
+                        )}
+
+                        {item.status === "renewal_requested" && (
+                          <span className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-semibold text-indigo-700">
+                            <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                            Renewal Pending
+                          </span>
+                        )}
+
                         {/* QR Code Pass */}
                         {hasQR && (
                           <button
@@ -702,6 +781,78 @@ function StudentHistory({ isDrawer = false, onClose }) {
                           <>
                             <Send className="h-3 w-3" />
                             Submit Cancellation Request
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Inline Accordion Renewal Request Form */}
+                {renewingRequestId === item.requestId && (
+                  <div className="mx-3 mb-3 rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-left space-y-3 animate-in slide-in-from-top-2 duration-200 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-blue-900">
+                        <RefreshCw className="h-4 w-4 text-blue-600 shrink-0" />
+                        <span className="text-xs font-bold">Request Home Library Book Renewal</span>
+                        <span className="text-[10px] font-mono text-slate-500">
+                          ({item.requestId})
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setRenewingRequestId(null)}
+                        className="rounded-lg p-1 text-slate-400 hover:text-slate-600 transition"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="rounded-xl border border-blue-200/80 bg-blue-100/60 p-2.5 text-[11px] text-blue-900 leading-relaxed">
+                      <strong>Librarian Approval Required:</strong> Your renewal request will be reviewed by the library staff. Once approved, your due date will be extended based on your school's standard loan duration.
+                      {item.renewalCount > 0 && (
+                        <span className="block mt-1 font-semibold text-blue-800">
+                          Current Renewals: {item.renewalCount}x
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                        Reason for Extension (Optional):
+                      </label>
+                      <input
+                        type="text"
+                        value={renewalReason}
+                        onChange={(e) => setRenewalReason(e.target.value)}
+                        placeholder="e.g., Still conducting research / Exam review"
+                        className="w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-blue-200/60">
+                      <button
+                        type="button"
+                        onClick={() => setRenewingRequestId(null)}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={renewalSubmittingId === item.requestId}
+                        onClick={() => handleRequestRenewal(item)}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-blue-700 transition active:scale-95 disabled:opacity-60"
+                      >
+                        {renewalSubmittingId === item.requestId ? (
+                          <>
+                            <RefreshCw className="h-3 w-3 animate-spin" />
+                            Submitting...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-3 w-3" />
+                            Submit Renewal Request
                           </>
                         )}
                       </button>

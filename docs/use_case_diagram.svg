@@ -1,224 +1,515 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1020" width="1280" height="1020" style="background:#ffffff; font-family:Arial, sans-serif;">
+<svg viewBox="0 0 1600 2740" width="1600" height="2740" xmlns="http://www.w3.org/2000/svg" style="background:#ffffff; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;">
   <defs>
-    <!-- Marker for dashed include/extend arrows -->
-    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 1 L 9 5 L 0 9" fill="none" stroke="#000000" stroke-width="1.8" stroke-linecap="round"/>
-    </marker>
-    <!-- Label background style -->
-    <filter id="bg" x="-10%" y="-15%" width="120%" height="130%">
-      <feFlood flood-color="#ffffff"/>
-      <feComposite in="SourceGraphic"/>
-    </filter>
+    
+    <marker id="arrow-uc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000"/></marker>
+    <marker id="arrow-uc-purple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000"/></marker>
+    <marker id="arrow-uc-emerald" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000"/></marker>
+    <style>
+      line, polyline { fill: none !important; }
+      text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    </style>
   </defs>
 
-  <!-- Title & Header -->
-  <text x="50" y="45" font-size="22" font-weight="bold" fill="#0F172A">LibraLink - UML Use Case Diagram</text>
-  <text x="50" y="70" font-size="13" fill="#64748B">Actors, Associations, &lt;&lt;Include&gt;&gt;, and &lt;&lt;Extend&gt;&gt; Relationships</text>
+  <!-- OVERALL SYSTEM BOUNDARY -->
+  <rect x="220" y="30" width="1340" height="2670" fill="#ffffff" stroke="#000000" stroke-width="2" rx="8" />
+  <text x="890" y="65" text-anchor="middle" font-weight="800" font-size="20" fill="#0f172a">LibraLink Library Management System — Complete Role Feature Architecture</text>
+  <text x="890" y="88" text-anchor="middle" font-weight="600" font-size="13" fill="#475569">4 Functional Subsystems: Student Patron Services • Circulation Desk Services • Admin-Librarian Governance • Super Admin Platform Administration</text>
 
-  <!-- ========================================================================= -->
-  <!-- 1. ACTORS (STICKMEN WITH BLUE HEADS MATCHING YOUR EXACT REFERENCE IMAGE)  -->
-  <!-- ========================================================================= -->
-
-  <!-- ACTOR 1: Student (x=100, y=220) -->
-  <g id="actor_student">
-    <!-- Blue Head -->
-    <circle cx="100" cy="180" r="16" fill="#68C5F7" stroke="#000000" stroke-width="2"/>
-    <!-- Spine -->
-    <line x1="100" y1="196" x2="100" y2="245" stroke="#000000" stroke-width="2.2"/>
-    <!-- Arms -->
-    <line x1="72" y1="212" x2="128" y2="212" stroke="#000000" stroke-width="2.2"/>
-    <!-- Left Leg -->
-    <line x1="100" y1="245" x2="76" y2="285" stroke="#000000" stroke-width="2.2"/>
-    <!-- Right Leg -->
-    <line x1="100" y1="245" x2="124" y2="285" stroke="#000000" stroke-width="2.2"/>
-    <!-- Label -->
-    <text x="100" y="310" text-anchor="middle" font-size="14" font-weight="bold" fill="#000000">Student</text>
+  <!-- ========================================== -->
+  <!-- COLUMN 1: ACTORS (LEFT MARGIN)             -->
+  <!-- ========================================== -->
+  <!-- 1. Student Actor -->
+  <g id="actor-student">
+    <circle cx="100" cy="370" r="17" fill="#ffffff" stroke="#000000" stroke-width="2.2"/>
+    <line x1="100" y1="387" x2="100" y2="427" stroke="#000000" stroke-width="2.2"/>
+    <line x1="78" y1="401" x2="122" y2="401" stroke="#000000" stroke-width="2.2"/>
+    <line x1="100" y1="427" x2="80" y2="465" stroke="#000000" stroke-width="2.2"/>
+    <line x1="100" y1="427" x2="120" y2="465" stroke="#000000" stroke-width="2.2"/>
+    <text x="100" y="489" text-anchor="middle" font-weight="800" font-size="15" fill="#0f172a">Student</text>
+    <text x="100" y="506" text-anchor="middle" font-size="11" font-weight="600" fill="#475569">(Patron / Borrower)</text>
   </g>
 
-  <!-- ACTOR 2: Home-School Librarian (x=100, y=470) -->
-  <g id="actor_homelib">
-    <circle cx="100" cy="430" r="16" fill="#68C5F7" stroke="#000000" stroke-width="2"/>
-    <line x1="100" y1="446" x2="100" y2="495" stroke="#000000" stroke-width="2.2"/>
-    <line x1="72" y1="462" x2="128" y2="462" stroke="#000000" stroke-width="2.2"/>
-    <line x1="100" y1="495" x2="76" y2="535" stroke="#000000" stroke-width="2.2"/>
-    <line x1="100" y1="495" x2="124" y2="535" stroke="#000000" stroke-width="2.2"/>
-    <text x="100" y="558" text-anchor="middle" font-size="13" font-weight="bold" fill="#000000">Home-School</text>
-    <text x="100" y="574" text-anchor="middle" font-size="13" font-weight="bold" fill="#000000">Librarian</text>
+  <!-- 2. Librarian Actor -->
+  <g id="actor-librarian">
+    <circle cx="100" cy="1075" r="17" fill="#ffffff" stroke="#000000" stroke-width="2.2"/>
+    <line x1="100" y1="1092" x2="100" y2="1132" stroke="#000000" stroke-width="2.2"/>
+    <line x1="78" y1="1106" x2="122" y2="1106" stroke="#000000" stroke-width="2.2"/>
+    <line x1="100" y1="1132" x2="80" y2="1170" stroke="#000000" stroke-width="2.2"/>
+    <line x1="100" y1="1132" x2="120" y2="1170" stroke="#000000" stroke-width="2.2"/>
+    <text x="100" y="1194" text-anchor="middle" font-weight="800" font-size="15" fill="#0f172a">Librarian</text>
+    <text x="100" y="1211" text-anchor="middle" font-size="11" font-weight="600" fill="#475569">(Circulation Desk Staff)</text>
   </g>
 
-  <!-- ACTOR 3: Partner-School Librarian (x=100, y=680) -->
-  <g id="actor_partnerlib">
-    <circle cx="100" cy="650" r="16" fill="#68C5F7" stroke="#000000" stroke-width="2"/>
-    <line x1="100" y1="666" x2="100" y2="715" stroke="#000000" stroke-width="2.2"/>
-    <line x1="72" y1="682" x2="128" y2="682" stroke="#000000" stroke-width="2.2"/>
-    <line x1="100" y1="715" x2="76" y2="755" stroke="#000000" stroke-width="2.2"/>
-    <line x1="100" y1="715" x2="124" y2="755" stroke="#000000" stroke-width="2.2"/>
-    <text x="100" y="778" text-anchor="middle" font-size="13" font-weight="bold" fill="#000000">Partner-School</text>
-    <text x="100" y="794" text-anchor="middle" font-size="13" font-weight="bold" fill="#000000">Librarian</text>
+  <!-- 4. Super Admin Actor -->
+  <g class="svg-node svg-actor" onclick="inspectItem('actor', 'Super Admin')">
+    <circle cx="100" cy="2365" r="17" fill="#ffffff" stroke="#000000" stroke-width="2.2"/>
+    <line x1="100" y1="2382" x2="100" y2="2422" stroke="#000000" stroke-width="2.2"/>
+    <line x1="78" y1="2396" x2="122" y2="2396" stroke="#000000" stroke-width="2.2"/>
+    <line x1="100" y1="2422" x2="80" y2="2460" stroke="#000000" stroke-width="2.2"/>
+    <line x1="100" y1="2422" x2="120" y2="2460" stroke="#000000" stroke-width="2.2"/>
+    <text x="100" y="2484" text-anchor="middle" font-weight="800" font-size="14.5" fill="#000000">Super Admin</text>
+    <text x="100" y="2501" text-anchor="middle" font-size="11" font-weight="600" fill="#475569">(Platform Administrator)</text>
   </g>
 
-  <!-- ACTOR 4: Administrator (x=100, y=880) -->
-  <g id="actor_admin">
-    <circle cx="100" cy="860" r="16" fill="#68C5F7" stroke="#000000" stroke-width="2"/>
-    <line x1="100" y1="876" x2="100" y2="925" stroke="#000000" stroke-width="2.2"/>
-    <line x1="72" y1="892" x2="128" y2="892" stroke="#000000" stroke-width="2.2"/>
-    <line x1="100" y1="925" x2="76" y2="965" stroke="#000000" stroke-width="2.2"/>
-    <line x1="100" y1="925" x2="124" y2="965" stroke="#000000" stroke-width="2.2"/>
-    <text x="100" y="988" text-anchor="middle" font-size="13" font-weight="bold" fill="#000000">Administrator</text>
+  <!-- 3. Admin-Librarian Actor -->
+  <g id="actor-adminlib">
+    <circle cx="100" cy="1775" r="17" fill="#ffffff" stroke="#000000" stroke-width="2.2"/>
+    <line x1="100" y1="1792" x2="100" y2="1832" stroke="#000000" stroke-width="2.2"/>
+    <line x1="78" y1="1806" x2="122" y2="1806" stroke="#000000" stroke-width="2.2"/>
+    <line x1="100" y1="1832" x2="80" y2="1870" stroke="#000000" stroke-width="2.2"/>
+    <line x1="100" y1="1832" x2="120" y2="1870" stroke="#000000" stroke-width="2.2"/>
+    <text x="100" y="1894" text-anchor="middle" font-weight="800" font-size="14.5" fill="#0f172a">Admin-Librarian</text>
+    <text x="100" y="1911" text-anchor="middle" font-size="11" font-weight="600" fill="#475569">(Head Administrator)</text>
   </g>
 
-  <!-- ========================================================================= -->
-  <!-- 2. SOLID ASSOCIATION LINES (Actor to Base Use Cases)                     -->
-  <!-- ========================================================================= -->
-  <!-- Student associations -->
-  <line x1="130" y1="212" x2="310" y2="120" stroke="#000000" stroke-width="1.8"/>
-  <line x1="130" y1="212" x2="320" y2="185" stroke="#000000" stroke-width="1.8"/>
-  <line x1="130" y1="212" x2="310" y2="255" stroke="#000000" stroke-width="1.8"/>
-  <line x1="130" y1="212" x2="310" y2="335" stroke="#000000" stroke-width="1.8"/>
-  <line x1="130" y1="212" x2="310" y2="410" stroke="#000000" stroke-width="1.8"/>
+  <!-- ============================================================== -->
+  <!-- 0. COMMON AUTHENTICATION & ACCESS GATEWAY (Y: 105 - 205)       -->
+  <!-- ============================================================== -->
+  <rect x="245" y="105" width="1290" height="98" rx="12" fill="#f8fafc" stroke="#000000" stroke-width="1.8" stroke-dasharray="6 4"/>
+  <rect x="245" y="105" width="380" height="30" rx="8" fill="#000000"/>
+  <text x="260" y="125" font-size="12" font-weight="800" fill="#ffffff">0. Common Authentication &amp; Access Gateway</text>
 
-  <!-- Home Librarian associations -->
-  <line x1="130" y1="462" x2="320" y2="185" stroke="#000000" stroke-width="1.8"/>
-  <line x1="130" y1="462" x2="310" y2="410" stroke="#000000" stroke-width="1.8"/>
-  <line x1="130" y1="462" x2="300" y2="505" stroke="#000000" stroke-width="1.8"/>
-
-  <!-- Partner Librarian associations -->
-  <line x1="130" y1="682" x2="320" y2="185" stroke="#000000" stroke-width="1.8"/>
-  <line x1="130" y1="682" x2="300" y2="650" stroke="#000000" stroke-width="1.8"/>
-  <line x1="130" y1="682" x2="300" y2="735" stroke="#000000" stroke-width="1.8"/>
-
-  <!-- Admin associations -->
-  <line x1="130" y1="892" x2="320" y2="185" stroke="#000000" stroke-width="1.8"/>
-  <line x1="130" y1="892" x2="320" y2="815" stroke="#000000" stroke-width="1.8"/>
-  <line x1="130" y1="892" x2="310" y2="885" stroke="#000000" stroke-width="1.8"/>
-  <line x1="130" y1="892" x2="310" y2="955" stroke="#000000" stroke-width="1.8"/>
-
-  <!-- ========================================================================= -->
-  <!-- 3. BASE USE CASES (Middle Column, x=420)                                  -->
-  <!-- ========================================================================= -->
-
-  <!-- UC: Register an account -->
-  <ellipse cx="420" cy="120" rx="110" ry="26" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-  <text x="420" y="125" text-anchor="middle" font-size="13" font-weight="bold" fill="#000000">Register an Account</text>
-
-  <!-- UC: Log-in -->
-  <ellipse cx="420" cy="185" rx="100" ry="24" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-  <text x="420" y="190" text-anchor="middle" font-size="13" font-weight="bold" fill="#000000">Log-in</text>
-
-  <!-- UC: Search for Books -->
-  <ellipse cx="420" cy="255" rx="110" ry="26" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-  <text x="420" y="260" text-anchor="middle" font-size="13" font-weight="bold" fill="#000000">Search for Books</text>
-
-  <!-- UC: Submit a Request (with Extension Point) -->
-  <g id="uc_submit">
-    <ellipse cx="420" cy="335" rx="110" ry="32" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-    <line x1="320" y1="335" x2="520" y2="335" stroke="#000000" stroke-width="1.2"/>
-    <text x="420" y="325" text-anchor="middle" font-size="12" font-weight="bold" fill="#000000">Submit a Request</text>
-    <text x="420" y="348" text-anchor="middle" font-size="10" font-weight="bold" fill="#000000">extension points</text>
-    <text x="420" y="359" text-anchor="middle" font-size="9" fill="#000000">Access Approved Resources</text>
+  <!-- Central Shared Use Case: Log-in & Authenticate -->
+  <g>
+    <ellipse cx="560" cy="162" rx="115" ry="24" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="167" text-anchor="middle" font-weight="800" font-size="12.5" fill="#0f172a">Log-in &amp; Authenticate</text>
+  </g>
+  <g>
+    <ellipse cx="1200" cy="162" rx="135" ry="22" fill="#f1f5f9" stroke="#000000" stroke-width="1.6"/>
+    <text x="1200" y="166" text-anchor="middle" font-weight="700" font-size="11" fill="#0f172a">Validate Role &amp; Session Security</text>
+  </g>
+  <line x1="675" y1="162" x2="1065" y2="162" stroke="#000000" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#arrow-uc-slate)"/>
+  <g>
+    <rect x="825" y="151" width="90" height="22" rx="11" fill="#ffffff" stroke="#000000" stroke-width="1.4"/>
+    <text x="870" y="166" text-anchor="middle" font-size="11" font-weight="700" fill="#000000">&lt;&lt;Include&gt;&gt;</text>
   </g>
 
-  <!-- UC: Monitor Request Status -->
-  <ellipse cx="420" cy="410" rx="110" ry="26" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-  <text x="420" y="415" text-anchor="middle" font-size="13" font-weight="bold" fill="#000000">Monitor Request Status</text>
+  <!-- ============================================================== -->
+  <!-- SUBSYSTEM 1: STUDENT PATRON SERVICES (Y: 215 - 745)            -->
+  <!-- ============================================================== -->
+  <rect x="245" y="215" width="1290" height="530" rx="12" fill="#f8fafc" stroke="#000000" stroke-width="1.8" stroke-dasharray="6 4"/>
+  <rect x="245" y="215" width="370" height="32" rx="8" fill="#000000"/>
+  <text x="260" y="236" font-size="12.5" font-weight="800" fill="#ffffff">1. Student Patron Services Subsystem</text>
 
-  <!-- UC: Review Student Requests (with Extension Point) -->
-  <g id="uc_review">
-    <ellipse cx="420" cy="510" rx="120" ry="36" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-    <line x1="310" y1="510" x2="530" y2="510" stroke="#000000" stroke-width="1.2"/>
-    <text x="420" y="498" text-anchor="middle" font-size="12" font-weight="bold" fill="#000000">Review Student Requests</text>
-    <text x="420" y="523" text-anchor="middle" font-size="10" font-weight="bold" fill="#000000">extension points</text>
-    <text x="420" y="536" text-anchor="middle" font-size="9.5" fill="#000000">Approve / Disapprove</text>
+  <!-- Row 1: Claim / Register -->
+  <g>
+    <ellipse cx="560" cy="265" rx="110" ry="21" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="270" text-anchor="middle" font-weight="700" font-size="12" fill="#0f172a">Claim / Register Account</text>
   </g>
 
-  <!-- UC: Verify Approved Requests -->
-  <ellipse cx="420" cy="650" rx="120" ry="28" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-  <text x="420" y="655" text-anchor="middle" font-size="13" font-weight="bold" fill="#000000">Verify Approved Requests</text>
+  <!-- Row 2: Profile Setup + Include Policy -->
+  <g>
+    <ellipse cx="560" cy="320" rx="110" ry="21" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="325" text-anchor="middle" font-weight="700" font-size="12" fill="#0f172a">Complete Profile Setup</text>
+  </g>
+  <g>
+    <ellipse cx="1200" cy="320" rx="125" ry="21" fill="#f1f5f9" stroke="#000000" stroke-width="1.6"/>
+    <text x="1200" y="325" text-anchor="middle" font-weight="700" font-size="11" fill="#000000">Accept Library Policies &amp; Terms</text>
+  </g>
+  <line x1="670" y1="320" x2="1075" y2="320" stroke="#000000" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#arrow-uc)"/>
+  <g>
+    <rect x="825" y="309" width="90" height="22" rx="11" fill="#ffffff" stroke="#000000" stroke-width="1.4"/>
+    <text x="870" y="324" text-anchor="middle" font-size="11" font-weight="700" fill="#000000">&lt;&lt;Include&gt;&gt;</text>
+  </g>
 
-  <!-- UC: Process Applicable Access Requests -->
-  <ellipse cx="420" cy="735" rx="125" ry="28" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-  <text x="420" y="740" text-anchor="middle" font-size="12" font-weight="bold" fill="#000000">Process Applicable Access Requests</text>
+  <!-- Row 3: Search Catalog + Include Availability -->
+  <g>
+    <ellipse cx="560" cy="375" rx="105" ry="21" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="380" text-anchor="middle" font-weight="700" font-size="12" fill="#0f172a">Search Catalog &amp; Filter</text>
+  </g>
+  <g>
+    <ellipse cx="1200" cy="375" rx="130" ry="21" fill="#f1f5f9" stroke="#000000" stroke-width="1.6"/>
+    <text x="1200" y="380" text-anchor="middle" font-weight="700" font-size="11" fill="#000000">Check Real-Time Availability &amp; Copies</text>
+  </g>
+  <line x1="665" y1="375" x2="1070" y2="375" stroke="#000000" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#arrow-uc)"/>
+  <g>
+    <rect x="825" y="364" width="90" height="22" rx="11" fill="#ffffff" stroke="#000000" stroke-width="1.4"/>
+    <text x="870" y="379" text-anchor="middle" font-size="11" font-weight="700" fill="#000000">&lt;&lt;Include&gt;&gt;</text>
+  </g>
 
-  <!-- Admin Use Cases -->
-  <ellipse cx="420" cy="815" rx="100" ry="24" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-  <text x="420" y="820" text-anchor="middle" font-size="13" font-weight="bold" fill="#000000">Manage Users</text>
+  <!-- Row 4: Wishlist -->
+  <g>
+    <ellipse cx="560" cy="430" rx="110" ry="21" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="435" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0f172a">Manage Wishlist &amp; Favorites</text>
+  </g>
 
-  <ellipse cx="420" cy="885" rx="115" ry="26" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-  <text x="420" y="890" text-anchor="middle" font-size="12" font-weight="bold" fill="#000000">Manage Participating Schools</text>
+  <!-- Row 5: Borrow Cart -->
+  <g>
+    <ellipse cx="560" cy="485" rx="115" ry="21" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="490" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0f172a">Manage Borrowing Cart (Max 3)</text>
+  </g>
 
-  <ellipse cx="420" cy="955" rx="110" ry="26" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-  <text x="420" y="960" text-anchor="middle" font-size="13" font-weight="bold" fill="#000000">Manage System Records</text>
+  <!-- Row 6: Submit Request + Extend QR Pass -->
+  <g>
+    <ellipse cx="560" cy="545" rx="115" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="550" text-anchor="middle" font-weight="700" font-size="12" fill="#0f172a">Submit Borrow Cart Request</text>
+  </g>
+  <g>
+    <ellipse cx="1200" cy="545" rx="125" ry="21" fill="#f1f5f9" stroke="#000000" stroke-width="1.6"/>
+    <text x="1200" y="550" text-anchor="middle" font-weight="700" font-size="11" fill="#000000">Generate &amp; View Digital QR Pass</text>
+  </g>
+  <line x1="1075" y1="545" x2="675" y2="545" stroke="#000000" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#arrow-uc)"/>
+  <g>
+    <rect x="825" y="534" width="90" height="22" rx="11" fill="#ffffff" stroke="#000000" stroke-width="1.4"/>
+    <text x="870" y="549" text-anchor="middle" font-size="11" font-weight="700" fill="#000000">&lt;&lt;Extend&gt;&gt;</text>
+  </g>
 
-  <!-- ========================================================================= -->
-  <!-- 4. SUB USE CASES (Right Column, x=920)                                    -->
-  <!-- ========================================================================= -->
+  <!-- Row 7: Request Inter-Library Permission Letter (REQUIRED FOR INTER-LIBRARY LOANS ONLY) -->
+  <g>
+    <ellipse cx="560" cy="605" rx="130" ry="24" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="601" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0f172a">Request Inter-Library Permission Letter</text>
+    <text x="560" y="618" text-anchor="middle" font-weight="700" font-size="9.5" fill="#000000">(Required for Inter-Library Loans Only)</text>
+  </g>
+  <g>
+    <ellipse cx="1200" cy="605" rx="125" ry="21" fill="#f1f5f9" stroke="#000000" stroke-width="1.6"/>
+    <text x="1200" y="610" text-anchor="middle" font-weight="700" font-size="11" fill="#000000">Verify Zero Fines &amp; Good Standing</text>
+  </g>
+  <line x1="690" y1="605" x2="1075" y2="605" stroke="#000000" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#arrow-uc)"/>
+  <g>
+    <rect x="825" y="594" width="90" height="22" rx="11" fill="#ffffff" stroke="#000000" stroke-width="1.4"/>
+    <text x="870" y="609" text-anchor="middle" font-size="11" font-weight="700" fill="#000000">&lt;&lt;Include&gt;&gt;</text>
+  </g>
 
-  <!-- Check Book Availability -->
-  <ellipse cx="920" cy="215" rx="115" ry="26" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-  <text x="920" y="220" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#000000">Check Book Availability</text>
+  <!-- Row 8: Active Loans -->
+  <g>
+    <ellipse cx="560" cy="660" rx="125" ry="21" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="665" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0f172a">Track Active Loans &amp; Due Dates</text>
+  </g>
 
-  <!-- View Partner-School Suggestions -->
-  <ellipse cx="920" cy="280" rx="125" ry="26" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-  <text x="920" y="285" text-anchor="middle" font-size="12" font-weight="bold" fill="#000000">View Partner-School Suggestions</text>
+  <!-- Row 9: History & Inbox -->
+  <g>
+    <ellipse cx="450" cy="715" rx="115" ry="21" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="450" y="720" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0f172a">View History &amp; Fine Balance</text>
+  </g>
+  <g>
+    <ellipse cx="730" cy="715" rx="110" ry="21" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="730" y="720" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0f172a">View Notifications &amp; Inbox</text>
+  </g>
 
-  <!-- Access Approved Resources (Extension) -->
-  <ellipse cx="920" cy="355" rx="120" ry="26" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-  <text x="920" y="360" text-anchor="middle" font-size="12" font-weight="bold" fill="#000000">Access Approved Resources</text>
+  <!-- Student Associations (Pure line segments, crisp sky-blue) -->
+  <g stroke="#000000" stroke-width="1.6" fill="none">
+    <line x1="125" y1="415" x2="445" y2="162"/>
+    <line x1="125" y1="415" x2="450" y2="265"/>
+    <line x1="125" y1="415" x2="450" y2="320"/>
+    <line x1="125" y1="415" x2="455" y2="375"/>
+    <line x1="125" y1="415" x2="450" y2="430"/>
+    <line x1="125" y1="415" x2="445" y2="485"/>
+    <line x1="125" y1="415" x2="445" y2="545"/>
+    <line x1="125" y1="415" x2="430" y2="605"/>
+    <line x1="125" y1="415" x2="435" y2="660"/>
+    <line x1="125" y1="415" x2="335" y2="715"/>
+    <line x1="125" y1="415" x2="620" y2="715"/>
+  </g>
 
-  <!-- Verify Submitted Information -->
-  <ellipse cx="920" cy="460" rx="120" ry="26" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-  <text x="920" y="465" text-anchor="middle" font-size="12" font-weight="bold" fill="#000000">Verify Submitted Information</text>
+  <!-- ============================================================== -->
+  <!-- SUBSYSTEM 2: CIRCULATION DESK SERVICES (Y: 755 - 1495)         -->
+  <!-- ============================================================== -->
+  <rect x="245" y="755" width="1290" height="740" rx="12" fill="#f8fafc" stroke="#000000" stroke-width="1.8" stroke-dasharray="6 4"/>
+  <rect x="245" y="755" width="370" height="34" rx="8" fill="#000000"/>
+  <text x="260" y="778" font-size="13" font-weight="800" fill="#ffffff">2. Circulation Desk Services Subsystem</text>
 
-  <!-- Approve Requests (Extension) -->
-  <ellipse cx="920" cy="530" rx="100" ry="24" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-  <text x="920" y="535" text-anchor="middle" font-size="13" font-weight="bold" fill="#000000">Approve Requests</text>
+  <!-- Row 1: Review Requests + Include Verify + Extends -->
+  <g>
+    <ellipse cx="560" cy="825" rx="120" ry="24" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="830" text-anchor="middle" font-weight="700" font-size="12" fill="#0f172a">Review Pending Requests</text>
+  </g>
+  <g>
+    <ellipse cx="1200" cy="825" rx="125" ry="22" fill="#f1f5f9" stroke="#000000" stroke-width="1.6"/>
+    <text x="1200" y="829" text-anchor="middle" font-weight="700" font-size="11" fill="#000000">Verify Patron Standing &amp; Fines</text>
+  </g>
+  <line x1="680" y1="825" x2="1075" y2="825" stroke="#000000" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#arrow-uc-purple)"/>
+  <g>
+    <rect x="830" y="814" width="90" height="22" rx="11" fill="#ffffff" stroke="#000000" stroke-width="1.4"/>
+    <text x="875" y="829" text-anchor="middle" font-size="11" font-weight="700" fill="#000000">&lt;&lt;Include&gt;&gt;</text>
+  </g>
 
-  <!-- Disapprove Requests (Extension) -->
-  <ellipse cx="920" cy="590" rx="105" ry="24" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-  <text x="920" y="595" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#000000">Disapprove Requests</text>
+  <!-- Extend: Approve -->
+  <g>
+    <ellipse cx="1200" cy="880" rx="100" ry="20" fill="#f1f5f9" stroke="#000000" stroke-width="1.6"/>
+    <text x="1200" y="884" text-anchor="middle" font-weight="700" font-size="11" fill="#000000">Approve Borrow Request</text>
+  </g>
+  <line x1="1100" y1="880" x2="680" y2="835" stroke="#000000" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#arrow-uc-purple)"/>
+  <g>
+    <rect x="845" y="846" width="90" height="22" rx="11" fill="#ffffff" stroke="#000000" stroke-width="1.4"/>
+    <text x="890" y="861" text-anchor="middle" font-size="11" font-weight="700" fill="#000000">&lt;&lt;Extend&gt;&gt;</text>
+  </g>
 
-  <!-- Confirm Resource Availability -->
-  <ellipse cx="920" cy="670" rx="120" ry="26" fill="#68C5F7" stroke="#000000" stroke-width="1.8"/>
-  <text x="920" y="675" text-anchor="middle" font-size="12" font-weight="bold" fill="#000000">Confirm Resource Availability</text>
+  <!-- Extend: Disapprove -->
+  <g>
+    <ellipse cx="1200" cy="930" rx="105" ry="20" fill="#f1f5f9" stroke="#000000" stroke-width="1.6"/>
+    <text x="1200" y="934" text-anchor="middle" font-weight="700" font-size="11" fill="#000000">Disapprove Borrow Request</text>
+  </g>
+  <line x1="1095" y1="930" x2="680" y2="840" stroke="#000000" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#arrow-uc-purple)"/>
+  <g>
+    <rect x="845" y="874" width="90" height="22" rx="11" fill="#ffffff" stroke="#000000" stroke-width="1.4"/>
+    <text x="890" y="889" text-anchor="middle" font-size="11" font-weight="700" fill="#000000">&lt;&lt;Extend&gt;&gt;</text>
+  </g>
 
-  <!-- ========================================================================= -->
-  <!-- 5. <<INCLUDE>> RELATIONSHIPS (Dashed Arrows to Target)                   -->
-  <!-- ========================================================================= -->
-  
-  <!-- Search -> Check Book Availability -->
-  <path d="M 525 245 L 805 220" fill="none" stroke="#000000" stroke-width="1.6" stroke-dasharray="5,5" marker-end="url(#arrow)"/>
-  <text x="660" y="225" text-anchor="middle" font-size="11" font-style="italic" fill="#000000" filter="url(#bg)">&lt;&lt;Include&gt;&gt;</text>
+  <!-- Row 2: Scan QR + Include Verify Barcode -->
+  <g>
+    <ellipse cx="560" cy="990" rx="115" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="995" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0f172a">Scan Student QR Pickup Pass</text>
+  </g>
+  <g>
+    <ellipse cx="1200" cy="990" rx="130" ry="22" fill="#f1f5f9" stroke="#000000" stroke-width="1.6"/>
+    <text x="1200" y="994" text-anchor="middle" font-weight="700" font-size="10.5" fill="#000000">Verify Accession &amp; Barcode Match</text>
+  </g>
+  <line x1="675" y1="990" x2="1070" y2="990" stroke="#000000" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#arrow-uc-purple)"/>
+  <g>
+    <rect x="825" y="979" width="90" height="22" rx="11" fill="#ffffff" stroke="#000000" stroke-width="1.4"/>
+    <text x="870" y="994" text-anchor="middle" font-size="11" font-weight="700" fill="#000000">&lt;&lt;Include&gt;&gt;</text>
+  </g>
 
-  <!-- Search -> View Partner Suggestions -->
-  <path d="M 525 260 L 795 275" fill="none" stroke="#000000" stroke-width="1.6" stroke-dasharray="5,5" marker-end="url(#arrow)"/>
-  <text x="660" y="278" text-anchor="middle" font-size="11" font-style="italic" fill="#000000" filter="url(#bg)">&lt;&lt;Include&gt;&gt;</text>
+  <!-- Row 3: Release Book -->
+  <g>
+    <ellipse cx="560" cy="1055" rx="125" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="1060" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0f172a">Release Book &amp; Set Due Date (PST)</text>
+  </g>
 
-  <!-- Submit Request -> Check Availability -->
-  <path d="M 520 315 L 815 235" fill="none" stroke="#000000" stroke-width="1.6" stroke-dasharray="5,5" marker-end="url(#arrow)"/>
-  <text x="685" y="265" text-anchor="middle" font-size="11" font-style="italic" fill="#000000" filter="url(#bg)">&lt;&lt;Include&gt;&gt;</text>
+  <!-- Row 4: Process Returns + Include Inspect Condition -->
+  <g>
+    <ellipse cx="560" cy="1120" rx="120" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="1125" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0f172a">Process Book Returns (Check-in)</text>
+  </g>
+  <g>
+    <ellipse cx="1200" cy="1120" rx="125" ry="22" fill="#f1f5f9" stroke="#000000" stroke-width="1.6"/>
+    <text x="1200" y="1124" text-anchor="middle" font-weight="700" font-size="10.5" fill="#000000">Inspect Physical Book Condition</text>
+  </g>
+  <line x1="680" y1="1120" x2="1075" y2="1120" stroke="#000000" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#arrow-uc-purple)"/>
+  <g>
+    <rect x="825" y="1109" width="90" height="22" rx="11" fill="#ffffff" stroke="#000000" stroke-width="1.4"/>
+    <text x="870" y="1124" text-anchor="middle" font-size="11" font-weight="700" fill="#000000">&lt;&lt;Include&gt;&gt;</text>
+  </g>
 
-  <!-- Review Requests -> Verify Submitted Info -->
-  <path d="M 535 490 L 800 465" fill="none" stroke="#000000" stroke-width="1.6" stroke-dasharray="5,5" marker-end="url(#arrow)"/>
-  <text x="670" y="472" text-anchor="middle" font-size="11" font-style="italic" fill="#000000" filter="url(#bg)">&lt;&lt;Include&gt;&gt;</text>
+  <!-- Row 5: Mark Copy Available -->
+  <g>
+    <ellipse cx="560" cy="1185" rx="110" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="1190" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0f172a">Mark Copy as Available</text>
+  </g>
 
-  <!-- Verify Approved -> Confirm Resource Availability -->
-  <path d="M 535 655 L 800 668" fill="none" stroke="#000000" stroke-width="1.6" stroke-dasharray="5,5" marker-end="url(#arrow)"/>
-  <text x="670" y="655" text-anchor="middle" font-size="11" font-style="italic" fill="#000000" filter="url(#bg)">&lt;&lt;Include&gt;&gt;</text>
+  <!-- Row 6: Audit Overdue Loans + Extend Fine -->
+  <g>
+    <ellipse cx="560" cy="1250" rx="115" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="1255" text-anchor="middle" font-weight="700" font-size="12" fill="#0f172a">Audit Overdue Loans List</text>
+  </g>
+  <g>
+    <ellipse cx="1200" cy="1250" rx="125" ry="22" fill="#f1f5f9" stroke="#000000" stroke-width="1.6"/>
+    <text x="1200" y="1254" text-anchor="middle" font-weight="700" font-size="10.5" fill="#000000">Compute Daily Overdue Fine (₱)</text>
+  </g>
+  <line x1="1075" y1="1250" x2="675" y2="1250" stroke="#000000" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#arrow-uc-purple)"/>
+  <g>
+    <rect x="825" y="1239" width="90" height="22" rx="11" fill="#ffffff" stroke="#000000" stroke-width="1.4"/>
+    <text x="870" y="1254" text-anchor="middle" font-size="11" font-weight="700" fill="#000000">&lt;&lt;Extend&gt;&gt;</text>
+  </g>
 
-  <!-- ========================================================================= -->
-  <!-- 6. <<EXTEND>> RELATIONSHIPS (Dashed Arrows From Extension to Base Point)  -->
-  <!-- ========================================================================= -->
+  <!-- Row 7: Collect Fine Payments -->
+  <g>
+    <ellipse cx="560" cy="1315" rx="115" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="1320" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0f172a">Collect Fine Payments &amp; Receipt</text>
+  </g>
 
-  <!-- Access Approved Resources -> Submit Request -->
-  <path d="M 800 355 L 535 342" fill="none" stroke="#000000" stroke-width="1.6" stroke-dasharray="5,5" marker-end="url(#arrow)"/>
-  <text x="670" y="342" text-anchor="middle" font-size="11" font-style="italic" fill="#000000" filter="url(#bg)">&lt;&lt;Extend&gt;&gt;</text>
+  <!-- Row 8: Inter-Library Permission Letter & Clearance -->
+  <g>
+    <ellipse cx="560" cy="1380" rx="130" ry="24" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="1376" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0f172a">Issue Inter-Library Permission Letter</text>
+    <text x="560" y="1393" text-anchor="middle" font-weight="600" font-size="9.5" fill="#475569">(Authorizes Partner / Visiting Loans)</text>
+  </g>
+  <g>
+    <ellipse cx="1200" cy="1380" rx="125" ry="22" fill="#f1f5f9" stroke="#000000" stroke-width="1.6"/>
+    <text x="1200" y="1385" text-anchor="middle" font-weight="700" font-size="11" fill="#000000">Issue Student Clearance Certificate</text>
+  </g>
+  <line x1="690" y1="1380" x2="1075" y2="1380" stroke="#000000" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#arrow-uc-purple)"/>
+  <g>
+    <rect x="825" y="1369" width="90" height="22" rx="11" fill="#ffffff" stroke="#000000" stroke-width="1.4"/>
+    <text x="870" y="1384" text-anchor="middle" font-size="11" font-weight="700" fill="#000000">&lt;&lt;Extend&gt;&gt;</text>
+  </g>
 
-  <!-- Approve Requests -> Review Requests -->
-  <path d="M 820 528 L 542 516" fill="none" stroke="#000000" stroke-width="1.6" stroke-dasharray="5,5" marker-end="url(#arrow)"/>
-  <text x="675" y="515" text-anchor="middle" font-size="11" font-style="italic" fill="#000000" filter="url(#bg)">&lt;&lt;Extend&gt;&gt;</text>
+  <!-- Row 9: Patrons Directory & Alerts -->
+  <g>
+    <ellipse cx="450" cy="1440" rx="115" ry="20" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="450" y="1445" text-anchor="middle" font-weight="700" font-size="11" fill="#0f172a">Search &amp; List Patron Directory</text>
+  </g>
+  <g>
+    <ellipse cx="730" cy="1440" rx="115" ry="20" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="730" y="1445" text-anchor="middle" font-weight="700" font-size="11" fill="#0f172a">View Circulation Alerts &amp; Inbox</text>
+  </g>
 
-  <!-- Disapprove Requests -> Review Requests -->
-  <path d="M 815 585 L 535 530" fill="none" stroke="#000000" stroke-width="1.6" stroke-dasharray="5,5" marker-end="url(#arrow)"/>
-  <text x="680" y="565" text-anchor="middle" font-size="11" font-style="italic" fill="#000000" filter="url(#bg)">&lt;&lt;Extend&gt;&gt;</text>
+  <!-- Librarian Associations (Pure line segments, crisp purple) -->
+  <g stroke="#000000" stroke-width="1.6" fill="none">
+    <line x1="125" y1="1120" x2="445" y2="162"/>
+    <line x1="125" y1="1120" x2="440" y2="825"/>
+    <line x1="125" y1="1120" x2="445" y2="990"/>
+    <line x1="125" y1="1120" x2="435" y2="1055"/>
+    <line x1="125" y1="1120" x2="440" y2="1120"/>
+    <line x1="125" y1="1120" x2="450" y2="1185"/>
+    <line x1="125" y1="1120" x2="445" y2="1250"/>
+    <line x1="125" y1="1120" x2="445" y2="1315"/>
+    <line x1="125" y1="1120" x2="430" y2="1380"/>
+    <line x1="125" y1="1120" x2="335" y2="1440"/>
+    <line x1="125" y1="1120" x2="615" y2="1440"/>
+  </g>
 
+  <!-- ============================================================== -->
+  <!-- SUBSYSTEM 3: ADMIN-LIBRARIAN GOVERNANCE (Y: 1515 - 2095)       -->
+  <!-- ============================================================== -->
+  <rect x="245" y="1515" width="1290" height="580" rx="12" fill="#f8fafc" stroke="#000000" stroke-width="1.8" stroke-dasharray="6 4"/>
+  <rect x="245" y="1515" width="460" height="34" rx="8" fill="#000000"/>
+  <text x="260" y="1538" font-size="13" font-weight="800" fill="#ffffff">3. Admin-Librarian Governance &amp; Configuration Subsystem</text>
+
+  <!-- Row 1: Master Catalog -->
+  <g>
+    <ellipse cx="560" cy="1585" rx="125" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="1590" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0f172a">Master Books Catalog Management</text>
+  </g>
+
+  <!-- Row 2: CSV Import -->
+  <g>
+    <ellipse cx="560" cy="1645" rx="110" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="1650" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0f172a">Batch CSV Book Import</text>
+  </g>
+
+  <!-- Row 3: Copies & Barcodes -->
+  <g>
+    <ellipse cx="560" cy="1705" rx="125" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="1710" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0f172a">Manage Copies, Barcodes &amp; Shelf</text>
+  </g>
+
+  <!-- Row 4: Categories & Authors -->
+  <g>
+    <ellipse cx="560" cy="1765" rx="125" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="1770" text-anchor="middle" font-weight="700" font-size="11" fill="#0f172a">Manage Categories, Authors, Pubs</text>
+  </g>
+
+  <!-- Row 5: Staff Librarians -->
+  <g>
+    <ellipse cx="560" cy="1825" rx="120" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="1830" text-anchor="middle" font-weight="700" font-size="11" fill="#0f172a">Register &amp; Manage Staff Librarians</text>
+  </g>
+
+  <!-- Row 6: Loan Duration Policy + Include Settings -->
+  <g>
+    <ellipse cx="560" cy="1890" rx="125" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="1895" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0f172a">Configure Loan Duration Policy</text>
+  </g>
+  <g>
+    <ellipse cx="1200" cy="1890" rx="135" ry="22" fill="#f1f5f9" stroke="#000000" stroke-width="1.6"/>
+    <text x="1200" y="1895" text-anchor="middle" font-weight="700" font-size="11" fill="#000000">Update System Config Key-Values</text>
+  </g>
+  <line x1="685" y1="1890" x2="1065" y2="1890" stroke="#000000" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#arrow-uc-emerald)"/>
+  <g>
+    <rect x="825" y="1879" width="90" height="22" rx="11" fill="#ffffff" stroke="#000000" stroke-width="1.4"/>
+    <text x="870" y="1894" text-anchor="middle" font-size="11" font-weight="700" fill="#000000">&lt;&lt;Include&gt;&gt;</text>
+  </g>
+
+  <!-- Row 7: Fine Rate -->
+  <g>
+    <ellipse cx="560" cy="1955" rx="120" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="1960" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0f172a">Set Daily Overdue Fine Rate (₱)</text>
+  </g>
+
+  <!-- Row 8: Analytics & Audit Logs -->
+  <g>
+    <ellipse cx="440" cy="2015" rx="120" ry="20" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="440" y="2020" text-anchor="middle" font-weight="700" font-size="11" fill="#0f172a">View System Analytics Dashboard</text>
+  </g>
+  <g>
+    <ellipse cx="710" cy="2015" rx="115" ry="20" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="710" y="2020" text-anchor="middle" font-weight="700" font-size="11" fill="#0f172a">Audit Security &amp; Activity Logs</text>
+  </g>
+
+  <!-- Row 9: Reports & Profile -->
+  <g>
+    <ellipse cx="440" cy="2060" rx="125" ry="20" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="440" y="2065" text-anchor="middle" font-weight="700" font-size="11" fill="#0f172a">Export Delinquency &amp; Reports</text>
+  </g>
+  <g>
+    <ellipse cx="710" cy="2060" rx="115" ry="20" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="710" y="2065" text-anchor="middle" font-weight="700" font-size="11" fill="#0f172a">Manage Institutional Profile</text>
+  </g>
+
+  <!-- Admin-Librarian Associations (Pure line segments, crisp emerald) -->
+  <g stroke="#000000" stroke-width="1.6" fill="none">
+    <line x1="125" y1="1820" x2="445" y2="162"/>
+    <line x1="125" y1="1820" x2="435" y2="1585"/>
+    <line x1="125" y1="1820" x2="450" y2="1645"/>
+    <line x1="125" y1="1820" x2="435" y2="1705"/>
+    <line x1="125" y1="1820" x2="435" y2="1765"/>
+    <line x1="125" y1="1820" x2="440" y2="1825"/>
+    <line x1="125" y1="1820" x2="435" y2="1890"/>
+    <line x1="125" y1="1820" x2="440" y2="1955"/>
+    <line x1="125" y1="1820" x2="320" y2="2015"/>
+    <line x1="125" y1="1820" x2="595" y2="2015"/>
+    <line x1="125" y1="1820" x2="315" y2="2060"/>
+    <line x1="125" y1="1820" x2="595" y2="2060"/>
+  </g>
+
+  <!-- ==============================================================   <!-- ============================================================== -->
+  <!-- SUBSYSTEM 4: SUPER ADMIN PLATFORM GOVERNANCE (Y: 2115 - 2665)  -->
+  <!-- ============================================================== -->
+  <rect x="245" y="2115" width="1290" height="550" rx="12" fill="#f8fafc" stroke="#000000" stroke-width="1.8" stroke-dasharray="6 4"/>
+  <rect x="245" y="2115" width="480" height="34" rx="8" fill="#000000"/>
+  <text x="260" y="2138" font-size="13" font-weight="800" fill="#ffffff">4. Super Admin Platform Administration Subsystem</text>
+
+  <!-- Row 1: Manage Institutions & Campuses -->
+  <g class="svg-node" onclick="inspectItem('usecase', 'Manage Institutions & Campuses')">
+    <ellipse cx="560" cy="2185" rx="140" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="2190" text-anchor="middle" font-weight="700" font-size="11.5" fill="#000000">Manage Institutions &amp; Campuses</text>
+  </g>
+
+  <!-- Row 2: Manage Users & Role Permissions -->
+  <g class="svg-node" onclick="inspectItem('usecase', 'Manage Users & Role Permissions')">
+    <ellipse cx="560" cy="2255" rx="145" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="2260" text-anchor="middle" font-weight="700" font-size="11.5" fill="#000000">Manage Users &amp; Role Permissions</text>
+  </g>
+
+  <!-- Row 3: Platform Catalog Oversight & Batch Import -->
+  <g class="svg-node" onclick="inspectItem('usecase', 'Platform Catalog Oversight & Batch Import')">
+    <ellipse cx="560" cy="2325" rx="155" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="2330" text-anchor="middle" font-weight="700" font-size="11.5" fill="#000000">Platform Catalog Oversight &amp; Batch Import</text>
+  </g>
+
+  <!-- Row 4: Database Backup & Disaster Recovery + Include Verify Backup -->
+  <g class="svg-node" onclick="inspectItem('usecase', 'Database Backup & Disaster Recovery')">
+    <ellipse cx="560" cy="2395" rx="145" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="2400" text-anchor="middle" font-weight="700" font-size="11.5" fill="#000000">Database Backup &amp; Disaster Recovery</text>
+  </g>
+  <g class="svg-node" onclick="inspectItem('usecase', 'Verify Backup Integrity & Encrypt')">
+    <ellipse cx="1200" cy="2395" rx="140" ry="21" fill="#f1f5f9" stroke="#000000" stroke-width="1.6"/>
+    <text x="1200" y="2400" text-anchor="middle" font-weight="700" font-size="11" fill="#000000">Verify Backup Integrity &amp; Encrypt</text>
+  </g>
+  <line x1="705" y1="2395" x2="1060" y2="2395" stroke="#000000" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#arrow-uc)"/>
+  <g>
+    <rect x="835" y="2384" width="90" height="22" rx="11" fill="#ffffff" stroke="#000000" stroke-width="1.4"/>
+    <text x="880" y="2399" text-anchor="middle" font-size="11" font-weight="700" fill="#000000">&lt;&lt;Include&gt;&gt;</text>
+  </g>
+
+  <!-- Row 5: Cross-Campus Analytics & System Health -->
+  <g class="svg-node" onclick="inspectItem('usecase', 'Cross-Campus Analytics & Telemetry')">
+    <ellipse cx="560" cy="2465" rx="150" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="2470" text-anchor="middle" font-weight="700" font-size="11.5" fill="#000000">Cross-Campus Analytics &amp; System Health</text>
+  </g>
+
+  <!-- Row 6: Broadcast System Announcements -->
+  <g class="svg-node" onclick="inspectItem('usecase', 'Broadcast System Announcements')">
+    <ellipse cx="560" cy="2535" rx="145" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="2540" text-anchor="middle" font-weight="700" font-size="11.5" fill="#000000">Broadcast System Announcements</text>
+  </g>
+
+  <!-- Row 7: Platform Security & Global Settings -->
+  <g class="svg-node" onclick="inspectItem('usecase', 'Configure Platform Security & Global Settings')">
+    <ellipse cx="560" cy="2605" rx="160" ry="22" fill="#ffffff" stroke="#000000" stroke-width="1.8"/>
+    <text x="560" y="2610" text-anchor="middle" font-weight="700" font-size="11.5" fill="#000000">Configure Platform Security &amp; Global Settings</text>
+  </g>
+
+  <!-- Super Admin Associations (Straight solid lines, pure black) -->
+  <g stroke="#000000" stroke-width="1.6" fill="none">
+    <line x1="125" y1="2395" x2="445" y2="162"/>
+    <line x1="125" y1="2395" x2="420" y2="2185"/>
+    <line x1="125" y1="2395" x2="415" y2="2255"/>
+    <line x1="125" y1="2395" x2="405" y2="2325"/>
+    <line x1="125" y1="2395" x2="415" y2="2395"/>
+    <line x1="125" y1="2395" x2="410" y2="2465"/>
+    <line x1="125" y1="2395" x2="415" y2="2535"/>
+    <line x1="125" y1="2395" x2="400" y2="2605"/>
+  </g>
 </svg>

@@ -15,6 +15,8 @@ import {
   returnBook,
   confirmBorrowCancellation,
   declineBorrowCancellation,
+  approveBookRenewal,
+  declineBookRenewal,
   releaseBookItem,
   getLibraryPolicy,
   updateLibraryPolicy,
@@ -147,6 +149,13 @@ function AdminBorrowRequests() {
   const [cancellationRequestToProcess, setCancellationRequestToProcess] = useState(null);
   const [declineRemarks, setDeclineRemarks] = useState('');
   const [cancellationProcessing, setCancellationProcessing] = useState(false);
+
+  // Renewal handling states
+  const [renewalProcessingId, setRenewalProcessingId] = useState(null);
+  const [showDeclineRenewalModal, setShowDeclineRenewalModal] = useState(false);
+  const [renewalToDecline, setRenewalToDecline] = useState(null);
+  const [renewalDeclineRemarks, setRenewalDeclineRemarks] = useState('');
+
   const [activeLoansSearch, setActiveLoansSearch] = useState('');
   const [activeLoansFilter, setActiveLoansFilter] = useState('all'); // 'all' | 'due-soon' | 'overdue'
   const [isLoansOverlayOpen, setIsLoansOverlayOpen] = useState(false);
@@ -881,6 +890,50 @@ function AdminBorrowRequests() {
     }
   };
 
+  // Compute renewal requests (strictly home library active loans)
+  const renewalRequests = useMemo(() => {
+    return borrowRequests.filter(r => r.status === 'renewal_requested');
+  }, [borrowRequests]);
+
+  const handleApproveRenewal = async (requestId) => {
+    try {
+      setRenewalProcessingId(requestId);
+      const { error } = await approveBookRenewal(requestId);
+      if (error) throw new Error(typeof error === 'string' ? error : 'Failed to approve renewal');
+
+      showToast('approve', `Loan renewal for request #${requestId} approved!`);
+      await fetchBorrowRequests();
+      await fetchActiveBorrows();
+      window.dispatchEvent(new CustomEvent('refreshStats'));
+    } catch (err) {
+      console.error('Error approving renewal:', err);
+      alert(err.message || 'Failed to approve renewal. Please try again.');
+    } finally {
+      setRenewalProcessingId(null);
+    }
+  };
+
+  const handleDeclineRenewal = async (requestId) => {
+    try {
+      setRenewalProcessingId(requestId);
+      const { error } = await declineBookRenewal(requestId, renewalDeclineRemarks);
+      if (error) throw new Error(typeof error === 'string' ? error : 'Failed to decline renewal');
+
+      showToast('decline', `Renewal request for #${requestId} was declined.`);
+      setShowDeclineRenewalModal(false);
+      setRenewalToDecline(null);
+      setRenewalDeclineRemarks('');
+      await fetchBorrowRequests();
+      await fetchActiveBorrows();
+      window.dispatchEvent(new CustomEvent('refreshStats'));
+    } catch (err) {
+      console.error('Error declining renewal:', err);
+      alert(err.message || 'Failed to decline renewal. Please try again.');
+    } finally {
+      setRenewalProcessingId(null);
+    }
+  };
+
   // ═══════════════════════════════════════════════════════════════════
   // READY FOR PICKUP (APPROVED) DATA & HELPERS
   // ═══════════════════════════════════════════════════════════════════
@@ -1543,6 +1596,23 @@ function AdminBorrowRequests() {
           {cancellationRequests.length > 0 && (
             <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-500 text-white animate-pulse">
               {cancellationRequests.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveRequestTab('renewals')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs whitespace-nowrap transition-all shrink-0 ${
+            activeRequestTab === 'renewals'
+              ? 'bg-white text-blue-700 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+          }`}
+        >
+          <FiRefreshCw className={`w-3.5 h-3.5 ${renewalRequests.length > 0 ? 'text-blue-500' : 'text-slate-400'}`} />
+          <span>Renewals</span>
+          {renewalRequests.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-blue-500 text-white animate-pulse">
+              {renewalRequests.length}
             </span>
           )}
         </button>
@@ -2825,6 +2895,165 @@ function AdminBorrowRequests() {
         </Card>
       )}
 
+      {/* Renewal Requests Tab - Home Library Only */}
+      {activeRequestTab === 'renewals' && (
+        <Card className="mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="text-lg font-semibold text-[#0F172A] flex items-center gap-2">
+                <FiRefreshCw className="w-5 h-5 text-blue-600" />
+                Home Library Book Renewal Requests ({renewalRequests.length})
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Active home library loans requesting extension. Approving extends the due date based on the home library's borrowing policy ({homeBorrowingDays} days).
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                fetchBorrowRequests();
+                fetchActiveBorrows();
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition shrink-0 self-start sm:self-auto"
+            >
+              <FiRefreshCw className="w-3.5 h-3.5" />
+              Refresh
+            </button>
+          </div>
+
+          {borrowRequestsLoading ? (
+            <div className="text-center py-12 text-slate-600">Loading renewal requests...</div>
+          ) : renewalRequests.length === 0 ? (
+            <EmptyState
+              title="No Renewal Requests"
+              description="There are currently no active home library loan renewals awaiting librarian review."
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-600 uppercase tracking-wider">Request ID</th>
+                    <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-600 uppercase tracking-wider">Student</th>
+                    <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-600 uppercase tracking-wider">Borrowed Book</th>
+                    <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-600 uppercase tracking-wider">Current Due Date</th>
+                    <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-600 uppercase tracking-wider">Student Reason</th>
+                    <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-600 uppercase tracking-wider">Renewal Count</th>
+                    <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-600 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {renewalRequests.map((request) => {
+                    const studentIdentity = getRequestStudentIdentity(request);
+                    const bookItems = request.items || [];
+                    const firstItem = bookItems[0] || {};
+                    const bookTitle = firstItem.book?.title || firstItem.title || 'Academic Book';
+                    const bookAuthor = firstItem.book?.author || firstItem.author || '';
+                    const isProcessing = renewalProcessingId === request.request_id;
+
+                    const renewalMatch = (request.rejection_reason || '').match(/RENEWAL_COUNT:(\d+)/i);
+                    const currentCount = renewalMatch ? parseInt(renewalMatch[1], 10) : 0;
+
+                    const reasonMatch = (request.rejection_reason || '').match(/PENDING_REASON:(.*?)(?:\||$)/i);
+                    const studentReason = reasonMatch ? reasonMatch[1].trim() : (request.purpose || 'No reason specified');
+
+                    // Calculate projected new due date
+                    const curDueDate = request.due_date ? new Date(request.due_date) : new Date();
+                    const projected = new Date(curDueDate > new Date() ? curDueDate : new Date());
+                    projected.setDate(projected.getDate() + (homeBorrowingDays || 7));
+                    const projectedFormatted = formatPhilippineDate(projected.toISOString());
+
+                    return (
+                      <tr key={request.request_id} className="border-b border-slate-100 hover:bg-blue-50/20 transition-colors text-[11px]">
+                        <td className="py-2.5 px-3 font-mono font-medium text-slate-900 text-[10px]">
+                          <div>#{request.request_id}</div>
+                          <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-100 text-blue-800">
+                            Home Library
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-700">
+                          <div className="flex items-center gap-2">
+                            {studentIdentity.profilePicture ? (
+                              <img
+                                src={getBackendAssetUrl(studentIdentity.profilePicture)}
+                                alt={studentIdentity.name}
+                                className="w-8 h-8 rounded-lg object-cover border border-slate-200/80 shadow-2xs shrink-0"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
+                                {studentIdentity.name?.charAt(0) || 'S'}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="font-semibold text-slate-900 truncate leading-snug">{studentIdentity.name}</p>
+                              <p className="text-[10px] text-slate-500 font-mono">{studentIdentity.studentNumber || 'Student'}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="font-semibold text-slate-800 max-w-[200px] truncate" title={bookTitle}>
+                            {bookTitle}
+                          </div>
+                          {bookAuthor && (
+                            <div className="text-[10px] text-slate-500 max-w-[200px] truncate">{bookAuthor}</div>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="font-semibold text-slate-800">
+                            {request.due_date ? formatPhilippineDate(request.due_date) : 'N/A'}
+                          </div>
+                          <div className="text-[10px] text-blue-600 font-medium">
+                            Extend to: {projectedFormatted} (+{homeBorrowingDays || 7}d)
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 max-w-[180px]">
+                          <span className="text-slate-600 text-[10px] line-clamp-2" title={studentReason}>
+                            "{studentReason}"
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                            {currentCount} {currentCount === 1 ? 'previous' : 'previous'}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleApproveRenewal(request.request_id)}
+                              disabled={isProcessing}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[10px] shadow-2xs transition active:scale-95 disabled:opacity-50"
+                              title="Approve loan renewal and extend due date"
+                            >
+                              <FiCheck className="w-3 h-3" />
+                              {isProcessing ? 'Saving...' : 'Approve'}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setRenewalToDecline(request);
+                                setRenewalDeclineRemarks('');
+                                setShowDeclineRenewalModal(true);
+                              }}
+                              disabled={isProcessing}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-[10px] transition active:scale-95 disabled:opacity-50"
+                              title="Decline renewal request"
+                            >
+                              <FiX className="w-3 h-3 text-rose-500" />
+                              Decline
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* Request Detail Modal */}
       {showDetailModal && selectedRequest && (
         <div 
@@ -4006,6 +4235,68 @@ function AdminBorrowRequests() {
                   </>
                 ) : (
                   'Decline Cancellation'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Decline Renewal Modal */}
+      {showDeclineRenewalModal && renewalToDecline && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 p-4 flex items-center justify-center animate-fade-in" onClick={() => setShowDeclineRenewalModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center text-rose-600">
+                <FiRefreshCw className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-slate-900">Decline Loan Renewal</h3>
+                <p className="text-xs text-slate-500">Request ID: #{renewalToDecline.request_id}</p>
+              </div>
+            </div>
+
+            <p className="text-slate-600 text-sm mb-4">
+              Declining will keep the student's existing scheduled due date intact. The student will be notified to return the book on time.
+            </p>
+
+            <div className="mb-5">
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Remarks / Reason for Decline (Optional)
+              </label>
+              <textarea
+                rows={3}
+                value={renewalDeclineRemarks}
+                onChange={(e) => setRenewalDeclineRemarks(e.target.value)}
+                placeholder="e.g., Book has incoming reservation holds from other students. Please return by due date."
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
+              />
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowDeclineRenewalModal(false);
+                  setRenewalToDecline(null);
+                  setRenewalDeclineRemarks('');
+                }}
+                disabled={renewalProcessingId === renewalToDecline.request_id}
+                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeclineRenewal(renewalToDecline.request_id)}
+                disabled={renewalProcessingId === renewalToDecline.request_id}
+                className="px-4 py-2 rounded-lg bg-rose-600 text-white font-medium hover:bg-rose-700 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
+              >
+                {renewalProcessingId === renewalToDecline.request_id ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Declining...
+                  </>
+                ) : (
+                  'Confirm Decline'
                 )}
               </button>
             </div>

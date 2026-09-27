@@ -50,6 +50,7 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
+  AlertTriangle,
   Flame,
   Zap,
 } from "lucide-react";
@@ -974,6 +975,26 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
 
   const [selectedBookPolicy, setSelectedBookPolicy] = useState(null);
   const [studentActiveLoanCount, setStudentActiveLoanCount] = useState(0);
+  const [studentHomeActiveLoanCount, setStudentHomeActiveLoanCount] = useState(0);
+  const [hasHomeOverdue, setHasHomeOverdue] = useState(false);
+  const [homeOverdueMessage, setHomeOverdueMessage] = useState('');
+
+  useEffect(() => {
+    // Check if student has overdue books at their home library
+    api.get('/borrow-requests/student-overdue-status')
+      .then(res => {
+        if (res.data?.has_home_overdue) {
+          setHasHomeOverdue(true);
+          setHomeOverdueMessage(res.data.message || 'Borrowing Suspended (Home Campus): You have an overdue book at your home library. Please return it to borrow home books. (Inter-school borrowing is still available).');
+        } else {
+          setHasHomeOverdue(false);
+          setHomeOverdueMessage('');
+        }
+      })
+      .catch(() => {
+        setHasHomeOverdue(false);
+      });
+  }, [selectedBook]);
 
   useEffect(() => {
     if (!selectedBook) {
@@ -991,10 +1012,16 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
     if (rawUser) {
       try {
         const u = JSON.parse(rawUser);
+        const homeSchoolId = parseInt(localStorage.getItem('schoolId'));
         if (u?.user_id) {
           api.get(`/borrow/active/student/${u.user_id}`).then(res => {
             const list = Array.isArray(res.data?.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
             setStudentActiveLoanCount(list.length);
+            const homeLoans = list.filter(item => {
+              const bSchool = item.book_copies?.books?.school_id || item.school_id;
+              return !bSchool || Number(bSchool) === homeSchoolId;
+            });
+            setStudentHomeActiveLoanCount(homeLoans.length);
           }).catch(() => { });
         }
       } catch { }
@@ -2270,21 +2297,29 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
 
   const handleBorrow = () => {
     if (selectedBook) {
+      const currentSchoolId = parseInt(localStorage.getItem("schoolId"));
+
+      const isInterSchool =
+        selectedBook.school_id && Number(selectedBook.school_id) !== currentSchoolId;
+
+      if (hasHomeOverdue && !isInterSchool) {
+        alert("Borrowing Suspended (Home Campus): You have an overdue book at your home library. Please return it to borrow home books. (Inter-school borrowing is still available).");
+        return;
+      }
+
       if (!isBookAvailableForBorrow(selectedBook)) {
         alert("This book is not currently available to borrow.");
         return;
       }
 
-      const maxLimit = selectedBookPolicy?.max_borrow_limit || 5;
-      if (studentActiveLoanCount >= maxLimit) {
-        alert(`You have reached the maximum borrowing limit of ${maxLimit} active books. Please return an active loan before requesting more.`);
-        return;
+      // Quota check: Home library limit applies ONLY to home books!
+      if (!isInterSchool) {
+        const maxLimit = selectedBookPolicy?.max_borrow_limit || 5;
+        if (studentHomeActiveLoanCount >= maxLimit) {
+          alert(`You have reached the maximum home library borrowing limit of ${maxLimit} active books. Please return an active home loan before requesting more. (Note: You can still borrow books from partner schools in the consortium).`);
+          return;
+        }
       }
-
-      const currentSchoolId = parseInt(localStorage.getItem("schoolId"));
-
-      const isInterSchool =
-        selectedBook.school_id && selectedBook.school_id !== currentSchoolId;
 
       const resolvedBookId = Number(selectedBook.book_id || selectedBook.id);
       if (!resolvedBookId || isNaN(resolvedBookId)) return;
@@ -2404,6 +2439,21 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
 
     const schoolId = localStorage.getItem("schoolId");
     const currentSchoolId = parseInt(schoolId);
+    const isInterSchool = book.school_id && Number(book.school_id) !== currentSchoolId;
+
+    if (hasHomeOverdue && !isInterSchool) {
+      alert("Borrowing Suspended (Home Campus): You have an overdue book at your home library. Please return it to borrow home books. (Inter-school borrowing is still available).");
+      return;
+    }
+
+    // Quota check: Home library limit applies ONLY to home books!
+    if (!isInterSchool) {
+      const maxLimit = selectedBookPolicy?.max_borrow_limit || 5;
+      if (studentHomeActiveLoanCount >= maxLimit) {
+        alert(`You have reached the maximum home library borrowing limit of ${maxLimit} active books. (Note: You can still borrow books from partner schools in the consortium).`);
+        return;
+      }
+    }
 
     setBorrowingList((prev) => {
       const resolvedBookId = Number(book.id || book.book_id);
@@ -4744,42 +4794,111 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                           )}
 
                           <div className="grid grid-cols-1 gap-2 pt-1">
-                            {studentActiveLoanCount >= (selectedBookPolicy?.max_borrow_limit || 5) ? (
-                              <button
-                                type="button"
-                                disabled
-                                className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-bold text-slate-400 bg-slate-200 cursor-not-allowed"
-                              >
-                                <AlertCircle className="h-4 w-4 text-slate-400" />
-                                <span>Borrowing Limit Reached ({studentActiveLoanCount}/{selectedBookPolicy?.max_borrow_limit || 5})</span>
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={handleBorrow}
-                                disabled={!selectedBookAvailable}
-                                className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-bold text-white shadow-md transition-all active:scale-[0.98] ${selectedBookAvailable
-                                  ? "bg-blue-600 shadow-blue-600/20 hover:bg-blue-700"
-                                  : "cursor-not-allowed bg-slate-300 text-slate-500 shadow-none"
-                                  }`}
-                              >
-                                <Book className="h-4 w-4" />
-                                <span>{selectedBookAvailable ? "Borrow This Book" : "Out of Stock"}</span>
-                              </button>
-                            )}
+                            {(() => {
+                              const currentStudentSchoolId = parseInt(localStorage.getItem("schoolId"));
+                              const isSelectedBookInterSchool = Boolean(
+                                selectedBook?.school_id && Number(selectedBook.school_id) !== currentStudentSchoolId
+                              );
+                              const isBlockedByHomeOverdue = hasHomeOverdue && !isSelectedBookInterSchool;
+                              const maxHomeQuota = selectedBookPolicy?.max_borrow_limit || 5;
+                              const isHomeQuotaReached = !isSelectedBookInterSchool && studentHomeActiveLoanCount >= maxHomeQuota;
 
-                            <button
-                              type="button"
-                              onClick={() => handleAddToBorrowingList(selectedBook)}
-                              disabled={!selectedBookAvailable || studentActiveLoanCount >= (selectedBookPolicy?.max_borrow_limit || 5)}
-                              className={`flex w-full items-center justify-center gap-1.5 rounded-xl border py-2.5 text-xs font-bold transition-all active:scale-[0.98] ${selectedBookAvailable && studentActiveLoanCount < (selectedBookPolicy?.max_borrow_limit || 5)
-                                ? "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-400"
-                                : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 shadow-none"
-                                }`}
-                            >
-                              <Plus className="h-4 w-4" />
-                              <span>{selectedBookAvailable ? "Add to Borrowing List" : "Out of Stock"}</span>
-                            </button>
+                              return (
+                                <>
+                                  {isBlockedByHomeOverdue && (
+                                    <div className="rounded-xl border border-amber-300 bg-amber-50/95 p-3 text-xs text-amber-900 shadow-2xs mb-1">
+                                      <div className="flex items-start gap-2">
+                                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                                        <div>
+                                          <p className="font-bold text-[12px] text-amber-900">Borrowing Suspended (Home Campus)</p>
+                                          <p className="text-[11px] text-amber-800 leading-relaxed mt-0.5">
+                                            You have an overdue book at your home library. Please return it to borrow home books.
+                                          </p>
+                                          <p className="text-[11px] font-semibold text-blue-700 mt-1 flex items-center gap-1">
+                                            <Globe className="h-3.5 w-3.5" />
+                                            <span>Inter-school borrowing is still available!</span>
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {isHomeQuotaReached && !isBlockedByHomeOverdue && (
+                                    <div className="rounded-xl border border-blue-200 bg-blue-50/90 p-3 text-xs text-blue-900 shadow-2xs mb-1">
+                                      <div className="flex items-start gap-2">
+                                        <AlertCircle className="h-4 w-4 shrink-0 text-blue-600 mt-0.5" />
+                                        <div>
+                                          <p className="font-bold text-[12px] text-blue-900">
+                                            Home Library Limit Reached ({studentHomeActiveLoanCount}/{maxHomeQuota})
+                                          </p>
+                                          <p className="text-[11px] text-blue-800 leading-relaxed mt-0.5">
+                                            You currently have {studentHomeActiveLoanCount} active home book(s). Return an active home loan to borrow more from your campus.
+                                          </p>
+                                          <p className="text-[11px] font-semibold text-emerald-700 mt-1 flex items-center gap-1">
+                                            <Globe className="h-3.5 w-3.5 text-emerald-600" />
+                                            <span>You can still borrow books from partner schools!</span>
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {isBlockedByHomeOverdue ? (
+                                    <button
+                                      type="button"
+                                      disabled
+                                      className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-bold text-amber-800 bg-amber-100 border border-amber-300 cursor-not-allowed shadow-none"
+                                    >
+                                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                                      <span>Home Borrowing Blocked (Overdue)</span>
+                                    </button>
+                                  ) : isHomeQuotaReached ? (
+                                    <button
+                                      type="button"
+                                      disabled
+                                      className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-bold text-slate-500 bg-slate-200 cursor-not-allowed shadow-none"
+                                    >
+                                      <AlertCircle className="h-4 w-4 text-slate-400" />
+                                      <span>Home Limit Reached ({studentHomeActiveLoanCount}/{maxHomeQuota})</span>
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={handleBorrow}
+                                      disabled={!selectedBookAvailable}
+                                      className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-bold text-white shadow-md transition-all active:scale-[0.98] ${selectedBookAvailable
+                                        ? "bg-blue-600 shadow-blue-600/20 hover:bg-blue-700"
+                                        : "cursor-not-allowed bg-slate-300 text-slate-500 shadow-none"
+                                        }`}
+                                    >
+                                      <Book className="h-4 w-4" />
+                                      <span>{selectedBookAvailable ? "Borrow This Book" : "Out of Stock"}</span>
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddToBorrowingList(selectedBook)}
+                                    disabled={!selectedBookAvailable || isBlockedByHomeOverdue || isHomeQuotaReached}
+                                    className={`flex w-full items-center justify-center gap-1.5 rounded-xl border py-2.5 text-xs font-bold transition-all active:scale-[0.98] ${selectedBookAvailable && !isBlockedByHomeOverdue && !isHomeQuotaReached
+                                      ? "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-400"
+                                      : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 shadow-none"
+                                      }`}
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                    <span>
+                                      {isBlockedByHomeOverdue
+                                        ? "Blocked on Home Campus"
+                                        : isHomeQuotaReached
+                                        ? "Home Limit Reached"
+                                        : selectedBookAvailable
+                                        ? "Add to Borrowing List"
+                                        : "Out of Stock"}
+                                    </span>
+                                  </button>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
 

@@ -173,11 +173,31 @@ const StudentBorrowingList = forwardRef(({ onCheckout, onContinueBrowsing }, ref
     return type === 'INTER_SCHOOL_LIBRARY_USE' ? 'Inter-School (Library Use Only)' : 'Home Library';
   };
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (borrowingList.length === 0) {
       setError('Please add books to your borrowing list');
       setTimeout(() => setError(null), 3000);
       return;
+    }
+
+    // Check if borrowingList contains home library books and student has overdue
+    const currentSchoolId = parseInt(localStorage.getItem('schoolId'));
+    const hasHomeBooks = borrowingList.some(item => {
+      const ownerSchool = Number(item.owner_school_id || item.school_id);
+      return (!ownerSchool || ownerSchool === currentSchoolId) && item.borrow_type !== 'INTER_SCHOOL_LIBRARY_USE';
+    });
+
+    if (hasHomeBooks) {
+      try {
+        const res = await api.get('/borrow-requests/student-overdue-status');
+        if (res.data?.has_home_overdue) {
+          setError('Borrowing Suspended (Home Campus): You have an overdue book at your home library. Please remove home books to proceed. (Inter-school borrowing is still available).');
+          setTimeout(() => setError(null), 6000);
+          return;
+        }
+      } catch (e) {
+        // Proceed if check fails
+      }
     }
 
     // Validate all items before checkout

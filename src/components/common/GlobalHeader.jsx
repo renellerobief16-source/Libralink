@@ -323,12 +323,12 @@ function GlobalHeader({
   };
 
   return (
-    <header className={`h-16 sticky top-0 z-30 border-b flex items-center justify-between px-3 sm:px-6 transition-all duration-200 ${darkMode ? 'bg-gray-900/95 border-gray-800 backdrop-blur-md shadow-xs' : 'bg-white/95 border-slate-200/90 backdrop-blur-md shadow-xs'}`}>
+    <header className={`h-14 sm:h-16 sticky top-0 z-40 border-b flex items-center justify-between px-3 sm:px-6 transition-all duration-200 ${darkMode ? 'bg-gray-900/95 border-gray-800 backdrop-blur-md shadow-xs' : 'bg-white/95 border-slate-200/90 backdrop-blur-md shadow-xs'}`}>
       {/* Left side - Campus indicator & Smart Search Bar (adapted from Student page) */}
-      <div className="flex-1 max-w-xl flex items-center gap-2.5 sm:gap-3">
+      <div className="flex-1 max-w-xl flex items-center gap-2 sm:gap-3">
         {/* Mobile Brand Mark */}
-        <div className="flex items-center gap-2 lg:hidden shrink-0">
-          <img src="/L.png" alt="LibraLink" className="w-8 h-8 rounded-xl object-cover shadow-xs" />
+        <div className="flex items-center gap-1.5 lg:hidden shrink-0">
+          <img src="/L.png" alt="LibraLink" className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg object-contain shadow-2xs" />
         </div>
 
         {schoolInfo && (
@@ -378,8 +378,8 @@ function GlobalHeader({
                   setSearchActiveIndex(-1);
                 }
               }}
-              placeholder="Search catalog, ISBN, or desk action..."
-              className={`w-full h-10 sm:h-11 pl-10 pr-9 rounded-full text-xs sm:text-sm font-medium transition-all shadow-2xs border ${
+              placeholder="Search catalog, action..."
+              className={`w-full h-8.5 sm:h-11 pl-9 sm:pl-10 pr-8 sm:pr-9 rounded-full text-xs sm:text-sm font-medium transition-all shadow-2xs border ${
                 darkMode
                   ? 'bg-gray-800/90 border-gray-700 text-white placeholder-gray-400 focus:bg-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
                   : 'bg-slate-100/70 border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
@@ -511,22 +511,22 @@ function GlobalHeader({
       </div>
 
       {/* Right side - Notifications and Profile */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
 
         {/* Notification Bell (Clean Light Style) */}
         <div className="notification-dropdown-container relative">
           <button
             onClick={handleToggleNotificationDropdown}
-            className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-xs active:scale-95 ${
+            className={`relative w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-xs active:scale-95 ${
               notificationDropdownOpen
                 ? 'bg-blue-50 text-blue-600 border border-blue-200 ring-2 ring-blue-500/20'
                 : 'bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-blue-600 border border-slate-200/80'
             }`}
             title="Notifications"
           >
-            <FiBell className="w-4 h-4" />
+            <FiBell className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             {localUnreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-gradient-to-tr from-red-600 to-rose-500 text-white text-[10px] font-black min-w-[19px] h-[19px] px-1 rounded-full flex items-center justify-center ring-2 ring-white shadow-md animate-in zoom-in-75 duration-200">
+              <span className="absolute -top-1 -right-1 bg-gradient-to-tr from-red-600 to-rose-500 text-white text-[9px] sm:text-[10px] font-black min-w-[17px] h-[17px] sm:min-w-[19px] sm:h-[19px] px-1 rounded-full flex items-center justify-center ring-2 ring-white shadow-md animate-in zoom-in-75 duration-200">
                 {localUnreadCount > 99 ? '99+' : localUnreadCount}
               </span>
             )}
@@ -534,7 +534,7 @@ function GlobalHeader({
 
           {/* Compact Minimalist Notification Dropdown */}
           {notificationDropdownOpen && (
-            <div className="notification-dropdown absolute right-0 mt-2 w-[320px] sm:w-[350px] max-h-[500px] flex flex-col rounded-2xl border border-slate-200/90 bg-white text-slate-900 shadow-2xl shadow-slate-200/60 z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+            <div className="notification-dropdown absolute right-0 mt-2 w-[calc(100vw-1.5rem)] max-w-sm sm:w-[350px] max-h-[500px] flex flex-col rounded-2xl border border-slate-200/90 bg-white text-slate-900 shadow-2xl shadow-slate-200/60 z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
               {/* Minimal Header */}
               <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/90">
                 <div className="flex items-center justify-between mb-2.5">
@@ -783,10 +783,14 @@ function GlobalHeader({
         <div className="profile-dropdown-container relative">
           <button
             onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-            className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100'}`}
+            className={`flex items-center gap-1.5 sm:gap-2 px-1.5 sm:px-2 py-1 sm:py-1.5 rounded-xl transition-all ${
+              profileDropdownOpen
+                ? darkMode ? 'bg-gray-700 text-white' : 'bg-slate-100 text-slate-900'
+                : darkMode ? 'text-gray-300 hover:bg-gray-700/60' : 'text-slate-700 hover:bg-slate-100'
+            }`}
           >
-            {/* Profile Avatar */}
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-sm flex items-center justify-center flex-shrink-0 overflow-hidden shadow-xs border border-blue-200 dark:border-gray-700">
+            {/* Compact Avatar */}
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 text-white font-bold text-[11px] sm:text-xs flex items-center justify-center flex-shrink-0 overflow-hidden shadow-xs">
               {activeProfilePic && !profileImgError ? (
                 <img 
                   src={getBackendAssetUrl(activeProfilePic)} 
@@ -799,58 +803,37 @@ function GlobalHeader({
               )}
             </div>
 
-            {/* User Info - Desktop */}
-            <div className="text-left hidden sm:block">
-              <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {userName || 'User'}
-              </p>
-              <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                {getRoleDisplay(userRole)}
-              </p>
-            </div>
+            {/* Name only - Desktop */}
+            <span className={`text-xs font-semibold hidden sm:block max-w-[120px] truncate ${
+              darkMode ? 'text-gray-100' : 'text-slate-800'
+            }`}>
+              {userName || 'User'}
+            </span>
 
-            {/* Dropdown Arrow */}
-            <FiChevronDown className={`w-4 h-4 transition-transform ${profileDropdownOpen ? 'rotate-180' : ''} ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+            <FiChevronDown className={`w-3 h-3 sm:w-3.5 sm:h-3.5 transition-transform flex-shrink-0 ${
+              profileDropdownOpen ? 'rotate-180' : ''
+            } ${darkMode ? 'text-gray-400' : 'text-slate-400'}`} />
           </button>
 
-          {/* Profile Dropdown (Adapted from Student Page Header) */}
+          {/* Profile Dropdown (Minimalist) */}
           {profileDropdownOpen && (
-            <div className={`profile-dropdown absolute right-0 mt-2 w-64 rounded-2xl border shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 ${
-              darkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'
+            <div className={`profile-dropdown absolute right-0 mt-1.5 w-56 rounded-xl border shadow-xl py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150 ${
+              darkMode ? 'bg-gray-800 border-gray-700/80 text-white' : 'bg-white border-slate-200/80 text-gray-900'
             }`}>
-              {/* Identity Header */}
-              <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700/60 mb-1">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-xs flex-shrink-0 overflow-hidden border border-blue-200 dark:border-gray-700">
-                    {activeProfilePic && !profileImgError ? (
-                      <img 
-                        src={getBackendAssetUrl(activeProfilePic)} 
-                        alt="" 
-                        className="w-full h-full object-cover" 
-                        onError={() => setProfileImgError(true)}
-                      />
-                    ) : (
-                      <span>{(userName || 'U').charAt(0).toUpperCase()}</span>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold truncate">{userName || 'Staff Member'}</p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">
-                        {getRoleDisplay(userRole)}
-                      </span>
-                      {schoolInfo?.school_code && (
-                        <span className="text-[10px] font-mono text-gray-500 dark:text-gray-400">
-                          {schoolInfo.school_code}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
+              {/* Slim Identity Row */}
+              <div className={`px-3.5 py-2.5 border-b mb-1 ${
+                darkMode ? 'border-gray-700/60' : 'border-slate-100'
+              }`}>
+                <p className={`text-xs font-bold truncate ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                  {userName || 'Staff Member'}
+                </p>
+                <p className={`text-[11px] mt-0.5 truncate ${darkMode ? 'text-gray-400' : 'text-slate-400'}`}>
+                  {getRoleDisplay(userRole)}
+                </p>
               </div>
 
               {/* Menu Actions */}
-              <div className="px-1.5 py-1 space-y-0.5">
+              <div className="px-1.5 py-0.5 space-y-0.5">
                 <button
                   onClick={() => {
                     if (onOpenStaffModal) {
@@ -860,11 +843,11 @@ function GlobalHeader({
                     }
                     setProfileDropdownOpen(false);
                   }}
-                  className={`w-full px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center gap-2.5 transition-colors ${
-                    darkMode ? 'text-gray-200 hover:bg-gray-700/70' : 'text-gray-700 hover:bg-slate-100'
+                  className={`w-full px-3 py-1.5 rounded-lg text-left text-xs font-medium flex items-center gap-2 transition-colors ${
+                    darkMode ? 'text-gray-200 hover:bg-gray-700/70' : 'text-slate-700 hover:bg-slate-50'
                   }`}
                 >
-                  <FiShield className="w-4 h-4 text-blue-600" />
+                  <FiShield className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                   <span>Library Policy & Hours</span>
                 </button>
 
@@ -873,16 +856,16 @@ function GlobalHeader({
                     onClick={() => {
                       onToggleDarkMode();
                     }}
-                    className={`w-full px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center justify-between transition-colors ${
-                      darkMode ? 'text-gray-200 hover:bg-gray-700/70' : 'text-gray-700 hover:bg-slate-100'
+                    className={`w-full px-3 py-1.5 rounded-lg text-left text-xs font-medium flex items-center justify-between transition-colors ${
+                      darkMode ? 'text-gray-200 hover:bg-gray-700/70' : 'text-slate-700 hover:bg-slate-50'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5">
-                      {darkMode ? <FiSun className="w-4 h-4 text-amber-400" /> : <FiMoon className="w-4 h-4 text-slate-500" />}
+                    <div className="flex items-center gap-2">
+                      {darkMode ? <FiSun className="w-3.5 h-3.5 text-amber-400 shrink-0" /> : <FiMoon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
                       <span>Dark Appearance</span>
                     </div>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      darkMode ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-200 text-slate-700'
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                      darkMode ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-100 text-slate-500'
                     }`}>
                       {darkMode ? 'ON' : 'OFF'}
                     </span>
@@ -895,11 +878,11 @@ function GlobalHeader({
                       onSettingsClick();
                       setProfileDropdownOpen(false);
                     }}
-                    className={`w-full px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center gap-2.5 transition-colors ${
-                      darkMode ? 'text-gray-200 hover:bg-gray-700/70' : 'text-gray-700 hover:bg-slate-100'
+                    className={`w-full px-3 py-1.5 rounded-lg text-left text-xs font-medium flex items-center gap-2 transition-colors ${
+                      darkMode ? 'text-gray-200 hover:bg-gray-700/70' : 'text-slate-700 hover:bg-slate-50'
                     }`}
                   >
-                    <FiSettings className="w-4 h-4 text-gray-500" />
+                    <FiSettings className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span>Account Settings</span>
                   </button>
                 )}
@@ -911,11 +894,11 @@ function GlobalHeader({
                       setProfileDropdownOpen(false);
                       navigate('/librarian');
                     }}
-                    className={`w-full px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center gap-2.5 transition-colors cursor-pointer ${
+                    className={`w-full px-3 py-1.5 rounded-lg text-left text-xs font-medium flex items-center gap-2 transition-colors cursor-pointer ${
                       darkMode ? 'text-blue-300 hover:bg-blue-950/50' : 'text-blue-700 hover:bg-blue-50'
                     }`}
                   >
-                    <FiRotateCcw className="w-4 h-4 text-blue-600" />
+                    <FiRotateCcw className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                     <span>Switch to Circulation Desk</span>
                   </button>
                 )}
@@ -926,11 +909,11 @@ function GlobalHeader({
                       setProfileDropdownOpen(false);
                       navigate('/librarian-admin');
                     }}
-                    className={`w-full px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center gap-2.5 transition-colors cursor-pointer ${
+                    className={`w-full px-3 py-1.5 rounded-lg text-left text-xs font-medium flex items-center gap-2 transition-colors cursor-pointer ${
                       darkMode ? 'text-purple-300 hover:bg-purple-950/50' : 'text-purple-700 hover:bg-purple-50'
                     }`}
                   >
-                    <FiShield className="w-4 h-4 text-purple-600" />
+                    <FiShield className="w-3.5 h-3.5 text-purple-500 shrink-0" />
                     <span>Return to Admin Console</span>
                   </button>
                 )}
@@ -942,27 +925,29 @@ function GlobalHeader({
                       setProfileDropdownOpen(false);
                       navigate('/studentpage');
                     }}
-                    className={`w-full px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center gap-2.5 transition-colors cursor-pointer ${
+                    className={`w-full px-3 py-1.5 rounded-lg text-left text-xs font-medium flex items-center gap-2 transition-colors cursor-pointer ${
                       darkMode ? 'text-emerald-300 hover:bg-emerald-950/50' : 'text-emerald-700 hover:bg-emerald-50'
                     }`}
                   >
-                    <FiExternalLink className="w-4 h-4 text-emerald-600" />
+                    <FiExternalLink className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                     <span>Switch to Student View</span>
                   </button>
                 )}
               </div>
 
-              <div className="border-t border-gray-100 dark:border-gray-700/60 my-1"></div>
+              <div className={`border-t mx-2 my-1 ${
+                darkMode ? 'border-gray-700/60' : 'border-slate-100'
+              }`} />
 
-              <div className="px-1.5">
+              <div className="px-1.5 pb-0.5">
                 <button
                   onClick={() => {
                     onLogout();
                     setProfileDropdownOpen(false);
                   }}
-                  className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors flex items-center gap-2.5"
+                  className="w-full px-3 py-1.5 rounded-lg text-left text-xs font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-red-950/30 transition-colors flex items-center gap-2"
                 >
-                  <FiLogOut className="w-4 h-4 text-red-500" />
+                  <FiLogOut className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                   <span>Log Out</span>
                 </button>
               </div>

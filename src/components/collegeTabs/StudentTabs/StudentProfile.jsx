@@ -23,6 +23,7 @@ import {
   Settings,
   Copy,
   Check,
+  GraduationCap,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api, { updateProfilePicture, updateUserProfile, getCurrentUser, API_ORIGIN, getLibraryPolicy } from '../../../utils/api';
@@ -69,6 +70,8 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
     middleName: '',
     lastName: '',
     address: '',
+    course: '',
+    academicLevel: '',
     email: '',
     contactNumber: '',
     studentNumber: '',
@@ -141,6 +144,8 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
               middleName: normalized.middle_name || normalized.middlename || '',
               lastName: lName,
               address: normalized.address || '',
+              course: normalized.course || normalized.position || '',
+              academicLevel: normalized.academic_level || normalized.academicLevel || '',
               email: normalized.email || '',
               contactNumber: normalized.contactNumber || normalized.contact_number || '',
               studentNumber: normalized.studentNumber || normalized.student_number || '',
@@ -370,6 +375,9 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
         middle_name: editForm.middleName.trim(),
         lastname: editForm.lastName.trim(),
         address: editForm.address.trim(),
+        position: editForm.course.trim(),
+        course: editForm.course.trim(),
+        academic_level: editForm.academicLevel.trim(),
         email: editForm.email.trim(),
         contact_number: editForm.contactNumber.trim(),
         student_number: editForm.studentNumber.trim(),
@@ -387,6 +395,9 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
         middle_name: payload.middle_name,
         last_name: payload.lastname,
         address: payload.address,
+        course: payload.course,
+        position: payload.position,
+        academic_level: payload.academic_level,
         name: fullName,
         full_name: fullName,
         email: payload.email,
@@ -399,6 +410,8 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
       };
 
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+      if (payload.course) localStorage.setItem('studentCourse', payload.course);
+      if (payload.address) localStorage.setItem('studentAddress', payload.address);
       window.dispatchEvent(new Event('libralink-user-changed'));
       window.dispatchEvent(new Event('libralink-profile-updated'));
       setUser(updatedUser);
@@ -748,6 +761,41 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
               </div>
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Academic Level
+                </label>
+                <select
+                  value={editForm.academicLevel}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, academicLevel: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">Select Level</option>
+                  <option value="College">College</option>
+                  <option value="Senior High School">Senior High School (SHS)</option>
+                  <option value="Junior High School">Junior High School (JHS)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Program / Course / Strand
+                </label>
+                <input
+                  type="text"
+                  value={editForm.course}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, course: e.target.value }))
+                  }
+                  placeholder="e.g. BSIT, BSN, STEM..."
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                 Residential Address
@@ -859,6 +907,19 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
               </div>
               <span className="font-semibold text-slate-900 text-right truncate max-w-[200px]">
                 {displayName}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between py-2.5">
+              <div className="flex items-center gap-2.5 text-slate-600">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 shrink-0">
+                  <GraduationCap className="h-3.5 w-3.5" />
+                </div>
+                <span className="font-medium">Program / Course</span>
+              </div>
+              <span className="font-semibold text-slate-900 text-right truncate max-w-[200px]" title={user?.course || user?.position || ''}>
+                {user?.course || user?.position || 'Not specified'}
+                {user?.academic_level ? ` (${user.academic_level})` : ''}
               </span>
             </div>
 

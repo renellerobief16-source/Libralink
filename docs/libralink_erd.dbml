@@ -2,25 +2,28 @@
 // LibraLink Multi-School Library Management System
 // Complete Database Entity Relationship Diagram (DBML for dbdiagram.io)
 // Website: https://dbdiagram.io
+// Architecture: Academic Clean Monochrome Edition
 // =====================================================================
 
 Project libralink {
   database_type: 'PostgreSQL'
   Note: '''
     # LibraLink Database Schema
-    Multi-School Library Management & Inter-School Lending System.
-    Includes multi-tenancy, bibliographic cataloging, copy tracking,
-    real-time circulation, permission letter workflows, and audit logging.
+    Multi-School Library Management & Inter-School Lending Consortium.
+    Includes multi-tenancy, bibliographic cataloging, copy barcode/RFID tracking,
+    multi-item borrow cart workflows, digital permission letter issuance,
+    circulation desk checkouts, fines, and Super Admin disaster recovery.
   '''
 }
 
 // =====================================================================
-// ENUMS
+// ENUMS (Data Types & State Machines)
 // =====================================================================
 
 Enum user_status {
   active
   inactive
+  suspended
 }
 
 Enum book_condition {
@@ -90,6 +93,19 @@ Enum fine_status_enum {
   waived
 }
 
+Enum backup_status_enum {
+  pending
+  completed
+  failed
+  restored
+}
+
+Enum backup_type_enum {
+  automated
+  manual
+  pre_migration
+}
+
 // =====================================================================
 // 1. MULTI-TENANCY & USER MANAGEMENT
 // =====================================================================
@@ -108,14 +124,14 @@ Table schools {
   status school_status [default: 'active']
   created_at timestamp [default: `CURRENT_TIMESTAMP`]
 
-  Note: 'Institutional library tenants in the consortium'
+  Note: 'Institutional library tenants and campuses in the consortium'
 }
 
 Table roles {
   role_id integer [pk, increment]
-  role_name varchar(50) [unique, not null, note: 'Super Admin, Librarian Admin, Librarian, Assistant Librarian, Student']
+  role_name varchar(50) [unique, not null, note: 'Super Admin, Admin-Librarian, Librarian, Student']
 
-  Note: 'RBAC Authorization roles'
+  Note: 'RBAC Authorization roles defining system capabilities'
 }
 
 Table users {
@@ -132,7 +148,7 @@ Table users {
   email varchar(255) [unique, not null]
   username varchar(100)
   recovery_email varchar(255)
-  password varchar(255) [not null, note: 'Bcrypt hashed password']
+  password varchar(255) [not null, note: 'Bcrypt hashed credentials']
   position varchar(100)
   profile_image varchar(255)
   policy_accepted boolean [default: false]
@@ -146,7 +162,7 @@ Table users {
     role_id
     student_number
   }
-  Note: 'Students, Faculty, and Library Personnel accounts'
+  Note: 'Students, Faculty, Staff Librarians, and Administrators'
 }
 
 Table verification_codes {
@@ -165,7 +181,7 @@ Table verification_codes {
     email
     code
   }
-  Note: 'One-time security tokens for signup verification & password resets'
+  Note: 'One-time security tokens for account activation & password recovery'
 }
 
 // =====================================================================
@@ -176,14 +192,14 @@ Table categories {
   category_id integer [pk, increment]
   category_name varchar(100) [unique, not null]
 
-  Note: 'Subject categories and classifications (e.g. Science, Fiction, History)'
+  Note: 'Subject taxonomy & Dewey classifications (e.g., Computer Science, Literature)'
 }
 
 Table authors {
   author_id integer [pk, increment]
   author_name varchar(255) [unique, not null]
 
-  Note: 'Book contributors and primary authors'
+  Note: 'Bibliographic authors and corporate contributors'
 }
 
 Table publishers {
@@ -191,14 +207,14 @@ Table publishers {
   publisher_name varchar(255) [unique, not null]
   place_of_publication varchar(255)
 
-  Note: 'Publishing houses and publication locations'
+  Note: 'Publishing houses and publication release cities'
 }
 
 Table books {
   book_id integer [pk, increment]
   school_id integer [not null, ref: > schools.school_id]
-  category_id integer [ref: > categories.category_id]
-  publisher_id integer [ref: > publishers.publisher_id]
+  category_id integer [ref: >? categories.category_id]
+  publisher_id integer [ref: >? publishers.publisher_id]
   title varchar(255) [not null]
   isbn varchar(50)
   call_number varchar(100)
@@ -209,7 +225,7 @@ Table books {
   general_note text
   cover_image varchar(255)
   remarks text
-  encoded_by integer [ref: > users.user_id]
+  encoded_by integer [ref: >? users.user_id]
   created_at timestamp [default: `CURRENT_TIMESTAMP`]
 
   indexes {
@@ -217,17 +233,17 @@ Table books {
     title
     isbn
   }
-  Note: 'Bibliographic metadata records owned by a school'
+  Note: 'Bibliographic master records owned by an institution'
 }
 
 Table book_authors {
-  book_id integer [ref: > books.book_id]
-  author_id integer [ref: > authors.author_id]
+  book_id integer [not null, ref: > books.book_id]
+  author_id integer [not null, ref: > authors.author_id]
 
   indexes {
     (book_id, author_id) [pk]
   }
-  Note: 'Many-to-Many bridge table between Books and Authors'
+  Note: 'Many-to-Many bridge table connecting books and authors'
 }
 
 Table book_copies {
@@ -246,7 +262,7 @@ Table book_copies {
     barcode
     status
   }
-  Note: 'Physical barcode/RFID items located on library shelves'
+  Note: 'Physical circulating copies located on library bookshelves'
 }
 
 // =====================================================================
@@ -257,16 +273,16 @@ Table borrow_requests {
   request_id varchar(20) [pk, note: 'Formatted ID: LL-YYYY-XXXXXX']
   student_id integer [not null, ref: > users.user_id]
   home_school_id integer [not null, ref: > schools.school_id]
-  request_type request_type_enum [not null]
+  request_type request_type_enum [not null, note: 'HOME or INTER_SCHOOL']
   status request_status [default: 'pending']
   purpose text [not null]
   contact_number varchar(50)
   address text
   id_picture_url varchar(255)
-  qr_token varchar(255) [unique]
-  permission_letter_generated boolean [default: false]
-  permission_letter_url varchar(255)
-  approved_by integer [ref: > users.user_id]
+  qr_token varchar(255) [unique, note: 'Unique QR hash for pickup terminal scan']
+  permission_letter_generated boolean [default: false, note: 'True once issued for Inter-School loans']
+  permission_letter_url varchar(255) [note: 'PDF path for inter-library visitor permission']
+  approved_by integer [ref: >? users.user_id]
   approved_at timestamp
   borrowed_at timestamp
   returned_at timestamp
@@ -279,7 +295,7 @@ Table borrow_requests {
     status
     qr_token
   }
-  Note: 'Header record for multi-item borrow carts, home lending & inter-school permissions'
+  Note: 'Multi-item borrow cart header, home lending & inter-school permission workflows'
 }
 
 Table borrow_request_items {
@@ -287,14 +303,14 @@ Table borrow_request_items {
   request_id varchar(20) [not null, ref: > borrow_requests.request_id]
   book_id integer [not null, ref: > books.book_id]
   owner_school_id integer [not null, ref: > schools.school_id]
-  partner_school_id integer [ref: > schools.school_id]
+  partner_school_id integer [ref: >? schools.school_id]
   borrow_type borrow_type_enum [not null]
   status item_status [default: 'pending']
-  copy_id integer [ref: > book_copies.copy_id]
+  copy_id integer [ref: >? book_copies.copy_id]
   due_date date
-  released_by integer [ref: > users.user_id]
+  released_by integer [ref: >? users.user_id]
   released_at timestamp
-  returned_by integer [ref: > users.user_id]
+  returned_by integer [ref: >? users.user_id]
   returned_at timestamp
   created_at timestamp [default: `CURRENT_TIMESTAMP`]
   updated_at timestamp [default: `CURRENT_TIMESTAMP`]
@@ -306,14 +322,14 @@ Table borrow_request_items {
     copy_id
     status
   }
-  Note: 'Line items within a borrow request, tracking individual copies released and returned'
+  Note: 'Line items within a borrow request tracking individual copies released and returned'
 }
 
 Table borrow_transactions {
   borrow_id integer [pk, increment]
   copy_id integer [not null, ref: > book_copies.copy_id]
   student_id integer [not null, ref: > users.user_id]
-  librarian_id integer [ref: > users.user_id]
+  librarian_id integer [ref: >? users.user_id]
   borrow_date timestamp [default: `CURRENT_TIMESTAMP`]
   due_date date [not null]
   return_date timestamp
@@ -326,12 +342,12 @@ Table borrow_transactions {
     due_date
     status
   }
-  Note: 'Circulation desk checkout audit records'
+  Note: 'Direct circulation desk checkouts and transaction ledger'
 }
 
 Table fines {
   fine_id integer [pk, increment]
-  borrow_id integer [ref: > borrow_transactions.borrow_id]
+  borrow_id integer [ref: >? borrow_transactions.borrow_id]
   student_id integer [not null, ref: > users.user_id]
   school_id integer [not null, ref: > schools.school_id]
   amount decimal(10,2) [not null]
@@ -343,7 +359,7 @@ Table fines {
     school_id
     status
   }
-  Note: 'Overdue or damaged book financial penalties'
+  Note: 'Overdue or damaged book financial penalties in PHP'
 }
 
 Table interlibrary_requests {
@@ -353,7 +369,7 @@ Table interlibrary_requests {
   from_school_id integer [not null, ref: > schools.school_id]
   to_school_id integer [not null, ref: > schools.school_id]
   request_date timestamp [default: `CURRENT_TIMESTAMP`]
-  approved_by integer [ref: > users.user_id]
+  approved_by integer [ref: >? users.user_id]
   status request_status [default: 'pending']
   remarks text
 
@@ -367,16 +383,16 @@ Table interlibrary_requests {
 }
 
 // =====================================================================
-// 4. SYSTEM, COMMUNICATIONS & AUDIT LOGS
+// 4. PLATFORM GOVERNANCE, COMMUNICATIONS & AUDIT
 // =====================================================================
 
 Table notifications {
   notification_id integer [pk, increment]
-  user_id integer [ref: > users.user_id]
-  school_id integer [ref: > schools.school_id]
+  user_id integer [ref: >? users.user_id]
+  school_id integer [ref: >? schools.school_id]
   title varchar(255) [not null]
   message text [not null]
-  type varchar(50)
+  type varchar(50) [note: 'BORROW_APPROVED, PERMISSION_LETTER_GENERATED, OVERDUE, etc.']
   related_id integer
   is_read boolean [default: false]
   is_admin_notification boolean [default: false]
@@ -388,12 +404,12 @@ Table notifications {
     school_id
     is_read
   }
-  Note: 'In-app real-time notification alerts'
+  Note: 'In-app real-time notification alerts with WebSocket dispatch'
 }
 
 Table announcements {
   announcement_id integer [pk, increment]
-  school_id integer [ref: > schools.school_id]
+  school_id integer [ref: >? schools.school_id]
   created_by integer [not null, ref: > users.user_id]
   title varchar(255) [not null]
   content text [not null]
@@ -409,7 +425,7 @@ Table announcements {
 
 Table activity_logs {
   log_id integer [pk, increment]
-  user_id integer [ref: > users.user_id]
+  user_id integer [ref: >? users.user_id]
   activity text [not null]
   created_at timestamp [default: `CURRENT_TIMESTAMP`]
 
@@ -417,13 +433,33 @@ Table activity_logs {
     user_id
     created_at
   }
-  Note: 'Audit trails of user actions and security events'
+  Note: 'Immutable audit trail of patron & staff security actions'
+}
+
+Table database_backups {
+  backup_id integer [pk, increment]
+  created_by integer [not null, ref: > users.user_id, note: 'Super Admin actor']
+  file_name varchar(255) [not null]
+  file_size_bytes bigint [not null]
+  storage_path text [not null]
+  checksum_sha256 varchar(64) [not null, note: 'Cryptographic SHA-256 integrity hash']
+  status backup_status_enum [default: 'completed']
+  backup_type backup_type_enum [default: 'manual']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  restored_at timestamp
+
+  indexes {
+    created_by
+    status
+    created_at
+  }
+  Note: 'Super Admin automated & on-demand disaster recovery snapshots'
 }
 
 Table import_history {
   import_id integer [pk, increment]
   school_id integer [not null, ref: > schools.school_id]
-  user_id integer [ref: > users.user_id]
+  user_id integer [ref: >? users.user_id]
   file_name varchar(255) [not null]
   total_rows integer [default: 0]
   successful integer [default: 0]
@@ -438,7 +474,7 @@ Table import_history {
     user_id
     import_date
   }
-  Note: 'Batch CSV/Excel catalog import tracking'
+  Note: 'Batch CSV catalog upload tracking and error metrics'
 }
 
 Table settings {
@@ -452,21 +488,21 @@ Table settings {
   indexes {
     setting_key
   }
-  Note: 'Global platform configuration and borrowing parameters'
+  Note: 'Global platform configuration, borrowing limits, fine rates & policies'
 }
 
 // =====================================================================
-// TABLE GROUPS (Color-coded modules for dbdiagram.io)
+// TABLE GROUPS (Academic Monochrome Palette for dbdiagram.io)
 // =====================================================================
 
-TableGroup Users_and_Tenants [color: #2563EB] {
+TableGroup Users_and_Tenants [color: #1E293B] {
   schools
   roles
   users
   verification_codes
 }
 
-TableGroup Catalog_and_Inventory [color: #059669] {
+TableGroup Catalog_and_Inventory [color: #334155] {
   books
   book_copies
   book_authors
@@ -476,7 +512,7 @@ TableGroup Catalog_and_Inventory [color: #059669] {
   import_history
 }
 
-TableGroup Circulation_and_Borrowing [color: #D97706] {
+TableGroup Circulation_and_Borrowing [color: #475569] {
   borrow_requests
   borrow_request_items
   borrow_transactions
@@ -484,9 +520,10 @@ TableGroup Circulation_and_Borrowing [color: #D97706] {
   fines
 }
 
-TableGroup System_and_Communications [color: #7C3AED] {
+TableGroup Platform_Governance_and_Logs [color: #64748B] {
   notifications
   announcements
   activity_logs
+  database_backups
   settings
 }

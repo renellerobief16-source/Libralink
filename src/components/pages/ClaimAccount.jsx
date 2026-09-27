@@ -330,7 +330,7 @@ export default function ClaimAccount() {
                   <input
                     id="studentId"
                     type="text"
-                    placeholder="e.g. 20-22252 or 12-digit LRN"
+                    placeholder="Enter your Student ID / LRN"
                     value={studentIdInput}
                     onChange={(e) => {
                       setStudentIdInput(e.target.value);
@@ -344,7 +344,7 @@ export default function ClaimAccount() {
                   </div>
                 </div>
                 <p className="mt-1.5 text-[11px] text-slate-500 leading-normal">
-                  Enter <strong className="text-[#0F172A]">Student Number</strong> (e.g. 20-22252) or your <strong className="text-[#0F172A]">12-digit LRN</strong> as registered on your school ID or slip.
+                  Enter your <strong className="text-[#0F172A]">Student ID Number</strong> or <strong className="text-[#0F172A]">LRN</strong> as registered on your school ID or slip.
                 </p>
               </div>
 

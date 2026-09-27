@@ -971,7 +971,7 @@ function AdminListStudents() {
                       value={editForm.student_number}
                       onChange={(e) => setEditForm({...editForm, student_number: e.target.value})}
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono font-medium text-slate-900"
-                      placeholder={editLevel === 'college' ? 'e.g. 20-22252' : '12-digit DepEd LRN'}
+                      placeholder="Enter Student ID / LRN"
                     />
                   </div>
 

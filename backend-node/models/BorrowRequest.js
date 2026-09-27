@@ -1229,6 +1229,250 @@ class BorrowRequest {
       throw error;
     }
   }
+
+  static getRenewalCount(request) {
+    if (!request) return 0;
+    const raw = request.rejection_reason || '';
+    const match = raw.match(/RENEWAL_COUNT:(\d+)/i);
+    return match ? parseInt(match[1], 10) : 0;
+  }
+
+  static async requestRenewal(request_id, { student_id, reason = '' } = {}) {
+    try {
+      const { data: request, error: reqErr } = await supabase
+        .from('borrow_requests')
+        .select(`
+          *,
+          student:student_id(user_id, firstname, lastname, email, student_number),
+          items:borrow_request_items(
+            *,
+            book:book_id(title, author)
+          )
+        `)
+        .eq('request_id', request_id)
+        .single();
+
+      if (reqErr || !request) {
+        throw new Error('Borrow request not found');
+      }
+
+      if (student_id && String(request.student_id) !== String(student_id)) {
+        throw new Error('Unauthorized: You can only request renewals for your own borrowed books.');
+      }
+
+      // Check current status: must be an active loan
+      if (request.status !== 'borrowed' && request.status !== 'released') {
+        if (request.status === 'renewal_requested') {
+          throw new Error('A renewal request is already pending librarian approval for this book.');
+        }
+        throw new Error(`Cannot renew this book because its current status is "${request.status}". Only active borrowed books can be renewed.`);
+      }
+
+      // STRICT HOME LIBRARY CHECK: Renewal only for Home Library books
+      const isHomeRequest = (request.request_type || 'HOME').toUpperCase() === 'HOME';
+      const items = request.items || [];
+      const hasForeignOwner = items.some(item => item.owner_school_id && Number(item.owner_school_id) !== Number(request.home_school_id));
+
+      if (!isHomeRequest || hasForeignOwner) {
+        throw new Error('Renewal is only permitted for Home Library books. Inter-school consortium books cannot be renewed online.');
+      }
+
+      // OVERDUE CHECK: If due_date < today (in PH time), renewal is blocked
+      const now = new Date();
+      const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(now);
+      if (request.due_date && request.due_date < todayStr) {
+        throw new Error('This book is already overdue. Overdue books cannot be renewed online and must be returned to the circulation desk.');
+      }
+
+      // MAX RENEWALS POLICY CHECK
+      const currentRenewalCount = this.getRenewalCount(request);
+      const maxRenewals = await LibrarySettings.getMaxRenewals(request.home_school_id);
+
+      if (maxRenewals <= 0) {
+        throw new Error('Book renewals are disabled by your library borrowing policy.');
+      }
+
+      if (currentRenewalCount >= maxRenewals) {
+        throw new Error(`Maximum renewals limit reached (${maxRenewals} ${maxRenewals === 1 ? 'time' : 'times'} allowed). You cannot renew this book again.`);
+      }
+
+      // Format metadata
+      const reasonTag = reason ? reason.trim().replace(/[\r\n]+/g, ' ').substring(0, 200) : 'Requested by student';
+      const meta = `RENEWAL_COUNT:${currentRenewalCount} | PENDING_REASON:${reasonTag}`;
+
+      const { data: updatedReq, error: updateErr } = await supabase
+        .from('borrow_requests')
+        .update({
+          status: 'renewal_requested',
+          rejection_reason: meta,
+          updated_at: new Date().toISOString()
+        })
+        .eq('request_id', request_id)
+        .select()
+        .single();
+
+      if (updateErr) throw updateErr;
+
+      await supabase
+        .from('borrow_request_items')
+        .update({ status: 'renewal_requested' })
+        .eq('request_id', request_id);
+
+      return {
+        ...updatedReq,
+        currentRenewalCount,
+        maxRenewals
+      };
+    } catch (error) {
+      console.error('[BORROW REQUEST] Error requesting renewal:', error);
+      throw error;
+    }
+  }
+
+  static async approveRenewal(request_id, { librarian_id, daysToExtend } = {}) {
+    try {
+      const { data: request, error: reqErr } = await supabase
+        .from('borrow_requests')
+        .select(`
+          *,
+          student:student_id(user_id, firstname, lastname, email, student_number),
+          items:borrow_request_items(
+            *,
+            book:book_id(title, author)
+          )
+        `)
+        .eq('request_id', request_id)
+        .single();
+
+      if (reqErr || !request) {
+        throw new Error('Borrow request not found');
+      }
+
+      if (request.status !== 'renewal_requested') {
+        throw new Error(`Cannot approve renewal: request is in "${request.status}" status, not "renewal_requested".`);
+      }
+
+      const currentRenewalCount = this.getRenewalCount(request);
+      const newRenewalCount = currentRenewalCount + 1;
+
+      // Determine days to extend (standard borrowing days)
+      let extendDays = daysToExtend;
+      if (!extendDays || isNaN(extendDays) || extendDays <= 0) {
+        extendDays = await LibrarySettings.getHomeBorrowingDays(request.home_school_id) || 7;
+      }
+
+      // Calculate new due date starting from existing due date (or today if existing is in past)
+      const now = new Date();
+      let baseDate = new Date();
+      if (request.due_date) {
+        const d = new Date(request.due_date);
+        if (!isNaN(d.getTime()) && d > now) {
+          baseDate = d;
+        }
+      }
+      baseDate.setDate(baseDate.getDate() + extendDays);
+      const newDueDate = baseDate.toISOString().split('T')[0];
+
+      const meta = `RENEWAL_COUNT:${newRenewalCount} | APPROVED_BY:${librarian_id || 'Librarian'} | ${new Date().toISOString()}`;
+
+      const { data: updatedReq, error: updateErr } = await supabase
+        .from('borrow_requests')
+        .update({
+          status: 'borrowed',
+          due_date: newDueDate,
+          rejection_reason: meta,
+          updated_at: new Date().toISOString()
+        })
+        .eq('request_id', request_id)
+        .select()
+        .single();
+
+      if (updateErr) throw updateErr;
+
+      // Update request items due date and status
+      await supabase
+        .from('borrow_request_items')
+        .update({
+          status: 'borrowed',
+          due_date: newDueDate
+        })
+        .eq('request_id', request_id);
+
+      // Synchronize with active borrow_transactions
+      const items = request.items || [];
+      const copyIds = items.map(i => i.assigned_copy_id).filter(Boolean);
+      if (copyIds.length > 0) {
+        const { error: txErr } = await supabase
+          .from('borrow_transactions')
+          .update({
+            due_date: newDueDate,
+            updated_at: new Date().toISOString()
+          })
+          .in('copy_id', copyIds)
+          .eq('student_id', request.student_id)
+          .eq('status', 'active');
+
+        if (txErr) {
+          console.warn('[BORROW REQUEST] Note syncing borrow_transactions due date:', txErr.message);
+        }
+      }
+
+      return {
+        ...updatedReq,
+        newDueDate,
+        renewalCount: newRenewalCount
+      };
+    } catch (error) {
+      console.error('[BORROW REQUEST] Error approving renewal:', error);
+      throw error;
+    }
+  }
+
+  static async declineRenewal(request_id, remarks = '') {
+    try {
+      const { data: request, error: reqErr } = await supabase
+        .from('borrow_requests')
+        .select('*')
+        .eq('request_id', request_id)
+        .single();
+
+      if (reqErr || !request) {
+        throw new Error('Borrow request not found');
+      }
+
+      if (request.status !== 'renewal_requested') {
+        throw new Error(`Cannot decline renewal: request is in "${request.status}" status.`);
+      }
+
+      const currentRenewalCount = this.getRenewalCount(request);
+      const cleanRemarks = (remarks || 'Declined by library staff').trim().replace(/[\r\n]+/g, ' ').substring(0, 200);
+      const meta = `RENEWAL_COUNT:${currentRenewalCount} | DECLINED: ${cleanRemarks}`;
+
+      // Status reverts back to 'borrowed' with the existing due_date intact
+      const { data: updatedReq, error: updateErr } = await supabase
+        .from('borrow_requests')
+        .update({
+          status: 'borrowed',
+          rejection_reason: meta,
+          updated_at: new Date().toISOString()
+        })
+        .eq('request_id', request_id)
+        .select()
+        .single();
+
+      if (updateErr) throw updateErr;
+
+      await supabase
+        .from('borrow_request_items')
+        .update({ status: 'borrowed' })
+        .eq('request_id', request_id);
+
+      return updatedReq;
+    } catch (error) {
+      console.error('[BORROW REQUEST] Error declining renewal:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = BorrowRequest;

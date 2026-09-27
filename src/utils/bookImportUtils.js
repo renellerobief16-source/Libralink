@@ -9,6 +9,18 @@
  * from the production books table (migrate_books_production.sql).
  */
 const EXACT_CSV_MATCHES = {
+  // Row sequence / counter numbers (ignore, not call number)
+  'no': 'ignore',
+  'number': 'ignore',
+  'num': 'ignore',
+  'row': 'ignore',
+  'row_no': 'ignore',
+  'row_number': 'ignore',
+  'item_no': 'ignore',
+  'item_number': 'ignore',
+  'coun_ter': 'ignore',
+  'id': 'ignore',
+
   // First CSV format columns (normalized keys)
   'accession': 'accession_number',
   'accid': 'accession_number',
@@ -16,13 +28,18 @@ const EXACT_CSV_MATCHES = {
   'author': 'author',
   'publisher': 'publisher',
   'call_number': 'call_number',
+  'ddc': 'ddc',
+  'ddc_number': 'ddc',
+  'dewey': 'ddc',
+  'dewey_decimal': 'ddc',
+  'ddc_no': 'ddc',
+  'ddc classification': 'ddc',
+  'call_number_ddc': 'call_number',
   'isbn': 'isbn',
   'ye_ar': 'copyright_year',
   'status': 'status',
   'location': 'shelf_location',
-  'coun_ter': 'ignore',
   'copies': 'quantity',
-  'id': 'ignore',
 
   // Second CSV format columns (normalized keys)
   'title_edition': 'title',              // "title, edition" -> title_edition
@@ -109,11 +126,17 @@ const COLUMN_ALIASES = {
     'isbn10', 'isbn13', 'isbnnumber', 'isbn num'
   ],
   
+  // DDC variations
+  'ddc': [
+    'ddc', 'ddc_number', 'ddc no', 'ddc_no', 'dewey', 'dewey decimal',
+    'dewey_decimal', 'ddc classification', 'dewey decimal classification'
+  ],
+  
   // Call number variations
   'call_number': [
     'call_number', 'callnumber', 'call no', 'call_no', 
-    'call number', 'classification', 'dewey', 'call no.',
-    'callno', 'call', 'tawag', 'numero'
+    'call number', 'classification', 'call no.',
+    'callno', 'call', 'shelf mark', 'shelfmark'
   ],
   
   // Category variations
@@ -560,7 +583,9 @@ export function getAvailableFields() {
     { value: 'author', label: 'Author', required: false },
     { value: 'publisher', label: 'Publisher', required: false },
     { value: 'isbn', label: 'ISBN', required: false },
+    { value: 'ddc', label: 'DDC (Dewey Decimal Classification)', required: false },
     { value: 'call_number', label: 'Call Number', required: false },
+    { value: 'accession_number', label: 'Accession Number', required: false },
     { value: 'category', label: 'Category', required: false },
     { value: 'quantity', label: 'Quantity', required: true },
     { value: 'school', label: 'School', required: true },
@@ -596,7 +621,7 @@ export function getRequiredFields() {
  * Get recommended fields for book import
  */
 export function getRecommendedFields() {
-  return ['category', 'author', 'call_number'];
+  return ['category', 'author', 'call_number', 'isbn', 'accession_number'];
 }
 
 /**
@@ -647,6 +672,7 @@ export function normalizeBookData(row, columnMapping) {
     author: null,
     publisher: null,
     isbn: null,
+    ddc: null,
     call_number: null,
     category: null,
     edition: null,
@@ -705,6 +731,7 @@ export function normalizeBookData(row, columnMapping) {
         if (value === '') value = null;
         break;
         
+      case 'ddc':
       case 'call_number':
       case 'accession_number':
       case 'barcode':

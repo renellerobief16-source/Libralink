@@ -43,6 +43,91 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+/**
+ * Check if a student has an unreturned overdue book at their home library.
+ * Inter-school loans or non-overdue loans are not considered blockers for home campus.
+ */
+async function checkStudentHomeOverdue(studentId, homeSchoolId) {
+  try {
+    const now = new Date();
+
+    // 1. Check borrow_transactions for active/overdue loans belonging to the student's home school
+    const { data: activeTx, error: txError } = await supabase
+      .from('borrow_transactions')
+      .select(`
+        borrow_id,
+        due_date,
+        status,
+        school_id,
+        book_copies(copy_id, book_id, books(book_id, school_id))
+      `)
+      .eq('student_id', studentId)
+      .in('status', ['active', 'overdue']);
+
+    if (activeTx && activeTx.length > 0) {
+      for (const tx of activeTx) {
+        const bookSchoolId = tx.book_copies?.books?.school_id || tx.school_id;
+        const isHomeBook = !bookSchoolId || Number(bookSchoolId) === Number(homeSchoolId);
+        if (isHomeBook) {
+          if (tx.status === 'overdue') return true;
+          if (tx.due_date && new Date(tx.due_date) < now) return true;
+        }
+      }
+    }
+
+    // 2. Also check active borrow_requests that are marked borrowed/active/overdue
+    const { data: activeRequests, error: reqError } = await supabase
+      .from('borrow_requests')
+      .select(`
+        request_id,
+        due_date,
+        status,
+        home_school_id,
+        items:borrow_request_items(owner_school_id, borrow_type, status)
+      `)
+      .eq('student_id', studentId)
+      .in('status', ['borrowed', 'active', 'overdue']);
+
+    if (activeRequests && activeRequests.length > 0) {
+      for (const req of activeRequests) {
+        const isOverdue = req.status === 'overdue' || (req.due_date && new Date(req.due_date) < now);
+        if (isOverdue) {
+          const hasHomeItem = (req.items || []).some(
+            item => Number(item.owner_school_id) === Number(homeSchoolId) || item.borrow_type === 'HOME'
+          );
+          if (hasHomeItem || Number(req.home_school_id) === Number(homeSchoolId)) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  } catch (err) {
+    console.error('[BORROW REQUESTS] Error in checkStudentHomeOverdue:', err);
+    return false;
+  }
+}
+
+// @route   GET /api/borrow-requests/student-overdue-status
+// @desc    Check if current student has an overdue book at their home library
+// @access  Private (Student)
+router.get('/student-overdue-status', auth, requireRole(['Student']), async (req, res) => {
+  try {
+    const hasHomeOverdue = await checkStudentHomeOverdue(req.user.user_id, req.user.school_id);
+    res.json({
+      success: true,
+      has_home_overdue: hasHomeOverdue,
+      message: hasHomeOverdue 
+        ? 'Borrowing Suspended (Home Campus): You have an overdue book at your home library. Please return it to borrow home books. (Inter-school borrowing is still available).'
+        : null
+    });
+  } catch (error) {
+    console.error('[BORROW REQUESTS] Error getting student overdue status:', error);
+    res.json({ success: true, has_home_overdue: false });
+  }
+});
+
 // @route   POST /api/borrow-requests
 // @desc    Create a new borrowing request
 // @access  Private (Student)
@@ -50,46 +135,90 @@ router.post('/', auth, requireRole(['Student']), async (req, res) => {
   try {
     console.log('[BORROW REQUESTS] Creating new request for student:', req.user.user_id);
 
-    // 1. Get library max borrowing limit
-    const maxBorrowLimit = await LibrarySettings.getMaxBorrowLimit(req.user.school_id);
+    // 0. Check if student has an overdue book at their home library
+    // If student is requesting any HOME library book, block if they have an overdue home book
+    const items = Array.isArray(req.body.items) ? req.body.items : [];
+    const isRequestingHomeBook = items.some(item => {
+      const ownerSchool = Number(item.owner_school_id);
+      const borrowType = (item.borrow_type || '').toUpperCase();
+      return (!ownerSchool || ownerSchool === Number(req.user.school_id)) && borrowType !== 'INTER_SCHOOL_LIBRARY_USE';
+    });
 
-    // 2. Count active physically borrowed books from borrow_transactions
-    const { count: activeLoansCount, error: countErr } = await supabase
-      .from('borrow_transactions')
-      .select('borrow_id', { count: 'exact', head: true })
-      .eq('student_id', req.user.user_id)
-      .eq('status', 'active');
-
-    // 3. Count pending or approved unreleased requests
-    const { data: activeRequests } = await supabase
-      .from('borrow_requests')
-      .select(`
-        request_id,
-        status,
-        items:borrow_request_items(item_id, item_status)
-      `)
-      .eq('student_id', req.user.user_id)
-      .in('status', ['pending', 'approved', 'ready_for_pickup', 'permission_ready']);
-
-    let pendingItemsCount = 0;
-    if (activeRequests) {
-      for (const reqObj of activeRequests) {
-        const unreleased = (reqObj.items || []).filter(
-          item => item.item_status === 'pending' || item.item_status === 'approved'
-        );
-        pendingItemsCount += unreleased.length;
+    if (isRequestingHomeBook) {
+      const hasHomeOverdue = await checkStudentHomeOverdue(req.user.user_id, req.user.school_id);
+      if (hasHomeOverdue) {
+        console.warn(`[BORROW REQUESTS] Blocked student ${req.user.user_id} due to overdue book at home library`);
+        return res.status(400).json({
+          success: false,
+          is_home_overdue: true,
+          message: 'Borrowing Suspended (Home Campus): You have an overdue book at your home library. Please return it to borrow home books. (Inter-school borrowing is still available).'
+        });
       }
     }
 
-    const currentCommitment = (activeLoansCount || 0) + pendingItemsCount;
-    const requestedCount = Array.isArray(req.body.items) && req.body.items.length > 0 ? req.body.items.length : 1;
+    // 1. Quota check for Home Library books
+    // The home library limit ONLY applies when borrowing home library books.
+    // If the student is requesting partner school books, home library quota does not block them!
+    const homeSchoolId = Number(req.user.school_id);
+    const requestedHomeItems = items.filter(item => {
+      const ownerSchool = Number(item.owner_school_id);
+      const borrowType = (item.borrow_type || '').toUpperCase();
+      return (!ownerSchool || ownerSchool === homeSchoolId) && borrowType !== 'INTER_SCHOOL_LIBRARY_USE';
+    });
 
-    if (currentCommitment + requestedCount > maxBorrowLimit) {
-      console.warn(`[BORROW REQUESTS] Limit exceeded: Student has ${currentCommitment}, requesting ${requestedCount}, limit is ${maxBorrowLimit}`);
-      return res.status(400).json({
-        success: false,
-        message: `Borrowing limit reached. You currently have ${currentCommitment} active loan(s)/pending request(s). Your library allows a maximum of ${maxBorrowLimit} book(s) simultaneously.`
-      });
+    if (requestedHomeItems.length > 0) {
+      const maxHomeBorrowLimit = await LibrarySettings.getMaxBorrowLimit(homeSchoolId);
+
+      // Count active physically borrowed books from home library
+      const { data: activeLoans, error: countErr } = await supabase
+        .from('borrow_transactions')
+        .select(`
+          borrow_id,
+          school_id,
+          book_copies(copy_id, book_id, books(book_id, school_id))
+        `)
+        .eq('student_id', req.user.user_id)
+        .eq('status', 'active');
+
+      const activeHomeLoansCount = (activeLoans || []).filter(tx => {
+        const bSchool = tx.book_copies?.books?.school_id || tx.school_id;
+        return !bSchool || Number(bSchool) === homeSchoolId;
+      }).length;
+
+      // Count pending or approved unreleased requests from home library
+      const { data: activeRequests } = await supabase
+        .from('borrow_requests')
+        .select(`
+          request_id,
+          status,
+          home_school_id,
+          items:borrow_request_items(item_id, item_status, owner_school_id, borrow_type)
+        `)
+        .eq('student_id', req.user.user_id)
+        .in('status', ['pending', 'approved', 'ready_for_pickup', 'permission_ready']);
+
+      let pendingHomeItemsCount = 0;
+      if (activeRequests) {
+        for (const reqObj of activeRequests) {
+          const unreleasedHome = (reqObj.items || []).filter(item => {
+            const isUnreleased = item.item_status === 'pending' || item.item_status === 'approved';
+            const ownerSchool = Number(item.owner_school_id);
+            const isHome = (!ownerSchool || ownerSchool === homeSchoolId) && item.borrow_type !== 'INTER_SCHOOL_LIBRARY_USE';
+            return isUnreleased && isHome;
+          });
+          pendingHomeItemsCount += unreleasedHome.length;
+        }
+      }
+
+      const currentHomeCommitment = activeHomeLoansCount + pendingHomeItemsCount;
+      if (currentHomeCommitment + requestedHomeItems.length > maxHomeBorrowLimit) {
+        console.warn(`[BORROW REQUESTS] Home limit reached: Student has ${currentHomeCommitment}, requesting ${requestedHomeItems.length}, limit is ${maxHomeBorrowLimit}`);
+        return res.status(400).json({
+          success: false,
+          is_home_limit_reached: true,
+          message: `Home library borrowing limit reached. You currently have ${currentHomeCommitment} active home loan(s)/pending request(s). Your home campus allows a maximum of ${maxHomeBorrowLimit} book(s) simultaneously. (You can still borrow books from partner schools in the consortium).`
+        });
+      }
     }
 
     const requestData = {
@@ -893,6 +1022,132 @@ router.put('/:id/decline-cancellation', auth, requireRole(['Librarian', 'Librari
   } catch (error) {
     console.error('[BORROW REQUESTS] Error declining cancellation:', error);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// @route   PUT /api/borrow-requests/:id/request-renewal
+// @desc    Student requests renewal/extension for an active home library loan
+// @access  Private (Student)
+router.put('/:id/request-renewal', auth, async (req, res) => {
+  try {
+    const { reason } = req.body || {};
+    const result = await BorrowRequest.requestRenewal(req.params.id, {
+      student_id: req.user.user_id,
+      reason,
+    });
+
+    // Notify library staff of home school
+    try {
+      const studentName = [req.user.firstname, req.user.lastname].filter(Boolean).join(' ') || 'A student';
+      const { data: staffMembers } = await supabase
+        .from('users')
+        .select('user_id')
+        .eq('school_id', result.home_school_id)
+        .in('role_id', [2, 3, 4]); // Librarian, Librarian Admin, Super Admin
+
+      if (staffMembers && staffMembers.length > 0) {
+        const notifs = staffMembers.map(staff => ({
+          user_id: staff.user_id,
+          school_id: result.home_school_id,
+          type: 'renewal_requested',
+          title: 'Book Renewal Request 🔄',
+          message: `${studentName} requested a loan renewal for request #${req.params.id}.${reason ? ` Reason: "${reason}"` : ''}`,
+          related_id: null,
+          is_read: false,
+          is_admin_notification: true,
+          created_at: new Date().toISOString(),
+        }));
+        await supabase.from('notifications').insert(notifs);
+      }
+    } catch (notifErr) {
+      console.warn('[BORROW REQUESTS] Could not dispatch staff renewal notification:', notifErr.message);
+    }
+
+    res.json({
+      success: true,
+      message: 'Renewal request submitted successfully and is awaiting librarian review.',
+      data: result,
+    });
+  } catch (error) {
+    console.error('[BORROW REQUESTS] Error requesting renewal:', error);
+    res.status(400).json({ success: false, message: error.message || 'Failed to request renewal.' });
+  }
+});
+
+// @route   PUT /api/borrow-requests/:id/approve-renewal
+// @desc    Librarian approves renewal, extending loan due date and incrementing renewal count
+// @access  Private (Librarian, Librarian Admin, Super Admin)
+router.put('/:id/approve-renewal', auth, requireRole(['Librarian', 'Librarian Admin', 'Super Admin']), async (req, res) => {
+  try {
+    const { daysToExtend } = req.body || {};
+    const result = await BorrowRequest.approveRenewal(req.params.id, {
+      librarian_id: req.user.user_id,
+      daysToExtend: Number(daysToExtend) || undefined,
+    });
+
+    // Notify student of renewal approval
+    try {
+      const librarianName = [req.user.firstname, req.user.lastname].filter(Boolean).join(' ') || 'The librarian';
+      await supabase.from('notifications').insert({
+        user_id: result.student_id,
+        school_id: result.home_school_id,
+        type: 'renewal_approved',
+        title: 'Loan Renewal Approved! 📅',
+        message: `${librarianName} approved your renewal request for #${req.params.id}. Your new return due date is ${result.newDueDate}.`,
+        related_id: null,
+        is_read: false,
+        is_admin_notification: false,
+        created_at: new Date().toISOString(),
+      });
+    } catch (notifErr) {
+      console.warn('[BORROW REQUESTS] Could not dispatch student renewal approval notification:', notifErr.message);
+    }
+
+    res.json({
+      success: true,
+      message: `Renewal approved. Due date extended to ${result.newDueDate}.`,
+      data: result,
+    });
+  } catch (error) {
+    console.error('[BORROW REQUESTS] Error approving renewal:', error);
+    res.status(400).json({ success: false, message: error.message || 'Failed to approve renewal.' });
+  }
+});
+
+// @route   PUT /api/borrow-requests/:id/decline-renewal
+// @desc    Librarian declines renewal, keeping existing loan and due date intact
+// @access  Private (Librarian, Librarian Admin, Super Admin)
+router.put('/:id/decline-renewal', auth, requireRole(['Librarian', 'Librarian Admin', 'Super Admin']), async (req, res) => {
+  try {
+    const { remarks } = req.body || {};
+    const result = await BorrowRequest.declineRenewal(req.params.id, remarks);
+
+    // Notify student of renewal decline
+    try {
+      const librarianName = [req.user.firstname, req.user.lastname].filter(Boolean).join(' ') || 'The librarian';
+      await supabase.from('notifications').insert({
+        user_id: result.student_id,
+        school_id: result.home_school_id,
+        type: 'renewal_declined',
+        title: 'Renewal Request Declined ℹ️',
+        message: `${librarianName} declined your renewal request for #${req.params.id}.${remarks ? ` Reason: "${remarks}".` : ''} Please return the book by the scheduled due date.`,
+        related_id: null,
+        is_read: false,
+        is_admin_notification: false,
+        created_at: new Date().toISOString(),
+      });
+    } catch (notifErr) {
+      console.warn('[BORROW REQUESTS] Could not dispatch student renewal decline notification:', notifErr.message);
+    }
+
+    res.json({
+      success: true,
+      message: 'Renewal request declined. Existing loan remains active.',
+      data: result,
+    });
+  } catch (error) {
+    console.error('[BORROW REQUESTS] Error declining renewal:', error);
+    res.status(400).json({ success: false, message: error.message || 'Failed to decline renewal.' });
   }
 });
 

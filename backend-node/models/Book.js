@@ -25,7 +25,7 @@ class Book {
           *,
           schools(school_id, school_name, school_code, address, latitude, longitude, logo),
           categories(category_name),
-          book_copies(copy_id, status)
+          book_copies(copy_id, status, accession_number, barcode, shelf_location, condition)
         `)
         .eq('book_id', id)
         .single();

@@ -64,6 +64,7 @@ erDiagram
   USERS ||--o{ NOTIFICATIONS : "receives"
   SCHOOLS ||--o{ NOTIFICATIONS : "scopes"
   USERS ||--o{ ACTIVITY_LOGS : "performed by"
+  USERS ||--o{ DATABASE_BACKUPS : "initiates (super admin)"
   SCHOOLS ||--o{ ANNOUNCEMENTS : "posts to"
   USERS ||--o{ ANNOUNCEMENTS : "authored by"
 
@@ -242,6 +243,28 @@ erDiagram
     string image
     timestamp created_at
   }
+
+  DATABASE_BACKUPS {
+    int backup_id PK
+    int created_by FK
+    string file_name
+    bigint file_size_bytes
+    string storage_path
+    string checksum_sha256
+    string status "completed, pending, failed, restored"
+    string backup_type "automated, manual, pre_migration"
+    timestamp created_at
+    timestamp restored_at
+  }
+
+  SETTINGS {
+    int setting_id PK
+    string setting_key
+    text setting_value
+    text description
+    timestamp created_at
+    timestamp updated_at
+  }
 ```
 
 ---
@@ -255,3 +278,4 @@ erDiagram
 | **Borrowing & Inter-School Lending** | `BORROW_REQUESTS`, `BORROW_REQUEST_ITEMS`, `BOOK_COPIES` | - `USERS 1:N BORROW_REQUESTS`<br>- `BORROW_REQUESTS 1:N BORROW_REQUEST_ITEMS`<br>- `BOOK_COPIES 1:N BORROW_REQUEST_ITEMS` | Supports multi-item checkouts. `request_type` differentiates between **Home Campus** lending and cross-institutional **Inter-School** lending with automated permission letter and QR pickup token. |
 | **Circulation Audit & Fines** | `BORROW_TRANSACTIONS`, `FINES` | - `BOOK_COPIES 1:N BORROW_TRANSACTIONS`<br>- `BORROW_TRANSACTIONS 1:N FINES` | Tracks real-time active loans, return timestamps in Philippine Standard Time (PST UTC+8), overdue status, and fine generation. |
 | **Audit, Feeds & Alerts** | `NOTIFICATIONS`, `ACTIVITY_LOGS`, `ANNOUNCEMENTS` | - `USERS 1:N NOTIFICATIONS`<br>- `SCHOOLS 1:N ANNOUNCEMENTS`<br>- `USERS 1:N ACTIVITY_LOGS` | 3-way real-time notification synchronization across Student, Librarian, and Admin-Librarian portals. |
+| **Platform Governance & Recovery** | `DATABASE_BACKUPS`, `SETTINGS`, `USERS` | - `USERS 1:N DATABASE_BACKUPS` | Super Administrator disaster recovery snapshots with SHA-256 cryptographic verification and global policy key-value configurations. |

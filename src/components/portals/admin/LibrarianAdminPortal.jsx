@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiHome, FiMail, FiLogOut, FiBook, FiMoon, FiSun, FiUsers, FiList, FiCheckCircle, FiDollarSign, FiSettings, FiActivity, FiChevronDown, FiUser, FiLock, FiGrid, FiAlertOctagon, FiAlertTriangle, FiSliders } from "react-icons/fi";
+import { FiHome, FiMail, FiLogOut, FiBook, FiMoon, FiSun, FiUsers, FiList, FiCheckCircle, FiDollarSign, FiSettings, FiActivity, FiChevronDown, FiUser, FiLock, FiGrid, FiAlertOctagon, FiAlertTriangle, FiSliders, FiUserPlus } from "react-icons/fi";
 import { getAdminNotifications, getBackendAssetUrl, signOut } from "../../../utils/api";
 import api from "../../../utils/api";
 import { AlertOverlay, ConfirmationOverlay, GlobalHeader, LogoutConfirmationModal } from "../../common";
 import { LibrarianAdminDashboard, LibrarianAdminAddLibrarian, LibrarianAdminBooks, LibrarianAdminFines, LibrarianAdminActivityLog, LibrarianAdminInbox, LibrarianAdminSettings, LibrarianAdminProfile, LibrarianAdminChangePassword, LibrarianAdminReportedOverdue, LibrarianAdminPolicies } from "../../collegeTabs/LibrarianAdminTabs";
-import { LibrarianOverdueBooks } from "../../collegeTabs/LibrarianTabs";
+import { LibrarianOverdueBooks, LibrarianAddStudent, LibrarianListStudents } from "../../collegeTabs/LibrarianTabs";
 
 const PesoIcon = ({ className }) => (
   <span className={className}>₱</span>
@@ -13,7 +13,7 @@ const PesoIcon = ({ className }) => (
 
 function LibrarianAdminPortal() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState(() => (typeof window !== "undefined" && window.innerWidth < 1024 ? 'students' : 'home'));
   const [darkMode, setDarkMode] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -22,6 +22,23 @@ function LibrarianAdminPortal() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showLogoutConfirmation, setShowLogoutConfirmation] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
+
+  // Keep mobile view confined to the 3 permitted tabs: Registration, Directory, Catalog
+  useEffect(() => {
+    const handleMobileTabCheck = () => {
+      if (window.innerWidth < 1024) {
+        setActiveTab(prev => {
+          if (!['students', 'list-students', 'books'].includes(prev)) {
+            return 'students';
+          }
+          return prev;
+        });
+      }
+    };
+    handleMobileTabCheck();
+    window.addEventListener('resize', handleMobileTabCheck);
+    return () => window.removeEventListener('resize', handleMobileTabCheck);
+  }, []);
 
   useEffect(() => {
     const userRole = (localStorage.getItem('userRole') || '').toLowerCase().trim();
@@ -183,17 +200,19 @@ function LibrarianAdminPortal() {
   ];
 
   const mobileNavItems = [
-    { id: 'home', label: 'Dashboard', icon: FiHome },
-    { id: 'books', label: 'Books', icon: FiBook },
-    { id: 'users', label: 'Users', icon: FiUsers },
-    { id: 'inbox', label: 'Inbox', icon: FiMail },
-    { id: 'logout', label: 'Logout', icon: FiLogOut },
+    { id: 'students', label: 'Registration', icon: FiUserPlus },
+    { id: 'list-students', label: 'Student Directory', icon: FiList },
+    { id: 'books', label: 'Book Catalog', icon: FiBook },
   ];
 
   const renderContent = () => {
     switch (activeTab) {
       case 'home':
         return <LibrarianAdminDashboard onNavigate={setActiveTab} />;
+      case 'students':
+        return <LibrarianAddStudent darkMode={darkMode} onNavigateTab={setActiveTab} />;
+      case 'list-students':
+        return <LibrarianListStudents darkMode={darkMode} />;
       case 'books':
         return <LibrarianAdminBooks />;
       case 'users':
@@ -224,7 +243,7 @@ function LibrarianAdminPortal() {
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      <div className="flex">
+      <div className="flex min-h-screen">
         {/* Sidebar - Desktop */}
         <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-slate-200/70 z-50 hidden lg:block">
           <div className="flex flex-col h-full">
@@ -345,7 +364,7 @@ function LibrarianAdminPortal() {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 lg:ml-64">
+        <main className="flex-1 min-w-0 lg:ml-64 pb-16 lg:pb-0">
           {/* Global Header */}
           <GlobalHeader
             userName={userInfo?.firstname || userInfo?.name || 'Admin'}
@@ -354,6 +373,10 @@ function LibrarianAdminPortal() {
             unreadCount={unreadCount}
             notifications={notifications}
             schoolId={localStorage.getItem('schoolId')}
+            schoolInfo={schoolInfo}
+            books={books}
+            onNavigateTab={(tab) => setActiveTab(tab)}
+            onToggleDarkMode={() => setDarkMode(prev => !prev)}
             onNotificationClick={handleNotificationClick}
             onProfileClick={handleProfileClick}
             onSettingsClick={handleSettingsClick}
@@ -363,75 +386,41 @@ function LibrarianAdminPortal() {
             darkMode={darkMode}
           />
 
-          {/* Top Bar - Mobile */}
-          <div className={`lg:hidden sticky top-0 z-40 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b p-4`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <img src="/L.png" alt="Libralink Logo" className="w-8 h-8 rounded-lg" />
-                <span className="font-bold text-gray-900 dark:text-white">LibraLink</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleLogout}
-                  className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                >
-                  <FiLogOut className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            {schoolInfo && (
-              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
-                {schoolInfo.logo && !schoolLogoError ? (
-                  <img 
-                    src={getBackendAssetUrl(schoolInfo.logo)} 
-                    alt={`${schoolInfo.school_name} Logo`} 
-                    className="w-6 h-6 rounded object-contain bg-gray-50"
-                    onError={() => {
-                      console.error('School logo failed to load:', schoolInfo.logo, 'resolved URL:', getBackendAssetUrl(schoolInfo.logo));
-                      setSchoolLogoError(true);
-                    }}
-                  />
-                ) : (
-                  <div className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center">
-                    <FiGrid className="w-3 h-3 text-gray-400" />
-                  </div>
-                )}
-                <span className="text-xs text-gray-500">{schoolInfo.school_name}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Mobile Navigation */}
-          <div className={`lg:hidden fixed bottom-0 left-0 right-0 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-t z-50`}>
-            <div className="flex justify-around py-2">
-              {mobileNavItems.map((item) => (
+          {/* Mobile Navigation - Exactly 3 tabs */}
+          <nav 
+            aria-label="Mobile Navigation" 
+            className={`lg:hidden fixed bottom-0 left-0 right-0 h-16 ${
+              darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+            } border-t z-50 flex items-center justify-around px-3 shadow-lg`}
+          >
+            {mobileNavItems.map((item) => {
+              const isActive = activeTab === item.id;
+              const Icon = item.icon;
+              return (
                 <button
                   key={item.id}
+                  type="button"
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-all ${
-                    activeTab === item.id
-                      ? 'text-blue-500'
+                  className={`flex-1 flex flex-col items-center justify-center py-1 transition-all duration-150 relative cursor-pointer ${
+                    isActive
+                      ? 'text-blue-600 font-bold'
                       : darkMode
-                      ? 'text-gray-400'
-                      : 'text-gray-600'
+                      ? 'text-slate-400 hover:text-slate-200 font-medium'
+                      : 'text-slate-500 hover:text-slate-800 font-medium'
                   }`}
                 >
-                  <div className="relative">
-                    <item.icon className="w-5 h-5" />
-                    {item.id === 'inbox' && unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
-                        {unreadCount > 9 ? '9+' : unreadCount}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-xs">{item.label}</span>
+                  {isActive && (
+                    <span className="absolute top-0 w-8 h-1 bg-blue-600 rounded-full" />
+                  )}
+                  <Icon className={`w-5 h-5 transition-transform duration-150 ${isActive ? 'scale-110 text-blue-600' : ''}`} />
+                  <span className="text-[11px] mt-1 tracking-tight truncate max-w-[100px] text-center">{item.label}</span>
                 </button>
-              ))}
-            </div>
-          </div>
+              );
+            })}
+          </nav>
 
           {/* Page Content */}
-          <div className="p-6 lg:p-8 pb-24 lg:pb-8">
+          <div className="p-4 sm:p-6 lg:p-8 min-w-0">
             {renderContent()}
           </div>
         </main>

@@ -157,12 +157,36 @@ class LibrarySettings {
       'fine_amount_per_day': { setting_value: '5.00', setting_type: 'DECIMAL' },
       'max_fine_cap': { setting_value: '500.00', setting_type: 'DECIMAL' },
       'grace_period_days': { setting_value: '0', setting_type: 'INTEGER' },
+      'max_renewals': { setting_value: '2', setting_type: 'INTEGER' },
       'enable_visiting_fee': { setting_value: 'false', setting_type: 'BOOLEAN' },
       'visiting_fee_amount': { setting_value: '0.00', setting_type: 'DECIMAL' },
       'visiting_fee_type': { setting_value: 'per_visit', setting_type: 'STRING' },
       'visiting_policy_notes': { setting_value: 'Visiting students from other consortium schools may review, read, and research this book on-site inside library premises.', setting_type: 'STRING' }
     };
     return defaults[setting_key] || { setting_value: '', setting_type: 'STRING' };
+  }
+
+  static async getMaxRenewals(school_id) {
+    try {
+      if (!school_id) return 2;
+      const setting = await this.getSetting(school_id, 'max_renewals');
+      const val = parseInt(setting?.setting_value);
+      if (!isNaN(val) && val >= 0) return val;
+
+      const { data: school } = await supabase
+        .from('schools')
+        .select('max_renewals')
+        .eq('school_id', school_id)
+        .maybeSingle();
+
+      if (school?.max_renewals !== undefined && school?.max_renewals !== null) {
+        return parseInt(school.max_renewals) || 2;
+      }
+      return 2;
+    } catch (error) {
+      console.error('[LIBRARY SETTINGS] Error getting max renewals:', error);
+      return 2;
+    }
   }
 
   static async getPickupHoldDays(school_id) {
@@ -223,6 +247,7 @@ class LibrarySettings {
         visitingAmountSetting,
         visitingTypeSetting,
         visitingNotesSetting,
+        renewalsSetting,
         finePolicy
       ] = await Promise.all([
         this.getSetting(school_id, 'max_borrow_limit'),
@@ -233,6 +258,7 @@ class LibrarySettings {
         this.getSetting(school_id, 'visiting_fee_amount'),
         this.getSetting(school_id, 'visiting_fee_type'),
         this.getSetting(school_id, 'visiting_policy_notes'),
+        this.getSetting(school_id, 'max_renewals'),
         this.getFinePolicy(school_id),
       ]);
 
@@ -241,6 +267,7 @@ class LibrarySettings {
         max_borrow_limit: parseInt(limitSetting.setting_value) || 5,
         home_borrowing_days: parseInt(daysSetting.setting_value) || 3,
         pickup_hold_days: parseInt(pickupHoldSetting.setting_value) || 3,
+        max_renewals: parseInt(renewalsSetting.setting_value) ?? 2,
         inter_school_library_use_only: interSetting.setting_value === true || interSetting.setting_value === 'true',
         enable_visiting_fee: visitingFeeSetting.setting_value === true || visitingFeeSetting.setting_value === 'true',
         visiting_fee_amount: parseFloat(visitingAmountSetting.setting_value) || 0.00,
@@ -255,6 +282,7 @@ class LibrarySettings {
         max_borrow_limit: 5,
         home_borrowing_days: 3,
         pickup_hold_days: 3,
+        max_renewals: 2,
         inter_school_library_use_only: true,
         enable_visiting_fee: false,
         visiting_fee_amount: 0.00,
@@ -278,6 +306,9 @@ class LibrarySettings {
       }
       if (policy.pickup_hold_days !== undefined) {
         await this.updateSetting(school_id, 'pickup_hold_days', policy.pickup_hold_days);
+      }
+      if (policy.max_renewals !== undefined) {
+        await this.updateSetting(school_id, 'max_renewals', policy.max_renewals);
       }
       if (policy.inter_school_library_use_only !== undefined) {
         await this.updateSetting(school_id, 'inter_school_library_use_only', policy.inter_school_library_use_only);

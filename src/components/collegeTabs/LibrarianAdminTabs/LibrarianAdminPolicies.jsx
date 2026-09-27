@@ -391,14 +391,14 @@ export default function LibrarianAdminPolicies() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-800">
-                  Maximum Active Books Per Student
+                  Maximum Active Books Per Student (Home Library Only)
                 </label>
                 <span className="rounded-md bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700 border border-blue-100">
                   {policy.max_borrow_limit} books
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
-                Once a student reaches this active threshold, additional borrow requests are locked.
+                Controls how many books from your library a student can borrow simultaneously. This does not restrict students from borrowing books from partner schools in the consortium.
               </p>
               <div className="flex items-center gap-3 pt-1">
                 <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 p-1">
@@ -921,10 +921,13 @@ export default function LibrarianAdminPolicies() {
                   {/* Limit Box */}
                   <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl">
                     <span className="block text-[10px] uppercase font-bold text-slate-400">
-                      Borrowing Quota
+                      Borrowing Quota (Home Campus)
                     </span>
                     <span className="font-semibold text-slate-800 text-xs">
-                      Up to {policy.max_borrow_limit} active books per student
+                      Up to {policy.max_borrow_limit} active books from home library
+                    </span>
+                    <span className="block text-[10px] text-blue-600 font-medium mt-0.5">
+                      (Partner school borrowing handled separately)
                     </span>
                   </div>
 

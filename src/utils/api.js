@@ -636,6 +636,33 @@ export async function getPartnerSchoolsForBook(bookId) {
   }
 }
 
+export async function requestBookRenewal(requestId, reason = '') {
+  try {
+    const response = await api.put(`/borrow-requests/${requestId}/request-renewal`, { reason });
+    return { data: response.data || response, error: null };
+  } catch (error) {
+    return { data: null, error: error.response?.data?.message || error.message || 'Failed to request renewal' };
+  }
+}
+
+export async function approveBookRenewal(requestId, daysToExtend = null) {
+  try {
+    const response = await api.put(`/borrow-requests/${requestId}/approve-renewal`, { daysToExtend });
+    return { data: response.data || response, error: null };
+  } catch (error) {
+    return { data: null, error: error.response?.data?.message || error.message || 'Failed to approve renewal' };
+  }
+}
+
+export async function declineBookRenewal(requestId, remarks = '') {
+  try {
+    const response = await api.put(`/borrow-requests/${requestId}/decline-renewal`, { remarks });
+    return { data: response.data || response, error: null };
+  } catch (error) {
+    return { data: null, error: error.response?.data?.message || error.message || 'Failed to decline renewal' };
+  }
+}
+
 // ============================================
 // NOTIFICATION FUNCTIONS
 // ============================================

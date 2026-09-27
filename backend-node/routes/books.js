@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Book = require('../models/Book');
 const { auth, requireRole } = require('../middleware/auth');
-const { bulkImportBooks } = require('../controllers/bookImportController');
+const { bulkImportBooks, bulkRollbackBooks } = require('../controllers/bookImportController');
 const { uploadBookCover } = require('../middleware/upload');
 const supabase = require('../config/database');
 
@@ -294,7 +294,7 @@ router.get('/school', auth, async (req, res) => {
           condition,
           categories(category_id, category_name),
           schools(school_id, school_name, address, latitude, longitude),
-          book_copies(copy_id, status)
+          book_copies(copy_id, status, accession_number, barcode, shelf_location, condition)
         `)
         .eq('school_id', schoolId)
         .order('book_id', { ascending: true })
@@ -2003,5 +2003,10 @@ router.get('/:id/authors', auth, async (req, res) => {
 // @desc    Bulk import books with column mapping
 // @access  Private (Librarian Admin, Librarian)
 router.post('/bulk-import', auth, requireRole(['Librarian Admin', 'Librarian']), bulkImportBooks);
+
+// @route   POST /api/books/bulk-rollback
+// @desc    Rollback / delete bulk imported books and their copies
+// @access  Private (Librarian Admin, Librarian)
+router.post('/bulk-rollback', auth, requireRole(['Librarian Admin', 'Librarian']), bulkRollbackBooks);
 
 module.exports = router;

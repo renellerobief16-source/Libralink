@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { 
   FiHome, FiMail, FiLogOut, FiBook, FiMoon, FiSun, FiUsers, FiList, 
   FiCheckCircle, FiGrid, FiClock, FiFileText, FiAlertOctagon, FiX, FiShield, FiInfo, FiCheck,
-  FiSettings 
+  FiSettings, FiUserPlus 
 } from "react-icons/fi";
 import { getUserNotifications, getBackendAssetUrl, signOut, getBorrowRequests } from "../../../utils/api";
 import api from "../../../utils/api";
@@ -28,7 +28,9 @@ import {
 function LibrarianPortal() {
   const navigate = useNavigate();
   const { addNotification } = useNotifications();
-  const [activeTab, setActiveTab] = useState("home");
+  const [activeTab, setActiveTab] = useState(() => {
+    return typeof window !== "undefined" && window.innerWidth < 1024 ? "students" : "home";
+  });
   const [darkMode, setDarkMode] = useState(false);
   const [books, setBooks] = useState([]);
   const [studentCount, setStudentCount] = useState(0);
@@ -41,6 +43,23 @@ function LibrarianPortal() {
   const [userInfo, setUserInfo] = useState(null);
   const [showStaffModal, setShowStaffModal] = useState(false);
   const [libraryPolicy, setLibraryPolicy] = useState(null);
+
+  // Keep mobile view confined to the 3 permitted tabs: Registration, Directory, Catalog
+  useEffect(() => {
+    const handleMobileTabCheck = () => {
+      if (window.innerWidth < 1024) {
+        setActiveTab(prev => {
+          if (!["students", "list-students", "books"].includes(prev)) {
+            return "students";
+          }
+          return prev;
+        });
+      }
+    };
+    handleMobileTabCheck();
+    window.addEventListener("resize", handleMobileTabCheck);
+    return () => window.removeEventListener("resize", handleMobileTabCheck);
+  }, []);
 
   useEffect(() => {
     const rawRole = (localStorage.getItem("userRole") || '').toLowerCase().replace(/[-_]/g, ' ').trim();
@@ -212,7 +231,12 @@ function LibrarianPortal() {
   ];
 
   const flatSidebarItems = sidebarGroups.flatMap(g => g.items);
-  const mobileNavItems = flatSidebarItems.slice(0, 4);
+  // Mobile strictly displays: Registration tab, Student Directory tab, Book Catalog tab
+  const mobileNavItems = [
+    { id: "students", label: "Registration", icon: FiUserPlus },
+    { id: "list-students", label: "Student Directory", icon: FiList },
+    { id: "books", label: "Book Catalog", icon: FiBook },
+  ];
   const schoolName = schoolInfo?.school_name || "School";
   const schoolCode = schoolInfo?.school_code || "";
 
@@ -305,16 +329,38 @@ function LibrarianPortal() {
           </div>
         </aside>
 
-        <div className={`lg:hidden fixed bottom-0 left-0 right-0 h-16 ${darkMode ? 'bg-gray-800' : 'bg-white'} border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'} z-40 flex items-center justify-around px-4 shadow-sm`}>
-          {mobileNavItems.map((item) => (
-            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex flex-col items-center gap-1 transition-all duration-200 ${activeTab === item.id ? 'text-blue-600' : darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              <item.icon className="w-5 h-5" />
-              <span className="text-xs font-medium">{item.label}</span>
-            </button>
-          ))}
-        </div>
+        {/* Mobile Fixed Bottom Navigation Bar - Exactly 3 tabs */}
+        <nav 
+          aria-label="Mobile Navigation" 
+          className={`lg:hidden fixed bottom-0 left-0 right-0 h-16 ${
+            darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+          } border-t z-40 flex items-center justify-around px-3 shadow-lg`}
+        >
+          {mobileNavItems.map((item) => {
+            const isActive = activeTab === item.id;
+            const Icon = item.icon;
+            return (
+              <button 
+                key={item.id} 
+                type="button"
+                onClick={() => setActiveTab(item.id)} 
+                className={`flex-1 flex flex-col items-center justify-center py-1 transition-all duration-150 relative cursor-pointer ${
+                  isActive 
+                    ? 'text-blue-600 font-bold' 
+                    : darkMode ? 'text-slate-400 hover:text-slate-200 font-medium' : 'text-slate-500 hover:text-slate-800 font-medium'
+                }`}
+              >
+                {isActive && (
+                  <span className="absolute top-0 w-8 h-1 bg-blue-600 rounded-full" />
+                )}
+                <Icon className={`w-5 h-5 transition-transform duration-150 ${isActive ? 'scale-110 text-blue-600' : ''}`} />
+                <span className="text-[11px] mt-1 tracking-tight truncate max-w-[100px] text-center">{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
 
-        <main className={`flex-1 min-w-0 lg:ml-64 pb-16 lg:pb-0 overflow-x-hidden`}>
+        <main className={`flex-1 min-w-0 lg:ml-64 pb-16 lg:pb-0`}>
           {/* Sticky Global Header (Adapted from Student Page Header) */}
           <GlobalHeader
             userName={userInfo?.firstname || userInfo?.name || 'Librarian'}

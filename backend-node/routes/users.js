@@ -93,6 +93,45 @@ router.post('/borrowing-id', auth, uploadBorrowingId.single('id_picture'), async
   }
 });
 
+// @route   POST /api/users/:id/profile-picture
+// @desc    Upload profile picture for a specific user (e.g. newly registered student)
+// @access  Private (Librarian Admin, Librarian)
+router.post('/:id/profile-picture', auth, requireRole(['Librarian Admin', 'Librarian']), uploadProfile.single('profile_picture'), async (req, res) => {
+  try {
+    const targetUserId = req.params.id;
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    // Verify the target user belongs to the same school as the librarian
+    const targetUser = await User.getById(targetUserId);
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    if (String(targetUser.school_id) !== String(req.user.school_id)) {
+      return res.status(403).json({ success: false, message: 'Access denied: user belongs to a different school' });
+    }
+
+    const profilePictureUrl = `/uploads/profiles/${req.file.filename}`;
+    const result = await User.update(targetUserId, { profile_image: profilePictureUrl });
+
+    if (result) {
+      return res.json({
+        success: true,
+        message: 'Profile picture set successfully',
+        profile_picture: profilePictureUrl,
+        profile_image: profilePictureUrl,
+      });
+    }
+
+    return res.status(400).json({ success: false, message: 'Failed to update profile picture' });
+  } catch (error) {
+    console.error('[SET USER PROFILE PIC] Error:', error);
+    return res.status(500).json({ success: false, message: 'Unable to upload profile picture. Please try again.' });
+  }
+});
+
 // @route   GET /api/users/student/:student_id
 // @desc    Get student by student ID (student_number)
 // @access  Private (Librarian, Librarian Admin)

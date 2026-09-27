@@ -12,19 +12,58 @@ function isOnboardingComplete(user) {
   const recoveryEmail = user.recovery_email || user.email || '';
   const profilePicture = user.profile_picture || user.profile_image || '';
   const policyAccepted = !!user.policy_accepted;
+  const address = user.address || '';
+  const course = user.course || user.position || '';
 
-  return !!(username.trim() && cellphone.trim() && recoveryEmail.trim() && profilePicture && policyAccepted);
+  return !!(username.trim() && cellphone.trim() && recoveryEmail.trim() && profilePicture && policyAccepted && address.trim() && course.trim());
 }
+
+const ACADEMIC_PROGRAMS = {
+  College: [
+    { code: "BSIT", name: "BS in Information Technology", dept: "College of Computer Studies", relatedTopicIds: ["tech_coding", "engineering_math"] },
+    { code: "BSCS", name: "BS in Computer Science", dept: "College of Computer Studies", relatedTopicIds: ["tech_coding", "engineering_math"] },
+    { code: "BSN", name: "BS in Nursing", dept: "College of Nursing & Health Sciences", relatedTopicIds: ["science_health", "psychology_selfhelp"] },
+    { code: "BSBA", name: "BS in Business Administration", dept: "College of Business & Management", relatedTopicIds: ["business_finance", "psychology_selfhelp"] },
+    { code: "BSA", name: "BS in Accountancy", dept: "College of Accountancy", relatedTopicIds: ["business_finance", "engineering_math"] },
+    { code: "BSCrim", name: "BS in Criminology", dept: "College of Criminal Justice", relatedTopicIds: ["law_criminology", "psychology_selfhelp"] },
+    { code: "BSEd", name: "Bachelor of Secondary Education", dept: "College of Education", relatedTopicIds: ["education_pedagogy", "literature_fiction"] },
+    { code: "BEEd", name: "Bachelor of Elementary Education", dept: "College of Education", relatedTopicIds: ["education_pedagogy", "arts_design"] },
+    { code: "BSHM", name: "BS in Hospitality Management", dept: "College of Hospitality Management", relatedTopicIds: ["hospitality_tourism", "business_finance"] },
+    { code: "BSTM", name: "BS in Tourism Management", dept: "College of Tourism", relatedTopicIds: ["hospitality_tourism", "history_society"] },
+    { code: "BSCE", name: "BS in Civil Engineering", dept: "College of Engineering", relatedTopicIds: ["engineering_math", "tech_coding"] },
+    { code: "BSPsych", name: "BS in Psychology", dept: "College of Arts & Sciences", relatedTopicIds: ["psychology_selfhelp", "science_health"] },
+    { code: "OTHER", name: "Other Degree / General Studies", dept: "General Academics", relatedTopicIds: ["literature_fiction", "psychology_selfhelp"] }
+  ],
+  "Senior High School": [
+    { code: "STEM", name: "Science, Technology, Engineering & Mathematics", dept: "SHS Academic Track", relatedTopicIds: ["engineering_math", "science_health", "tech_coding"] },
+    { code: "ABM", name: "Accountancy, Business & Management", dept: "SHS Academic Track", relatedTopicIds: ["business_finance"] },
+    { code: "HUMSS", name: "Humanities & Social Sciences", dept: "SHS Academic Track", relatedTopicIds: ["history_society", "literature_fiction", "law_criminology"] },
+    { code: "GAS", name: "General Academic Strand", dept: "SHS Academic Track", relatedTopicIds: ["literature_fiction", "psychology_selfhelp"] },
+    { code: "TVL-ICT", name: "TVL: Information & Communications Technology", dept: "SHS Technical-Vocational", relatedTopicIds: ["tech_coding"] },
+    { code: "TVL-HE", name: "TVL: Home Economics", dept: "SHS Technical-Vocational", relatedTopicIds: ["hospitality_tourism"] }
+  ],
+  "Junior High School": [
+    { code: "Grade 7", name: "Junior High School - Grade 7", dept: "Junior High Curriculum", relatedTopicIds: ["education_pedagogy", "science_health"] },
+    { code: "Grade 8", name: "Junior High School - Grade 8", dept: "Junior High Curriculum", relatedTopicIds: ["education_pedagogy", "science_health"] },
+    { code: "Grade 9", name: "Junior High School - Grade 9", dept: "Junior High Curriculum", relatedTopicIds: ["education_pedagogy", "science_health"] },
+    { code: "Grade 10", name: "Junior High School - Grade 10", dept: "Junior High Curriculum", relatedTopicIds: ["education_pedagogy", "science_health"] },
+    { code: "STE", name: "Special Program in Science, Tech & Eng. (STE)", dept: "Science Curriculum", relatedTopicIds: ["science_health", "engineering_math"] },
+    { code: "SPA", name: "Special Program in the Arts (SPA)", dept: "Arts Curriculum", relatedTopicIds: ["arts_design", "literature_fiction"] },
+    { code: "SPS", name: "Special Program in Sports (SPS)", dept: "Sports Curriculum", relatedTopicIds: ["science_health"] }
+  ]
+};
 
 function StudentOnboarding() {
   const navigate = useNavigate();
   const [userInfo, setUserInfo] = useState(null);
   const [form, setForm] = useState({
+    academicLevel: 'College',
+    course: '',
+    address: '',
+    favorite_topics: [],
     username: '',
     cellphone: '',
     recoveryEmail: '',
-    course: '',
-    favorite_topics: [],
     policyAccepted: false,
   });
   const [courseSearch, setCourseSearch] = useState('');
@@ -33,11 +72,11 @@ function StudentOnboarding() {
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [schoolInfo, setSchoolInfo] = useState(null);
-  // No OTP verification needed - Gmail is saved directly as recovery email
 
   const steps = [
     { key: 'welcome', label: 'Welcome' },
-    { key: 'course', label: 'Course / Program' },
+    { key: 'course', label: 'Academic Program' },
+    { key: 'address', label: 'Residential Address' },
     { key: 'topics', label: 'Reading Interests' },
     { key: 'username', label: 'Username' },
     { key: 'cellphone', label: 'Cellphone Number' },
@@ -46,16 +85,17 @@ function StudentOnboarding() {
     { key: 'policy', label: 'Policy' },
   ];
 
-  const stepLabels = ['Welcome', 'Course', 'Topics', 'Username', 'Cellphone', 'Recovery email', 'Photo', 'Policy'];
+  const stepLabels = ['Welcome', 'Program', 'Address', 'Topics', 'Username', 'Cellphone', 'Recovery email', 'Photo', 'Policy'];
 
   const reminders = {
     welcome: 'Welcome to Libralink. Please complete these details to personalize your account and access the library system.',
-    course: 'Select your degree program or course. This helps us tailor syllabus-aligned book recommendations for you.',
+    course: 'Select your Academic Level and degree program or grade level. This helps us tailor syllabus-aligned book recommendations for you.',
+    address: 'Enter your residential address. This completes your official library patron record.',
     topics: 'Select the reading topics you love! We will curate your "Recommended for You" shelf with these genres.',
     username: 'Create a unique username that others can recognize.',
     cellphone: 'Enter your active mobile number in case we need to contact you.',
     email: 'Use a valid Gmail account for password recovery and account safety.',
-    photo: 'Upload a clear profile photo so your account is easy to recognize.',
+    photo: 'Confirm your profile photo. You can use your scanned ID photo or upload a new headshot.',
     policy: 'Review the terms carefully before continuing. You must agree before entering the system.',
   };
 
@@ -80,10 +120,12 @@ function StudentOnboarding() {
     }
 
     setForm({
+      academicLevel: parsedUser.academic_level || parsedUser.academicLevel || 'College',
       username: parsedUser.username || parsedUser.name || parsedUser.first_name || '',
       cellphone: parsedUser.contact_number || '',
       recoveryEmail: parsedUser.recovery_email || parsedUser.email || '',
       course: storedCourse,
+      address: parsedUser.address || localStorage.getItem('studentAddress') || '',
       favorite_topics: Array.isArray(storedTopics) ? storedTopics : [],
       policyAccepted: !!parsedUser.policy_accepted,
     });
@@ -120,6 +162,11 @@ function StudentOnboarding() {
       return;
     }
 
+    if (!form.address.trim()) {
+      alert('Please enter your residential address.');
+      return;
+    }
+
     if (!form.favorite_topics || form.favorite_topics.length === 0) {
       alert('Please select at least 1 reading topic you love.');
       return;
@@ -141,7 +188,7 @@ function StudentOnboarding() {
     }
 
     if (!photo && !preview) {
-      alert('Please upload a profile picture.');
+      alert('Please upload or confirm your profile picture.');
       return;
     }
 
@@ -173,7 +220,9 @@ function StudentOnboarding() {
         contact_number: form.cellphone.trim(),
         recovery_email: cleanedEmail,
         position: form.course.trim(),
+        academic_level: form.academicLevel,
         course: form.course.trim(),
+        address: form.address.trim(),
         profile_picture: uploadedPicture,
         profile_image: uploadedPicture,
         policy_accepted: true,
@@ -187,8 +236,10 @@ function StudentOnboarding() {
       const updatedUser = {
         ...userInfo,
         ...payload,
+        academic_level: form.academicLevel,
         course: form.course.trim(),
         position: form.course.trim(),
+        address: form.address.trim(),
         favorite_topics: form.favorite_topics || [],
         interests: form.favorite_topics || [],
         username: payload.username,
@@ -201,6 +252,7 @@ function StudentOnboarding() {
 
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
       localStorage.setItem('studentCourse', form.course.trim());
+      localStorage.setItem('studentAddress', form.address.trim());
       localStorage.setItem('studentInterests', JSON.stringify(form.favorite_topics || []));
 
       window.dispatchEvent(new CustomEvent('libralink-preferences-updated', {
@@ -218,36 +270,41 @@ function StudentOnboarding() {
 
   const handleNext = () => {
     if (currentStep === 1 && !form.course.trim()) {
-      alert('Please select your academic course or program.');
+      alert('Please select your academic program or course.');
       return;
     }
 
-    if (currentStep === 2 && (!form.favorite_topics || form.favorite_topics.length === 0)) {
+    if (currentStep === 2 && !form.address.trim()) {
+      alert('Please enter your residential address.');
+      return;
+    }
+
+    if (currentStep === 3 && (!form.favorite_topics || form.favorite_topics.length === 0)) {
       alert('Please select at least 1 reading topic you love.');
       return;
     }
 
-    if (currentStep === 3 && !form.username.trim()) {
+    if (currentStep === 4 && !form.username.trim()) {
       alert('Please enter your username.');
       return;
     }
 
-    if (currentStep === 4 && !form.cellphone.trim()) {
+    if (currentStep === 5 && !form.cellphone.trim()) {
       alert('Please enter your cellphone number.');
       return;
     }
 
-    if (currentStep === 5 && !form.recoveryEmail.trim()) {
+    if (currentStep === 6 && !form.recoveryEmail.trim()) {
       alert('Please enter your Gmail account for password recovery.');
       return;
     }
 
-    if (currentStep === 6 && !photo && !preview) {
-      alert('Please upload a profile picture.');
+    if (currentStep === 7 && !photo && !preview) {
+      alert('Please upload or confirm your profile picture.');
       return;
     }
 
-    if (currentStep === 7) {
+    if (currentStep === 8) {
       if (!form.policyAccepted) {
         alert('Please accept the policy before continuing.');
         return;
@@ -265,6 +322,7 @@ function StudentOnboarding() {
   };
 
   const renderStepContent = () => {
+    // STEP 0: Welcome
     if (currentStep === 0) {
       return (
         <div className="space-y-6 text-center">
@@ -275,7 +333,7 @@ function StudentOnboarding() {
             <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0077B6]">Student setup</p>
             <h1 className="text-3xl font-semibold tracking-[-.03em] text-slate-900">Welcome to Libralink</h1>
             <p className="text-sm leading-6 text-slate-600">
-              Welcome to Libralink. Let's personalize your library journey by selecting your course and favorite reading topics, along with a few profile details.
+              Welcome to Libralink. Complete your academic level, program, residential address, and reading topics to personalize your borrowing experience.
             </p>
             <p className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
               This setup curates your "Recommended for You" library shelf and secures your account.
@@ -285,9 +343,10 @@ function StudentOnboarding() {
       );
     }
 
-    // STEP 1: Academic Course Selection
+    // STEP 1: Academic Level & Program Selection
     if (currentStep === 1) {
-      const filtered = STUDENT_COURSES.filter(
+      const activeList = ACADEMIC_PROGRAMS[form.academicLevel] || ACADEMIC_PROGRAMS.College;
+      const filtered = activeList.filter(
         (c) =>
           c.name.toLowerCase().includes(courseSearch.toLowerCase()) ||
           c.code.toLowerCase().includes(courseSearch.toLowerCase()) ||
@@ -301,18 +360,44 @@ function StudentOnboarding() {
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Select your Academic Course / Program
+            <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">
+              1. Choose Academic Level
+            </label>
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {['College', 'Senior High School', 'Junior High School'].map((lvl) => {
+                const isLvlSelected = form.academicLevel === lvl;
+                return (
+                  <button
+                    key={lvl}
+                    type="button"
+                    onClick={() => {
+                      setForm(f => ({ ...f, academicLevel: lvl, course: '' }));
+                      setCourseSearch('');
+                    }}
+                    className={`py-2 px-2 text-center rounded-xl text-xs font-bold transition-all border ${
+                      isLvlSelected
+                        ? 'bg-[#0077B6] text-white border-[#0077B6] shadow-sm'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {lvl === 'Senior High School' ? 'Senior High (SHS)' : lvl === 'Junior High School' ? 'Junior High (JHS)' : 'College'}
+                  </button>
+                );
+              })}
+            </div>
+
+            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
+              2. Select {form.academicLevel === 'College' ? 'Degree Program / Course' : form.academicLevel === 'Senior High School' ? 'Senior High Strand' : 'Grade Level / Curriculum'}
             </label>
             <input
               type="text"
               value={courseSearch}
               onChange={(e) => setCourseSearch(e.target.value)}
-              placeholder="Search course (e.g. BSIT, Nursing, Criminology, Accountancy)..."
+              placeholder={`Search in ${form.academicLevel}...`}
               className="min-h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 text-sm outline-none transition focus:border-[#0077B6] focus:bg-white focus:ring-4 focus:ring-[#0077B6]/10 mb-2.5"
             />
 
-            <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1 scrollbar-thin">
+            <div className="max-h-[220px] overflow-y-auto space-y-2 pr-1 scrollbar-thin">
               {filtered.map((c) => {
                 const isSelected = form.course === c.code || form.course === c.name;
                 return (
@@ -352,8 +437,34 @@ function StudentOnboarding() {
       );
     }
 
-    // STEP 2: Favorite Reading Topics (WITH PICTURES!)
+    // STEP 2: Residential Address
     if (currentStep === 2) {
+      return (
+        <div className="space-y-4">
+          <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
+            {reminders.address}
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+              Residential Address <span className="text-rose-500">*</span>
+            </label>
+            <textarea
+              rows={3}
+              value={form.address}
+              onChange={(e) => setForm({ ...form, address: e.target.value })}
+              placeholder="e.g. Blk 5 Lot 12, San Agustin, Santa Rita, Pampanga"
+              className="w-full rounded-xl border border-slate-300 bg-slate-50 p-3.5 text-sm outline-none transition focus:border-[#0077B6] focus:bg-white focus:ring-4 focus:ring-[#0077B6]/10"
+            />
+            <p className="mt-1.5 text-xs text-slate-400">
+              Please enter your full current address for official library patron record verification.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // STEP 3: Favorite Reading Topics
+    if (currentStep === 3) {
       const toggleTopic = (id) => {
         const prev = form.favorite_topics || [];
         const next = prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id];
@@ -375,7 +486,6 @@ function StudentOnboarding() {
             </span>
           </div>
 
-          {/* TOPICS PICTURE CARDS GRID */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[350px] overflow-y-auto pr-1 scrollbar-thin">
             {STUDENT_TOPICS.map((topic) => {
               const isSelected = (form.favorite_topics || []).includes(topic.id);
@@ -389,7 +499,6 @@ function StudentOnboarding() {
                       : "border-slate-200 hover:border-slate-300 hover:shadow-md"
                   }`}
                 >
-                  {/* High Quality Local Photo with Gradient Overlay */}
                   <img
                     src={topic.image}
                     alt={topic.title}
@@ -398,7 +507,6 @@ function StudentOnboarding() {
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/10" />
 
-                  {/* Content Overlay */}
                   <div className="relative z-10 flex flex-col justify-between p-3 w-full">
                     <div className="flex items-center justify-between">
                       <span className="rounded-lg bg-black/60 border border-white/20 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-white backdrop-blur-md shadow-xs">
@@ -432,8 +540,8 @@ function StudentOnboarding() {
       );
     }
 
-    // STEP 3: Username
-    if (currentStep === 3) {
+    // STEP 4: Username
+    if (currentStep === 4) {
       return (
         <div className="space-y-4">
           <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
@@ -453,8 +561,8 @@ function StudentOnboarding() {
       );
     }
 
-    // STEP 4: Cellphone
-    if (currentStep === 4) {
+    // STEP 5: Cellphone Number
+    if (currentStep === 5) {
       return (
         <div className="space-y-4">
           <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
@@ -474,8 +582,8 @@ function StudentOnboarding() {
       );
     }
 
-    // STEP 5: Gmail Recovery Email (simple input, no OTP)
-    if (currentStep === 5) {
+    // STEP 6: Gmail Recovery Email
+    if (currentStep === 6) {
       return (
         <div className="space-y-4">
           <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
@@ -499,8 +607,8 @@ function StudentOnboarding() {
       );
     }
 
-    // STEP 6: Profile Picture
-    if (currentStep === 6) {
+    // STEP 7: Profile Picture
+    if (currentStep === 7) {
       return (
         <div className="space-y-4">
           <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">
@@ -508,8 +616,8 @@ function StudentOnboarding() {
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">Profile Picture</label>
-            <div className="flex items-center gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
-              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white">
+            <div className="flex flex-col sm:flex-row items-center gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-blue-400 bg-white shadow-sm">
                 {preview ? (
                   <img src={preview} alt="Profile preview" className="h-full w-full object-cover" />
                 ) : (
@@ -517,17 +625,31 @@ function StudentOnboarding() {
                 )}
               </div>
 
-              <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[#0077B6] px-4 text-sm font-semibold text-[#0077B6] transition hover:bg-[#E0F2FE]">
-                <FiCamera /> Upload photo
-                <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
-              </label>
+              <div className="flex-1 space-y-2 text-center sm:text-left">
+                {preview && !photo && (
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <FiCheck className="w-3.5 h-3.5" /> ID Photo Scanned by Librarian
+                  </div>
+                )}
+                <p className="text-xs text-slate-500">
+                  {preview 
+                    ? "Your scanned ID photo is set as your default avatar. You can keep it or upload a new photo."
+                    : "Upload a clear headshot photo for your digital borrower ID."}
+                </p>
+                <div>
+                  <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-xl border border-[#0077B6] px-4 text-xs font-semibold text-[#0077B6] transition hover:bg-[#E0F2FE]">
+                    <FiCamera /> {preview ? 'Change Photo' : 'Upload photo'}
+                    <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       );
     }
 
-    // STEP 7: Policy
+    // STEP 8: Policy
     return (
       <div className="space-y-4">
         <div className="border-l-4 border-[#0077B6] bg-[#E0F2FE] px-3 py-2 text-xs leading-5 text-blue-800">

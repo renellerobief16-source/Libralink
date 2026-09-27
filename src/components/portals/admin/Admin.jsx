@@ -312,47 +312,23 @@ function Admin() {
         {/* Main Content */}
         <main className={`flex-1 lg:ml-64 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
           {/* Global Header */}
-          <div className="sticky top-0 z-40">
-            <GlobalHeader
-              userName={userInfo?.firstname || userInfo?.name || 'Super Admin'}
-              userRole={localStorage.getItem('userRole')}
-              profileImage={userInfo?.profile_picture || userInfo?.profile_image}
-              unreadCount={unreadCount}
-              notifications={notifications}
-              schoolId={localStorage.getItem('schoolId')}
-              onNotificationClick={handleNotificationClick}
-              onProfileClick={handleProfileClick}
-              onSettingsClick={handleSettingsClick}
-              onLogout={handleLogout}
-              onDeleteNotification={handleDeleteNotification}
-              onDeleteAllNotifications={handleDeleteAllNotifications}
-              darkMode={darkMode}
-            />
-          </div>
-
-          {/* Top Bar - Mobile */}
-          <div className={`lg:hidden sticky top-0 z-40 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b p-4`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <img src="/L.png" alt="Libralink Logo" className="w-8 h-8 rounded-lg" />
-                <span className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>LibraLink</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setDarkMode(!darkMode)}
-                  className={`p-2 rounded-lg ${darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100'}`}
-                >
-                  {darkMode ? <FiSun className="w-5 h-5" /> : <FiMoon className="w-5 h-5" />}
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className={`p-2 rounded-lg ${darkMode ? 'text-red-400 hover:bg-red-900/20' : 'text-red-500 hover:bg-red-50'}`}
-                >
-                  <FiLogOut className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-          </div>
+          <GlobalHeader
+            userName={userInfo?.firstname || userInfo?.name || 'Super Admin'}
+            userRole={localStorage.getItem('userRole')}
+            profileImage={userInfo?.profile_picture || userInfo?.profile_image}
+            unreadCount={unreadCount}
+            notifications={notifications}
+            schoolId={localStorage.getItem('schoolId')}
+            onNavigateTab={(tab) => setActiveTab(tab)}
+            onToggleDarkMode={() => setDarkMode(prev => !prev)}
+            onNotificationClick={handleNotificationClick}
+            onProfileClick={handleProfileClick}
+            onSettingsClick={handleSettingsClick}
+            onLogout={handleLogout}
+            onDeleteNotification={handleDeleteNotification}
+            onDeleteAllNotifications={handleDeleteAllNotifications}
+            darkMode={darkMode}
+          />
 
           {/* Mobile Navigation */}
           <div className={`lg:hidden fixed bottom-0 left-0 right-0 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-t z-50`}>

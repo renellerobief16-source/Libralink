@@ -162,8 +162,35 @@ async function bulkImportBooks(req, res) {
   }
 
   console.log('[BULK IMPORT] Processing rows...');
-    console.log('[BULK IMPORT] First row sample:', data[0]);
-    console.log('[BULK IMPORT] First row keys:', Object.keys(data[0]));
+  console.log('[BULK IMPORT] First row sample:', data[0]);
+
+  // Pre-fetch last accession sequence once for this school to avoid per-row queries
+  const schoolCode = school?.school_code || 'SCH';
+  let lastSeq = 0;
+  try {
+    const { data: lastCopy } = await supabase
+      .from('book_copies')
+      .select('accession_number')
+      .ilike('accession_number', `${schoolCode}-%`)
+      .order('accession_number', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastCopy && lastCopy.accession_number) {
+      const match = lastCopy.accession_number.match(/-(\d+)$/);
+      if (match) lastSeq = parseInt(match[1], 10);
+    }
+  } catch (seqErr) {
+    console.log('[BULK IMPORT] Notice on fetching last accession sequence:', seqErr.message);
+  }
+
+  const importContext = {
+    schoolId: actualSchoolId,
+    schoolCode: schoolCode,
+    categoryCache: new Map(),
+    publisherCache: new Map(),
+    accessionCounter: lastSeq
+  };
     
     // Process each row independently for transaction safety
     for (let i = 0; i < data.length; i++) {
@@ -179,10 +206,9 @@ async function bulkImportBooks(req, res) {
           console.log(`[BULK IMPORT] Row ${i + 1} auto-corrected:`, validation.warnings);
         }
 
-        // ALWAYS create new book - no duplicate checking for bulk import
-        // This ensures all data is imported regardless of duplicates
+        // ALWAYS create new book - fast optimized creation
         console.log(`[BULK IMPORT] Row ${i + 1} creating new book...`);
-        const bookId = await createNewBook(normalizedData, actualSchoolId, user_id);
+        const bookId = await createNewBook(normalizedData, actualSchoolId, user_id, importContext);
         results.successful++;
         results.copies_created += normalizedData.quantity || 1;
         results.imported_books.push({
@@ -335,6 +361,7 @@ function normalizeImportData(row, columnMapping) {
         value = String(value).replace(/[-\s]/g, '').toUpperCase();
         break;
         
+      case 'ddc':
       case 'call_number':
       case 'accession_number':
       case 'barcode':
@@ -516,25 +543,34 @@ async function createNewBook(data, schoolId, userId) {
       category: data.category
     });
     
-    // Find or create category (uses categories table + category_id FK)
+    // Find or create category (uses categories table + category_id FK with cache)
     let categoryId = null;
     if (data.category) {
-      console.log('[CREATE BOOK] Finding/creating category:', data.category);
-      categoryId = await findOrCreateCategory(data.category);
-      console.log('[CREATE BOOK] Category ID:', categoryId);
+      categoryId = await findOrCreateCategory(data.category, importContext?.categoryCache);
     }
     
-    // Find or create publisher (uses publishers table + publisher_id FK)
+    // Find or create publisher (uses publishers table + publisher_id FK with cache)
     let publisherId = null;
     if (data.publisher) {
-      console.log('[CREATE BOOK] Finding/creating publisher:', data.publisher);
-      publisherId = await findOrCreatePublisher(data.publisher, data.place_of_publication);
-      console.log('[CREATE BOOK] Publisher ID:', publisherId);
+      publisherId = await findOrCreatePublisher(data.publisher, data.place_of_publication, importContext?.publisherCache);
     }
-    
-    // Build book data using ONLY columns from the original supabase.sql schema.
-    // This avoids "Could not find column" errors on databases that haven't
-    // run the production migration yet.
+
+    // Call number & DDC handling: preserve both
+    let callNumberVal = data.call_number || null;
+    let ddcVal = data.ddc || null;
+
+    if (ddcVal && !callNumberVal) {
+      callNumberVal = ddcVal;
+    } else if (ddcVal && callNumberVal && !callNumberVal.includes(ddcVal)) {
+      // Both provided: combine into call number e.g. "813.54 K49s"
+      callNumberVal = `${ddcVal} ${callNumberVal}`.trim();
+    }
+
+    let remarksVal = data.remarks || '';
+    if (ddcVal && !remarksVal.includes('DDC:')) {
+      remarksVal = remarksVal ? `[DDC: ${ddcVal}] ${remarksVal}` : `[DDC: ${ddcVal}]`;
+    }
+
     const bookData = {
       school_id: schoolId,
       category_id: categoryId,
@@ -542,29 +578,25 @@ async function createNewBook(data, schoolId, userId) {
       title: data.title,
       author: data.author || null,
       isbn: data.isbn || null,
-      call_number: data.call_number || null,
+      call_number: callNumberVal,
       edition: data.edition || null,
       copyright_year: data.copyright_year || null,
       physical_description: data.physical_description || null,
       series_title: data.series || null,
-      general_note: data.remarks || null,
+      general_note: remarksVal || null,
       cover_image: null,
-      remarks: data.remarks || null,
+      remarks: remarksVal || null,
+      accession_number: data.accession_number || null,
       encoded_by: userId
     };
 
     // Conditionally add custom_ columns if they were dynamically created
-    // (e.g., custom_research_area, etc.)
     for (const [key, value] of Object.entries(data)) {
       if (key.startsWith('custom_')) {
         bookData[key] = value;
       }
     }
 
-    console.log('[CREATE BOOK] Inserting book record:', bookData);
-    console.log('[CREATE BOOK] Author field value:', bookData.author);
-    console.log('[CREATE BOOK] Original data.author:', data.author);
-    
     const { data: newBook, error: bookError } = await supabase
       .from('books')
       .insert(bookData)
@@ -576,16 +608,10 @@ async function createNewBook(data, schoolId, userId) {
       throw bookError;
     }
     
-    console.log('[CREATE BOOK] Book inserted successfully:', newBook);
-    console.log('[CREATE BOOK] Author in inserted book:', newBook.author);
-    
     const bookId = newBook.book_id;
-    console.log('[CREATE BOOK] Book created with ID:', bookId);
 
-    // Create book copies
-    console.log('[CREATE BOOK] Creating book copies...');
-    await createBookCopies(bookId, schoolId, data);
-    console.log('[CREATE BOOK] Book copies created');
+    // Fast batch create book copies
+    await createBookCopies(bookId, schoolId, data, 0, importContext);
     
     return bookId;
   } catch (error) {
@@ -597,9 +623,8 @@ async function createNewBook(data, schoolId, userId) {
 /**
  * Update existing book
  */
-async function updateExistingBook(existingBook, data, schoolId, userId) {
+async function updateExistingBook(existingBook, data, schoolId, userId, importContext = null) {
   try {
-    // Update quantity
     const newQuantity = (existingBook.quantity || 0) + (data.quantity || 1);
     const newAvailableQuantity = (existingBook.available_quantity || 0) + (data.quantity || 1);
     
@@ -612,7 +637,7 @@ async function updateExistingBook(existingBook, data, schoolId, userId) {
       .eq('book_id', existingBook.book_id);
     
     // Create additional copies
-    await createBookCopies(existingBook.book_id, schoolId, data, existingBook.quantity || 0);
+    await createBookCopies(existingBook.book_id, schoolId, data, existingBook.quantity || 0, importContext);
     
     return existingBook.book_id;
   } catch (error) {
@@ -622,107 +647,104 @@ async function updateExistingBook(existingBook, data, schoolId, userId) {
 }
 
 /**
- * Create book copies
- * Resilient to schema differences: only inserts columns that exist
+ * Create book copies with ultra-fast single batch insert
  */
-async function createBookCopies(bookId, schoolId, data, startCopyNumber = 0) {
+async function createBookCopies(bookId, schoolId, data, startCopyNumber = 0, importContext = null) {
   const copies = Math.min(Math.max(parseInt(data.quantity, 10) || 1, 1), 50);
-  const copiesCreated = [];
+  const copiesToInsert = [];
+  const schoolCode = importContext?.schoolCode || 'SCH';
   
   for (let i = 0; i < copies; i++) {
     const copyNumber = startCopyNumber + i + 1;
-    const accessionNumber = data.accession_number 
-      ? `${data.accession_number}-${copyNumber}`
-      : await generateAccessionNumber(schoolId);
+    let accessionNumber;
+
+    if (data.accession_number) {
+      // If 1 copy, use exact Accession Number from Excel; if multiple, add -copyNumber suffix
+      accessionNumber = copies === 1 
+        ? String(data.accession_number).trim() 
+        : `${String(data.accession_number).trim()}-${copyNumber}`;
+    } else if (importContext && typeof importContext.accessionCounter === 'number') {
+      importContext.accessionCounter++;
+      accessionNumber = `${schoolCode}-${String(importContext.accessionCounter).padStart(8, '0')}`;
+    } else {
+      accessionNumber = await generateAccessionNumber(schoolId);
+    }
     
     const barcode = data.barcode 
-      ? `${data.barcode}-${copyNumber}-${Date.now()}`
+      ? (copies === 1 ? String(data.barcode).trim() : `${String(data.barcode).trim()}-${copyNumber}`)
       : generateBarcode(bookId, copyNumber, Date.now());
     
-    // Start with only the columns that exist in ALL schemas
-    const copyData = {
+    copiesToInsert.push({
       book_id: bookId,
       accession_number: accessionNumber,
-      barcode: barcode
-    };
-    
-    // Try adding optional columns one by one, skip if column doesn't exist
-    const optionalColumns = [
-      { key: 'shelf_location', value: data.shelf_location || null },
-      { key: 'condition', value: data.condition || 'good' },
-      { key: 'status', value: data.status || 'available' },
-      { key: 'rfid_tag', value: data.rfid_tag || null }
-    ];
-    
-    for (const col of optionalColumns) {
-      if (col.value !== null && col.value !== undefined) {
-        const testData = { ...copyData, [col.key]: col.value };
-        const { error: testError } = await supabase
-          .from('book_copies')
-          .insert(testData);
-        
-        if (!testError) {
-          copyData[col.key] = col.value;
-        } else if (testError.message?.includes('does not exist')) {
-          console.log(`[CREATE BOOK COPIES] Skipping unknown column: ${col.key}`);
-        } else {
-          console.error(`[CREATE BOOK COPIES] Error testing column ${col.key}:`, testError);
-        }
-      }
-    }
-    
-    // Final insert with only known-good columns
-    const { error: copyError } = await supabase
+      barcode: barcode,
+      shelf_location: data.shelf_location || null,
+      condition: data.condition || 'good',
+      status: data.status || 'available',
+      rfid_tag: data.rfid_tag || null
+    });
+  }
+
+  // Single fast batch insert of all physical copies
+  const { error: copyError } = await supabase
+    .from('book_copies')
+    .insert(copiesToInsert);
+
+  if (copyError) {
+    console.warn('[CREATE BOOK COPIES] Batch insert warning, attempting fallback without optional columns:', copyError.message);
+    const minimalCopies = copiesToInsert.map(c => ({
+      book_id: c.book_id,
+      accession_number: c.accession_number,
+      barcode: c.barcode,
+      shelf_location: c.shelf_location,
+      condition: c.condition,
+      status: c.status
+    }));
+    const { error: fallbackError } = await supabase
       .from('book_copies')
-      .insert(copyData);
-    
-    if (copyError) {
-      console.error('Error creating book copy:', copyError);
-    } else {
-      copiesCreated.push(copyData);
+      .insert(minimalCopies);
+    if (fallbackError) {
+      console.error('[CREATE BOOK COPIES] Fallback insert failed:', fallbackError);
     }
   }
-  
-  return copiesCreated;
+
+  return copiesToInsert;
 }
 
 /**
  * Find or create category
  */
-async function findOrCreateCategory(categoryName) {
+async function findOrCreateCategory(categoryName, cache = null) {
+  if (!categoryName || categoryName.trim() === '') return null;
+  const trimmed = categoryName.trim();
+  const cacheKey = trimmed.toLowerCase();
+
+  if (cache && cache.has(cacheKey)) {
+    return cache.get(cacheKey);
+  }
+
   try {
-    console.log('[CATEGORY] Searching for category:', categoryName);
-    
-    // Try to find existing category (case-insensitive)
-    const { data: existingCategory, error: searchError } = await supabase
+    const { data: existingCategory } = await supabase
       .from('categories')
       .select('category_id')
-      .ilike('category_name', categoryName)
-      .single();
-    
-    if (searchError && searchError.code !== 'PGRST116') {
-      console.error('[CATEGORY] Search error:', searchError);
-    }
+      .ilike('category_name', trimmed)
+      .limit(1)
+      .maybeSingle();
     
     if (existingCategory) {
-      console.log('[CATEGORY] Found existing category ID:', existingCategory.category_id);
+      if (cache) cache.set(cacheKey, existingCategory.category_id);
       return existingCategory.category_id;
     }
     
-    // Create new category
-    console.log('[CATEGORY] Creating new category:', categoryName.trim());
     const { data: newCategory, error } = await supabase
       .from('categories')
-      .insert({ category_name: categoryName.trim() })
+      .insert({ category_name: trimmed })
       .select('category_id')
       .single();
     
-    if (error) {
-      console.error('[CATEGORY] Create error:', error);
-      throw error;
-    }
+    if (error) throw error;
     
-    console.log('[CATEGORY] Created new category ID:', newCategory.category_id);
+    if (cache) cache.set(cacheKey, newCategory.category_id);
     return newCategory.category_id;
   } catch (error) {
     console.error('Error finding/creating category:', error);
@@ -737,38 +759,24 @@ async function findOrCreateAuthor(authorName) {
   if (!authorName || authorName.trim() === '') return null;
   
   try {
-    console.log('[AUTHOR] Searching for author:', authorName);
-    
-    // Try to find existing author (case-insensitive)
-    const { data: existingAuthor, error: searchError } = await supabase
+    const { data: existingAuthor } = await supabase
       .from('authors')
       .select('author_id')
-      .ilike('author_name', authorName)
-      .single();
-    
-    if (searchError && searchError.code !== 'PGRST116') {
-      console.error('[AUTHOR] Search error:', searchError);
-    }
+      .ilike('author_name', authorName.trim())
+      .limit(1)
+      .maybeSingle();
     
     if (existingAuthor) {
-      console.log('[AUTHOR] Found existing author ID:', existingAuthor.author_id);
       return existingAuthor.author_id;
     }
     
-    // Create new author
-    console.log('[AUTHOR] Creating new author:', authorName.trim());
     const { data: newAuthor, error } = await supabase
       .from('authors')
       .insert({ author_name: authorName.trim() })
       .select('author_id')
       .single();
     
-    if (error) {
-      console.error('[AUTHOR] Create error:', error);
-      throw error;
-    }
-    
-    console.log('[AUTHOR] Created new author ID:', newAuthor.author_id);
+    if (error) throw error;
     return newAuthor.author_id;
   } catch (error) {
     console.error('Error finding/creating author:', error);
@@ -779,43 +787,40 @@ async function findOrCreateAuthor(authorName) {
 /**
  * Find or create publisher
  */
-async function findOrCreatePublisher(publisherName, placeOfPublication = null) {
+async function findOrCreatePublisher(publisherName, placeOfPublication = null, cache = null) {
+  if (!publisherName || publisherName.trim() === '') return null;
+  const trimmed = publisherName.trim();
+  const cacheKey = trimmed.toLowerCase();
+
+  if (cache && cache.has(cacheKey)) {
+    return cache.get(cacheKey);
+  }
+
   try {
-    console.log('[PUBLISHER] Searching for publisher:', publisherName);
-    
-    // Try to find existing publisher (case-insensitive)
-    const { data: existingPublisher, error: searchError } = await supabase
+    const { data: existingPublisher } = await supabase
       .from('publishers')
       .select('publisher_id')
-      .ilike('publisher_name', publisherName)
-      .single();
-    
-    if (searchError && searchError.code !== 'PGRST116') {
-      console.error('[PUBLISHER] Search error:', searchError);
-    }
+      .ilike('publisher_name', trimmed)
+      .limit(1)
+      .maybeSingle();
     
     if (existingPublisher) {
-      console.log('[PUBLISHER] Found existing publisher ID:', existingPublisher.publisher_id);
+      if (cache) cache.set(cacheKey, existingPublisher.publisher_id);
       return existingPublisher.publisher_id;
     }
     
-    // Create new publisher
-    console.log('[PUBLISHER] Creating new publisher:', publisherName.trim());
     const { data: newPublisher, error } = await supabase
       .from('publishers')
       .insert({ 
-        publisher_name: publisherName.trim(),
+        publisher_name: trimmed,
         place_of_publication: placeOfPublication?.trim() || null
       })
       .select('publisher_id')
       .single();
     
-    if (error) {
-      console.error('[PUBLISHER] Create error:', error);
-      throw error;
-    }
+    if (error) throw error;
     
-    console.log('[PUBLISHER] Created new publisher ID:', newPublisher.publisher_id);
+    if (cache) cache.set(cacheKey, newPublisher.publisher_id);
     return newPublisher.publisher_id;
   } catch (error) {
     console.error('Error finding/creating publisher:', error);
@@ -897,6 +902,81 @@ async function recordImportHistory(importData) {
   }
 }
 
+/**
+ * Rollback / delete bulk imported books and their copies
+ */
+async function bulkRollbackBooks(req, res) {
+  try {
+    const { book_ids } = req.body;
+    console.log('[BULK ROLLBACK] Request received to rollback book IDs:', book_ids?.length);
+
+    if (!book_ids || !Array.isArray(book_ids) || book_ids.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No books provided for rollback',
+        rolled_back_count: 0
+      });
+    }
+
+    const validBookIds = book_ids.filter(id => id != null);
+    if (validBookIds.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No valid book IDs to rollback',
+        rolled_back_count: 0
+      });
+    }
+
+    // 1. Delete associated book_copies
+    const { error: copiesError } = await supabase
+      .from('book_copies')
+      .delete()
+      .in('book_id', validBookIds);
+
+    if (copiesError) {
+      console.error('[BULK ROLLBACK ERROR] Error deleting book copies:', copiesError);
+    }
+
+    // 2. Delete associated book_authors (if any)
+    try {
+      await supabase
+        .from('book_authors')
+        .delete()
+        .in('book_id', validBookIds);
+    } catch (baErr) {
+      console.log('[BULK ROLLBACK] book_authors delete notice:', baErr.message);
+    }
+
+    // 3. Delete from books table
+    const { error: booksError } = await supabase
+      .from('books')
+      .delete()
+      .in('book_id', validBookIds);
+
+    if (booksError) {
+      console.error('[BULK ROLLBACK ERROR] Error deleting books:', booksError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to rollback books from database: ' + booksError.message
+      });
+    }
+
+    console.log(`[BULK ROLLBACK] Successfully rolled back ${validBookIds.length} books and their copies`);
+    return res.json({
+      success: true,
+      message: `Successfully rolled back and deleted ${validBookIds.length} books.`,
+      rolled_back_count: validBookIds.length
+    });
+  } catch (error) {
+    console.error('[BULK ROLLBACK ERROR] Exception during rollback:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error during rollback: ' + error.message
+    });
+  }
+}
+
 module.exports = {
-  bulkImportBooks
+  bulkImportBooks,
+  bulkRollbackBooks
 };

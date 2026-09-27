@@ -35,6 +35,7 @@
     "recharts": "^3.10.1",
     "socket.io-client": "^4.8.3",
     "tailwind-merge": "^3.6.0",
+    "tesseract.js": "^7.0.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -46,8 +47,10 @@
     "eslint": "^10.6.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
+    "exceljs": "^4.4.0",
     "globals": "^17.7.0",
     "postcss": "^8.5.25",
+    "pptxgenjs": "^4.0.1",
     "tailwindcss": "^4.3.3",
     "vite": "^8.1.1"
   }

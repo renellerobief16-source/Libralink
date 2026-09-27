@@ -3,7 +3,7 @@ import {
   FiUpload, FiDownload, FiCheckCircle, FiAlertCircle, FiFileText, 
   FiArrowRight, FiX, FiEye, FiFilter, FiSearch, FiLoader, FiPause,
   FiLayers, FiDatabase, FiCheck, FiInfo, FiUploadCloud, FiBook,
-  FiActivity, FiBookOpen, FiZap, FiRefreshCw, FiGrid
+  FiActivity, FiBookOpen, FiZap, FiRefreshCw, FiGrid, FiRotateCcw
 } from 'react-icons/fi';
 import api from '../../../utils/api';
 import { PageHeader, Button, Card, Select, StatusBadge } from '../../ui';
@@ -43,6 +43,9 @@ function AdminBooksManagement({ darkMode, onNavigateTab }) {
   const [importCancelled, setImportCancelled] = useState(false);
   const [dismissCancelledNotice, setDismissCancelledNotice] = useState(false);
   const [showConfirmGateModal, setShowConfirmGateModal] = useState(false);
+  const [showAbortConfirmModal, setShowAbortConfirmModal] = useState(false);
+  const [isRollingBack, setIsRollingBack] = useState(false);
+  const [rollbackCount, setRollbackCount] = useState(0);
 
   // Futuristic Cyber-Download Overlay state
   const [showDownloadOverlay, setShowDownloadOverlay] = useState(false);
@@ -55,6 +58,7 @@ function AdminBooksManagement({ darkMode, onNavigateTab }) {
   const abortControllerRef = useRef(null);
   const timerIntervalRef = useRef(null);
   const progressIntervalRef = useRef(null);
+  const importedBookIdsRef = useRef([]);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -229,16 +233,40 @@ function AdminBooksManagement({ darkMode, onNavigateTab }) {
   };
 
   const handleCancelImport = () => {
+    // Prompt the user for confirmation before aborting & rolling back
+    setShowAbortConfirmModal(true);
+  };
+
+  const handleConfirmAbortAndRollback = async () => {
+    setIsRollingBack(true);
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-    setImportCancelled(true);
-    setImportStatus('cancelled');
-    setShowDownloadOverlay(false);
-    setUploading(false);
-    setDismissCancelledNotice(false);
+
+    const bookIdsToRollback = [...importedBookIdsRef.current];
+    console.log('[FRONTEND] Rollback confirmed by user. Rolling back book IDs count:', bookIdsToRollback.length);
+
+    try {
+      if (bookIdsToRollback.length > 0) {
+        await api.post('/books/bulk-rollback', {
+          book_ids: bookIdsToRollback
+        });
+      }
+      setRollbackCount(bookIdsToRollback.length);
+    } catch (rbErr) {
+      console.error('[FRONTEND] Error during bulk rollback:', rbErr);
+    } finally {
+      setIsRollingBack(false);
+      setShowAbortConfirmModal(false);
+      setShowDownloadOverlay(false);
+      setUploading(false);
+      setImportCancelled(true);
+      setDismissCancelledNotice(false);
+      setImportStep('preview');
+      setImportStatus('cancelled');
+    }
   };
 
   const handleImport = async () => {
@@ -269,80 +297,122 @@ function AdminBooksManagement({ darkMode, onNavigateTab }) {
     setIngestionSpeed(16);
     setIsCelebrationPhase(false);
     setShowDownloadOverlay(true);
+    importedBookIdsRef.current = [];
+    setRollbackCount(0);
 
     abortControllerRef.current = new AbortController();
 
     const startTime = Date.now();
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     timerIntervalRef.current = setInterval(() => {
       setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
     }, 1000);
 
-    let simProgress = 0;
-    progressIntervalRef.current = setInterval(() => {
-      const remaining = 93 - simProgress;
-      if (remaining > 0) {
-        const step = Math.max(0.4, remaining * 0.05 + Math.random() * 1.4);
-        simProgress = Math.min(93, simProgress + step);
-        setImportProgress(simProgress);
+    const BATCH_SIZE = 25;
+    const totalRows = allRows.length;
+    let successfulCount = 0;
+    let failedCount = 0;
+    let skippedCount = 0;
+    let copiesCreatedCount = 0;
+    let duplicatesUpdatedCount = 0;
+    let allImportedBooks = [];
+    let allErrors = [];
 
-        const activeIdx = Math.min(
-          Math.floor((simProgress / 100) * allRows.length),
-          allRows.length - 1
-        );
-        setCurrentBookIndex(activeIdx + 1);
-        if (allRows[activeIdx]?.normalized?.title) {
-          setCurrentBookTitle(allRows[activeIdx].normalized.title);
+    try {
+      console.log(`[FRONTEND] Starting accurate chunked import for ${totalRows} records in batches of ${BATCH_SIZE}`);
+
+      for (let i = 0; i < totalRows; i += BATCH_SIZE) {
+        if (abortControllerRef.current?.signal?.aborted) {
+          console.log('[FRONTEND] Import halted by abort signal between batches');
+          break;
+        }
+
+        const chunk = allRows.slice(i, i + BATCH_SIZE);
+        const chunkData = chunk.map(row => {
+          const { school, ...dataWithoutSchool } = row.normalized;
+          return dataWithoutSchool;
+        });
+
+        // Set active book title for HUD telemetry
+        const activeTitle = chunk[0]?.normalized?.title || 'Processing batch...';
+        setCurrentBookIndex(Math.min(i + 1, totalRows));
+        setCurrentBookTitle(activeTitle);
+
+        const response = await api.post('/books/bulk-import', {
+          data: chunkData,
+          column_mapping: columnMapping,
+          school_id: activeSchool,
+          user_id: localStorage.getItem('currentUserId')
+        }, {
+          signal: abortControllerRef.current.signal
+        });
+
+        const res = response?.results || response?.data?.results || response?.data || {};
+        const batchSuccess = typeof res.successful === 'number' ? res.successful : chunk.length;
+        const batchFailed = typeof res.failed === 'number' ? res.failed : 0;
+        const batchSkipped = typeof res.skipped === 'number' ? res.skipped : 0;
+        const batchCopies = typeof res.copies_created === 'number' ? res.copies_created : chunk.reduce((sum, r) => {
+          const raw = parseInt(r.normalized?.quantity, 10);
+          return sum + (!isNaN(raw) && raw > 0 && raw <= 50 ? raw : 1);
+        }, 0);
+
+        successfulCount += batchSuccess;
+        failedCount += batchFailed;
+        skippedCount += batchSkipped;
+        copiesCreatedCount += batchCopies;
+        if (res.duplicates_updated) duplicatesUpdatedCount += res.duplicates_updated;
+        if (Array.isArray(res.imported_books)) {
+          allImportedBooks.push(...res.imported_books);
+          const newIds = res.imported_books.map(b => b.book_id).filter(Boolean);
+          importedBookIdsRef.current.push(...newIds);
+        }
+        if (Array.isArray(res.errors)) allErrors.push(...res.errors);
+
+        const processed = Math.min(i + chunk.length, totalRows);
+        const accuratePercent = Math.round((processed / totalRows) * 100);
+        
+        // Exact real-time progress update (like actual download bytes)
+        setImportProgress(accuratePercent);
+        setCurrentBookIndex(processed);
+        if (chunk[chunk.length - 1]?.normalized?.title) {
+          setCurrentBookTitle(chunk[chunk.length - 1].normalized.title);
         }
 
         const elapsed = Math.max(1, (Date.now() - startTime) / 1000);
-        setIngestionSpeed(Math.round((activeIdx + 1) / elapsed));
+        setIngestionSpeed(Math.round(processed / elapsed));
       }
-    }, 130);
 
-    try {
-      console.log('[FRONTEND] Starting cyber import process for', allRows.length, 'records');
+      // Check if aborted before finishing
+      if (abortControllerRef.current?.signal?.aborted) {
+        return;
+      }
 
-      const importData = allRows.map(row => {
-        const { school, ...dataWithoutSchool } = row.normalized;
-        return dataWithoutSchool;
-      });
-
-      const response = await api.post('/books/bulk-import', {
-        data: importData,
-        column_mapping: columnMapping,
-        school_id: activeSchool,
-        user_id: localStorage.getItem('currentUserId')
-      }, {
-        signal: abortControllerRef.current.signal
-      });
-
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
-      
-      // Complete to 100% smoothly
+      // 100% Ingestion Complete!
       setImportProgress(100);
-      setCurrentBookIndex(allRows.length);
+      setCurrentBookIndex(totalRows);
       setCurrentBookTitle('All records catalogued successfully!');
       setIsCelebrationPhase(true);
 
-      const finalResults = response?.results || response?.data?.results || response?.data || {
-        successful: allRows.length,
-        failed: 0,
-        skipped: 0,
-        copies_created: allRows.reduce((sum, r) => {
-          const raw = parseInt(r.normalized?.quantity, 10);
-          return sum + (!isNaN(raw) && raw > 0 && raw <= 50 ? raw : 1);
-        }, 0)
+      const finalResults = {
+        total: totalRows,
+        successful: successfulCount,
+        failed: failedCount,
+        skipped: skippedCount,
+        duplicates_updated: duplicatesUpdatedCount,
+        copies_created: copiesCreatedCount,
+        imported_books: allImportedBooks,
+        errors: allErrors
       };
 
       setImportResults(finalResults);
 
-      // Hold celebration for 900ms then transition to results view
+      // Brief 1-second celebration pause on 100% before smooth transition to results view
       setTimeout(() => {
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
         setShowDownloadOverlay(false);
         setImportStep('results');
         setImportStatus('completed');
-      }, 950);
+      }, 1000);
 
     } catch (err) {
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
@@ -428,14 +498,106 @@ function AdminBooksManagement({ darkMode, onNavigateTab }) {
   const downloadTemplate = (format = 'csv') => {
     const fields = getAvailableFields().filter(f => f.value !== 'school');
     const headers = fields.map(f => f.label);
+    
+    // Complete 25-column sample rows matching standard Philippine academic library cataloging
     const sampleData = [
-      ['Sample Book Title', 'John Doe', 'Sample Publisher', 'Fiction', '978-0-123456-78-9', '123.45 SAM 2024', '5', '1st', '2024', 'xii, 300 p. ; 23 cm.', 'Sample Series', 'General note about the book', 'Sample Subtitle', 'New York', 'Good', 'Purchase', 'Book Supplier', '25.99', 'English'],
-      ['Another Book', 'Jane Smith', 'Another Publisher', 'Science', '978-0-987654-32-1', '456.78 ANO 2024', '3', '2nd', '2023', 'x, 250 p. ; 21 cm.', '', 'Another general note', '', 'London', 'Fair', 'Donation', '', '0', '']
+      [
+        'Data Structures and Algorithm Analysis in C++',
+        'Mark Allen Weiss',
+        'Pearson Education',
+        '978-0-13-284737-7',
+        '005.133 W43 2024',
+        'Computer Science',
+        '3',
+        '4th Edition',
+        '2024',
+        'xvi, 635 p. : ill. ; 24 cm.',
+        'Computer Science Series',
+        'Required reference text for BSIT 2nd year curriculum',
+        'Advanced Data Structures and OOP',
+        'Boston, MA',
+        'good',
+        'Purchase',
+        'Rex Bookstore Inc.',
+        '1250.00',
+        'English',
+        'GNC-00001001',
+        'BC-00001001',
+        'Stack 3 / Shelf CS-02',
+        'E2801160600002',
+        'available',
+        'Librarian'
+      ],
+      [
+        'Noli Me Tangere',
+        'Jose P. Rizal',
+        'National Book Store',
+        '978-971-08-6245-5',
+        'FIL 899.211 R52 2023',
+        'Filipiniana',
+        '5',
+        'Philippine Centennial Edition',
+        '2023',
+        'xxiv, 411 p. ; 22 cm.',
+        'Philippine Classics Series',
+        'Reserved for General Education curriculum (Rizal Course)',
+        'An Unofficial Translation',
+        'Mandaluyong City, Philippines',
+        'good',
+        'Donation',
+        'Alumni Association',
+        '450.00',
+        'Filipino',
+        '',
+        '',
+        'Filipiniana Section / Shelf FL-01',
+        '',
+        'available',
+        'Librarian'
+      ],
+      [
+        "Brunner & Suddarth's Textbook of Medical-Surgical Nursing",
+        'Janice L. Hinkle, Kerry H. Cheever',
+        'Wolters Kluwer Health',
+        '978-1-4963-4799-2',
+        '610.73 H59 2022',
+        'Nursing',
+        '2',
+        '14th Edition',
+        '2022',
+        '2 volumes (xxxviii, 2212 pages) : color illustrations ; 29 cm',
+        '',
+        'Clinical reference for College of Allied Medical Professions',
+        '',
+        'Philadelphia, PA',
+        'good',
+        'Purchase',
+        'C&E Publishing Inc.',
+        '3890.00',
+        'English',
+        'GNC-00001007',
+        'BC-00001007',
+        'Health Sciences Library / Shelf NR-04',
+        '',
+        'available',
+        'Librarian'
+      ]
     ];
     
+    const escapeCSV = (val) => {
+      const str = String(val ?? '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
     if (format === 'csv') {
-      const csvContent = [headers, ...sampleData].map(row => row.join(',')).join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const csvContent = [
+        headers.map(escapeCSV).join(','),
+        ...sampleData.map(row => row.map(escapeCSV).join(','))
+      ].join('\r\n');
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -446,12 +608,23 @@ function AdminBooksManagement({ darkMode, onNavigateTab }) {
       document.body.removeChild(a);
     } else {
       const htmlContent = `
-        <table>
-          <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
-          ${sampleData.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}
-        </table>
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head><meta charset="utf-8" /></head>
+        <body>
+          <table border="1">
+            <tr style="background-color: #1E3A8A; color: #FFFFFF; font-weight: bold;">
+              ${headers.map(h => `<th style="padding: 8px;">${h}</th>`).join('')}
+            </tr>
+            ${sampleData.map(row => `
+              <tr>
+                ${row.map(cell => `<td style="padding: 6px;">${cell}</td>`).join('')}
+              </tr>
+            `).join('')}
+          </table>
+        </body>
+        </html>
       `;
-      const blob = new Blob([htmlContent], { type: 'application/vnd.ms-excel' });
+      const blob = new Blob([htmlContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -661,11 +834,54 @@ function AdminBooksManagement({ darkMode, onNavigateTab }) {
               <div>
                 <p className="text-xs font-semibold text-slate-500 mb-2">Supported Catalog Fields:</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {['Title*', 'Author*', 'Publisher', 'Category', 'ISBN', 'Call Number', 'Quantity', 'Year', 'Physical Desc'].map((f, i) => (
-                    <span key={i} className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-medium">
+                  {[
+                    'Title*',
+                    'Author*',
+                    'ISBN',
+                    'Call Number / DDC',
+                    'Accession Number',
+                    'Category',
+                    'Publisher',
+                    'Quantity',
+                    'Year',
+                    'Shelf Location',
+                    'Physical Desc'
+                  ].map((f, i) => (
+                    <span
+                      key={i}
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-medium ${
+                        f.includes('ISBN') || f.includes('Call Number') || f.includes('Accession Number')
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200 font-semibold'
+                          : f.includes('*')
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200 font-semibold'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
                       {f}
                     </span>
                   ))}
+                </div>
+              </div>
+
+              {/* Quick Cataloging Guide for Standard Library Fields */}
+              <div className="p-3.5 rounded-2xl border border-blue-100 bg-blue-50/50 space-y-2 text-left">
+                <div className="flex items-center gap-2 text-xs font-bold text-blue-900">
+                  <FiBookOpen className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>Library Cataloging Standards Guide</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-600 leading-snug">
+                  <div className="bg-white/80 p-2 rounded-xl border border-blue-100/60 shadow-2xs">
+                    <span className="font-bold text-slate-900 block text-[10px] uppercase text-blue-700">1. ISBN</span>
+                    10 or 13-digit universal book identifier (e.g., <code className="text-slate-800 font-mono text-[10px]">978-0-13-284737-7</code>).
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-xl border border-blue-100/60 shadow-2xs">
+                    <span className="font-bold text-slate-900 block text-[10px] uppercase text-blue-700">2. DDC & Call Number</span>
+                    Dewey subject class + Cutter author code + Year for spine label (e.g., <code className="text-slate-800 font-mono text-[10px]">005.133 W43 2024</code>).
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-xl border border-blue-100/60 shadow-2xs sm:col-span-2">
+                    <span className="font-bold text-slate-900 block text-[10px] uppercase text-blue-700">3. Accession Number (Inventory Code)</span>
+                    Unique physical copy inventory number (e.g., <code className="text-slate-800 font-mono text-[10px]">GNC-00001001</code>). <strong className="text-slate-800">Can be left blank:</strong> the system will automatically generate sequential accession numbers per copy!
+                  </div>
                 </div>
               </div>
             </div>
@@ -1038,14 +1254,16 @@ function AdminBooksManagement({ darkMode, onNavigateTab }) {
               <table className="w-full text-xs text-left">
                 <thead className="bg-slate-50/90 text-slate-600 font-semibold border-b border-slate-100 sticky top-0 backdrop-blur-xs z-10">
                   <tr>
-                    <th className="py-3 px-4 w-12">#</th>
-                    <th className="py-3 px-4">Title</th>
-                    <th className="py-3 px-4">Author</th>
-                    <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4">ISBN</th>
-                    <th className="py-3 px-4">Quantity</th>
-                    <th className="py-3 px-4">Notes / Remarks</th>
-                    <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-3 w-10 text-center">#</th>
+                    <th className="py-3 px-3.5">Title</th>
+                    <th className="py-3 px-3">Author</th>
+                    <th className="py-3 px-2.5">ISBN</th>
+                    <th className="py-3 px-2.5">DDC</th>
+                    <th className="py-3 px-2.5">Call #</th>
+                    <th className="py-3 px-2.5">Accession #</th>
+                    <th className="py-3 px-2.5">Category</th>
+                    <th className="py-3 px-2 text-center">Qty</th>
+                    <th className="py-3 px-2.5 text-center">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1060,16 +1278,52 @@ function AdminBooksManagement({ darkMode, onNavigateTab }) {
                           : ''
                       }`}
                     >
-                      <td className="py-3 px-4 font-mono text-slate-400 font-medium">
+                      <td className="py-3 px-3 font-mono text-slate-400 font-medium text-center">
                         {row.rowIndex + 1}
                       </td>
-                      <td className="py-3 px-4 font-bold text-slate-900 max-w-xs truncate">
+                      <td className="py-3 px-3.5 font-bold text-slate-900 max-w-xs truncate">
                         {row.normalized.title || <span className="text-slate-400 italic">Untitled</span>}
                       </td>
-                      <td className="py-3 px-4 text-slate-600 max-w-[180px] truncate">
+                      <td className="py-3 px-3 text-slate-600 max-w-[140px] truncate">
                         {row.normalized.author || <span className="text-slate-400">-</span>}
                       </td>
-                      <td className="py-3 px-4 text-slate-600">
+                      <td className="py-3 px-2.5 font-mono text-[11px] whitespace-nowrap">
+                        {row.normalized.isbn ? (
+                          <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-semibold" title={row.normalized.isbn}>
+                            {row.normalized.isbn}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2.5 font-mono text-[11px] whitespace-nowrap">
+                        {row.normalized.ddc ? (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 font-bold" title={`Dewey Decimal: ${row.normalized.ddc}`}>
+                            {row.normalized.ddc}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2.5 font-mono text-[11px] whitespace-nowrap">
+                        {row.normalized.call_number ? (
+                          <span className="px-1.5 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700 font-medium" title={row.normalized.call_number}>
+                            {row.normalized.call_number}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2.5 font-mono text-[11px] whitespace-nowrap">
+                        {row.normalized.accession_number ? (
+                          <span className="px-1.5 py-0.5 rounded bg-purple-50 border border-purple-200 text-purple-700 font-semibold" title={row.normalized.accession_number}>
+                            {row.normalized.accession_number}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 italic text-[10px]">Auto-Gen</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2.5 text-slate-600 max-w-[120px] truncate">
                         {row.normalized.category ? (
                           <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-medium text-[11px]">
                             {row.normalized.category}
@@ -1078,16 +1332,10 @@ function AdminBooksManagement({ darkMode, onNavigateTab }) {
                           <span className="text-slate-400">-</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 font-mono text-slate-600 text-[11px]">
-                        {row.normalized.isbn || '-'}
-                      </td>
-                      <td className="py-3 px-4 text-slate-700 font-semibold">
+                      <td className="py-3 px-2 text-slate-700 font-semibold text-center">
                         {row.normalized.quantity || 1}
                       </td>
-                      <td className="py-3 px-4 text-slate-500 max-w-[200px] truncate text-[11px]">
-                        {row.normalized.remarks || <span className="text-slate-300">-</span>}
-                      </td>
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-3 px-2.5 text-center">
                         {!row.validation.valid ? (
                           <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold text-[10px]">
                             Error
@@ -1136,18 +1384,25 @@ function AdminBooksManagement({ darkMode, onNavigateTab }) {
           </div>
 
           {importStatus === 'cancelled' && !dismissCancelledNotice && (
-            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 flex items-center justify-between">
-              <div className="flex items-center gap-2.5 text-amber-900">
-                <FiPause className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 flex items-center justify-between animate-in fade-in">
+              <div className="flex items-center gap-3 text-amber-900">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-300 text-amber-700 flex items-center justify-center flex-shrink-0 shadow-xs">
+                  <FiRotateCcw className="w-5 h-5" />
+                </div>
                 <div>
-                  <span className="font-semibold text-sm">Import Stopped</span>
-                  <p className="text-xs text-amber-700">The ingestion process was safely halted. No corrupt rows were committed.</p>
+                  <span className="font-bold text-sm text-amber-950">Ingestion Aborted & Rolled Back</span>
+                  <p className="text-xs text-amber-800 mt-0.5">
+                    {rollbackCount > 0
+                      ? `All ${rollbackCount} record${rollbackCount > 1 ? 's' : ''} previously written during this session were undone and permanently deleted from the database. Zero corrupt or orphaned rows remain.`
+                      : 'The ingestion process was safely halted before any database records were created.'}
+                  </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setDismissCancelledNotice(true)}
-                className="p-1.5 hover:bg-amber-100 rounded-lg text-amber-700 text-xs font-semibold"
+                className="p-1.5 hover:bg-amber-100 rounded-lg text-amber-700 text-xs font-semibold transition-colors"
+                title="Dismiss notice"
               >
                 <FiX className="w-4 h-4" />
               </button>
@@ -1494,6 +1749,65 @@ function AdminBooksManagement({ darkMode, onNavigateTab }) {
               )}
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Abort & Atomic Rollback Confirmation Modal */}
+      {showAbortConfirmModal && (
+        <div className="fixed inset-0 z-[60] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 sm:p-7 text-center animate-in zoom-in-95 duration-200">
+            {isRollingBack ? (
+              <div className="py-6 flex flex-col items-center justify-center space-y-4">
+                <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shadow-inner">
+                  <FiRefreshCw className="w-8 h-8 animate-spin" />
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-slate-900">Rolling Back Database Records...</h4>
+                  <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto leading-relaxed">
+                    Safely deleting all {importedBookIdsRef.current.length} records and copies created during this session.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 mx-auto flex items-center justify-center shadow-inner mb-4">
+                  <FiAlertCircle className="w-7 h-7" />
+                </div>
+                
+                <h3 className="text-lg font-bold text-slate-900 mb-1.5">
+                  Abort Ingestion & Undo All?
+                </h3>
+                
+                <p className="text-xs text-slate-600 leading-relaxed mb-6">
+                  {importedBookIdsRef.current.length > 0 ? (
+                    <>
+                      Are you sure you want to abort? All <strong className="text-rose-600 font-bold">{importedBookIdsRef.current.length} records</strong> already stored in the database during this session will be <strong>completely undone and deleted</strong>. Zero partial or corrupt records will be retained.
+                    </>
+                  ) : (
+                    'Are you sure you want to abort? No records have been written to the database yet.'
+                  )}
+                </p>
+
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="secondary"
+                    onClick={() => setShowAbortConfirmModal(false)}
+                    className="flex-1 text-xs font-semibold py-2.5 rounded-xl border-slate-200 hover:bg-slate-100"
+                  >
+                    Continue Ingesting
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmAbortAndRollback}
+                    className="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-600/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <FiRotateCcw className="w-3.5 h-3.5" />
+                    <span>Yes, Abort & Undo</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

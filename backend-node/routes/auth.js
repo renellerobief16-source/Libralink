@@ -747,7 +747,7 @@ router.post('/claim-credentials', async (req, res) => {
     if (!submittedStudentId) {
       return res.status(400).json({
         success: false,
-        message: 'Please enter your Student Number / LRN (e.g. 20-22252) to unlock your account.'
+        message: 'Please enter your Student Number / LRN to unlock your account.'
       });
     }
 
