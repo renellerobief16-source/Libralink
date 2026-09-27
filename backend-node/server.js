@@ -21,6 +21,7 @@ const settingsRoutes = require('./routes/settings');
 const notificationRoutes = require('./routes/notifications');
 const finesRoutes = require('./routes/fines');
 const mapTilesRoutes = require('./routes/mapTiles');
+const idScannerRoutes = require('./routes/idScanner');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -86,6 +87,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/fines', finesRoutes);
 app.use('/api/map-tiles', mapTilesRoutes);
+app.use('/api/scan-id', idScannerRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

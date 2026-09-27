@@ -45,6 +45,8 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
   const [showRawOcr, setShowRawOcr] = useState(false);
   const [scanError, setScanError] = useState('');
   const [prefilledFields, setPrefilledFields] = useState({}); // which fields were auto-filled
+  const [scanEngine, setScanEngine] = useState(null); // 'gemini' | 'tesseract' | null
+  const [scanStatusMsg, setScanStatusMsg] = useState('');
   const cameraStreamRef = useRef(null);
   const videoRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -295,19 +297,79 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
     });
   };
 
+  const convertBlobToBase64 = (blob) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
   const runOcr = async (imageFile) => {
     setScanStep('scanning');
-    setOcrProgress(0);
+    setOcrProgress(15);
     setScanError('');
+    setScanEngine(null);
+    setScanStatusMsg('Preparing ID card...');
+
+    let base64Data = null;
     try {
-      // Preprocess image with canvas contrast + grayscale for sharp text recognition
+      if (typeof imageFile === 'string' && imageFile.startsWith('data:')) {
+        base64Data = imageFile;
+      } else if (imageFile instanceof Blob || imageFile instanceof File) {
+        base64Data = await convertBlobToBase64(imageFile);
+      }
+    } catch (e) {
+      console.warn('Could not convert image to base64:', e);
+    }
+
+    // Step 1: High-precision Gemini Vision AI (via Express backend)
+    if (base64Data) {
+      try {
+        setScanStatusMsg('Analyzing with Google Gemini Vision AI...');
+        setOcrProgress(40);
+
+        const geminiRes = await api.post('/scan-id', { image: base64Data });
+
+        if (geminiRes?.success && geminiRes?.data) {
+          const { firstname, middlename, lastname, student_number } = geminiRes.data;
+          const hasAny = !!(firstname || lastname || student_number);
+
+          if (hasAny) {
+            const updates = {};
+            const filled = {};
+            if (firstname) { updates.firstname = firstname; filled.firstname = true; }
+            if (middlename) { updates.middle_name = middlename; filled.middle_name = true; }
+            if (lastname) { updates.lastname = lastname; filled.lastname = true; }
+            if (student_number) { updates.student_number = student_number; filled.student_number = true; }
+
+            setRegisterForm(prev => ({ ...prev, ...updates }));
+            setPrefilledFields(filled);
+            setScanEngine('gemini');
+            setOcrProgress(100);
+            setScanStep('done');
+            setScanPanelOpen(false);
+            setScanStatusMsg('Gemini Vision AI extraction completed');
+            return;
+          }
+        }
+      } catch (geminiErr) {
+        console.warn('Gemini ID scan endpoint error, falling back to local OCR:', geminiErr);
+      }
+    }
+
+    // Step 2: Fallback to local Tesseract OCR (offline-ready)
+    try {
+      setScanStatusMsg('Running local OCR fallback...');
+      setOcrProgress(50);
       const preprocessedBlob = await preprocessImageForOcr(imageFile);
 
       const Tesseract = (await import('tesseract.js')).default;
       const result = await Tesseract.recognize(preprocessedBlob, 'eng', {
         logger: (m) => {
           if (m.status === 'recognizing text') {
-            setOcrProgress(Math.round(m.progress * 80));
+            setOcrProgress(50 + Math.round(m.progress * 35));
           }
         }
       });
@@ -318,11 +380,11 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
       if ((!extraction.foundName && !extraction.foundId) || text.trim().length < 15) {
         try {
           const rotatedBlob = await createRotatedImageBlob(preprocessedBlob, 90);
-          setOcrProgress(85);
+          setOcrProgress(88);
           const rotResult = await Tesseract.recognize(rotatedBlob, 'eng', {
             logger: (m) => {
               if (m.status === 'recognizing text') {
-                setOcrProgress(85 + Math.round(m.progress * 15));
+                setOcrProgress(88 + Math.round(m.progress * 10));
               }
             }
           });
@@ -339,13 +401,15 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
         }
       }
 
+      setScanEngine('tesseract');
       setOcrProgress(100);
       setOcrRawText(text);
       setScanStep('done');
       setScanPanelOpen(false);
+      setScanStatusMsg('Local OCR completed');
     } catch (err) {
       console.error('OCR error:', err);
-      setScanError('OCR failed. Please try again or fill in the fields manually.');
+      setScanError('Scanner failed. Please try again or fill in the fields manually.');
       setScanStep('error');
     }
   };
@@ -641,6 +705,8 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
     setShowRawOcr(false);
     setScanError('');
     setScanStep('idle');
+    setScanEngine(null);
+    setScanStatusMsg('');
     setPrefilledFields({});
     if (typeof window !== 'undefined') {
       setIdOrientation(window.innerHeight > window.innerWidth ? 'portrait' : 'landscape');
@@ -1160,7 +1226,7 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
                 <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-300">
                   <span className="flex items-center gap-1.5">
                     <FiZap className="w-3.5 h-3.5 text-blue-500 animate-pulse" />
-                    Reading {idOrientation === 'portrait' ? 'Portrait' : 'Landscape'} ID with OCR…
+                    {scanStatusMsg || `Reading ${idOrientation === 'portrait' ? 'Portrait' : 'Landscape'} ID…`}
                   </span>
                   <span>{ocrProgress}%</span>
                 </div>
@@ -1171,7 +1237,9 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
                   />
                 </div>
                 <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
-                  Smart auto-orientation active · Processed locally in your browser
+                  {scanStatusMsg.includes('Gemini') 
+                    ? '✨ High-precision multimodal analysis via Google Gemini Vision AI'
+                    : 'Smart auto-orientation active · Fallback local processing'}
                 </p>
               </div>
             </div>
@@ -1255,8 +1323,12 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
                           ? `${registerForm.firstname} ${registerForm.middle_name ? registerForm.middle_name + ' ' : ''}${registerForm.lastname}`.trim()
                           : "Student ID Attached"}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                        ✓ ID Verified
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                        scanEngine === 'gemini'
+                          ? 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border-purple-300 dark:border-purple-800'
+                          : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                      }`}>
+                        {scanEngine === 'gemini' ? '✨ Gemini AI Verified' : '✓ OCR Verified'}
                       </span>
                     </div>
 
