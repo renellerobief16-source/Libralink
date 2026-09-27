@@ -101,8 +101,13 @@ function BookDetail() {
 
   const handleBorrowingSubmit = async (response) => {
     try {
-      if (response && response.success) {
-        setSubmittedRequest(response.data);
+      const isSuccess = Boolean(
+        response &&
+        response.success !== false &&
+        (response.success === true || response.request_id || response.data?.request_id)
+      );
+      if (isSuccess) {
+        setSubmittedRequest(response.data || response);
         setShowBorrowingForm(false);
         setShowSuccessOverlay(true);
         setBorrowingFormList([]);

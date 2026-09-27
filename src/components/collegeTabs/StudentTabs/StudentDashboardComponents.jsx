@@ -1544,6 +1544,16 @@ export function StudentLayout({
     };
   }, []);
 
+  // Listen for open-student-panel custom events (e.g. from desktop header notification bell)
+  useEffect(() => {
+    const handleOpenPanelEvent = (e) => {
+      const panel = e.detail?.panel || "inbox";
+      setActivePanel((prev) => (prev === panel ? null : panel));
+    };
+    window.addEventListener("open-student-panel", handleOpenPanelEvent);
+    return () => window.removeEventListener("open-student-panel", handleOpenPanelEvent);
+  }, []);
+
   const currentUser = JSON.parse(localStorage.getItem("currentUser") || "null");
   const storedUser = JSON.parse(localStorage.getItem("user") || "null");
   const rawProfileImage =
@@ -2028,7 +2038,12 @@ export function StudentLayout({
 
             {/* Right actions — md+ only */}
             <div className="hidden md:flex h-full shrink-0 items-center">
-              <StudentHeaderActions userInfo={userInfo} onLogout={onLogout} />
+              <StudentHeaderActions
+                userInfo={userInfo}
+                onLogout={onLogout}
+                activePanel={activePanel}
+                onOpenPanel={(panel) => setActivePanel((prev) => (prev === panel ? null : panel))}
+              />
             </div>
           </div>
         ) : (
@@ -2049,7 +2064,12 @@ export function StudentLayout({
             {/* Right — Bell + Avatar (md+) */}
             <div className="flex items-center gap-0.5 md:gap-1 shrink-0 justify-end">
               <div className="hidden md:flex items-center">
-                <StudentHeaderActions userInfo={userInfo} onLogout={onLogout} />
+                <StudentHeaderActions
+                  userInfo={userInfo}
+                  onLogout={onLogout}
+                  activePanel={activePanel}
+                  onOpenPanel={(panel) => setActivePanel((prev) => (prev === panel ? null : panel))}
+                />
               </div>
               {/* Mobile actions: Bell */}
               <div className="flex items-center gap-0.5 md:hidden">

@@ -663,7 +663,7 @@ function StudentInbox({ isDrawer = false, onClose }) {
 
       {/* ─── Full-Screen Notification Fill View (No Dimmed Overlay) ────────────────── */}
       {showNotificationModal && selectedNotification && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-white w-full h-[100dvh] overflow-hidden animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-[100] flex flex-col bg-white w-full h-[100dvh] overflow-hidden animate-in fade-in duration-150">
           <NotificationModal
             notification={selectedNotification}
             requestDetails={requestDetails}

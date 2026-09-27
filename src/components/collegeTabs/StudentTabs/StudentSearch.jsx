@@ -746,7 +746,32 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
 
   const [borrowingFormList, setBorrowingFormList] = useState([]);
 
-  const [userData, setUserData] = useState(null);
+  const [userData, setUserData] = useState(() => {
+    try {
+      const stored = localStorage.getItem('currentUser');
+      return stored ? JSON.parse(stored) : (userInfo || null);
+    } catch {
+      return userInfo || null;
+    }
+  });
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const stored = localStorage.getItem('currentUser');
+        const parsed = stored ? JSON.parse(stored) : userInfo;
+        if (parsed) setUserData(parsed);
+
+        const res = await api.get('/auth/me');
+        if (res?.data?.user) {
+          setUserData(prev => ({ ...(prev || {}), ...res.data.user }));
+        }
+      } catch (err) {
+        console.warn('Error refreshing student user data:', err);
+      }
+    };
+    fetchUserData();
+  }, [userInfo]);
 
   const [submittedRequest, setSubmittedRequest] = useState(null);
 
@@ -2531,10 +2556,15 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
     try {
       console.log("handleBorrowingSubmit received:", response);
 
-      // response is the full response from StudentBorrowingForm
+      const isSuccess = Boolean(
+        response &&
+        response.success !== false &&
+        (response.success === true || response.request_id || response.data?.request_id)
+      );
 
-      if (response && response.success) {
-        setSubmittedRequest(response.data);
+      if (isSuccess) {
+        const submittedData = response.data || response;
+        setSubmittedRequest(submittedData);
 
         setShowBorrowingForm(false);
 
@@ -2601,9 +2631,17 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
 
         setBorrowingFormList([]);
 
-        // Clear the borrowing list from localStorage after successful submission
-
-        clearBorrowingList();
+        // Shopee style: only remove the requested/borrowed books from the borrowing cart!
+        setBorrowingList((prevList) => {
+          const remaining = (prevList || []).filter(
+            (item) => !requestedBookIds.has(Number(item.book_id || item.id))
+          );
+          try {
+            localStorage.setItem("borrowingList", JSON.stringify(remaining));
+          } catch (_) {}
+          window.dispatchEvent(new Event('borrowing-list-changed'));
+          return remaining;
+        });
 
         // Refresh inter-school request statuses to update UI
         fetchInterSchoolRequestStatuses();
@@ -2624,15 +2662,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
     }
   };
 
-  // Automatically redirect user to Borrow History tab after successful borrowing request
-  useEffect(() => {
-    if (!showSuccessOverlay || !submittedRequest) return;
-    const timer = setTimeout(() => {
-      setShowSuccessOverlay(false);
-      navigate("/studentpage/history", { state: { tab: "requests" } });
-    }, 1800);
-    return () => clearTimeout(timer);
-  }, [showSuccessOverlay, submittedRequest, navigate]);
+  // Borrow success overlay is dismissed manually via 'Go to Requests' or 'Continue Browsing'
 
   // Function to clear all borrowing-related history
 
@@ -5669,13 +5699,10 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
 
               <button
                 type="button"
-                onClick={() => {
-                  setShowSuccessOverlay(false);
-                  navigate('/studentpage/history', { state: { tab: 'requests' } });
-                }}
+                onClick={() => setShowSuccessOverlay(false)}
                 className="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50"
               >
-                Done
+                Continue Browsing
               </button>
             </div>
           </section>

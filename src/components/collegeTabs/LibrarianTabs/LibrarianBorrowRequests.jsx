@@ -39,6 +39,7 @@ import {
   formatPhilippineFullTooltip,
   getDueStatusDetails 
 } from "../../../utils/timeUtils";
+import BookDetailsModal from "../../common/BookDetailsModal";
 
 const animationStyles = `
   @keyframes drawCircle {
@@ -139,7 +140,19 @@ function AdminBorrowRequests() {
   const [historyDateEnd, setHistoryDateEnd] = useState('');
   const [historyTypeFilter, setHistoryTypeFilter] = useState('all'); // 'all' | 'returned' | 'cancelled'
 
-  const [zoomIdModal, setZoomIdModal] = useState({ isOpen: false, imageUrl: '', studentName: '', studentNumber: '', schoolName: '' });
+  const [zoomIdModal, setZoomIdModal] = useState({ isOpen: false, imageUrl: '', studentName: '', studentNumber: '', schoolName: '', title: '' });
+
+  // Escape key handler for photo zoom modal
+  useEffect(() => {
+    if (!zoomIdModal.isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setZoomIdModal((prev) => ({ ...prev, isOpen: false }));
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [zoomIdModal.isOpen]);
   // Toast notification state
   const [actionToast, setActionToast] = useState(null); // { type: 'approve'|'decline', message: string }
 
@@ -165,6 +178,29 @@ function AdminBorrowRequests() {
   const [selectedActiveLoan, setSelectedActiveLoan] = useState(null);
   const [schoolsMap, setSchoolsMap] = useState({});
   const [zoomIdImage, setZoomIdImage] = useState(false);
+  const [inspectingBook, setInspectingBook] = useState(null);
+  const [loadingBookDetails, setLoadingBookDetails] = useState(false);
+
+  const handleOpenBookDetails = async (bookId, fallbackBook = null) => {
+    if (!bookId && !fallbackBook) return;
+    if (fallbackBook) {
+      setInspectingBook(fallbackBook);
+    }
+    const resolvedId = Number(bookId || fallbackBook?.book_id || fallbackBook?.id);
+    if (resolvedId && !isNaN(resolvedId)) {
+      try {
+        setLoadingBookDetails(true);
+        const { data, error } = await getBookById(resolvedId);
+        if (!error && data) {
+          setInspectingBook((prev) => ({ ...(prev || fallbackBook || {}), ...data }));
+        }
+      } catch (err) {
+        console.warn("Could not load full book details for librarian preview:", err);
+      } finally {
+        setLoadingBookDetails(false);
+      }
+    }
+  };
 
   // Ready for Pickup & Direct Release States
   const [pickupSearchQuery, setPickupSearchQuery] = useState('');
@@ -1849,7 +1885,8 @@ function AdminBorrowRequests() {
                     const firstBook = items[0]?.book || booksData[request.book_id] || {};
                     const status = String(request.status || '').toLowerCase();
                     const isOverdue = status === 'borrowed' && request.due_date && new Date(request.due_date) < new Date();
-                    const studentIdPic = request.id_picture_url || request.id_photo_url || student.id_picture_url || student.id_card_picture || student.profile_image || student.profile_picture;
+                    const studentProfilePic = studentIdentity.profilePicture || student.profile_picture || student.profile_image || student.avatar || request.profile_picture || request.profile_image || '';
+                    const studentIdCardPic = request.id_picture_url || request.id_photo_url || student.id_picture_url || student.id_card_picture || '';
 
                     return (
                       <tr key={request.request_id} className="hover:bg-blue-50/20 transition-colors">
@@ -1863,19 +1900,26 @@ function AdminBorrowRequests() {
                           <div className="flex items-center gap-2">
                             {/* Circular Student Profile Avatar */}
                             <div 
-                              onClick={() => setZoomIdModal({
-                                isOpen: true,
-                                imageUrl: studentIdPic,
-                                studentName: studentIdentity.name,
-                                studentNumber: student.student_number || request.student_id || 'N/A',
-                                schoolName: homeSchool.school_name || 'Campus'
-                              })}
+                              onClick={() => {
+                                if (studentProfilePic) {
+                                  setZoomIdModal({
+                                    isOpen: true,
+                                    imageUrl: studentProfilePic,
+                                    studentName: studentIdentity.name,
+                                    studentNumber: student.student_number || request.student_id || 'N/A',
+                                    schoolName: homeSchool.school_name || 'Campus',
+                                    title: `${studentIdentity.name} — Profile Picture`
+                                  });
+                                } else {
+                                  handleViewDetails(request);
+                                }
+                              }}
                               className="relative w-8 h-8 rounded-full cursor-pointer group shrink-0 ring-2 ring-blue-500/20 shadow-2xs hover:ring-blue-600 transition-all bg-slate-100 flex items-center justify-center overflow-hidden"
-                              title="Click to view student profile picture / ID card"
+                              title={studentProfilePic ? "Click to view student profile picture" : "Click to view borrower details"}
                             >
-                              {studentIdPic ? (
+                              {studentProfilePic ? (
                                 <img
-                                  src={getBackendAssetUrl(studentIdPic)}
+                                  src={getBackendAssetUrl(studentProfilePic)}
                                   alt={studentIdentity.name}
                                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
                                   onError={(e) => {
@@ -1884,7 +1928,7 @@ function AdminBorrowRequests() {
                                   }}
                                 />
                               ) : null}
-                              <div className={`w-full h-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-[10px] flex items-center justify-center ${studentIdPic ? 'hidden' : 'flex'}`}>
+                              <div className={`w-full h-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-[10px] flex items-center justify-center ${studentProfilePic ? 'hidden' : 'flex'}`}>
                                 {(student.firstname?.[0] || studentIdentity.name?.[0] || 'S').toUpperCase()}
                                 {(student.lastname?.[0] || '').toUpperCase()}
                               </div>
@@ -1903,8 +1947,25 @@ function AdminBorrowRequests() {
                               </div>
                               <div className="text-[10px] text-slate-500 font-mono truncate flex items-center gap-1">
                                 <span>{student.student_number || request.student_id || 'No ID'}</span>
-                                {request.id_picture_url && (
-                                  <span className="text-[8px] bg-blue-50 text-blue-600 px-1 py-0.2 rounded font-semibold">ID</span>
+                                {studentIdCardPic && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setZoomIdModal({
+                                        isOpen: true,
+                                        imageUrl: studentIdCardPic,
+                                        studentName: studentIdentity.name,
+                                        studentNumber: student.student_number || request.student_id || 'N/A',
+                                        schoolName: homeSchool.school_name || 'Campus',
+                                        title: `${studentIdentity.name} — Student ID Card`
+                                      });
+                                    }}
+                                    className="inline-flex items-center text-[8px] bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-800 px-1 py-0.2 rounded font-semibold border border-blue-200 cursor-pointer transition-colors"
+                                    title="Click to view student ID card"
+                                  >
+                                    ID
+                                  </button>
                                 )}
                               </div>
                             </div>
@@ -1923,8 +1984,25 @@ function AdminBorrowRequests() {
                         {/* Book Details */}
                         <td className="py-1.5 px-2 text-slate-700 min-w-[140px] max-w-[190px]">
                           <div className="w-full max-w-[175px] min-w-0 overflow-hidden">
-                            <div className="font-bold text-slate-900 truncate text-[11px]" title={firstBook.title || 'Book Title'}>
-                              {firstBook.title || (bookCount > 0 ? `${bookCount} Book(s)` : 'General Request')}
+                            <div className="flex items-center justify-between gap-1">
+                              <span 
+                                className="font-bold text-slate-900 truncate text-[11px] hover:text-blue-600 transition-colors cursor-pointer" 
+                                title={firstBook.title || 'Book Title'}
+                                onClick={() => handleOpenBookDetails(firstBook.book_id || firstBook.id || request.items?.[0]?.book_id, firstBook)}
+                              >
+                                {firstBook.title || (bookCount > 0 ? `${bookCount} Book(s)` : 'General Request')}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenBookDetails(firstBook.book_id || firstBook.id || request.items?.[0]?.book_id, firstBook);
+                                }}
+                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition shrink-0 cursor-pointer"
+                                title="View full book details"
+                              >
+                                <FiEye className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                             {firstBook.author && (
                               <div className="text-[10px] text-slate-500 truncate" title={firstBook.author}>
@@ -2587,7 +2665,8 @@ function AdminBorrowRequests() {
                     const firstBook = request.book || items[0]?.book || booksData[request.book_id] || {};
                     const requestId = parentReq.request_id || request.request_id;
                     const itemStatus = String(request.status || request.item_status || parentReq.status || 'pending').toLowerCase();
-                    const studentIdPic = parentReq.id_picture_url || parentReq.id_photo_url || request.id_picture_url || student.id_picture_url || student.id_card_picture || student.profile_image || student.profile_picture;
+                    const studentProfilePic = studentIdentity.profilePicture || student.profile_picture || student.profile_image || student.avatar || parentReq.profile_picture || parentReq.profile_image || '';
+                    const studentIdCardPic = parentReq.id_picture_url || parentReq.id_photo_url || request.id_picture_url || student.id_picture_url || student.id_card_picture || '';
                     const purpose = parentReq.purpose || request.purpose || 'Inter-library Study';
                     const requestedAt = parentReq.created_at || request.created_at;
 
@@ -2603,19 +2682,26 @@ function AdminBorrowRequests() {
                           <div className="flex items-center gap-2">
                             {/* Circular Student Profile Avatar */}
                             <div 
-                              onClick={() => setZoomIdModal({
-                                isOpen: true,
-                                imageUrl: studentIdPic,
-                                studentName: studentIdentity.name,
-                                studentNumber: student.student_number || parentReq.student_id || 'N/A',
-                                schoolName: homeSchool.school_name || 'Partner Campus'
-                              })}
+                              onClick={() => {
+                                if (studentProfilePic) {
+                                  setZoomIdModal({
+                                    isOpen: true,
+                                    imageUrl: studentProfilePic,
+                                    studentName: studentIdentity.name,
+                                    studentNumber: student.student_number || parentReq.student_id || 'N/A',
+                                    schoolName: homeSchool.school_name || 'Partner Campus',
+                                    title: `${studentIdentity.name} — Profile Picture`
+                                  });
+                                } else {
+                                  handleViewDetails(parentReq);
+                                }
+                              }}
                               className="relative w-8 h-8 rounded-full cursor-pointer group shrink-0 ring-2 ring-indigo-500/20 shadow-2xs hover:ring-indigo-600 transition-all bg-slate-100 flex items-center justify-center overflow-hidden"
-                              title="Click to view student profile picture / ID card"
+                              title={studentProfilePic ? "Click to view student profile picture" : "Click to view borrower details"}
                             >
-                              {studentIdPic ? (
+                              {studentProfilePic ? (
                                 <img
-                                  src={getBackendAssetUrl(studentIdPic)}
+                                  src={getBackendAssetUrl(studentProfilePic)}
                                   alt={studentIdentity.name}
                                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
                                   onError={(e) => {
@@ -2624,7 +2710,7 @@ function AdminBorrowRequests() {
                                   }}
                                 />
                               ) : null}
-                              <div className={`w-full h-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-bold text-[10px] flex items-center justify-center ${studentIdPic ? 'hidden' : 'flex'}`}>
+                              <div className={`w-full h-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-bold text-[10px] flex items-center justify-center ${studentProfilePic ? 'hidden' : 'flex'}`}>
                                 {(student.firstname?.[0] || studentIdentity.name?.[0] || 'S').toUpperCase()}
                                 {(student.lastname?.[0] || '').toUpperCase()}
                               </div>
@@ -2643,8 +2729,25 @@ function AdminBorrowRequests() {
                               </div>
                               <div className="text-[10px] text-slate-500 font-mono truncate flex items-center gap-1">
                                 <span>{student.student_number || parentReq.student_id || 'No ID'}</span>
-                                {parentReq.id_picture_url && (
-                                  <span className="text-[8px] bg-indigo-50 text-indigo-600 px-1 py-0.2 rounded font-semibold">ID</span>
+                                {studentIdCardPic && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setZoomIdModal({
+                                        isOpen: true,
+                                        imageUrl: studentIdCardPic,
+                                        studentName: studentIdentity.name,
+                                        studentNumber: student.student_number || parentReq.student_id || 'N/A',
+                                        schoolName: homeSchool.school_name || 'Partner Campus',
+                                        title: `${studentIdentity.name} — Student ID Card`
+                                      });
+                                    }}
+                                    className="inline-flex items-center text-[8px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 px-1 py-0.2 rounded font-semibold border border-indigo-200 cursor-pointer transition-colors"
+                                    title="Click to view student ID card"
+                                  >
+                                    ID
+                                  </button>
                                 )}
                               </div>
                             </div>
@@ -2664,8 +2767,25 @@ function AdminBorrowRequests() {
                         {/* Book Details */}
                         <td className="py-1.5 px-2 text-slate-700 min-w-[140px] max-w-[190px]">
                           <div className="w-full max-w-[175px] min-w-0 overflow-hidden">
-                            <div className="font-bold text-slate-900 truncate text-[11px]" title={firstBook.title || 'Book Title'}>
-                              {firstBook.title || (bookCount > 0 ? `${bookCount} Book(s)` : 'General Request')}
+                            <div className="flex items-center justify-between gap-1">
+                              <span 
+                                className="font-bold text-slate-900 truncate text-[11px] hover:text-blue-600 transition-colors cursor-pointer" 
+                                title={firstBook.title || 'Book Title'}
+                                onClick={() => handleOpenBookDetails(firstBook.book_id || firstBook.id, firstBook)}
+                              >
+                                {firstBook.title || (bookCount > 0 ? `${bookCount} Book(s)` : 'General Request')}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenBookDetails(firstBook.book_id || firstBook.id, firstBook);
+                                }}
+                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition shrink-0 cursor-pointer"
+                                title="View full book details"
+                              >
+                                <FiEye className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                             {firstBook.author && (
                               <div className="text-[10px] text-slate-500 truncate" title={firstBook.author}>
@@ -3184,13 +3304,13 @@ function AdminBorrowRequests() {
                         </span>
                       </div>
                       
-                      {selectedRequest.id_picture_url ? (
+                      {(selectedRequest.id_picture_url || selectedRequest.student?.id_card_picture) ? (
                         <div 
                           className="relative group cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-sm"
                           onClick={() => setZoomIdImage(true)}
                         >
                           <img 
-                            src={getBackendAssetUrl(selectedRequest.id_picture_url)} 
+                            src={getBackendAssetUrl(selectedRequest.id_picture_url || selectedRequest.student?.id_card_picture)} 
                             alt="Student Institutional ID" 
                             className="w-full h-44 object-cover group-hover:scale-105 transition-transform duration-300"
                           />
@@ -3285,12 +3405,27 @@ function AdminBorrowRequests() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-2">
-                                <h4 className="text-sm font-bold text-slate-900 truncate">
+                                <h4 
+                                  onClick={() => handleOpenBookDetails(item.book_id, book)}
+                                  className="text-sm font-bold text-slate-900 truncate hover:text-blue-600 cursor-pointer transition-colors"
+                                  title="Click to view complete details"
+                                >
                                   {book?.title || item.title || `Book ID: ${item.book_id}`}
                                 </h4>
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-100 flex-shrink-0">
-                                  {item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE' ? 'Inter-School Use' : 'Local Home Loan'}
-                                </span>
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenBookDetails(item.book_id, book)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-white hover:bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg transition shadow-2xs cursor-pointer"
+                                    title="View complete book information & catalog record"
+                                  >
+                                    <FiEye className="w-3.5 h-3.5" />
+                                    <span>View Details</span>
+                                  </button>
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-100 flex-shrink-0">
+                                    {item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE' ? 'Inter-School Use' : 'Local Home Loan'}
+                                  </span>
+                                </div>
                               </div>
                               <p className="text-xs text-slate-500 mt-0.5">
                                 Author: <span className="text-slate-700 font-medium">{book?.author || item.author || 'Unknown'}</span>
@@ -3417,7 +3552,7 @@ function AdminBorrowRequests() {
           </div>
 
           {/* Institutional ID Full-Screen Lightbox Zoom Modal */}
-          {zoomIdImage && selectedRequest.id_picture_url && (
+          {zoomIdImage && (selectedRequest.id_picture_url || selectedRequest.student?.id_card_picture) && (
             <div 
               className="fixed inset-0 z-60 bg-black/80 backdrop-blur-md flex items-center justify-center p-4" 
               onClick={() => setZoomIdImage(false)}
@@ -3433,7 +3568,7 @@ function AdminBorrowRequests() {
                   <FiX className="w-4 h-4" />
                 </button>
                 <img 
-                  src={getBackendAssetUrl(selectedRequest.id_picture_url)} 
+                  src={getBackendAssetUrl(selectedRequest.id_picture_url || selectedRequest.student?.id_card_picture)} 
                   alt="Student ID Badge Enlarged" 
                   className="w-full max-h-[80vh] object-contain rounded-xl"
                 />
@@ -4867,7 +5002,8 @@ function AdminBorrowRequests() {
                     const bookCount = items.length || 0;
                     const firstBook = items[0]?.book || booksData[record.book_id] || {};
                     const status = String(record.status || '').toLowerCase();
-                    const studentIdPic = record.id_picture_url || record.id_photo_url || student.id_picture_url || student.id_card_picture || student.profile_image || student.profile_picture;
+                    const studentProfilePic = studentIdentity.profilePicture || student.profile_picture || student.profile_image || student.avatar || record.profile_picture || record.profile_image || '';
+                    const studentIdCardPic = record.id_picture_url || record.id_photo_url || student.id_picture_url || student.id_card_picture || '';
                     const completedDate = record.return_date || record.updated_at || record.created_at;
                     const hasFine = Number(record.fine_amount || record.damage_fee || 0) > 0;
                     const fineAmount = record.fine_amount || record.damage_fee || '0';
@@ -4884,19 +5020,26 @@ function AdminBorrowRequests() {
                           <div className="flex items-center gap-2">
                             {/* Circular Student Profile Avatar */}
                             <div 
-                              onClick={() => setZoomIdModal({
-                                isOpen: true,
-                                imageUrl: studentIdPic,
-                                studentName: studentIdentity.name,
-                                studentNumber: student.student_number || record.student_id || 'N/A',
-                                schoolName: homeSchool.school_name || 'Campus'
-                              })}
+                              onClick={() => {
+                                if (studentProfilePic) {
+                                  setZoomIdModal({
+                                    isOpen: true,
+                                    imageUrl: studentProfilePic,
+                                    studentName: studentIdentity.name,
+                                    studentNumber: student.student_number || record.student_id || 'N/A',
+                                    schoolName: homeSchool.school_name || 'Campus',
+                                    title: `${studentIdentity.name} — Profile Picture`
+                                  });
+                                } else {
+                                  handleViewDetails(record);
+                                }
+                              }}
                               className="relative w-8 h-8 rounded-full cursor-pointer group shrink-0 ring-2 ring-purple-500/20 shadow-2xs hover:ring-purple-600 transition-all bg-slate-100 flex items-center justify-center overflow-hidden"
-                              title="Click to view student profile picture / ID card"
+                              title={studentProfilePic ? "Click to view student profile picture" : "Click to view borrower details"}
                             >
-                              {studentIdPic ? (
+                              {studentProfilePic ? (
                                 <img
-                                  src={getBackendAssetUrl(studentIdPic)}
+                                  src={getBackendAssetUrl(studentProfilePic)}
                                   alt={studentIdentity.name}
                                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
                                   onError={(e) => {
@@ -4905,7 +5048,7 @@ function AdminBorrowRequests() {
                                   }}
                                 />
                               ) : null}
-                              <div className={`w-full h-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white font-bold text-[10px] flex items-center justify-center ${studentIdPic ? 'hidden' : 'flex'}`}>
+                              <div className={`w-full h-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white font-bold text-[10px] flex items-center justify-center ${studentProfilePic ? 'hidden' : 'flex'}`}>
                                 {(student.firstname?.[0] || studentIdentity.name?.[0] || 'S').toUpperCase()}
                                 {(student.lastname?.[0] || '').toUpperCase()}
                               </div>
@@ -4924,8 +5067,25 @@ function AdminBorrowRequests() {
                               </div>
                               <div className="text-[10px] text-slate-500 font-mono truncate flex items-center gap-1">
                                 <span>{student.student_number || record.student_id || 'No ID'}</span>
-                                {record.id_picture_url && (
-                                  <span className="text-[8px] bg-purple-50 text-purple-600 px-1 py-0.2 rounded font-semibold">ID</span>
+                                {studentIdCardPic && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setZoomIdModal({
+                                        isOpen: true,
+                                        imageUrl: studentIdCardPic,
+                                        studentName: studentIdentity.name,
+                                        studentNumber: student.student_number || record.student_id || 'N/A',
+                                        schoolName: homeSchool.school_name || 'Campus',
+                                        title: `${studentIdentity.name} — Student ID Card`
+                                      });
+                                    }}
+                                    className="inline-flex items-center text-[8px] bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-800 px-1 py-0.2 rounded font-semibold border border-purple-200 cursor-pointer transition-colors"
+                                    title="Click to view student ID card"
+                                  >
+                                    ID
+                                  </button>
                                 )}
                               </div>
                             </div>
@@ -5666,90 +5826,79 @@ function AdminBorrowRequests() {
         </div>
       )}
 
-      {/* Institutional School ID Zoom Lightbox Modal */}
+      {/* Minimalist Student Photo & ID Lightbox Modal */}
       {zoomIdModal.isOpen && (
         <div 
-          className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+          className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
           onClick={() => setZoomIdModal(prev => ({ ...prev, isOpen: false }))}
         >
           <div 
-            className="relative max-w-md w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 animate-scaleUp"
+            className="relative max-w-sm sm:max-w-md w-full bg-white rounded-2xl sm:rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3)] overflow-hidden border border-slate-200/80 animate-scaleUp"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal Header */}
-            <div className="px-5 py-3.5 bg-gradient-to-r from-slate-900 to-blue-950 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-                  <FiMaximize2 className="w-4 h-4 text-blue-300" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm leading-tight text-white">{zoomIdModal.studentName || 'Student ID Card'}</h4>
-                  <p className="text-[11px] text-slate-300 font-mono">
-                    {zoomIdModal.studentNumber} • {zoomIdModal.schoolName}
-                  </p>
-                </div>
+            {/* Minimalist Header */}
+            <div className="px-5 py-3.5 flex items-center justify-between border-b border-slate-100 bg-white">
+              <div className="min-w-0 pr-2">
+                <h4 className="font-bold text-sm text-slate-900 truncate leading-snug">
+                  {zoomIdModal.title || zoomIdModal.studentName || 'Student Photo'}
+                </h4>
+                <p className="text-[11px] text-slate-400 font-mono truncate mt-0.5">
+                  {zoomIdModal.studentNumber || 'No ID'} {zoomIdModal.schoolName ? `• ${zoomIdModal.schoolName}` : ''}
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setZoomIdModal(prev => ({ ...prev, isOpen: false }))}
-                className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition"
-                title="Close ID preview"
-              >
-                <FiX className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                {zoomIdModal.imageUrl && (
+                  <a
+                    href={getBackendAssetUrl(zoomIdModal.imageUrl)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                    title="Open full resolution in new tab"
+                  >
+                    <FiExternalLink className="w-4 h-4" />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setZoomIdModal(prev => ({ ...prev, isOpen: false }))}
+                  className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                  title="Close (Esc)"
+                >
+                  <FiX className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            {/* Modal Body / Image */}
-            <div className="p-3 bg-slate-900 flex items-center justify-center min-h-[260px] max-h-[65vh] overflow-hidden">
+            {/* Image Canvas / Minimalist Empty State */}
+            <div className="p-4 sm:p-5 bg-slate-50/70 flex items-center justify-center min-h-[240px] max-h-[65vh] overflow-hidden">
               {zoomIdModal.imageUrl ? (
                 <img
                   src={getBackendAssetUrl(zoomIdModal.imageUrl)}
-                  alt={`School ID Card for ${zoomIdModal.studentName}`}
-                  className="max-h-[60vh] max-w-full rounded-xl object-contain shadow-2xl border border-slate-700/50"
+                  alt={zoomIdModal.studentName || 'Student Photo'}
+                  className="max-h-[60vh] max-w-full rounded-xl object-contain shadow-xs border border-slate-200/80 bg-white"
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
                     if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
                   }}
                 />
               ) : null}
-              <div className={`flex-col items-center justify-center text-center p-8 text-slate-400 ${zoomIdModal.imageUrl ? 'hidden' : 'flex'}`}>
-                <div className="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center mb-3 text-slate-400">
-                  <FiUser className="w-8 h-8" />
+              <div className={`flex flex-col items-center justify-center text-center py-8 px-4 ${zoomIdModal.imageUrl ? 'hidden' : 'flex'}`}>
+                <div className="w-16 h-16 rounded-full bg-slate-200/80 text-slate-600 font-bold text-lg flex items-center justify-center mb-2.5 shadow-2xs">
+                  {((zoomIdModal.studentName || 'S').charAt(0)).toUpperCase()}
                 </div>
-                <p className="text-sm font-semibold text-slate-300">No School ID Image Uploaded</p>
-                <p className="text-xs text-slate-500 mt-1 max-w-xs">
-                  This student has not yet uploaded an institutional ID card photo.
-                </p>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-              <span className="text-[11px] text-slate-500 font-medium">
-                Verified Student Identification
-              </span>
-              <div className="flex items-center gap-2">
-                {zoomIdModal.imageUrl && (
-                  <a
-                    href={getBackendAssetUrl(zoomIdModal.imageUrl)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold shadow-2xs transition"
-                  >
-                    Open Full Resolution
-                  </a>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setZoomIdModal(prev => ({ ...prev, isOpen: false }))}
-                  className="px-4 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-2xs transition"
-                >
-                  Close
-                </button>
+                <p className="text-xs font-bold text-slate-700">No photo uploaded</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">This student has not uploaded a photo yet.</p>
               </div>
             </div>
           </div>
         </div>
+      )}
+      {/* Book Details Quick-View Modal */}
+      {inspectingBook && (
+        <BookDetailsModal
+          book={inspectingBook}
+          onClose={() => setInspectingBook(null)}
+        />
       )}
     </div>
   );

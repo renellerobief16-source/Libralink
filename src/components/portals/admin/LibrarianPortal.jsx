@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { 
   FiHome, FiMail, FiLogOut, FiBook, FiMoon, FiSun, FiUsers, FiList, 
   FiCheckCircle, FiGrid, FiClock, FiFileText, FiAlertOctagon, FiX, FiShield, FiInfo, FiCheck,
-  FiSettings, FiUserPlus 
+  FiSettings, FiUserPlus, FiSliders
 } from "react-icons/fi";
 import { getUserNotifications, getBackendAssetUrl, signOut, getBorrowRequests } from "../../../utils/api";
 import api from "../../../utils/api";
@@ -120,14 +120,17 @@ function LibrarianPortal() {
         // Fetch user info
         const currentUser = localStorage.getItem('currentUser');
         if (currentUser) {
-          setUserInfo(JSON.parse(currentUser));
+          try {
+            setUserInfo(JSON.parse(currentUser));
+          } catch {}
         }
 
         // Fetch school borrowing policy
         try {
           const policyRes = await api.get(`/library-settings/policy/${schoolId}`);
-          if (policyRes.data?.data) {
-            setLibraryPolicy(policyRes.data.data);
+          const fetchedPolicy = policyRes.data?.data || policyRes.data;
+          if (fetchedPolicy) {
+            setLibraryPolicy(fetchedPolicy);
           }
         } catch (e) {
           console.warn('Could not fetch library policy:', e);
@@ -499,37 +502,61 @@ function LibrarianPortal() {
               {/* Modal Body */}
               <div className="p-6 overflow-y-auto space-y-6">
                 {/* Staff Credentials Card */}
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-3">
-                    Librarian Account Details
-                  </span>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <span className="text-xs text-slate-400 block">Staff Name</span>
-                      <span className="font-semibold text-slate-800">
-                        {userInfo?.firstname} {userInfo?.lastname || ''}
+                {(() => {
+                  const rawUserRole = (localStorage.getItem("userRole") || '').toLowerCase().replace(/[-_]/g, ' ').trim();
+                  const roleIdNum = Number(localStorage.getItem("roleId") || 0);
+                  const isStaffAdmin = roleIdNum === 2 || 
+                                       rawUserRole === 'admin librarian' || 
+                                       rawUserRole === 'admin-librarian' || 
+                                       rawUserRole === 'librarian admin';
+                  const staffFullName = userInfo?.full_name || 
+                    [userInfo?.first_name || userInfo?.firstname, userInfo?.last_name || userInfo?.lastname].filter(Boolean).join(' ') || 
+                    userInfo?.name || 
+                    localStorage.getItem('userName') || 
+                    (isStaffAdmin ? 'Librarian Administrator' : 'Staff Librarian');
+                  const staffRoleDisplay = isStaffAdmin ? 'Admin-Librarian' : (localStorage.getItem('userRole') || 'Librarian');
+
+                  return (
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-3">
+                        Librarian Account Details
                       </span>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-xs text-slate-400 block">Staff Name</span>
+                          <span className="font-semibold text-slate-800">
+                            {staffFullName}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-xs text-slate-400 block">System Role</span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="font-bold text-blue-600">
+                              {staffRoleDisplay}
+                            </span>
+                            {isStaffAdmin && (
+                              <span className="inline-flex items-center px-1.5 py-0.2 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold">
+                                Policy Admin
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-xs text-slate-400 block">School Library</span>
+                          <span className="font-semibold text-slate-800 truncate block">
+                            {schoolInfo?.school_name || 'Assigned School'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-xs text-slate-400 block">School Code</span>
+                          <span className="font-semibold text-slate-800 font-mono">
+                            {schoolInfo?.school_code || 'SCH'}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-xs text-slate-400 block">System Role</span>
-                      <span className="font-semibold text-blue-600 capitalize">
-                        {localStorage.getItem('userRole') || 'Librarian'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-xs text-slate-400 block">School Library</span>
-                      <span className="font-semibold text-slate-800 truncate block">
-                        {schoolInfo?.school_name || 'Assigned School'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-xs text-slate-400 block">School Code</span>
-                      <span className="font-semibold text-slate-800 font-mono">
-                        {schoolInfo?.school_code || 'SCH'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* Library Circulation Policy */}
                 <div>
@@ -538,60 +565,110 @@ function LibrarianPortal() {
                       <FiInfo className="w-4 h-4 text-blue-600" />
                       Active Circulation Lending Policy
                     </span>
-                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium border border-blue-100">
-                      Consortium Rules
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-100">
+                        Consortium Rules
+                      </span>
+                      {(() => {
+                        const rawUserRole = (localStorage.getItem("userRole") || '').toLowerCase().replace(/[-_]/g, ' ').trim();
+                        const roleIdNum = Number(localStorage.getItem("roleId") || 0);
+                        const isStaffAdmin = roleIdNum === 2 || 
+                                             rawUserRole === 'admin librarian' || 
+                                             rawUserRole === 'admin-librarian' || 
+                                             rawUserRole === 'librarian admin';
+                        if (!isStaffAdmin) return null;
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowStaffModal(false);
+                              navigate('/librarian-admin', { state: { tab: 'policies' } });
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold border border-indigo-200 transition-colors shadow-2xs cursor-pointer"
+                            title="Open Policies Editor in Admin Console"
+                          >
+                            <FiSliders className="w-3.5 h-3.5" />
+                            <span>Edit Policies →</span>
+                          </button>
+                        );
+                      })()}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    <div className="p-3 rounded-xl border border-slate-200 bg-white">
-                      <span className="text-[11px] text-slate-500 block">Max Borrow Limit</span>
-                      <span className="text-lg font-bold text-slate-900">
-                        {libraryPolicy?.max_borrow_limit ?? 3} books
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
+                      <span className="text-[11px] text-slate-500 font-medium block">Max Borrow Limit</span>
+                      <span className="text-lg font-bold text-slate-900 block mt-0.5">
+                        {Number(libraryPolicy?.max_borrow_limit) || 5} books
                       </span>
-                      <span className="text-[10px] text-slate-400 block">Per student</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">Per student borrower</span>
                     </div>
 
-                    <div className="p-3 rounded-xl border border-slate-200 bg-white">
-                      <span className="text-[11px] text-slate-500 block">Local Loan Period</span>
-                      <span className="text-lg font-bold text-slate-900">
-                        {libraryPolicy?.home_borrowing_days ?? 7} days
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
+                      <span className="text-[11px] text-slate-500 font-medium block">Local Loan Period</span>
+                      <span className="text-lg font-bold text-slate-900 block mt-0.5">
+                        {Number(libraryPolicy?.home_borrowing_days) || 7} days
                       </span>
-                      <span className="text-[10px] text-slate-400 block">Home students</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">Home campus students</span>
                     </div>
 
-                    <div className="p-3 rounded-xl border border-slate-200 bg-white">
-                      <span className="text-[11px] text-slate-500 block">Inter-School Loan</span>
-                      <span className="text-lg font-bold text-slate-900">
-                        {libraryPolicy?.inter_school_borrowing_days ?? 14} days
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
+                      <span className="text-[11px] text-slate-500 font-medium block">Inter-School Loan</span>
+                      <span className="text-lg font-bold text-slate-900 block mt-0.5">
+                        {libraryPolicy?.inter_school_library_use_only ? 'Library Use Only' : `${libraryPolicy?.inter_school_borrowing_days ?? 14} days`}
                       </span>
-                      <span className="text-[10px] text-slate-400 block">Partner schools</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        {libraryPolicy?.inter_school_library_use_only ? 'On-site reading room' : 'Partner consortium schools'}
+                      </span>
                     </div>
 
-                    <div className="p-3 rounded-xl border border-slate-200 bg-white">
-                      <span className="text-[11px] text-slate-500 block">Daily Late Fine</span>
-                      <span className="text-lg font-bold text-slate-900">
-                        {libraryPolicy?.enable_fines !== false ? `₱${libraryPolicy?.fine_amount_per_day ?? 5}` : 'Free'}
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
+                      <span className="text-[11px] text-slate-500 font-medium block">Daily Late Fine</span>
+                      <span className="text-lg font-bold text-slate-900 block mt-0.5">
+                        {libraryPolicy?.enable_fines !== false && Number(libraryPolicy?.fine_amount_per_day) > 0 
+                          ? `₱${Number(libraryPolicy.fine_amount_per_day).toFixed(2)}` 
+                          : 'Fine-Free'}
                       </span>
-                      <span className="text-[10px] text-slate-400 block">Per day overdue</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        {libraryPolicy?.max_fine_cap ? `Cap: ₱${Number(libraryPolicy.max_fine_cap).toFixed(0)}` : 'Per day overdue'}
+                      </span>
                     </div>
 
-                    <div className="p-3 rounded-xl border border-slate-200 bg-white">
-                      <span className="text-[11px] text-slate-500 block">Grace Period</span>
-                      <span className="text-lg font-bold text-slate-900">
-                        {libraryPolicy?.grace_period_days ?? 0} days
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
+                      <span className="text-[11px] text-slate-500 font-medium block">Grace Period</span>
+                      <span className="text-lg font-bold text-slate-900 block mt-0.5">
+                        {Number(libraryPolicy?.grace_period_days) || 0} days
                       </span>
-                      <span className="text-[10px] text-slate-400 block">Before fines apply</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">Before fines apply</span>
                     </div>
 
-                    <div className="p-3 rounded-xl border border-slate-200 bg-white">
-                      <span className="text-[11px] text-slate-500 block">Renewals</span>
-                      <span className="text-lg font-bold text-slate-900">
-                        {libraryPolicy?.allow_renewals ? `${libraryPolicy?.max_renewals_per_book ?? 1}x` : 'Disabled'}
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
+                      <span className="text-[11px] text-slate-500 font-medium block">Renewals</span>
+                      <span className="text-lg font-bold text-slate-900 block mt-0.5">
+                        {Number(libraryPolicy?.max_renewals) > 0 ? `${libraryPolicy.max_renewals}x renewal${Number(libraryPolicy.max_renewals) !== 1 ? 's' : ''}` : 'Disabled'}
                       </span>
-                      <span className="text-[10px] text-slate-400 block">Max per item</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        {Number(libraryPolicy?.max_renewals) > 0 ? 'Allowed per item' : 'No renewals allowed'}
+                      </span>
                     </div>
                   </div>
+
+                  {libraryPolicy?.enable_visiting_fee && (
+                    <div className="mt-3 p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-amber-500" />
+                        <div>
+                          <p className="text-xs font-bold text-amber-950">Visiting Consortium Student Access Fee</p>
+                          <p className="text-[11px] text-amber-800">
+                            ₱{Number(libraryPolicy.visiting_fee_amount || 0).toFixed(2)} ({libraryPolicy.visiting_fee_type === 'per_day' ? 'Per Day' : 'Per Visit'})
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-semibold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-full border border-amber-200">
+                        Active Fee
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Operations Note */}
@@ -604,10 +681,36 @@ function LibrarianPortal() {
               </div>
 
               {/* Modal Footer */}
-              <div className="p-4 border-t border-slate-100 bg-slate-50/70 flex justify-end">
+              <div className="p-4 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between">
+                <div>
+                  {(() => {
+                    const rawUserRole = (localStorage.getItem("userRole") || '').toLowerCase().replace(/[-_]/g, ' ').trim();
+                    const roleIdNum = Number(localStorage.getItem("roleId") || 0);
+                    const isStaffAdmin = roleIdNum === 2 || 
+                                         rawUserRole === 'admin librarian' || 
+                                         rawUserRole === 'admin-librarian' || 
+                                         rawUserRole === 'librarian admin';
+                    if (!isStaffAdmin) {
+                      return <span className="text-[11px] text-slate-400">Institutional policies set by Admin-Librarian</span>;
+                    }
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowStaffModal(false);
+                          navigate('/librarian-admin', { state: { tab: 'policies' } });
+                        }}
+                        className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-bold transition-colors cursor-pointer"
+                      >
+                        <FiSliders className="w-3.5 h-3.5" />
+                        Configure School Policies in Admin Console →
+                      </button>
+                    );
+                  })()}
+                </div>
                 <button
                   onClick={() => setShowStaffModal(false)}
-                  className="px-5 py-2 bg-slate-900 text-white text-xs font-semibold rounded-xl hover:bg-slate-800 transition-colors"
+                  className="px-5 py-2 bg-slate-900 text-white text-xs font-semibold rounded-xl hover:bg-slate-800 transition-colors shadow-2xs"
                 >
                   Close
                 </button>

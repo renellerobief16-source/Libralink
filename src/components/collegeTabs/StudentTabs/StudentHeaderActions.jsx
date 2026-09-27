@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotifications } from "../../../context/NotificationContext";
 import { API_ORIGIN } from "../../../utils/api";
@@ -11,15 +11,57 @@ import {
   LogOut,
   User,
   ShoppingCart,
+  Mail,
 } from "lucide-react";
 import { useBorrowingCartCount, useOpenBorrowingCart } from "../../../utils/studentCart";
 
-export function StudentHeaderActions({ userInfo, onLogout, className = "" }) {
+export function StudentHeaderActions({
+  userInfo,
+  onLogout,
+  className = "",
+  onOpenPanel,
+  activePanel,
+}) {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
   const [notificationFilter, setNotificationFilter] = useState("all");
   const [imageError, setImageError] = useState(false);
   const [profileSyncKey, setProfileSyncKey] = useState(0);
+
+  const notificationContainerRef = useRef(null);
+  const profileContainerRef = useRef(null);
+
+  // Close dropdowns on outside click or Escape key
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        notificationContainerRef.current &&
+        !notificationContainerRef.current.contains(event.target)
+      ) {
+        setNotificationDropdownOpen(false);
+      }
+      if (
+        profileContainerRef.current &&
+        !profileContainerRef.current.contains(event.target)
+      ) {
+        setProfileDropdownOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setNotificationDropdownOpen(false);
+        setProfileDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   useEffect(() => {
     const handleProfileUpdate = () => {
@@ -85,14 +127,40 @@ export function StudentHeaderActions({ userInfo, onLogout, className = "" }) {
     setProfileDropdownOpen(false);
   };
 
-  const handleViewAllNotifications = () => {
-    navigate("/studentpage/inbox");
+  const handleEmailClick = () => {
     setNotificationDropdownOpen(false);
+    setProfileDropdownOpen(false);
+    if (onOpenPanel) {
+      onOpenPanel("inbox");
+    } else {
+      window.dispatchEvent(new CustomEvent("open-student-panel", { detail: { panel: "inbox" } }));
+    }
+  };
+
+  const handleViewAllNotifications = () => {
+    setNotificationDropdownOpen(false);
+    if (typeof window !== "undefined" && window.innerWidth >= 768) {
+      if (onOpenPanel) {
+        onOpenPanel("inbox");
+      } else {
+        window.dispatchEvent(new CustomEvent("open-student-panel", { detail: { panel: "inbox" } }));
+      }
+      return;
+    }
+    navigate("/studentpage/inbox");
   };
 
   const handleNotificationItemClick = (notification) => {
     markAsRead(notification.id);
     setNotificationDropdownOpen(false);
+    if (typeof window !== "undefined" && window.innerWidth >= 768) {
+      if (onOpenPanel) {
+        onOpenPanel("inbox");
+      } else {
+        window.dispatchEvent(new CustomEvent("open-student-panel", { detail: { panel: "inbox" } }));
+      }
+      return;
+    }
     navigate("/studentpage/inbox");
   };
 
@@ -133,15 +201,35 @@ export function StudentHeaderActions({ userInfo, onLogout, className = "" }) {
   };
 
   return (
-    <div className={`flex items-center gap-1.5 md:gap-3 ${className}`}>
-      <div className="relative">
+    <div className={`flex items-center gap-1.5 md:gap-2.5 ${className}`}>
+      {/* Email / Mail Icon (Toggles Notifications Side Panel Drawer on Desktop) */}
+      <button
+        type="button"
+        onClick={handleEmailClick}
+        aria-label="Messages & Notifications Side Panel"
+        title="Inbox"
+        className={`relative hidden md:flex h-10 w-10 items-center justify-center rounded-full transition-colors active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${
+          activePanel === "inbox"
+            ? "bg-blue-50 text-[#2563EB] ring-2 ring-blue-500/20"
+            : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+        }`}
+      >
+        <Mail className="h-5 w-5" />
+      </button>
+
+      {/* Notifications Bell with Dropdown */}
+      <div ref={notificationContainerRef} className="relative">
         <button
           type="button"
           onClick={handleNotificationClick}
           aria-label="Notifications"
           aria-expanded={notificationDropdownOpen}
           aria-controls="student-notifications-menu"
-          className="relative flex h-10 w-10 items-center justify-center rounded-full text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+          className={`relative flex h-10 w-10 items-center justify-center rounded-full transition-colors active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${
+            notificationDropdownOpen
+              ? "bg-blue-50 text-[#2563EB]"
+              : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+          }`}
         >
           <Bell className="h-5 w-5 md:h-5 md:w-5" />
           {unreadCount > 0 && (
@@ -238,7 +326,7 @@ export function StudentHeaderActions({ userInfo, onLogout, className = "" }) {
         )}
       </div>
 
-      <div className="relative">
+      <div ref={profileContainerRef} className="relative">
         <button
           type="button"
           onClick={() => {

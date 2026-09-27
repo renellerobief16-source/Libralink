@@ -12,16 +12,44 @@ class BorrowRequest {
       const request_id = requestIdResult || `LL-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;
       
       // Don't generate QR token yet - only generate after approval
+      let resolvedIdPic = data.id_picture_url || null;
+      let contactNumber = data.contact_number || null;
+      let studentAddress = data.address || null;
+
+      if ((!resolvedIdPic || !contactNumber || !studentAddress) && data.student_id) {
+        try {
+          const { data: userRec } = await supabase
+            .from('users')
+            .select('id_card_picture, contact_number, address')
+            .eq('user_id', data.student_id)
+            .maybeSingle();
+
+          if (userRec) {
+            if (!resolvedIdPic && userRec.id_card_picture) {
+              resolvedIdPic = userRec.id_card_picture;
+            }
+            if (!contactNumber && userRec.contact_number) {
+              contactNumber = userRec.contact_number;
+            }
+            if (!studentAddress && userRec.address) {
+              studentAddress = userRec.address;
+            }
+          }
+        } catch (uErr) {
+          console.warn('[BORROW REQUEST] Could not fetch user fallback details:', uErr.message);
+        }
+      }
+
       const requestData = {
         request_id,
         student_id: data.student_id,
         home_school_id: data.home_school_id,
         request_type: data.request_type || 'HOME',
         status: 'pending',
-        purpose: data.purpose ? data.purpose.substring(0, 500) : null, // Truncate to 500 chars
-        contact_number: data.contact_number,
-        address: data.address,
-        id_picture_url: data.id_picture_url,
+        purpose: data.purpose ? data.purpose.substring(0, 500) : 'Academic Study & Research',
+        contact_number: contactNumber,
+        address: studentAddress,
+        id_picture_url: resolvedIdPic,
         qr_token: null, // Will be set after approval
         permission_letter_generated: false,
       };
@@ -218,7 +246,7 @@ class BorrowRequest {
         .from('borrow_requests')
         .select(`
           *,
-          student:student_id(firstname, lastname, student_number, email, contact_number, profile_image),
+          student:student_id(firstname, lastname, student_number, email, contact_number, address, id_card_picture, profile_image),
           home_school:home_school_id(school_name, school_code),
           items:borrow_request_items(
             *,
@@ -271,7 +299,7 @@ class BorrowRequest {
         .from('borrow_requests')
         .select(`
           *,
-          student:student_id(firstname, lastname, student_number, email, profile_image),
+          student:student_id(firstname, lastname, student_number, email, contact_number, address, id_card_picture, profile_image),
           home_school:home_school_id(school_name, school_code),
           items:borrow_request_items(
             *,
@@ -374,7 +402,7 @@ class BorrowRequest {
         .from('borrow_requests')
         .select(`
           *,
-            student:student_id(firstname, lastname, student_number, email, contact_number, profile_image),
+            student:student_id(firstname, lastname, student_number, email, contact_number, address, id_card_picture, profile_image),
           home_school:home_school_id(school_name, school_code),
           items:borrow_request_items(
             *,
@@ -436,7 +464,7 @@ class BorrowRequest {
 
       const { data: student, error: studentError } = await supabase
         .from('users')
-        .select('firstname, lastname, student_number, email, contact_number, profile_image')
+        .select('firstname, lastname, student_number, email, contact_number, address, id_card_picture, profile_image')
         .eq('user_id', request.student_id)
         .maybeSingle();
       if (studentError) throw studentError;

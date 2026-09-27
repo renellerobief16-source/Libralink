@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Book,
   User,
@@ -9,723 +9,733 @@ import {
   X,
   CheckCircle,
   Clock,
-  ChevronRight,
   ChevronLeft,
   ShieldCheck,
   Building2,
   Calendar,
   UploadCloud,
+  Maximize2,
+  Edit2,
+  Sparkles,
+  ShoppingBag,
+  ExternalLink,
+  GraduationCap,
+  BadgeCheck,
+  Eye,
 } from "lucide-react";
 import { useNotifications } from "../../../context/NotificationContext";
-import api from "../../../utils/api";
+import api, { getBackendAssetUrl, getBookById } from "../../../utils/api";
 import CartBookCover from "./CartBookCover";
+import BookDetailsModal from "../../common/BookDetailsModal";
 
-function StudentBorrowingForm({ borrowingList, onSubmit, onCancel, userData, compact = false }) {
+const PURPOSE_PRESETS = [
+  "Academic Study & Research",
+  "Thesis & Capstone Project",
+  "Coursework & Class Assignment",
+  "Exam & Licensure Review",
+  "General Reading",
+];
+
+function getSafeImageUrl(path) {
+  if (!path) return "";
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:")) {
+    return path;
+  }
+  return getBackendAssetUrl(path);
+}
+
+function StudentBorrowingForm({
+  borrowingList = [],
+  onSubmit,
+  onCancel,
+  onClose,
+  userData: propUserData,
+  compact = false,
+}) {
   const { addNotification } = useNotifications();
+  const handleCancelClick = onCancel || onClose;
 
-  // 3-step state: 1 = Books & Type, 2 = Personal Details, 3 = Review & Submit
-  const [currentStep, setCurrentStep] = useState(1);
-
-  const [formData, setFormData] = useState({
-    first_name: userData?.first_name || userData?.firstname || userData?.name || '',
-    middle_name: '',
-    last_name: userData?.last_name || userData?.lastname || '',
-    address: userData?.address || '',
-    contact_number: userData?.contact_number || userData?.cellphone || '',
-    purpose: '',
-    id_picture: null,
+  // 1. Resolve student patron profile
+  const [profile, setProfile] = useState(() => {
+    try {
+      const stored = localStorage.getItem("currentUser");
+      const parsed = stored ? JSON.parse(stored) : null;
+      return { ...(parsed || {}), ...(propUserData || {}) };
+    } catch {
+      return propUserData || {};
+    }
   });
 
-  const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [previewImage, setPreviewImage] = useState(null);
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  // 2. Resolve scanned ID card picture
+  const [idCardUrl, setIdCardUrl] = useState(() => {
+    const uId = profile?.user_id || profile?.id || localStorage.getItem("currentUserId");
+    const cachedIdCard = uId ? localStorage.getItem(`libralink_id_card_${uId}`) : null;
+    const raw = profile?.id_card_picture || cachedIdCard || "";
+    return raw ? getSafeImageUrl(raw) : "";
+  });
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: '' }));
+  const [zoomIdModal, setZoomIdModal] = useState(false);
+  const [selectedBookForDetails, setSelectedBookForDetails] = useState(null);
+  const [isEditingContact, setIsEditingContact] = useState(false);
+
+  // Form Fields
+  const [contactNumber, setContactNumber] = useState(
+    profile?.contact_number || profile?.contactNumber || profile?.cellphone || ""
+  );
+  const [address, setAddress] = useState(
+    profile?.address || localStorage.getItem("studentAddress") || ""
+  );
+  const [selectedPurpose, setSelectedPurpose] = useState("Academic Study & Research");
+  const [customPurposeNote, setCustomPurposeNote] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(true);
+
+  // Fallback manual upload if no ID card is on file
+  const [fallbackFile, setFallbackFile] = useState(null);
+  const [fallbackPreview, setFallbackPreview] = useState(null);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  // Live profile synchronization on mount
+  useEffect(() => {
+    let isMounted = true;
+    api
+      .get("/auth/me")
+      .then((res) => {
+        if (!isMounted || !res?.data?.user) return;
+        const liveUser = res.data.user;
+        setProfile((prev) => ({ ...prev, ...liveUser }));
+
+        if (liveUser.contact_number && !contactNumber) {
+          setContactNumber(liveUser.contact_number);
+        }
+        if (liveUser.address && !address) {
+          setAddress(liveUser.address);
+        }
+
+        const liveCard = liveUser.id_card_picture;
+        if (liveCard) {
+          const formatted = getSafeImageUrl(liveCard);
+          setIdCardUrl(formatted);
+          const uId = liveUser.user_id || liveUser.id;
+          if (uId) {
+            try {
+              localStorage.setItem(`libralink_id_card_${uId}`, formatted);
+            } catch (_) {}
+          }
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const studentFullName =
+    profile?.name ||
+    `${profile?.first_name || profile?.firstname || ""} ${
+      profile?.last_name || profile?.lastname || ""
+    }`.trim() ||
+    "Student Borrower";
+
+  const studentNumber =
+    profile?.student_number || profile?.studentNumber || profile?.user_id || "N/A";
+  const studentCourse =
+    profile?.course || profile?.program || profile?.department || "Undergraduate Studies";
+  const studentCampus =
+    profile?.school_name || profile?.schoolName || profile?.school_code || "Main Campus Library";
+
+  const handleOpenBookDetails = async (bookItem) => {
+    if (!bookItem) return;
+    const resolvedId = Number(bookItem.book_id || bookItem.id);
+    setSelectedBookForDetails(bookItem);
+
+    if (resolvedId && !isNaN(resolvedId)) {
+      try {
+        const { data } = await getBookById(resolvedId);
+        if (data) {
+          setSelectedBookForDetails((prev) => ({ ...(prev || {}), ...data }));
+        }
+      } catch (err) {
+        console.warn("Could not load full book details for preview:", err);
+      }
     }
   };
 
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
+  const handleManualImageChange = (e) => {
+    const file = e.target.files?.[0];
     if (file) {
-      if (!file.type.startsWith('image/')) {
-        setErrors((prev) => ({ ...prev, id_picture: 'Please upload a valid image file' }));
+      if (!file.type.startsWith("image/")) {
+        setErrorMessage("Please select a valid image file (PNG, JPG, WebP).");
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
-        setErrors((prev) => ({ ...prev, id_picture: 'Image must be less than 5MB' }));
+        setErrorMessage("Image must be smaller than 5MB.");
         return;
       }
-
-      setFormData((prev) => ({ ...prev, id_picture: file }));
-      setPreviewImage(URL.createObjectURL(file));
-      setErrors((prev) => ({ ...prev, id_picture: '' }));
+      setFallbackFile(file);
+      setFallbackPreview(URL.createObjectURL(file));
+      setErrorMessage("");
     }
   };
 
-  const validateStep2 = () => {
-    const newErrors = {};
-
-    if (!formData.first_name.trim()) {
-      newErrors.first_name = 'First name is required';
-    }
-    if (!formData.last_name.trim()) {
-      newErrors.last_name = 'Last name is required';
-    }
-    if (!formData.address.trim()) {
-      newErrors.address = 'Address is required';
-    }
-    if (!formData.contact_number.trim()) {
-      newErrors.contact_number = 'Contact number is required';
-    } else if (!/^[0-9+\-\s()]+$/.test(formData.contact_number)) {
-      newErrors.contact_number = 'Invalid contact number format';
-    }
-    if (!formData.purpose.trim()) {
-      newErrors.purpose = 'Purpose of borrowing is required';
-    }
-    if (!formData.id_picture) {
-      newErrors.id_picture = 'ID picture is required';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleNext = () => {
-    if (currentStep === 1) {
-      setCurrentStep(2);
-    } else if (currentStep === 2) {
-      if (validateStep2()) {
-        setCurrentStep(3);
-      }
-    }
-  };
-
-  const handlePrev = () => {
-    if (currentStep > 1) {
-      setCurrentStep((prev) => prev - 1);
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!validateStep2()) {
-      setCurrentStep(2);
-      return;
-    }
+  const handleSubmitCheckout = async (e) => {
+    if (e) e.preventDefault();
+    setErrorMessage("");
 
     if (!agreedToTerms) {
-      setErrors((prev) => ({ ...prev, terms: 'Please confirm that your submitted details are accurate' }));
+      setErrorMessage("Please confirm and accept the library borrowing policy.");
       return;
     }
+
+    if (!borrowingList || borrowingList.length === 0) {
+      setErrorMessage("Your checkout list is empty. Please select at least one book.");
+      return;
+    }
+
+    // Resolve book items
+    const items = borrowingList.map((item) => {
+      const rawId = item.book_id ?? item.id ?? item.book?.id ?? item.book?.book_id;
+      return {
+        book_id: Number(rawId),
+        owner_school_id: Number(item.owner_school_id || item.school_id),
+        partner_school_id: item.partner_school_id ? Number(item.partner_school_id) : null,
+        borrow_type: item.borrow_type || "HOME",
+      };
+    });
+
+    const hasInvalid = items.some(
+      (it) => !it.book_id || isNaN(it.book_id) || it.book_id <= 0
+    );
+    if (hasInvalid) {
+      setErrorMessage("One or more selected books have invalid ID data. Please refresh and try again.");
+      return;
+    }
+
+    const hasInterSchoolItems = items.some(
+      (item) => item.borrow_type === "INTER_SCHOOL_LIBRARY_USE"
+    );
+    const requestType = hasInterSchoolItems ? "INTER_SCHOOL" : "HOME";
 
     setIsSubmitting(true);
 
     try {
-      let idPictureUrl = '';
-      if (formData.id_picture instanceof File) {
-        const formDataUpload = new FormData();
-        formDataUpload.append('id_picture', formData.id_picture);
+      let resolvedIdPicUrl = profile?.id_card_picture || "";
 
+      // If user uploaded a new manual file fallback
+      if (fallbackFile instanceof File) {
         try {
-          const uploadResponse = await api.post('/users/borrowing-id', formDataUpload, {
-            headers: { 'Content-Type': 'multipart/form-data' },
+          const formDataUpload = new FormData();
+          formDataUpload.append("id_picture", fallbackFile);
+          const uploadRes = await api.post("/users/borrowing-id", formDataUpload, {
+            headers: { "Content-Type": "multipart/form-data" },
           });
-          idPictureUrl = uploadResponse.id_picture_url || uploadResponse.data?.id_picture_url || '';
-        } catch (uploadError) {
-          console.error('Error uploading ID picture:', uploadError);
-          throw new Error(uploadError.message || 'Failed to upload ID picture. Please try again.');
+          resolvedIdPicUrl = uploadRes.id_picture_url || uploadRes.data?.id_picture_url || "";
+        } catch (uploadErr) {
+          console.warn("Manual ID upload failed, falling back to profile ID card:", uploadErr);
         }
-      } else {
-        throw new Error('ID picture is required');
       }
 
-      const hasInterSchoolItems = borrowingList.some(
-        (item) => item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE'
-      );
-      const requestType = hasInterSchoolItems ? 'INTER_SCHOOL' : 'HOME';
+      // Combine purpose preset with any custom note
+      const finalPurpose = customPurposeNote.trim()
+        ? `${selectedPurpose}: ${customPurposeNote.trim()}`
+        : selectedPurpose;
 
-      const items = borrowingList.map((item) => {
-        const rawId = item.book_id ?? item.id ?? item.book?.id ?? item.book?.book_id;
-        const resolvedBookId = Number(rawId);
-        return {
-          book_id: resolvedBookId,
-          owner_school_id: Number(item.owner_school_id || item.school_id),
-          partner_school_id: item.partner_school_id ? Number(item.partner_school_id) : null,
-          borrow_type: item.borrow_type || 'HOME',
-        };
-      });
-
-      // Strict upfront check: ensure no null/NaN/0 book_id reaches the server
-      const hasInvalidItem = items.some((it) => !it.book_id || isNaN(it.book_id) || it.book_id <= 0);
-      if (hasInvalidItem) {
-        throw new Error('One or more selected books have invalid ID data. Please refresh and re-select the books.');
-      }
-
-      const requestData = {
+      const requestPayload = {
         request_type: requestType,
-        purpose: formData.purpose,
-        contact_number: formData.contact_number,
-        address: formData.address,
-        id_picture_url: idPictureUrl,
+        purpose: finalPurpose,
+        contact_number: contactNumber || profile?.contact_number || null,
+        address: address || profile?.address || null,
+        id_picture_url: resolvedIdPicUrl || null,
         items,
       };
 
-      try {
-        const response = await api.post('/borrow-requests', requestData);
+      const response = await api.post("/borrow-requests", requestPayload);
 
-        addNotification({
-          type: 'BORROW_REQUEST_SUBMITTED',
-          title: 'Request Submitted Successfully',
-          message: `Your borrowing request for ${borrowingList.length} book(s) has been submitted. Please wait for librarian approval.`,
-          related_request_id: response.data?.data?.request_id || response.data?.request_id,
-        });
+      addNotification({
+        type: "BORROW_REQUEST_SUBMITTED",
+        title: "Borrow Request Placed! 📚",
+        message: `Your borrowing request for ${borrowingList.length} book(s) has been submitted for librarian review.`,
+        related_request_id: response.data?.data?.request_id || response.data?.request_id,
+      });
 
-        if (onSubmit) {
-          onSubmit(response);
-        }
-      } catch (apiError) {
-        console.error('API Error details:', apiError);
-        let errorMessage = 'Failed to submit borrowing request';
-        if (apiError.response?.data?.message) {
-          errorMessage = apiError.response.data.message;
-        } else if (apiError.response?.data?.error) {
-          errorMessage = apiError.response.data.error;
-        } else if (apiError.message) {
-          errorMessage = apiError.message;
-        }
+      const responseEnvelope = {
+        success: response?.success ?? true,
+        data: response?.data || response,
+        message: response?.message || "Borrowing request submitted successfully",
+        request_id: response?.data?.request_id || response?.request_id,
+        ...response,
+      };
 
-        setErrors((prev) => ({
-          ...prev,
-          submit: errorMessage,
-        }));
+      if (onSubmit) {
+        onSubmit(responseEnvelope);
       }
-    } catch (error) {
-      console.error('Error submitting borrowing request:', error);
-      let errorMessage = 'Failed to submit borrowing request';
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-
-      setErrors((prev) => ({
-        ...prev,
-        submit: errorMessage,
-      }));
+    } catch (err) {
+      console.error("Error submitting borrow request:", err);
+      const apiMsg =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        err.message ||
+        "Unable to submit borrowing request. Please try again.";
+      setErrorMessage(apiMsg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const getBorrowTypeSummary = () => {
-    const homeItems = borrowingList.filter((item) => item.borrow_type === 'HOME').length;
-    const interSchoolItems = borrowingList.filter(
-      (item) => item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE'
-    ).length;
-
-    if (homeItems > 0 && interSchoolItems > 0) {
-      return `${homeItems} Home, ${interSchoolItems} Inter-School`;
-    } else if (interSchoolItems > 0) {
-      return `${interSchoolItems} Inter-School (Library Use Only)`;
-    } else {
-      return `${homeItems} Home Library`;
-    }
-  };
-
-  const steps = [
-    { num: 1, label: 'Items & Source' },
-    { num: 2, label: 'Personal Info' },
-    { num: 3, label: 'Review & Send' },
-  ];
+  const homeCount = borrowingList.filter((b) => b.borrow_type !== "INTER_SCHOOL_LIBRARY_USE").length;
+  const interSchoolCount = borrowingList.filter((b) => b.borrow_type === "INTER_SCHOOL_LIBRARY_USE").length;
 
   return (
-    <div className={`${compact ? 'min-w-0 text-sm' : 'rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm'}`}>
-      {/* Compact Back Bar for Book Details Drawer */}
-      {compact && onCancel && (
-        <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+    <div
+      className={`${
+        compact
+          ? "min-w-0 text-sm"
+          : "mx-auto max-w-4xl rounded-3xl border border-slate-200/90 bg-slate-50/60 p-4 sm:p-6 shadow-sm"
+      }`}
+    >
+      {/* Shopee-style Decorative Top Border Ribbon */}
+      <div className="h-1.5 w-full rounded-full bg-gradient-to-r from-blue-600 via-indigo-500 to-sky-400 mb-4" />
+
+      {/* Header Bar */}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md shadow-blue-500/20">
+            <ShoppingBag className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">
+                Borrowing Checkout
+              </h2>
+              <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-bold text-blue-700">
+                {borrowingList.length} {borrowingList.length === 1 ? "Book" : "Books"}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500">
+              Review your patron details and selected items before sending to library circulation.
+            </p>
+          </div>
+        </div>
+
+        {handleCancelClick && (
           <button
             type="button"
-            onClick={onCancel}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 hover:text-slate-900"
+            onClick={handleCancelClick}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-2xs hover:bg-slate-50 hover:text-slate-900 transition"
           >
-            <ChevronLeft className="h-3.5 w-3.5" />
-            <span>Back to Book Details</span>
+            <ChevronLeft className="h-4 w-4" />
+            <span>Back to Books</span>
           </button>
-          <span className="text-[11px] font-medium text-slate-400">
-            Step {currentStep} of 3
-          </span>
+        )}
+      </div>
+
+      {errorMessage && (
+        <div className="mb-5 flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-rose-50 p-3.5 text-xs text-rose-800">
+          <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
+          <div className="flex-1 font-medium">{errorMessage}</div>
+          <button
+            type="button"
+            onClick={() => setErrorMessage("")}
+            className="text-rose-500 hover:text-rose-800"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
 
-      {/* Stepper Header */}
-      <div className="mb-5 border-b border-slate-100 pb-4">
-        <div className="flex items-center justify-between gap-2 px-1">
-          {steps.map((step, idx) => (
-            <div key={step.num} className="flex flex-1 items-center">
+      <form onSubmit={handleSubmitCheckout} className="space-y-4">
+        {/* ================= 1. PATRON / BORROWER INFO CARD (Shopee Delivery Address Banner) ================= */}
+        <div className="relative overflow-hidden rounded-2xl border border-blue-200/90 bg-white p-4 sm:p-5 shadow-xs">
+          {/* Subtle Shopee-style diagonal pattern header banner */}
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-blue-700 uppercase tracking-wider">
+              <MapPin className="h-4 w-4 text-blue-600" />
+              <span>Borrower & Circulation Records</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsEditingContact(!isEditingContact)}
+              className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 transition"
+            >
+              <Edit2 className="h-3.5 w-3.5" />
+              <span>{isEditingContact ? "Done Editing" : "Change Contact / Address"}</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
+            {/* Student Identity Meta */}
+            <div className="space-y-1.5">
               <div className="flex items-center gap-2">
-                <div
-                  className={`flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all ${
-                    currentStep === step.num
-                      ? 'bg-blue-600 text-white ring-4 ring-blue-100 shadow-sm'
-                      : currentStep > step.num
-                      ? 'bg-emerald-500 text-white'
-                      : 'bg-slate-100 text-slate-400'
-                  }`}
-                >
-                  {currentStep > step.num ? <CheckCircle className="h-4 w-4" /> : step.num}
-                </div>
-                <div className="hidden sm:block">
-                  <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400 leading-none">Step {step.num}</p>
-                  <p className={`text-xs font-semibold ${currentStep === step.num ? 'text-slate-900' : 'text-slate-500'}`}>{step.label}</p>
-                </div>
+                <span className="font-extrabold text-sm text-slate-900">{studentFullName}</span>
+                <span className="rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200/70 px-1.5 py-0.5 text-[10px] font-bold flex items-center gap-1">
+                  <BadgeCheck className="h-3 w-3 text-emerald-600" />
+                  Verified
+                </span>
               </div>
-              {idx < steps.length - 1 && (
-                <div
-                  className={`mx-2 h-0.5 flex-1 rounded-full transition-all ${
-                    currentStep > step.num ? 'bg-emerald-500' : 'bg-slate-200'
-                  }`}
-                />
+
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-600 text-[11px]">
+                <span className="flex items-center gap-1 font-mono text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">
+                  ID: <strong>{studentNumber}</strong>
+                </span>
+                <span className="flex items-center gap-1 font-medium text-slate-700">
+                  <GraduationCap className="h-3.5 w-3.5 text-indigo-500" />
+                  {studentCourse}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5 text-slate-600 text-[11px]">
+                <Building2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                <span className="truncate">{studentCampus}</span>
+              </div>
+            </div>
+
+            {/* Contact & Address (Live or Editable) */}
+            <div className="space-y-2 border-t sm:border-t-0 sm:border-l sm:border-slate-100 sm:pl-4 pt-2 sm:pt-0">
+              {isEditingContact ? (
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase">Contact Phone</label>
+                    <input
+                      type="text"
+                      value={contactNumber}
+                      onChange={(e) => setContactNumber(e.target.value)}
+                      placeholder="e.g. 09123456789"
+                      className="mt-0.5 w-full rounded-xl border border-slate-300 px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase">Delivery / Residential Address</label>
+                    <input
+                      type="text"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="e.g. Guagua, Pampanga"
+                      className="mt-0.5 w-full rounded-xl border border-slate-300 px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 text-slate-700">
+                    <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <span className="font-semibold text-slate-900">{contactNumber || "No phone number set"}</span>
+                  </div>
+                  <div className="flex items-start gap-2 text-slate-600">
+                    <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
+                    <span className="line-clamp-2">{address || "No address on record (using campus library desk)"}</span>
+                  </div>
+                </div>
               )}
             </div>
-          ))}
+          </div>
         </div>
-      </div>
 
-      <form onSubmit={handleSubmit}>
-        {/* ================= STEP 1: BOOKS & SOURCES ================= */}
-        {currentStep === 1 && (
-          <div className="space-y-4 animate-fadeIn">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Step 1: Confirm Borrowing Books</h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Review the {borrowingList.length} book(s) you are requesting.
-              </p>
+        {/* ================= 2. ORDER ITEMS / BOOKS SUMMARY (Shopee Cart Items) ================= */}
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+            <div className="flex items-center gap-2">
+              <Book className="h-4 w-4 text-blue-600" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                Selected Books for Borrowing ({borrowingList.length})
+              </h3>
             </div>
-
-            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-              {borrowingList.map((item, index) => {
-                const isInterSchool = item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE';
-                return (
-                  <div
-                    key={item.book_id || index}
-                    className="flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/50 p-3 transition hover:border-blue-200"
-                  >
-                    <CartBookCover book={item} className="h-14 w-10 shrink-0" />
-
-                    <div className="min-w-0 flex-1">
-                      <h4 className="line-clamp-1 text-xs font-bold text-slate-900">{item.title}</h4>
-                      <p className="line-clamp-1 text-[11px] text-slate-500">{item.author}</p>
-                      
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                        <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                          <Building2 className="h-3 w-3 text-blue-600" />
-                          <span className="truncate max-w-[130px]">{item.owner_school_name || 'Home Library'}</span>
-                        </span>
-
-                        <span
-                          className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold ${
-                            isInterSchool
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-emerald-100 text-emerald-800'
-                          }`}
-                        >
-                          {isInterSchool ? 'Inter-School (In-Library Use)' : 'Home Loan (Take Home)'}
-                        </span>
-
-                        {isInterSchool && Number(item.visiting_fee) > 0 ? (
-                          <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[9px] font-extrabold text-amber-900 border border-amber-300">
-                            Fee: ₱{Number(item.visiting_fee).toFixed(2)} / {item.visiting_fee_type === 'per_day' ? 'Day' : 'Visit'}
-                          </span>
-                        ) : isInterSchool ? (
-                          <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800 border border-emerald-200">
-                            Free Partner Access
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="flex items-center gap-2">
+              {homeCount > 0 && (
+                <span className="rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/70 px-2 py-0.5 text-[10px] font-bold">
+                  {homeCount} Home Loan
+                </span>
+              )}
+              {interSchoolCount > 0 && (
+                <span className="rounded-md bg-amber-50 text-amber-800 border border-amber-200/70 px-2 py-0.5 text-[10px] font-bold">
+                  {interSchoolCount} Partner Library
+                </span>
+              )}
             </div>
+          </div>
 
-            {/* Inter-School & Visiting Fee Notice */}
-            {borrowingList.some((item) => item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE') && (() => {
-              const partnerItems = borrowingList.filter((item) => item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE');
-              const paidItems = partnerItems.filter((item) => Number(item.visiting_fee) > 0);
-              const hasFee = paidItems.length > 0;
-
+          <div className="space-y-2.5 divide-y divide-slate-100/80">
+            {borrowingList.map((item, idx) => {
+              const isInterSchool = item.borrow_type === "INTER_SCHOOL_LIBRARY_USE";
               return (
-                <div className={`rounded-2xl border p-3.5 space-y-2.5 ${hasFee ? 'border-amber-200 bg-amber-50/90 text-amber-900' : 'border-blue-100 bg-blue-50/70 text-blue-900'}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className={`h-4 w-4 shrink-0 ${hasFee ? 'text-amber-600' : 'text-blue-600'}`} />
-                      <span className="text-xs font-bold">
-                        {hasFee ? 'Partner Campus Visiting Fee & Entry Terms' : 'Inter-Library Reading Room Policy'}
-                      </span>
-                    </div>
-                    {hasFee ? (
-                      <span className="rounded-full bg-amber-200/90 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-900 border border-amber-300 shrink-0">
-                        ₱{Number(paidItems[0].visiting_fee).toFixed(2)} / {paidItems[0].visiting_fee_type === 'per_day' ? 'Day' : 'Visit'}
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200 shrink-0">
-                        Free Consortium Entry
-                      </span>
-                    )}
+                <div
+                  key={item.book_id || idx}
+                  className="pt-2.5 first:pt-0 flex items-start gap-3.5 group"
+                >
+                  <div className="h-16 w-12 sm:h-20 sm:w-14 shrink-0 rounded-xl overflow-hidden border border-slate-200/90 shadow-2xs bg-slate-100">
+                    <CartBookCover book={item} className="h-full w-full object-cover" />
                   </div>
 
-                  <p className="text-xs leading-relaxed">
-                    {partnerItems[0].visiting_policy_notes ||
-                      (hasFee
-                        ? `A visitor access fee of ₱${Number(paidItems[0].visiting_fee).toFixed(2)} applies for on-site reading privileges. Please present your student ID and request confirmation upon arrival.`
-                        : `Visiting students may read this book on-site inside the owning school's library premises. An electronic QR permit will be issued upon approval.`)}
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <h4 
+                          onClick={() => handleOpenBookDetails(item)}
+                          className="text-xs sm:text-sm font-bold text-slate-900 hover:text-blue-600 transition-colors line-clamp-1 cursor-pointer"
+                          title="Click to view full details"
+                        >
+                          {item.title}
+                        </h4>
+                        <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{item.author}</p>
+                      </div>
 
-                  {hasFee && (
-                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 pt-1.5 border-t border-amber-200/60">
-                      <ShieldCheck className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                      <span>Fee is payable directly at {partnerItems[0].owner_school_name || 'the partner campus'} library reception desk.</span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenBookDetails(item)}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50/80 hover:bg-blue-100 px-2.5 py-1 rounded-lg border border-blue-200/60 transition shadow-2xs shrink-0 cursor-pointer"
+                        title="View complete book information & library record"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        <span>View</span>
+                      </button>
                     </div>
-                  )}
+
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700 bg-slate-100/80 px-2 py-0.5 rounded-md border border-slate-200/70">
+                        <Building2 className="h-3 w-3 text-blue-600" />
+                        <span className="truncate max-w-[140px]">
+                          {item.owner_school_name || item.school_name || "Home Campus Library"}
+                        </span>
+                      </span>
+
+                      <span
+                        className={`rounded-md px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                          isInterSchool
+                            ? "bg-amber-100 text-amber-800 border border-amber-200"
+                            : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                        }`}
+                      >
+                        {isInterSchool ? "Inter-School Reading Room" : "Home Loan (Take-Home)"}
+                      </span>
+
+                      {isInterSchool && Number(item.visiting_fee) > 0 && (
+                        <span className="rounded-md bg-amber-100 text-amber-900 px-1.5 py-0.5 text-[9px] font-extrabold border border-amber-300">
+                          Fee: ₱{Number(item.visiting_fee).toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               );
-            })()}
-
-            <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-              <button
-                type="button"
-                onClick={onCancel}
-                className="rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={handleNext}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm shadow-blue-600/20 transition hover:bg-blue-700 active:scale-[0.98]"
-              >
-                <span>Continue to Your Details</span>
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
+            })}
           </div>
-        )}
+        </div>
 
-        {/* ================= STEP 2: PERSONAL INFO ================= */}
-        {currentStep === 2 && (
-          <div className="space-y-3.5 animate-fadeIn">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Step 2: Borrower Verification Details</h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Ensure your contact information is correct for notification.
-              </p>
+        {/* ================= 3. INSTITUTIONAL ID CARD (Auto-Attached Verification) ================= */}
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                Official Institutional ID Attached
+              </h3>
             </div>
+            <span className="text-[10px] font-semibold text-slate-400">
+              Auto-verified with Librarian Scanner
+            </span>
+          </div>
 
-            {/* Name Fields */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  First Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="first_name"
-                  value={formData.first_name}
-                  onChange={handleChange}
-                  className={`w-full rounded-xl border bg-white px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none ${
-                    errors.first_name ? 'border-red-300' : 'border-slate-200'
-                  }`}
-                  placeholder="Juan"
-                />
-                {errors.first_name && <p className="text-[10px] text-red-500 mt-0.5">{errors.first_name}</p>}
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Middle Name</label>
-                <input
-                  type="text"
-                  name="middle_name"
-                  value={formData.middle_name}
-                  onChange={handleChange}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="Dela"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  Last Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="last_name"
-                  value={formData.last_name}
-                  onChange={handleChange}
-                  className={`w-full rounded-xl border bg-white px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none ${
-                    errors.last_name ? 'border-red-300' : 'border-slate-200'
-                  }`}
-                  placeholder="Cruz"
-                />
-                {errors.last_name && <p className="text-[10px] text-red-500 mt-0.5">{errors.last_name}</p>}
-              </div>
-            </div>
-
-            {/* Contact & Address */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  Contact Number <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="tel"
-                    name="contact_number"
-                    value={formData.contact_number}
-                    onChange={handleChange}
-                    className={`w-full rounded-xl border bg-white pl-8 pr-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none ${
-                      errors.contact_number ? 'border-red-300' : 'border-slate-200'
-                    }`}
-                    placeholder="+63 912 345 6789"
-                  />
-                </div>
-                {errors.contact_number && <p className="text-[10px] text-red-500 mt-0.5">{errors.contact_number}</p>}
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  Current Address <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="text"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    className={`w-full rounded-xl border bg-white pl-8 pr-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none ${
-                      errors.address ? 'border-red-300' : 'border-slate-200'
-                    }`}
-                    placeholder="Barangay, Municipality"
-                  />
-                </div>
-                {errors.address && <p className="text-[10px] text-red-500 mt-0.5">{errors.address}</p>}
-              </div>
-            </div>
-
-            {/* Purpose */}
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Purpose of Borrowing <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                name="purpose"
-                value={formData.purpose}
-                onChange={handleChange}
-                rows={2}
-                className={`w-full rounded-xl border bg-white p-2.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none resize-none ${
-                  errors.purpose ? 'border-red-300' : 'border-slate-200'
-                }`}
-                placeholder="E.g. Thesis research, course requirement, exam preparation..."
-              />
-              {errors.purpose && <p className="text-[10px] text-red-500 mt-0.5">{errors.purpose}</p>}
-            </div>
-
-            {/* ID Picture Upload */}
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Student / Government ID <span className="text-red-500">*</span>
-              </label>
+          {idCardUrl || fallbackPreview ? (
+            <div className="flex flex-col sm:flex-row items-center gap-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 p-3">
               <div
-                className={`relative rounded-2xl border-2 border-dashed p-3 text-center transition ${
-                  errors.id_picture ? 'border-red-300 bg-red-50/20' : 'border-slate-200 hover:border-blue-400 bg-slate-50/40'
-                }`}
+                onClick={() => setZoomIdModal(true)}
+                className="relative h-28 w-44 shrink-0 rounded-xl overflow-hidden border border-slate-300 bg-slate-200 shadow-xs cursor-pointer group"
+                title="Click to zoom ID card picture"
               >
-                {previewImage ? (
-                  <div className="relative inline-block">
-                    <img
-                      src={previewImage}
-                      alt="ID Preview"
-                      className="max-h-28 rounded-lg object-contain shadow-xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFormData((prev) => ({ ...prev, id_picture: null }));
-                        setPreviewImage(null);
-                      }}
-                      className="absolute -right-2 -top-2 rounded-full bg-rose-500 p-1 text-white shadow hover:bg-rose-600"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    <UploadCloud className="mx-auto h-7 w-7 text-blue-500 mb-1" />
-                    <p className="text-xs font-semibold text-slate-700">Click or drag student ID here</p>
-                    <p className="text-[10px] text-slate-400">PNG, JPG up to 5MB</p>
-                  </div>
-                )}
+                <img
+                  src={fallbackPreview || idCardUrl}
+                  alt="Scanned Institutional Student ID"
+                  className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-200"
+                />
+                <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold gap-1">
+                  <Maximize2 className="h-3.5 w-3.5" />
+                  <span>Click to zoom</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5 text-xs min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-emerald-700 font-bold">
+                  <BadgeCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>Official Scanned ID on File</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  This physical ID was scanned during library registration. Librarians will match this photo at the circulation counter when approving and releasing your book.
+                </p>
+                <p className="text-[10px] text-slate-400 font-mono">
+                  Linked to Student ID: {studentNumber}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-3.5 space-y-3">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-900">
+                  <p className="font-bold">No Librarian-Scanned ID Card on Record Yet</p>
+                  <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                    You can still submit your borrow request! The librarian will verify your student ID card physically at the counter upon book release. You may also attach a clear photo of your school ID below:
+                  </p>
+                </div>
+              </div>
+
+              <div className="relative rounded-xl border-2 border-dashed border-amber-300 bg-white/80 p-3 text-center hover:border-amber-400 transition cursor-pointer">
+                <UploadCloud className="h-6 w-6 text-amber-600 mx-auto mb-1" />
+                <p className="text-xs font-semibold text-slate-700">
+                  {fallbackFile ? fallbackFile.name : "Optional: Click or drag student ID photo here"}
+                </p>
+                <p className="text-[10px] text-slate-400">PNG, JPG up to 5MB</p>
                 <input
                   type="file"
-                  name="id_picture"
-                  onChange={handleImageChange}
                   accept="image/*"
-                  className="absolute inset-0 cursor-pointer opacity-0"
+                  onChange={handleManualImageChange}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
                 />
               </div>
-              {errors.id_picture && <p className="text-[10px] text-red-500 mt-0.5">{errors.id_picture}</p>}
             </div>
+          )}
+        </div>
 
-            <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-              <button
-                type="button"
-                onClick={handlePrev}
-                className="inline-flex items-center gap-1 rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                <span>Back</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleNext}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm shadow-blue-600/20 transition hover:bg-blue-700 active:scale-[0.98]"
-              >
-                <span>Review & Confirm</span>
-                <ChevronRight className="h-4 w-4" />
-              </button>
+        {/* ================= 4. BORROWING PURPOSE / NOTES (Shopee Quick Tag Selector) ================= */}
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-blue-600" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                Borrowing Purpose / Note
+              </h3>
             </div>
+            <span className="text-[10px] text-slate-400">1-click quick tags</span>
           </div>
-        )}
 
-        {/* ================= STEP 3: REVIEW & SUBMIT ================= */}
-        {currentStep === 3 && (
-          <div className="space-y-4 animate-fadeIn">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Step 3: Review & Submit Request</h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Verify all details before sending to the library system.
-              </p>
-            </div>
+          <div className="flex flex-wrap gap-1.5">
+            {PURPOSE_PRESETS.map((preset) => {
+              const isSelected = selectedPurpose === preset;
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setSelectedPurpose(preset)}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                    isSelected
+                      ? "bg-blue-600 text-white shadow-2xs shadow-blue-600/30"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
+                >
+                  {preset}
+                </button>
+              );
+            })}
+          </div>
 
-            {/* Receipt-style Card */}
-            <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm space-y-3">
-              <div className="flex items-center justify-between border-b border-dashed border-slate-200 pb-2.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Summary</span>
-                <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold text-blue-700">
-                  {getBorrowTypeSummary()}
-                </span>
-              </div>
+          <input
+            type="text"
+            value={customPurposeNote}
+            onChange={(e) => setCustomPurposeNote(e.target.value)}
+            placeholder="Add optional notes for the librarian (e.g. Chapter 4 reference, Assignment #2)..."
+            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Borrower</span>
-                  <span className="font-semibold text-slate-800">{formData.first_name} {formData.last_name}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Contact</span>
-                  <span className="font-semibold text-slate-800">{formData.contact_number}</span>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Address</span>
-                  <span className="text-slate-700 truncate block">{formData.address}</span>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Purpose</span>
-                  <span className="text-slate-700 italic block">{formData.purpose}</span>
-                </div>
-              </div>
+        {/* ================= 5. RULES & SUBMIT (Shopee Sticky Bottom Action) ================= */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3.5">
+          <label className="flex items-start gap-2.5 select-none cursor-pointer">
+            <input
+              type="checkbox"
+              checked={agreedToTerms}
+              onChange={(e) => setAgreedToTerms(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-xs text-slate-600 leading-relaxed">
+              I agree to the <strong>Libralink Circulation Policy</strong>. I understand that I am responsible for returning all borrowed materials on or before the due date in good condition.
+            </span>
+          </label>
 
-              <div className="border-t border-slate-100 pt-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
-                  Items ({borrowingList.length})
-                </span>
-                <div className="space-y-1">
-                  {borrowingList.map((book) => (
-                    <div key={book.book_id} className="flex items-center justify-between text-xs py-1.5 gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <CartBookCover book={book} className="h-7 w-5 shrink-0 rounded-xs" />
-                        <span className="truncate max-w-[170px] font-medium text-slate-800">{book.title}</span>
-                      </div>
-                      <span className="text-[10px] text-slate-500 shrink-0">{book.owner_school_name || 'Home'}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {borrowingList.some((book) => Number(book.visiting_fee) > 0) && (
-                  <div className="mt-2.5 pt-2 border-t border-dashed border-amber-200 bg-amber-50/70 p-2.5 rounded-xl space-y-1">
-                    <div className="flex items-center justify-between text-xs font-bold text-amber-950">
-                      <span>Visiting Student Fee:</span>
-                      <span className="font-mono text-amber-900">
-                        ₱{Number(borrowingList.find((b) => Number(b.visiting_fee) > 0)?.visiting_fee || 0).toFixed(2)}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-amber-800 leading-relaxed">
-                      {borrowingList.find((b) => Number(b.visiting_fee) > 0)?.visiting_policy_notes || "Payable upon arrival at the partner school's library counter."}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Agreement Checkbox */}
-            <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={agreedToTerms}
-                onChange={(e) => {
-                  setAgreedToTerms(e.target.checked);
-                  if (errors.terms) setErrors((prev) => ({ ...prev, terms: '' }));
-                }}
-                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-xs leading-5 text-slate-700">
-                I hereby declare that all provided details and my uploaded student ID are authentic. I promise to abide by Libralink borrowing rules.
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+            <div className="text-xs">
+              <span className="text-slate-400 block text-[10px] uppercase font-bold">Total Request</span>
+              <span className="text-sm font-extrabold text-slate-900">
+                {borrowingList.length} Book{borrowingList.length !== 1 ? "s" : ""}
               </span>
-            </label>
-            {errors.terms && <p className="text-[10px] text-red-500 mt-0.5">{errors.terms}</p>}
-            {errors.submit && <p className="text-[10px] text-red-500 mt-0.5">{errors.submit}</p>}
+            </div>
 
-            <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-              <button
-                type="button"
-                onClick={handlePrev}
-                disabled={isSubmitting}
-                className="inline-flex items-center gap-1 rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                <span>Back</span>
-              </button>
+            <div className="flex items-center gap-2">
+              {handleCancelClick && (
+                <button
+                  type="button"
+                  onClick={handleCancelClick}
+                  disabled={isSubmitting}
+                  className="rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              )}
 
               <button
                 type="submit"
                 disabled={isSubmitting || !agreedToTerms}
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/25 transition hover:bg-emerald-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-600/25 hover:from-blue-700 hover:to-indigo-700 transition active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
                   <>
                     <Clock className="h-4 w-4 animate-spin" />
-                    <span>Submitting Request...</span>
+                    <span>Placing Request...</span>
                   </>
                 ) : (
                   <>
                     <ShieldCheck className="h-4 w-4" />
-                    <span>Submit Borrow Request</span>
+                    <span>Place Borrow Request</span>
                   </>
                 )}
               </button>
             </div>
           </div>
-        )}
+        </div>
       </form>
+
+      {/* Zoom Modal for Student ID Card */}
+      {zoomIdModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 p-4 backdrop-blur-xs animate-fadeIn"
+          onClick={() => setZoomIdModal(false)}
+        >
+          <div
+            className="relative max-w-lg w-full rounded-2xl bg-white p-4 shadow-2xl space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b pb-2">
+              <h4 className="text-sm font-bold text-slate-900">
+                Student Institutional ID ({studentNumber})
+              </h4>
+              <button
+                type="button"
+                onClick={() => setZoomIdModal(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100 flex items-center justify-center max-h-[70vh]">
+              <img
+                src={fallbackPreview || idCardUrl}
+                alt="Institutional ID Zoom"
+                className="max-h-[65vh] w-auto object-contain rounded-lg"
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 text-center">
+              Verified Student Institutional ID on file for {studentFullName}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Full Book Details Quick-View Modal */}
+      {selectedBookForDetails && (
+        <BookDetailsModal
+          book={selectedBookForDetails}
+          onClose={() => setSelectedBookForDetails(null)}
+        />
+      )}
     </div>
   );
 }

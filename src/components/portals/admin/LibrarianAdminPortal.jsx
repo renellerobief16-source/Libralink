@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { FiHome, FiMail, FiLogOut, FiBook, FiMoon, FiSun, FiUsers, FiList, FiCheckCircle, FiDollarSign, FiSettings, FiActivity, FiChevronDown, FiUser, FiLock, FiGrid, FiAlertOctagon, FiAlertTriangle, FiSliders, FiUserPlus } from "react-icons/fi";
 import { getAdminNotifications, getBackendAssetUrl, signOut } from "../../../utils/api";
 import api from "../../../utils/api";
@@ -13,7 +13,11 @@ const PesoIcon = ({ className }) => (
 
 function LibrarianAdminPortal() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState(() => (typeof window !== "undefined" && window.innerWidth < 1024 ? 'students' : 'home'));
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState(() => {
+    if (location.state?.tab) return location.state.tab;
+    return typeof window !== "undefined" && window.innerWidth < 1024 ? 'students' : 'home';
+  });
   const [darkMode, setDarkMode] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -22,6 +26,14 @@ function LibrarianAdminPortal() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showLogoutConfirmation, setShowLogoutConfirmation] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
+  const [books, setBooks] = useState([]);
+
+  // Sync activeTab when navigated with state (e.g. from Circulation Desk policy modal)
+  useEffect(() => {
+    if (location.state?.tab) {
+      setActiveTab(location.state.tab);
+    }
+  }, [location.state]);
 
   // Keep mobile view confined to the 3 permitted tabs: Registration, Directory, Catalog
   useEffect(() => {
@@ -113,6 +125,15 @@ function LibrarianAdminPortal() {
         if (notificationsResponse.data && Array.isArray(notificationsResponse.data)) {
           setNotifications(notificationsResponse.data);
           setUnreadCount(notificationsResponse.data.filter((n) => !n.read).length);
+        }
+
+        // Fetch books for GlobalHeader search shortcuts
+        try {
+          const booksRes = await api.get(`/books/school?school_id=${schoolId}&group=true`);
+          const booksList = Array.isArray(booksRes.data) ? booksRes.data : (booksRes.data?.books || []);
+          setBooks(booksList);
+        } catch (bookErr) {
+          console.error('Error fetching books for admin header:', bookErr);
         }
 
         // Fetch user info
@@ -377,6 +398,7 @@ function LibrarianAdminPortal() {
             books={books}
             onNavigateTab={(tab) => setActiveTab(tab)}
             onToggleDarkMode={() => setDarkMode(prev => !prev)}
+            onOpenStaffModal={() => setActiveTab('policies')}
             onNotificationClick={handleNotificationClick}
             onProfileClick={handleProfileClick}
             onSettingsClick={handleSettingsClick}
