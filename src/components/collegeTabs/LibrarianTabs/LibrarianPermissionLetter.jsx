@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   FiPrinter, FiFileText, FiUser, FiCalendar, FiBook, FiCheckCircle, 
   FiX, FiSearch, FiArrowRight, FiEdit3, FiFile, FiShare2, FiLayers, 
-  FiShield, FiClock, FiCheck, FiRefreshCw, FiExternalLink
+  FiShield, FiClock, FiCheck, FiRefreshCw, FiExternalLink, FiAlertCircle
 } from 'react-icons/fi';
+import QRCode from 'qrcode';
 import api, { API_ORIGIN } from '../../../utils/api';
 import { formatPhilippineDate, formatPhilippineDateTime, formatRelativeTime } from '../../../utils/timeUtils';
 import Button from '../../ui/Button';
@@ -19,6 +20,7 @@ const LibrarianPermissionLetter = ({ darkMode }) => {
   const [schoolInfo, setSchoolInfo] = useState(null);
   const [recentApprovedRequests, setRecentApprovedRequests] = useState([]);
   const [loadingRecent, setLoadingRecent] = useState(true);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState(null);
   
   // Editable content state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -171,6 +173,21 @@ This credential remains valid from ${todayPHT} through ${validUntilPHT}.`,
         }
       }
       setStudent(studentData);
+
+      // Generate QR code from qr_token (or request_id as fallback)
+      const qrPayload = reqData.qr_token || reqData.request_id;
+      try {
+        const qrDataUrl = await QRCode.toDataURL(qrPayload, {
+          width: 200,
+          margin: 1,
+          color: { dark: '#0f172a', light: '#ffffff' },
+          errorCorrectionLevel: 'H',
+        });
+        setQrCodeDataUrl(qrDataUrl);
+      } catch (qrErr) {
+        console.warn('QR code generation failed:', qrErr);
+        setQrCodeDataUrl(null);
+      }
 
       populateLetterContent(reqData, studentData);
       setLetterGenerated(true);
@@ -486,8 +503,50 @@ This credential remains valid from ${todayPHT} through ${validUntilPHT}.`,
               )}
             </div>
 
+            {/* QR Code Access Credential */}
+            <div className="border border-slate-200 rounded-2xl p-5 bg-slate-50/70">
+              <div className="flex flex-col sm:flex-row gap-5 items-center sm:items-start">
+                {/* QR Code Image */}
+                <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+                  {qrCodeDataUrl ? (
+                    <img
+                      src={qrCodeDataUrl}
+                      alt="Access QR Code"
+                      className="w-28 h-28 rounded-lg border-2 border-slate-800 bg-white p-1"
+                    />
+                  ) : (
+                    <div className="w-28 h-28 rounded-lg border-2 border-dashed border-slate-400 flex items-center justify-center bg-white">
+                      <span className="text-[10px] text-slate-400 text-center px-2">QR Unavailable</span>
+                    </div>
+                  )}
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">SCAN TO VERIFY</span>
+                </div>
+
+                {/* QR Instructions */}
+                <div className="flex-1 space-y-2 text-xs">
+                  <p className="font-black text-slate-900 text-sm uppercase tracking-wide">⬅ Librarian: Scan This QR Code</p>
+                  <p className="text-slate-700 leading-relaxed">
+                    The QR code on this letter must be scanned by the <strong>librarian at the partner library circulation desk</strong> upon the student's arrival. This verifies the request and logs the book access.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <div className="p-2 rounded-xl bg-white border border-slate-200">
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">Reference ID</p>
+                      <p className="font-mono font-bold text-slate-900 text-xs">{borrowRequest?.request_id}</p>
+                    </div>
+                    <div className="p-2 rounded-xl bg-amber-50 border border-amber-200">
+                      <p className="text-[10px] text-amber-600 font-bold uppercase">📦 Return QR</p>
+                      <p className="text-[11px] text-amber-800 font-medium">Sent to student via system on due date</p>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 italic mt-1">
+                    No digital notification is sent to the student upon approval. This physical letter is the sole access credential.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {/* Signatory Block */}
-            <div className="pt-12 grid grid-cols-2 gap-8 text-xs">
+            <div className="pt-8 grid grid-cols-2 gap-8 text-xs">
               <div>
                 <p className="text-slate-400 text-[10px] uppercase font-bold mb-10">Issued and Certified By:</p>
                 <div className="border-t border-slate-800 pt-1">

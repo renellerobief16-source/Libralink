@@ -26,6 +26,9 @@ const idScannerRoutes = require('./routes/idScanner');
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
 
+// Import schedulers
+const { startReturnQrScheduler } = require('./services/returnQrScheduler');
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 const allowedOrigins = [
@@ -101,6 +104,8 @@ app.use(errorHandler);
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV}`);
+  // Start daily scheduler: sends return QR codes to students on their due date
+  startReturnQrScheduler();
 });
 
 module.exports = app;

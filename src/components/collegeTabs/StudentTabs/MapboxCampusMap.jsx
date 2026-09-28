@@ -226,44 +226,123 @@ function createEtaMarkerIcon({ time, dist, travelMode = 'driving' }) {
 }
 
 /* ─── Map Sub-components ─────────────────────────────────────────────── */
-function MapSetup({ center, zoom, sidebarOffset }) {
+function MapViewController({
+  center,
+  zoom = 17,
+  route,
+  sidebarOffset,
+  markerRef,
+  controllerRef,
+  viewMode,
+  setViewMode,
+}) {
   const map = useMap();
-  const ready = useRef(false);
+  const initialZoomDone = useRef(false);
+  const routeFlyTimeout = useRef(null);
 
+  // Compute offset center if sidebar is open on large screens
+  const getOffsetCampusCenter = useCallback(
+    (targetCenter, targetZoom) => {
+      if (!sidebarOffset || typeof window === 'undefined' || window.innerWidth < 1024) {
+        return targetCenter;
+      }
+      const isXl = window.innerWidth >= 1280;
+      const sidebarWidth = isXl ? 520 : 480;
+      const pxOffset = sidebarWidth / 2;
+      try {
+        const pt = map.project(targetCenter, targetZoom).subtract([pxOffset, 0]);
+        return map.unproject(pt, targetZoom);
+      } catch {
+        return targetCenter;
+      }
+    },
+    [map, sidebarOffset]
+  );
+
+  const zoomToCampus = useCallback(
+    (animate = true) => {
+      if (!center) return;
+      const targetZoom = 17;
+      const offsetCenter = getOffsetCampusCenter(center, targetZoom);
+      if (animate) {
+        map.flyTo(offsetCenter, targetZoom, { duration: 1.2, easeLinearity: 0.25 });
+      } else {
+        map.setView(offsetCenter, targetZoom, { animate: false });
+      }
+      if (markerRef.current) {
+        setTimeout(() => {
+          try {
+            markerRef.current.openPopup();
+          } catch {}
+        }, animate ? 600 : 200);
+      }
+      if (setViewMode) setViewMode('campus');
+    },
+    [center, getOffsetCampusCenter, map, markerRef, setViewMode]
+  );
+
+  const zoomToRoute = useCallback(
+    (animate = true) => {
+      if (!route || route.length < 2) return;
+      const isLg = typeof window !== 'undefined' && window.innerWidth >= 1024;
+      const isXl = typeof window !== 'undefined' && window.innerWidth >= 1280;
+      const paddingLeft = sidebarOffset && isLg ? (isXl ? 540 : 500) : 44;
+      const options = {
+        paddingTopLeft: [paddingLeft, 44],
+        paddingBottomRight: [44, 96],
+      };
+      if (animate) {
+        map.flyToBounds(route, { ...options, duration: 1.5, easeLinearity: 0.25 });
+      } else {
+        map.fitBounds(route, { ...options, animate: false });
+      }
+      if (setViewMode) setViewMode('route');
+    },
+    [map, route, sidebarOffset, setViewMode]
+  );
+
+  // Expose controller methods
+  useEffect(() => {
+    if (controllerRef) {
+      controllerRef.current = {
+        zoomToCampus,
+        zoomToRoute,
+      };
+    }
+  }, [controllerRef, zoomToCampus, zoomToRoute]);
+
+  // Initial layout & sizing
   useEffect(() => {
     if (!center) return;
-    // Run multiple invalidations to ensure tiles load after container paint
-    const tasks = [50, 200, 500, 1000].map((ms) =>
+    const tasks = [50, 150, 350, 700].map((ms) =>
       setTimeout(() => {
         map.invalidateSize({ animate: false });
-        if (!ready.current) {
-          map.setView(center, zoom, { animate: false });
-          if (sidebarOffset && typeof window !== 'undefined' && window.innerWidth >= 1024) {
-            // Offset view so campus pin and popup are positioned cleanly in the visible right portion of the map
-            map.panBy([-220, 0], { animate: false });
-          }
-          ready.current = true;
+        if (!initialZoomDone.current) {
+          zoomToCampus(false);
+          initialZoomDone.current = true;
         }
       }, ms)
     );
     return () => tasks.forEach(clearTimeout);
-  }, [center, zoom, map, sidebarOffset]);
+  }, [center, map, zoomToCampus]);
 
-  return null;
-}
-
-function FitRoute({ route, sidebarOffset }) {
-  const map = useMap();
+  // Cinematic zoom-out transition after route is available:
+  // Hold for ~1.2s on campus so the user clearly sees the campus library & popup,
+  // then smoothly fly/zoom out to show the full route!
   useEffect(() => {
-    if (route?.length > 1) {
-      const isLg = typeof window !== 'undefined' && window.innerWidth >= 1024;
-      map.fitBounds(route, {
-        paddingTopLeft: [sidebarOffset && isLg ? 510 : 44, 44],
-        paddingBottomRight: [44, 96],
-        animate: true,
-      });
-    }
-  }, [map, route, sidebarOffset]);
+    if (!route || route.length < 2) return;
+
+    if (routeFlyTimeout.current) clearTimeout(routeFlyTimeout.current);
+
+    routeFlyTimeout.current = setTimeout(() => {
+      zoomToRoute(true);
+    }, 1200);
+
+    return () => {
+      if (routeFlyTimeout.current) clearTimeout(routeFlyTimeout.current);
+    };
+  }, [route, zoomToRoute]);
+
   return null;
 }
 
@@ -277,6 +356,8 @@ export default function MapboxCampusMap({
   sidebarOffset = false,
 }) {
   const markerRef = useRef(null);
+  const mapControllerRef = useRef(null);
+  const [viewMode, setViewMode] = useState('campus'); // 'campus' or 'route'
   const [tileKey, setTileKey] = useState('map');
   const [travelMode, setTravelMode] = useState('driving'); // 'driving' or 'walking'
   const [userLoc, setUserLoc] = useState(null);
@@ -617,8 +698,16 @@ export default function MapboxCampusMap({
             tileSize={tile.tileSize}
             crossOrigin=""
           />
-          <MapSetup center={center} zoom={16} sidebarOffset={sidebarOffset} />
-          {route && <FitRoute route={route} sidebarOffset={sidebarOffset} />}
+          <MapViewController
+            center={center}
+            zoom={17}
+            route={route}
+            sidebarOffset={sidebarOffset}
+            markerRef={markerRef}
+            controllerRef={mapControllerRef}
+            viewMode={viewMode}
+            setViewMode={setViewMode}
+          />
 
           {/* Campus Marker */}
           <Marker
@@ -840,9 +929,13 @@ export default function MapboxCampusMap({
           }`}
         >
           <div className="flex items-start justify-between gap-2">
-            {/* Campus name badge with school logo */}
-            <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/70 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm max-w-[calc(100%-200px)] sm:max-w-[calc(100%-240px)]">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white p-0.5 shadow-2xs">
+            {/* Campus name badge with school logo (Click to zoom into campus) */}
+            <div
+              onClick={() => mapControllerRef.current?.zoomToCampus(true)}
+              className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/70 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm max-w-[calc(100%-200px)] sm:max-w-[calc(100%-240px)] cursor-pointer hover:bg-sky-50/80 hover:border-sky-300 transition-all active:scale-95 group"
+              title="Click to zoom in to campus library"
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white p-0.5 shadow-2xs group-hover:border-sky-400 transition-colors">
                 <img
                   src={logoUrl}
                   alt={name}
@@ -851,7 +944,7 @@ export default function MapboxCampusMap({
                 />
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] font-black text-slate-900 truncate leading-tight">{name}</p>
+                <p className="text-[11px] font-black text-slate-900 truncate leading-tight group-hover:text-sky-700 transition-colors">{name}</p>
                 {(routeInfo || dist) && (
                   <p className="text-[10px] font-semibold text-sky-600 leading-tight mt-0.5">
                     {routeInfo ? `${routeInfo.dist} · ${routeInfo.time}` : dist}
@@ -862,6 +955,38 @@ export default function MapboxCampusMap({
 
             {/* Right controls */}
             <div className="pointer-events-auto flex items-center gap-1.5 mr-12 sm:mr-14">
+              {/* View Mode Toggle: Campus vs Full Route */}
+              {route && (
+                <div className="flex items-center rounded-xl border border-white/70 bg-white/95 p-0.5 shadow-lg backdrop-blur-sm">
+                  <button
+                    type="button"
+                    onClick={() => mapControllerRef.current?.zoomToCampus(true)}
+                    className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10.5px] font-bold transition active:scale-95 ${
+                      viewMode === 'campus'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-blue-600'
+                    }`}
+                    title="Zoom in to Campus Library"
+                  >
+                    <span>📍</span>
+                    <span className="hidden sm:inline">Campus</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => mapControllerRef.current?.zoomToRoute(true)}
+                    className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10.5px] font-bold transition active:scale-95 ${
+                      viewMode === 'route'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-blue-600'
+                    }`}
+                    title="Zoom out to Full Route"
+                  >
+                    <span>🗺️</span>
+                    <span className="hidden sm:inline">Route</span>
+                  </button>
+                </div>
+              )}
+
               {/* Drive / Walk Mode Switcher */}
               <div className="flex items-center rounded-xl border border-white/70 bg-white/95 p-0.5 shadow-lg backdrop-blur-sm">
                 <button
@@ -969,12 +1094,17 @@ export default function MapboxCampusMap({
                 </button>
               </div>
 
-              {/* Inline Live Route Tag */}
+              {/* Inline Live Route Tag (Click to zoom out to route) */}
               {routeInfo ? (
-                <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200/80 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => mapControllerRef.current?.zoomToRoute(true)}
+                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200/80 shrink-0 hover:bg-emerald-100 transition active:scale-95 cursor-pointer"
+                  title="Click to zoom out to full route"
+                >
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   <span>{routeInfo.dist} · {routeInfo.time}</span>
-                </span>
+                </button>
               ) : locating ? (
                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 shrink-0">
                   <Navigation className="h-3 w-3 animate-spin" />

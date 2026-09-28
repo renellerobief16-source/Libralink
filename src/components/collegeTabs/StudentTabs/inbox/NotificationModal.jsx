@@ -15,7 +15,9 @@ import {
   AlertTriangle,
   Shield,
   Sparkles,
+  Package,
 } from "lucide-react";
+import QRCode from "qrcode";
 import QRCodeDisplay from "../QRCodeDisplay";
 import { formatPhilippineDate, formatPhilippineDateTime } from "../../../../utils/timeUtils";
 
@@ -25,6 +27,7 @@ import { formatPhilippineDate, formatPhilippineDateTime } from "../../../../util
  */
 function NotificationModal({ notification, requestDetails, loading, onClose, onViewHistory }) {
   const [copiedToken, setCopiedToken] = useState(false);
+  const [returnQrDataUrl, setReturnQrDataUrl] = useState(null);
 
   // Keyboard Escape listener
   useEffect(() => {
@@ -37,6 +40,27 @@ function NotificationModal({ notification, requestDetails, loading, onClose, onV
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
+  // Generate QR image for return_qr_ready notifications
+  useEffect(() => {
+    const type = String(notification?.type || "").toLowerCase();
+    if (type === "return_qr_ready") {
+      // Extract QR token from message (last word / token pattern)
+      const msg = notification?.message || "";
+      const match = msg.match(/LL-[\w-]+/) || msg.match(/([^\s]+)$/);
+      const token = requestDetails?.qr_token || (match ? match[0] : null);
+      if (token) {
+        QRCode.toDataURL(token, {
+          width: 220,
+          margin: 1,
+          color: { dark: "#0f172a", light: "#ffffff" },
+          errorCorrectionLevel: "H",
+        })
+          .then(setReturnQrDataUrl)
+          .catch(() => setReturnQrDataUrl(null));
+      }
+    }
+  }, [notification, requestDetails]);
+
   const handleCopyQRToken = (token) => {
     if (!token) return;
     navigator.clipboard.writeText(token);
@@ -44,13 +68,15 @@ function NotificationModal({ notification, requestDetails, loading, onClose, onV
     setTimeout(() => setCopiedToken(false), 2000);
   };
 
+  const notifType = String(notification?.type || "").toLowerCase();
   const isDueOrOverdue =
-    String(notification?.type || "").toLowerCase().includes("due") ||
-    String(notification?.type || "").toLowerCase().includes("overdue");
+    notifType.includes("due") || notifType.includes("overdue");
+  const isReturnQr = notifType === "return_qr_ready";
 
   const isApproved =
-    requestDetails?.status === "approved" ||
-    String(notification?.title || "").toLowerCase().includes("approved");
+    !isReturnQr &&
+    (requestDetails?.status === "approved" ||
+      String(notification?.title || "").toLowerCase().includes("approved"));
 
   return (
     <div className="flex flex-col w-full h-[100dvh] bg-white overflow-hidden select-text">
@@ -222,9 +248,68 @@ function NotificationModal({ notification, requestDetails, loading, onClose, onV
           )}
 
           {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* RETURN QR CODE LAYOUT (shown when due date arrives)           */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {isReturnQr && (
+            <>
+              {/* Hero Card */}
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-xs space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                    <Package className="w-3.5 h-3.5 text-amber-600" />
+                    Book Return Due Today
+                  </span>
+                </div>
+                <p className="text-xs text-amber-900 leading-relaxed">
+                  {notification?.message?.split("Show this QR")[0] || notification?.message}
+                </p>
+              </div>
+
+              {/* QR Code Card */}
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs flex flex-col items-center gap-3">
+                <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Show This QR When Returning</p>
+                {returnQrDataUrl ? (
+                  <img
+                    src={returnQrDataUrl}
+                    alt="Return QR Code"
+                    className="w-48 h-48 rounded-xl border-2 border-slate-800 bg-white p-2"
+                  />
+                ) : (
+                  <div className="w-48 h-48 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center bg-slate-50">
+                    <p className="text-xs text-slate-400 text-center px-4">Generating QR…</p>
+                  </div>
+                )}
+                {requestDetails?.qr_token && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopyQRToken(requestDetails.qr_token)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 active:scale-95 transition"
+                  >
+                    {copiedToken ? <><Check className="w-3.5 h-3.5 text-emerald-600" /><span className="text-emerald-700">Copied</span></> : <><Copy className="w-3.5 h-3.5" /><span>Copy Token</span></>}
+                  </button>
+                )}
+              </div>
+
+              {/* Return Instructions */}
+              <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-xs text-slate-700 space-y-1.5">
+                <div className="flex items-center gap-1.5 font-bold text-blue-950 text-xs">
+                  <Shield className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>Return Instructions</span>
+                </div>
+                <ul className="text-[11px] text-slate-600 space-y-1 list-disc list-inside">
+                  <li>Visit the library circulation desk today to return your book.</li>
+                  <li>Show this QR code to the librarian for verification.</li>
+                  <li>Bring your <strong>physical Student ID</strong> as well.</li>
+                  <li>Ensure the book is in good condition with intact tags.</li>
+                </ul>
+              </div>
+            </>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
           {/* STANDARD NOTIFICATION / NON-APPROVED LAYOUT                   */}
           {/* ═══════════════════════════════════════════════════════════════ */}
-          {!isApproved && (
+          {!isApproved && !isReturnQr && (
             <>
               {/* Notification Message Card */}
               <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-3">
