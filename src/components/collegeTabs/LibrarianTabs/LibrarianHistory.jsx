@@ -5,7 +5,7 @@ import {
   FiArrowRight, FiFileText, FiCalendar, FiFilter, FiCopy,
   FiCheck, FiPrinter, FiBookmark, FiHash, FiMapPin, FiExternalLink
 } from "react-icons/fi";
-import api, { getBackendAssetUrl } from "../../../utils/api";
+import api, { getBackendAssetUrl, getReturnedLoanItems } from "../../../utils/api";
 import { 
   formatPhilippineDate, 
   formatPhilippineDateTime,
@@ -113,6 +113,17 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
 
   useEffect(() => { fetchHistory(); }, [selectedLibraryId]);
 
+  // Auto-refresh when a book is returned from any source (scanner, active loans, QR scanner)
+  useEffect(() => {
+    const handleCirculationUpdate = () => { fetchHistory(); };
+    window.addEventListener('circulationUpdated', handleCirculationUpdate);
+    window.addEventListener('libralink-circulation-updated', handleCirculationUpdate);
+    return () => {
+      window.removeEventListener('circulationUpdated', handleCirculationUpdate);
+      window.removeEventListener('libralink-circulation-updated', handleCirculationUpdate);
+    };
+  }, [selectedLibraryId]);
+
   // Close drawer on Escape
   useEffect(() => {
     const fn = (e) => { if (e.key === 'Escape') setSelectedRecord(null); };
@@ -144,8 +155,12 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
       if (effectiveLibId && effectiveLibId !== 'all') {
         url += `?library_id=${effectiveLibId}`;
       }
-      const response = await api.get(url);
+      const [response, returnedRes] = await Promise.all([
+        api.get(url).catch(() => ({ data: [] })),
+        getReturnedLoanItems(schoolId, effectiveLibId).catch(() => ({ data: [] }))
+      ]);
       const requests = response.dataWithItems || response.data || [];
+      const returnedLoanItems = Array.isArray(returnedRes?.data) ? returnedRes.data : [];
       const records = [];
       requests.forEach(req => {
         if (req.items && req.items.length > 0) {
@@ -167,8 +182,8 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
               book_copies: item.book_copies,
               borrow_date: req.borrow_date || req.pickup_date || req.created_at,
               due_date: req.due_date,
-              return_date: req.return_date || (req.status === 'returned' ? req.updated_at : null),
-              status: item.status || req.status || 'pending',
+              return_date: item.returned_at || req.return_date || (req.status === 'returned' ? req.updated_at : null),
+              status: item.item_status || item.status || req.status || 'pending',
               created_at: req.created_at,
               partner_school: req.partner_school,
               cancellation_reason: req.cancellation_reason,
@@ -197,6 +212,35 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
             partner_school: req.partner_school,
             cancellation_reason: req.cancellation_reason,
           });
+        }
+      });
+
+      // Integrate authoritative returned items from borrow_request_items (Quick Scan & Desk returns)
+      returnedLoanItems.forEach(ret => {
+        const existingIdx = records.findIndex(r => String(r.item_id) === String(ret.item_id));
+        const normalizedRet = {
+          item_id: ret.item_id,
+          request_id: ret.request_id,
+          request_type: ret.request_type || 'home_school',
+          library_id: ret.library_id || ret.book?.library_id,
+          student: ret.student,
+          book: ret.book,
+          book_copies: ret.book_copies,
+          borrow_date: ret.borrow_date || ret.released_at,
+          due_date: ret.due_date,
+          return_date: ret.return_date || ret.returned_at,
+          status: 'returned',
+          created_at: ret.returned_at || ret.borrow_date,
+          condition: ret.condition,
+          remarks: ret.remarks,
+          fine_amount: ret.fine_amount,
+          is_paid: ret.is_paid,
+        };
+
+        if (existingIdx !== -1) {
+          records[existingIdx] = { ...records[existingIdx], ...normalizedRet };
+        } else {
+          records.unshift(normalizedRet);
         }
       });
 

@@ -11,6 +11,7 @@ import {
   updateBorrowRequestStatus,
   getAllActiveBorrows,
   getActiveLoansFromRequests,
+  getReturnedLoanItems,
   getBookById,
   getBackendAssetUrl,
   returnBook,
@@ -113,6 +114,8 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
   const [interSchoolRequestsLoading, setInterSchoolRequestsLoading] = useState(false);
   const [activeBorrows, setActiveBorrows] = useState([]);
   const [activeBorrowsLoading, setActiveBorrowsLoading] = useState(false);
+  const [returnedLoanItems, setReturnedLoanItems] = useState([]);
+  const [returnedLoanItemsLoading, setReturnedLoanItemsLoading] = useState(false);
   const [booksData, setBooksData] = useState({});
   const [studentsData, setStudentsData] = useState({});
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -352,6 +355,7 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
       setLoanToInspect(null);
       await fetchActiveBorrows();
       await fetchBorrowRequests();
+      await fetchReturnedItems();
       window.dispatchEvent(new CustomEvent('refreshStats'));
       window.dispatchEvent(new CustomEvent('circulationUpdated'));
     } catch (err) {
@@ -625,10 +629,28 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
     }
   };
 
+  const fetchReturnedItems = async () => {
+    const schoolId = localStorage.getItem('schoolId');
+    if (!schoolId) return;
+    setReturnedLoanItemsLoading(true);
+    try {
+      const effectiveLibraryId = selectedLibraryId || (typeof window !== 'undefined' ? localStorage.getItem('currentLibraryId') : null);
+      const { data, error } = await getReturnedLoanItems(schoolId, effectiveLibraryId);
+      if (error) throw error;
+      setReturnedLoanItems(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching returned loan items:', err);
+      setReturnedLoanItems([]);
+    } finally {
+      setReturnedLoanItemsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchBorrowRequests();
     fetchInterSchoolRequests();
     fetchActiveBorrows();
+    fetchReturnedItems();
 
     // Subscribe to realtime changes for this school
     const schoolId = localStorage.getItem('schoolId');
@@ -640,6 +662,8 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
         if (change.type === 'borrow_request' || change.type === 'borrow_request_item') {
           fetchBorrowRequests();
           fetchInterSchoolRequests();
+          fetchActiveBorrows();
+          fetchReturnedItems();
         } else if (change.type === 'book_copy') {
           // Book copy status changed - refresh active borrows
           fetchActiveBorrows();
@@ -651,6 +675,7 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
       fetchBorrowRequests();
       fetchInterSchoolRequests();
       fetchActiveBorrows();
+      fetchReturnedItems();
     };
     window.addEventListener('circulationUpdated', handleCirculationUpdate);
     window.addEventListener('libralink-circulation-updated', handleCirculationUpdate);
@@ -1151,36 +1176,51 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
     });
   }, [interSchoolRequests, interSchoolDatePreset, interSchoolDateStart, interSchoolDateEnd, interSchoolSearch]);
 
-  // Circulation History Records (Previous completed loans with date)
+  // Circulation History Records (completed loans: per-item returns + request-level cancelled/rejected)
   const circulationHistoryRecords = useMemo(() => {
-    const homeHistory = borrowRequests
-      .filter(r => r.status === 'returned' || r.status === 'cancelled' || r.status === 'rejected')
-      .map(r => ({ ...r, _queueSource: 'home' }));
-
-    const interHistory = interSchoolRequests
-      .filter(r => {
-        const s = String(r.status || r.item_status || r.borrow_request?.status || '').toLowerCase();
-        return s === 'returned' || s === 'cancelled' || s === 'rejected';
-      })
-      .map(r => ({
-        ...(r.borrow_request || r),
-        _queueSource: 'inter-school',
-        rawItem: r
-      }));
-
-    const combined = [...homeHistory, ...interHistory].reduce((acc, curr) => {
-      if (!acc.some(item => item.request_id === curr.request_id)) {
-        acc.push(curr);
-      }
+    // --- Cancelled / Rejected requests (request-level, no per-item returned data needed) ---
+    const cancelledHistory = [
+      ...borrowRequests
+        .filter(r => r.status === 'cancelled' || r.status === 'rejected')
+        .map(r => ({ ...r, _queueSource: 'home', _historyId: `req-${r.request_id}` })),
+      ...interSchoolRequests
+        .filter(r => {
+          const s = String(r.status || r.item_status || r.borrow_request?.status || '').toLowerCase();
+          return s === 'cancelled' || s === 'rejected';
+        })
+        .map(r => ({
+          ...(r.borrow_request || r),
+          _queueSource: 'inter-school',
+          rawItem: r,
+          _historyId: `inter-req-${r.borrow_request?.request_id || r.request_id}`,
+        })),
+    ].reduce((acc, curr) => {
+      if (!acc.some(item => item._historyId === curr._historyId)) acc.push(curr);
       return acc;
     }, []);
 
+    // --- Returned items from borrow_request_items (per-item, authoritative for Quick Scan returns) ---
+    // Each entry represents one book item that was returned.
+    // De-duplicate so if a borrow_request is fully-returned (all items → returnedLoanItems),
+    // we still show each book as its own row for granularity.
+    const returnedRows = returnedLoanItems.map(item => ({
+      ...item,
+      _queueSource: 'returned_item',
+      _historyId: item._historyId || `returned-item-${item.item_id}`,
+      // Normalise items array so the history table can iterate books the same way
+      items: [{ book: item.book }],
+    }));
+
+    // Merge: cancelled first (request-level), then returned items
+    const combined = [...cancelledHistory, ...returnedRows];
+
+    // Apply filters
     return combined.filter(record => {
       const status = String(record.status || '').toLowerCase();
       if (historyTypeFilter === 'returned' && status !== 'returned') return false;
       if (historyTypeFilter === 'cancelled' && status !== 'cancelled' && status !== 'rejected') return false;
 
-      const dateToCheck = record.return_date || record.updated_at || record.created_at;
+      const dateToCheck = record.return_date || record.returned_at || record.updated_at || record.created_at;
       if (!matchesDateFilter(dateToCheck, historyDatePreset, historyDateStart, historyDateEnd)) {
         return false;
       }
@@ -1190,8 +1230,12 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
         const student = record.student || {};
         const studentName = `${student.firstname || ''} ${student.lastname || ''} ${student.name || ''}`.toLowerCase();
         const studentNumber = String(student.student_number || record.student_id || '').toLowerCase();
-        const reqId = String(record.request_id || '').toLowerCase();
-        const bookTitles = (record.items || []).map(it => it.book?.title || '').join(' ').toLowerCase();
+        const reqId = String(record.request_id || record.item_id || '').toLowerCase();
+        // Support both request-level items[] and per-item book directly
+        const bookTitles = [
+          ...(record.items || []).map(it => it.book?.title || ''),
+          record.book?.title || '',
+        ].join(' ').toLowerCase();
 
         return (
           studentName.includes(q) ||
@@ -1203,7 +1247,7 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
 
       return true;
     });
-  }, [borrowRequests, interSchoolRequests, historyTypeFilter, historyDatePreset, historyDateStart, historyDateEnd, historySearch]);
+  }, [borrowRequests, interSchoolRequests, returnedLoanItems, historyTypeFilter, historyDatePreset, historyDateStart, historyDateEnd, historySearch]);
 
   const readyForPickupRequests = [
     ...borrowRequests
@@ -1346,6 +1390,8 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
       await fetchInterSchoolRequests();
       await fetchActiveBorrows();
       window.dispatchEvent(new CustomEvent('refreshStats'));
+      window.dispatchEvent(new CustomEvent('circulationUpdated'));
+      window.dispatchEvent(new CustomEvent('libralink-circulation-updated'));
     } catch (err) {
       console.error('Error releasing book:', err);
       alert(err?.response?.data?.message || err.message || 'Failed to release book. Please try again.');
@@ -4889,12 +4935,13 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
                     fetchBorrowRequests();
                     fetchInterSchoolRequests();
                     fetchActiveBorrows();
+                    fetchReturnedItems();
                   }}
-                  disabled={borrowRequestsLoading}
+                  disabled={borrowRequestsLoading || returnedLoanItemsLoading}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition disabled:opacity-50"
                   title="Refresh history records"
                 >
-                  <FiRefreshCw className={`w-3.5 h-3.5 text-purple-600 ${borrowRequestsLoading ? 'animate-spin' : ''}`} />
+                  <FiRefreshCw className={`w-3.5 h-3.5 text-purple-600 ${(borrowRequestsLoading || returnedLoanItemsLoading) ? 'animate-spin' : ''}`} />
                   <span className="hidden sm:inline">Refresh</span>
                 </button>
               </div>
@@ -5062,7 +5109,7 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
             </div>
           </div>
 
-          {borrowRequestsLoading ? (
+          {(borrowRequestsLoading || returnedLoanItemsLoading) ? (
             <div className="text-center py-16 text-slate-500">
               <div className="w-7 h-7 border-2 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
               <p className="text-xs font-medium">Fetching history records...</p>
@@ -5116,21 +5163,22 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
                     const student = record.student || {};
                     const studentIdentity = getRequestStudentIdentity(record);
                     const homeSchool = record.home_school || record.school || {};
-                    const items = record.items || [];
+                    // Per-item returned records: items array contains single book; request-level records may have multiple
+                    const items = record.items || (record.book ? [{ book: record.book }] : []);
                     const bookCount = items.length || 0;
-                    const firstBook = items[0]?.book || booksData[record.book_id] || {};
+                    const firstBook = items[0]?.book || record.book || booksData[record.book_id] || {};
                     const status = String(record.status || '').toLowerCase();
                     const studentProfilePic = studentIdentity.profilePicture || student.profile_picture || student.profile_image || student.avatar || record.profile_picture || record.profile_image || '';
                     const studentIdCardPic = record.id_picture_url || record.id_photo_url || student.id_picture_url || student.id_card_picture || '';
-                    const completedDate = record.return_date || record.updated_at || record.created_at;
+                    const completedDate = record.return_date || record.returned_at || record.updated_at || record.created_at;
                     const hasFine = Number(record.fine_amount || record.damage_fee || 0) > 0;
                     const fineAmount = record.fine_amount || record.damage_fee || '0';
 
                     return (
-                      <tr key={`${record.request_id || record.borrow_id}-${record._queueSource}`} className="hover:bg-purple-50/20 transition-colors text-[11px]">
+                      <tr key={record._historyId || `${record.request_id || record.borrow_id}-${record._queueSource}`} className="hover:bg-purple-50/20 transition-colors text-[11px]">
                         {/* Record ID */}
                         <td className="py-1.5 px-2 font-mono font-bold text-purple-700 whitespace-nowrap text-[10px] w-24">
-                          {record.request_id || record.borrow_id}
+                          {record.request_id || record.borrow_id || record.item_id}
                         </td>
 
                         {/* Borrower Student with Profile Picture & Clickable School ID */}

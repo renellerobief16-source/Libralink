@@ -1173,6 +1173,198 @@ router.put('/:id/decline-renewal', auth, requireRole(['Librarian', 'Librarian Ad
   }
 });
 
+// @route   GET /api/borrow-requests/returned-items
+// @desc    Get returned items sourced from borrow_request_items (item_status='returned')
+//          Authoritative per-item history for Quick Scan returns — powers Circulation History tab
+//          Supports partial-return tracking (one book returned while others still active)
+// @access  Private (Librarian, Librarian Admin, Super Admin)
+router.get('/returned-items', auth, async (req, res) => {
+  try {
+    const schoolId = req.query.school_id || req.query.schoolId;
+    const libraryId = req.query.library_id || req.query.libraryId || null;
+
+    if (!schoolId) {
+      return res.status(400).json({ success: false, message: 'school_id query parameter is required' });
+    }
+
+    const userRoleId = Number(req.user?.role_id || 0);
+    const userRole = String(req.user?.role_name || req.user?.role || '').toLowerCase();
+    const isRegularLibrarian = userRoleId === 3 || userRole === 'librarian';
+
+    let effectiveLibraryId = null;
+    if (isRegularLibrarian && req.user?.library_id) {
+      effectiveLibraryId = req.user.library_id;
+    } else if (libraryId && libraryId !== 'all') {
+      effectiveLibraryId = parseInt(libraryId, 10);
+    }
+
+    // Query borrow_request_items with item_status='returned'
+    const { data, error } = await supabase
+      .from('borrow_request_items')
+      .select(`
+        item_id,
+        request_id,
+        book_id,
+        copy_id,
+        assigned_copy_id,
+        item_status,
+        status,
+        released_at,
+        due_date,
+        returned_at,
+        condition,
+        remarks,
+        fine_amount,
+        damage_fee,
+        is_paid,
+        owner_school_id,
+        borrow_request:request_id(
+          request_id,
+          student_id,
+          home_school_id,
+          borrow_date,
+          due_date,
+          status,
+          purpose,
+          student:student_id(
+            id,
+            firstname,
+            lastname,
+            student_number,
+            email,
+            contact_number,
+            profile_image,
+            school_id
+          )
+        ),
+        book:book_id(
+          book_id,
+          title,
+          author,
+          isbn,
+          cover_image,
+          library_id,
+          school_id,
+          library:library_id(library_name, library_type)
+        ),
+        copy:copy_id(
+          copy_id,
+          accession_number,
+          barcode
+        )
+      `)
+      .eq('item_status', 'returned')
+      .not('returned_at', 'is', null)
+      .order('returned_at', { ascending: false });
+
+    if (error) throw error;
+
+    const parsedSchoolId = parseInt(schoolId, 10);
+
+    // Filter by school: either the book owner school or the student's home school
+    let filtered = (data || []).filter(item => {
+      const bookSchoolId = item.book?.school_id;
+      const homeSchoolId = item.borrow_request?.home_school_id;
+      const studentSchoolId = item.borrow_request?.student?.school_id;
+      const ownerSchoolId = item.owner_school_id;
+
+      return (
+        Number(bookSchoolId) === parsedSchoolId ||
+        Number(homeSchoolId) === parsedSchoolId ||
+        Number(studentSchoolId) === parsedSchoolId ||
+        Number(ownerSchoolId) === parsedSchoolId
+      );
+    });
+
+    // Further filter by library if applicable
+    if (effectiveLibraryId) {
+      filtered = filtered.filter(item => {
+        const libId = item.book?.library_id;
+        return libId !== null && libId !== undefined
+          ? Number(libId) === Number(effectiveLibraryId)
+          : false;
+      });
+    }
+
+    // Normalize shape for the Circulation History table
+    const normalized = filtered.map(item => {
+      const student = item.borrow_request?.student || {};
+      const book = item.book || {};
+      const copy = item.copy || {};
+      const req = item.borrow_request || {};
+      const totalFine = (parseFloat(item.fine_amount) || 0) + (parseFloat(item.damage_fee) || 0);
+
+      return {
+        // Identification
+        item_id: item.item_id,
+        request_id: item.request_id,
+        _historyId: `returned-item-${item.item_id}`,
+        _source: 'returned_item',
+
+        // Student info (flat)
+        student_id: req.student_id,
+        student: {
+          id: student.id,
+          firstname: student.firstname,
+          lastname: student.lastname,
+          student_number: student.student_number,
+          email: student.email,
+          contact_number: student.contact_number,
+          profile_image: student.profile_image,
+          school_id: student.school_id,
+        },
+
+        // Book info
+        book_id: item.book_id,
+        book: {
+          book_id: book.book_id,
+          title: book.title,
+          author: book.author,
+          isbn: book.isbn,
+          cover_image: book.cover_image,
+          library_id: book.library_id,
+          school_id: book.school_id,
+        },
+        book_copies: {
+          copy_id: item.copy_id || item.assigned_copy_id,
+          accession_number: copy.accession_number || null,
+          barcode: copy.barcode || null,
+          books: {
+            book_id: book.book_id,
+            title: book.title,
+            author: book.author,
+            isbn: book.isbn,
+            cover_image: book.cover_image,
+          },
+        },
+
+        // Dates
+        borrow_date: item.released_at || req.borrow_date,
+        due_date: item.due_date || req.due_date,
+        returned_at: item.returned_at,
+        released_at: item.released_at,
+        return_date: item.returned_at,
+
+        // Return metadata
+        condition: item.condition,
+        remarks: item.remarks,
+        fine_amount: totalFine > 0 ? totalFine : null,
+        is_paid: item.is_paid,
+        item_status: item.item_status,
+        status: 'returned',
+
+        // Purpose
+        purpose: req.purpose,
+      };
+    });
+
+    res.json({ success: true, data: normalized });
+  } catch (error) {
+    console.error('[BORROW REQUESTS] Error fetching returned items:', error);
+    res.status(500).json({ success: false, message: 'Server error fetching returned items' });
+  }
+});
+
 // @route   GET /api/borrow-requests/active-loans
 // @desc    Get currently borrowed items sourced from borrow_request_items (item_status='borrowed')
 //          This is the authoritative source for Quick Scan releases — more reliable than borrow_transactions

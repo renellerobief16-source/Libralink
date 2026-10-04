@@ -449,6 +449,22 @@ export async function getActiveLoansFromRequests(schoolId, libraryId = null) {
   }
 }
 
+export async function getReturnedLoanItems(schoolId, libraryId = null) {
+  try {
+    const params = { school_id: schoolId };
+    if (libraryId && libraryId !== 'all') {
+      params.library_id = libraryId;
+    }
+    const response = await api.get('/borrow-requests/returned-items', { params });
+    const rows = Array.isArray(response.data?.data)
+      ? response.data.data
+      : (Array.isArray(response.data) ? response.data : []);
+    return { data: rows, error: null };
+  } catch (error) {
+    return { data: [], error };
+  }
+}
+
 export async function getLibraryPolicy(schoolId) {
   try {
     const response = await api.get(`/library-settings/policy/${schoolId}`);
