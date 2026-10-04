@@ -96,6 +96,10 @@ export default function LibrarianAdminPolicies() {
     fine_amount_per_day: 5.0,
     grace_period_days: 0,
     max_fine_cap: 500.0,
+    damage_fee_minor: 0.0,
+    damage_fee_damaged: 50.0,
+    damage_fee_max: 500.0,
+    allow_unit_waive: false,
     enable_visiting_fee: false,
     visiting_fee_amount: 0.0,
     visiting_fee_type: "per_visit",
@@ -159,6 +163,21 @@ export default function LibrarianAdminPolicies() {
             policyRes.data.max_fine_cap !== undefined
               ? Number(policyRes.data.max_fine_cap)
               : 500.0,
+          damage_fee_minor:
+            policyRes.data.damage_fee_minor !== undefined
+              ? Number(policyRes.data.damage_fee_minor)
+              : 0.0,
+          damage_fee_damaged:
+            policyRes.data.damage_fee_damaged !== undefined
+              ? Number(policyRes.data.damage_fee_damaged)
+              : 50.0,
+          damage_fee_max:
+            policyRes.data.damage_fee_max !== undefined
+              ? Number(policyRes.data.damage_fee_max)
+              : 500.0,
+          allow_unit_waive:
+            policyRes.data.allow_unit_waive === true ||
+            policyRes.data.allow_unit_waive === "true",
           enable_visiting_fee:
             policyRes.data.enable_visiting_fee === true ||
             policyRes.data.enable_visiting_fee === "true",
@@ -220,6 +239,10 @@ export default function LibrarianAdminPolicies() {
         fine_amount_per_day: Number(policy.fine_amount_per_day) || 0.0,
         grace_period_days: Number(policy.grace_period_days) || 0,
         max_fine_cap: Number(policy.max_fine_cap) || 500.0,
+        damage_fee_minor: Number(policy.damage_fee_minor) || 0.0,
+        damage_fee_damaged: Number(policy.damage_fee_damaged) || 0.0,
+        damage_fee_max: Number(policy.damage_fee_max) || 500.0,
+        allow_unit_waive: Boolean(policy.allow_unit_waive),
         enable_visiting_fee: Boolean(policy.enable_visiting_fee),
         visiting_fee_amount: Number(policy.visiting_fee_amount) || 0.0,
         visiting_fee_type: String(policy.visiting_fee_type || "per_visit"),
@@ -866,6 +889,160 @@ export default function LibrarianAdminPolicies() {
                 </p>
               </div>
             )}
+          </div>
+
+          {/* Card 4: Book Condition Damage Penalties & Clearance Signing Policy */}
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-sm space-y-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 border border-amber-100">
+                  <FiAlertCircle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">
+                    Book Damage Penalties & Clearance Signing
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    Set physical condition assessment fines and clearance signing authority for unit librarians.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-1">
+              {/* Damage Rates */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Minor Wear Fee */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800">
+                    Minor Wear Fee (₱)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">
+                      ₱
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="5"
+                      value={policy.damage_fee_minor}
+                      onChange={(e) =>
+                        setPolicy((p) => ({
+                          ...p,
+                          damage_fee_minor: Math.max(0, parseFloat(e.target.value) || 0),
+                        }))
+                      }
+                      className="w-full rounded-xl border border-slate-200 pl-7 pr-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-400">
+                    Covers minor scuffs or bent cover corners (default ₱0.00).
+                  </span>
+                </div>
+
+                {/* Damaged / Defacement Fee */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800">
+                    Damaged / Defacement Fee (₱)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">
+                      ₱
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="10"
+                      value={policy.damage_fee_damaged}
+                      onChange={(e) =>
+                        setPolicy((p) => ({
+                          ...p,
+                          damage_fee_damaged: Math.max(0, parseFloat(e.target.value) || 0),
+                        }))
+                      }
+                      className="w-full rounded-xl border border-slate-200 pl-7 pr-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-400">
+                    Covers torn pages, liquid damage, or broken binding (default ₱50.00).
+                  </span>
+                </div>
+              </div>
+
+              {/* Maximum Damage Fee Cap */}
+              <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800">
+                    Maximum Damage Fee Cap Per Book (₱)
+                  </label>
+                  <span className="text-[11px] font-bold text-slate-700">
+                    ₱{Number(policy.damage_fee_max).toFixed(2)}
+                  </span>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">
+                    ₱
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="50"
+                    value={policy.damage_fee_max}
+                    onChange={(e) =>
+                      setPolicy((p) => ({
+                        ...p,
+                        damage_fee_max: Math.max(0, parseFloat(e.target.value) || 0),
+                      }))
+                    }
+                    className="w-full rounded-xl border border-slate-200 pl-7 pr-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-amber-500"
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400">
+                  Maximum penalty a librarian can charge for damage, even if severe repairs are needed.
+                </span>
+              </div>
+
+              {/* Fine Waiver Authority Switch */}
+              <div className="pt-3 border-t border-slate-100">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-800">
+                      Allow Unit Librarians to Waive Fines
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      {policy.allow_unit_waive
+                        ? "Unit librarians can waive overdue and damage penalties directly."
+                        : "Strict Mode: Only Chief Admin-Librarian can waive penalties. Unit librarians must require payment."}
+                    </p>
+                  </div>
+                  <label className="relative inline-flex cursor-pointer items-center shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={policy.allow_unit_waive}
+                      onChange={(e) =>
+                        setPolicy((p) => ({
+                          ...p,
+                          allow_unit_waive: e.target.checked,
+                        }))
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="h-6 w-11 rounded-full bg-slate-200 peer-checked:bg-amber-600 peer-focus:outline-none after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Clearance Hold Policy Notice */}
+              <div className="rounded-xl border border-red-200 bg-red-50/70 p-3.5 space-y-1.5">
+                <div className="flex items-center gap-2 text-xs font-bold text-red-900">
+                  <FiAlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+                  <span>Student Clearance Hold Enforcement</span>
+                </div>
+                <p className="text-[11px] text-red-700 leading-relaxed">
+                  Kapag may natukoy na damage o overdue penalty at <strong>hindi nabayaran sa counter</strong>, awtomatikong <strong>iba-block ang Return Clearance</strong>. Hindi mapipirmahan ang clearance ng mag-aaral hangga't hindi nasisingil ang kaukulang multa.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 

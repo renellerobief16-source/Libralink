@@ -14,6 +14,7 @@ import BookDetail from "./components/pages/BookDetail";
 import Admin from "./components/portals/admin/Admin";
 import LibrarianPortal from "./components/portals/admin/LibrarianPortal";
 import LibrarianAdminPortal from "./components/portals/admin/LibrarianAdminPortal";
+import SHSLibrarianPortal from "./components/portals/admin/SHSLibrarianPortal";
 import StudentPortal from "./components/portals/student/StudentPortal";
 import StudentOnboarding from "./components/portals/student/StudentOnboarding";
 
@@ -45,6 +46,9 @@ function App() {
           
           {/* Librarian Portal */}
           <Route path="/librarian" element={<LibrarianPortal />} />
+          
+          {/* Senior High School (SHS) Librarian Portal */}
+          <Route path="/shs-librarian" element={<SHSLibrarianPortal />} />
           
           {/* Student Portal */}
           <Route path="/student-onboarding" element={<StudentOnboarding />} />

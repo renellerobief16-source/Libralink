@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { FiHome, FiMail, FiLogOut, FiBook, FiMoon, FiSun, FiUsers, FiList, FiCheckCircle, FiDollarSign, FiSettings, FiActivity, FiChevronDown, FiUser, FiLock, FiGrid, FiAlertOctagon, FiAlertTriangle, FiSliders, FiUserPlus } from "react-icons/fi";
+import { FiHome, FiMail, FiLogOut, FiBook, FiMoon, FiSun, FiUsers, FiList, FiCheckCircle, FiDollarSign, FiSettings, FiActivity, FiChevronDown, FiUser, FiLock, FiGrid, FiAlertOctagon, FiAlertTriangle, FiSliders, FiUserPlus, FiUploadCloud } from "react-icons/fi";
 import { getAdminNotifications, getBackendAssetUrl, signOut } from "../../../utils/api";
 import api from "../../../utils/api";
 import { AlertOverlay, ConfirmationOverlay, GlobalHeader, LogoutConfirmationModal } from "../../common";
-import { LibrarianAdminDashboard, LibrarianAdminAddLibrarian, LibrarianAdminBooks, LibrarianAdminFines, LibrarianAdminActivityLog, LibrarianAdminInbox, LibrarianAdminSettings, LibrarianAdminProfile, LibrarianAdminChangePassword, LibrarianAdminReportedOverdue, LibrarianAdminPolicies } from "../../collegeTabs/LibrarianAdminTabs";
-import { LibrarianOverdueBooks, LibrarianAddStudent, LibrarianListStudents } from "../../collegeTabs/LibrarianTabs";
+import GlobalCirculationScanner from "../../common/GlobalCirculationScanner";
+import { LibrarianAdminDashboard, LibrarianAdminAddLibrarian, LibrarianAdminBooks, LibrarianAdminFines, LibrarianAdminActivityLog, LibrarianAdminInbox, LibrarianAdminSettings, LibrarianAdminProfile, LibrarianAdminChangePassword, LibrarianAdminReportedOverdue, LibrarianAdminPolicies, LibrarianAdminLibraries } from "../../collegeTabs/LibrarianAdminTabs";
+import { LibrarianOverdueBooks, LibrarianAddStudent, LibrarianListStudents, LibrarianBooksManagement as AdminBooksManagement } from "../../collegeTabs/LibrarianTabs";
 
 const PesoIcon = ({ className }) => (
   <span className={className}>₱</span>
@@ -27,6 +28,27 @@ function LibrarianAdminPortal() {
   const [showLogoutConfirmation, setShowLogoutConfirmation] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
   const [books, setBooks] = useState([]);
+  const [libraries, setLibraries] = useState([]);
+  const [selectedLibraryId, setSelectedLibraryId] = useState(() => {
+    return localStorage.getItem('currentLibraryId') || 'all';
+  });
+  const [multiLibraryEnabled, setMultiLibraryEnabled] = useState(() => {
+    const sId = localStorage.getItem('schoolId');
+    return localStorage.getItem(`enable_multi_library_${sId}`) === 'true';
+  });
+
+  useEffect(() => {
+    const handleMultiLibToggle = (e) => {
+      const sId = localStorage.getItem('schoolId');
+      if (e?.detail?.enabled !== undefined) {
+        setMultiLibraryEnabled(e.detail.enabled);
+      } else {
+        setMultiLibraryEnabled(localStorage.getItem(`enable_multi_library_${sId}`) === 'true');
+      }
+    };
+    window.addEventListener('libralink-multi-library-toggled', handleMultiLibToggle);
+    return () => window.removeEventListener('libralink-multi-library-toggled', handleMultiLibToggle);
+  }, []);
 
   // Sync activeTab when navigated with state (e.g. from Circulation Desk policy modal)
   useEffect(() => {
@@ -151,6 +173,35 @@ function LibrarianAdminPortal() {
     return () => clearInterval(interval);
   }, []);
 
+  const fetchLibraries = async () => {
+    const schoolId = localStorage.getItem('schoolId');
+    if (!schoolId) return;
+    try {
+      const res = await api.get(`/libraries/school/${schoolId}`);
+      const list = res.data?.data || res.data?.libraries || (Array.isArray(res.data) ? res.data : []);
+      setLibraries(list);
+    } catch (err) {
+      console.error('Error fetching libraries:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchLibraries();
+    const handleLibrariesUpdate = () => fetchLibraries();
+    window.addEventListener('libralink-libraries-updated', handleLibrariesUpdate);
+    return () => window.removeEventListener('libralink-libraries-updated', handleLibrariesUpdate);
+  }, []);
+
+  const handleLibraryChange = (newLibId) => {
+    setSelectedLibraryId(newLibId);
+    if (newLibId === 'all') {
+      localStorage.removeItem('currentLibraryId');
+    } else {
+      localStorage.setItem('currentLibraryId', newLibId);
+    }
+    window.dispatchEvent(new CustomEvent('libralink-library-changed', { detail: newLibId }));
+  };
+
   const handleLogout = () => {
     setShowLogoutConfirmation(true);
   };
@@ -203,9 +254,14 @@ function LibrarianAdminPortal() {
     }
   };
 
+  const hasMultipleLibraries = libraries && libraries.length > 1;
+  const showMultiLibrary = multiLibraryEnabled || hasMultipleLibraries;
+
   const sidebarItems = [
     { id: 'home', label: 'Dashboard', icon: FiHome },
+    ...(showMultiLibrary ? [{ id: 'libraries', label: 'Libraries', icon: FiGrid }] : []),
     { id: 'books', label: 'Books Management', icon: FiBook },
+    { id: 'books-management', label: 'Import Books', icon: FiUploadCloud },
     { id: 'users', label: 'Users Management', icon: FiUsers },
     { id: 'policies', label: 'Borrowing Policies', icon: FiSliders },
     { id: 'reported-overdue', label: 'Reported Overdue', icon: FiAlertTriangle },
@@ -229,23 +285,41 @@ function LibrarianAdminPortal() {
   const renderContent = () => {
     switch (activeTab) {
       case 'home':
-        return <LibrarianAdminDashboard onNavigate={setActiveTab} />;
+        return (
+          <LibrarianAdminDashboard 
+            onNavigate={setActiveTab} 
+            selectedLibraryId={selectedLibraryId} 
+            onSelectLibrary={handleLibraryChange}
+            libraries={libraries}
+          />
+        );
+      case 'libraries':
+        return (
+          <LibrarianAdminLibraries 
+            selectedLibraryId={selectedLibraryId} 
+            onSelectLibrary={handleLibraryChange} 
+            onNavigateTab={setActiveTab}
+            onLibrariesUpdated={fetchLibraries}
+          />
+        );
       case 'students':
-        return <LibrarianAddStudent darkMode={darkMode} onNavigateTab={setActiveTab} />;
+        return <LibrarianAddStudent darkMode={darkMode} onNavigateTab={setActiveTab} selectedLibraryId={selectedLibraryId} />;
       case 'list-students':
-        return <LibrarianListStudents darkMode={darkMode} />;
+        return <LibrarianListStudents darkMode={darkMode} selectedLibraryId={selectedLibraryId} />;
       case 'books':
-        return <LibrarianAdminBooks />;
+        return <LibrarianAdminBooks selectedLibraryId={selectedLibraryId} libraries={libraries} onNavigateTab={setActiveTab} />;
+      case 'books-management':
+        return <AdminBooksManagement darkMode={darkMode} onNavigateTab={setActiveTab} selectedLibraryId={selectedLibraryId} />;
       case 'users':
-        return <LibrarianAdminAddLibrarian />;
+        return <LibrarianAdminAddLibrarian selectedLibraryId={selectedLibraryId} libraries={libraries} onLibrariesUpdated={fetchLibraries} />;
       case 'reported-overdue':
-        return <LibrarianAdminReportedOverdue darkMode={darkMode} schoolId={localStorage.getItem('schoolId')} />;
+        return <LibrarianAdminReportedOverdue darkMode={darkMode} schoolId={localStorage.getItem('schoolId')} selectedLibraryId={selectedLibraryId} />;
       case 'policies':
         return <LibrarianAdminPolicies />;
       case 'fines':
-        return <LibrarianAdminFines />;
+        return <LibrarianAdminFines selectedLibraryId={selectedLibraryId} />;
       case 'activity':
-        return <LibrarianAdminActivityLog />;
+        return <LibrarianAdminActivityLog selectedLibraryId={selectedLibraryId} />;
       case 'inbox':
         return <LibrarianAdminInbox />;
       case 'Library-Settings':
@@ -258,7 +332,14 @@ function LibrarianAdminPortal() {
         handleLogout();
         return null;
       default:
-        return <LibrarianAdminDashboard onNavigate={setActiveTab} />;
+        return (
+          <LibrarianAdminDashboard 
+            onNavigate={setActiveTab} 
+            selectedLibraryId={selectedLibraryId} 
+            onSelectLibrary={handleLibraryChange}
+            libraries={libraries}
+          />
+        );
     }
   };
 
@@ -408,6 +489,64 @@ function LibrarianAdminPortal() {
             darkMode={darkMode}
           />
 
+          {/* Library Scope Selector Bar for Admin (Only shown in Multi-Library Mode or when multiple units exist) */}
+          {showMultiLibrary && (
+            <div className={`${darkMode ? 'bg-slate-800/95 border-slate-700/80 text-white' : 'bg-white border-slate-200/80 text-slate-800'} border-b px-4 sm:px-6 lg:px-8 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-2xs sticky top-16 z-20`}>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
+                  <FiGrid className="w-4 h-4" />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`text-xs font-bold ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>Library Scope:</span>
+                  <div className="relative inline-block">
+                    <select
+                      value={selectedLibraryId}
+                      onChange={(e) => handleLibraryChange(e.target.value)}
+                      className={`text-xs font-semibold rounded-lg pl-3 pr-8 py-1.5 border appearance-none cursor-pointer transition-all ${
+                        darkMode 
+                          ? 'bg-slate-900 border-slate-700 text-slate-100 hover:border-blue-500' 
+                          : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-blue-500 focus:bg-white'
+                      }`}
+                    >
+                      <option value="all">🏛️ All Libraries (Campus Overview)</option>
+                      {libraries.map((lib, idx) => (
+                        <option key={lib.library_id || lib.id || idx} value={lib.library_id || lib.id}>
+                          {lib.library_type === 'college' ? '📚' : lib.library_type === 'senior_high_school' ? '🎓' : lib.library_type === 'junior_high_school' ? '🎒' : '📖'} {lib.name} {lib.status === 'inactive' ? '(Inactive)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <FiChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                  {selectedLibraryId !== 'all' && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                      Filtered View
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {selectedLibraryId !== 'all' && (
+                  <button
+                    onClick={() => handleLibraryChange('all')}
+                    className={`text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                      darkMode ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                    }`}
+                  >
+                    Reset to Campus All
+                  </button>
+                )}
+                <button
+                  onClick={() => setActiveTab('libraries')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors cursor-pointer shadow-2xs"
+                >
+                  <FiSliders className="w-3.5 h-3.5" />
+                  <span>Manage Libraries {libraries.length > 0 ? `(${libraries.length})` : ''}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Mobile Navigation - Exactly 3 tabs */}
           <nav 
             aria-label="Mobile Navigation" 
@@ -455,6 +594,13 @@ function LibrarianAdminPortal() {
         darkMode={darkMode}
         userInfo={userInfo}
         schoolInfo={schoolInfo}
+      />
+
+      {/* Global Instant Circulation Scanner (Anywhere / Any Tab) */}
+      <GlobalCirculationScanner
+        schoolId={schoolInfo?.school_id || localStorage.getItem('schoolId')}
+        libraryId={selectedLibraryId}
+        darkMode={darkMode}
       />
     </div>
   );

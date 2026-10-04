@@ -359,8 +359,20 @@ router.get('/:id', auth, async (req, res) => {
 // @access  Private
 router.get('/school/:school_id', auth, async (req, res) => {
   try {
-    const { role_id } = req.query;
-    const users = await User.getBySchool(req.params.school_id, role_id);
+    const { role_id, library_id } = req.query;
+
+    const userRoleId = Number(req.user?.role_id || 0);
+    const userRole = String(req.user?.role_name || req.user?.role || '').toLowerCase();
+    const isRegularLibrarian = userRoleId === 3 || userRole === 'librarian';
+
+    let effectiveLibraryId = null;
+    if (isRegularLibrarian && req.user?.library_id) {
+      effectiveLibraryId = req.user.library_id;
+    } else if (library_id) {
+      effectiveLibraryId = parseInt(library_id, 10);
+    }
+
+    const users = await User.getBySchool(req.params.school_id, role_id, effectiveLibraryId);
     res.json({ success: true, data: users });
   } catch (error) {
     console.error('Error getting users by school:', error);
@@ -391,11 +403,11 @@ router.post('/', auth, uploadProfile.single('profile_image'), async (req, res) =
     console.log('Create user request - Request body school_id:', req.body.school_id);
     console.log('Create user request - Request body role_id:', role_id);
 
-    // Librarian Admin can create users for their school
-    if (userRole === 'Librarian Admin') {
-      // Librarian Admin can create users with any role for their school
-      // Use the school_id from request body (from localStorage)
-    } else if (userRole !== 'Super Admin') {
+    // Librarian Admin and Librarian can create users for their school
+    const isLibrarian = userRole === 'Librarian Admin' || userRole === 'Librarian' || Number(req.user.role_id) === 2 || Number(req.user.role_id) === 3;
+    const isSuperAdmin = userRole === 'Super Admin' || Number(req.user.role_id) === 1;
+
+    if (!isLibrarian && !isSuperAdmin) {
       console.log('Unauthorized - User role:', userRole);
       return res.status(403).json({ success: false, message: 'Unauthorized to create users' });
     }

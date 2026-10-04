@@ -4,7 +4,7 @@ import { getBorrowRequests, getAllActiveBorrows, getBackendAssetUrl, consolidate
 import api from "../../../utils/api";
 import { AnimatedCounter } from "../../common";
 
-function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, onOpenInbox, darkMode, onNavigateToBooks, onNavigateToRequests, onNavigateToOverdue, onNavigateToPartners, onNavigateToScanner, onNavigateToProfile, onNavigateToSettings, onLogout }) {
+function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, onOpenInbox, darkMode, onNavigateToBooks, onNavigateToRequests, onNavigateToOverdue, onNavigateToPartners, onNavigateToScanner, onNavigateToProfile, onNavigateToSettings, onLogout, selectedLibraryId }) {
   const [pendingCount, setPendingCount] = useState(0);
   const [interlibraryPendingCount, setInterlibraryPendingCount] = useState(0);
   const [borrowedCount, setBorrowedCount] = useState(0);
@@ -58,23 +58,49 @@ function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, on
           setUserProfile(userRes.data);
         }
 
+        const effectiveLibId = selectedLibraryId || (typeof window !== 'undefined' ? localStorage.getItem('currentLibraryId') : null);
+
         const [requests, activeBorrows, overdueRes, interlibraryRes, finesRes] = await Promise.all([
-          getBorrowRequests(schoolId),
+          getBorrowRequests(schoolId, effectiveLibId),
           getAllActiveBorrows(schoolId),
-          api.get(`/borrow/overdue?school_id=${schoolId}`).catch(() => ({ data: [] })),
+          api.get(`/borrow/overdue?school_id=${schoolId}${effectiveLibId && effectiveLibId !== 'all' ? `&library_id=${effectiveLibId}` : ''}`).catch(() => ({ data: [] })),
           api.get(`/borrow-requests/partner/${schoolId}`).catch(() => ({ data: [] })),
           api.get(`/fines/school/${schoolId}`).catch(() => ({ data: [] }))
         ]);
         
         if (!requests.error && requests.data) {
-          setPendingCount(requests.data.filter(r => r.status === 'pending').length);
+          const filteredReqs = (effectiveLibId && effectiveLibId !== 'all')
+            ? (requests.data || []).filter(r => {
+                const rLib = r.library_id || r.home_library_id || r.source_library_id;
+                return rLib && String(rLib) === String(effectiveLibId);
+              })
+            : (requests.data || []);
+          setPendingCount(filteredReqs.filter(r => r.status === 'pending').length);
+        } else {
+          setPendingCount(0);
         }
+
         if (!interlibraryRes.error && interlibraryRes.data) {
-          const pendingInterlibrary = (interlibraryRes.data || []).filter(item => item.status === 'pending').length;
+          const rawInterlibrary = interlibraryRes.data || [];
+          const filteredInterlibrary = (effectiveLibId && effectiveLibId !== 'all')
+            ? rawInterlibrary.filter(item => {
+                const itemLibId = item.library_id || item.book?.library_id || item.owner_library_id;
+                return itemLibId && String(itemLibId) === String(effectiveLibId);
+              })
+            : rawInterlibrary;
+          const pendingInterlibrary = filteredInterlibrary.filter(item => item.status === 'pending').length;
           setInterlibraryPendingCount(pendingInterlibrary);
+        } else {
+          setInterlibraryPendingCount(0);
         }
         
-        const activeList = Array.isArray(activeBorrows.data) ? activeBorrows.data : [];
+        let activeList = Array.isArray(activeBorrows.data) ? activeBorrows.data : [];
+        if (effectiveLibId && effectiveLibId !== 'all') {
+          activeList = activeList.filter(b => {
+            const bLib = b.library_id || b.home_library_id || b.book?.library_id;
+            return bLib && String(bLib) === String(effectiveLibId);
+          });
+        }
         setBorrowedCount(activeList.length);
         setActiveLoansList(activeList);
 
@@ -87,7 +113,19 @@ function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, on
         }).length;
         setDueSoonCount(dueSoon);
 
-        const overdueList = Array.isArray(overdueRes.data) ? overdueRes.data : [];
+        const rawOverdue = Array.isArray(overdueRes.data?.data) ? overdueRes.data.data : (Array.isArray(overdueRes.data) ? overdueRes.data : []);
+        let overdueList = rawOverdue;
+        if (effectiveLibId && effectiveLibId !== 'all') {
+          const lid = Number(effectiveLibId);
+          const isCollege = lid === 1 || lid === 2;
+          overdueList = rawOverdue.filter(b => {
+            const bLib = b.book_copies?.books?.library_id ?? b.library_id ?? null;
+            const sLib = b.student?.library_id ?? null;
+            const matchesBook = bLib !== null ? Number(bLib) === lid : isCollege;
+            const matchesStudent = sLib !== null ? Number(sLib) === lid : isCollege;
+            return matchesBook && matchesStudent;
+          });
+        }
         setOverdueCount(overdueList.length);
 
         const finesList = Array.isArray(finesRes.data) ? finesRes.data : [];
@@ -96,20 +134,15 @@ function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, on
           .reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
         setFinesDueTotal(unpaidFines);
 
-        // Calculate total copies and available books accurately from books data with title+author consolidation
-        let booksSource = books;
-        if (!booksSource || (Array.isArray(booksSource) && booksSource.length === 0)) {
-          try {
-            const bRes = await api.get(`/books/school?school_id=${schoolId}&group=true`);
-            booksSource = Array.isArray(bRes.data) ? bRes.data : (bRes.data?.books || []);
-          } catch (bErr) {
-            console.warn('Could not fallback fetch books in LibrarianDashboard:', bErr);
-          }
+        // Calculate total copies and available books accurately from books data
+        let booksSource = books || [];
+        if (effectiveLibId && effectiveLibId !== 'all') {
+          booksSource = booksSource.filter(b => b.library_id && String(b.library_id) === String(effectiveLibId));
         }
         const { totalCopies, availableCopies, totalTitles } = consolidateBookInventory(booksSource);
-        setTotalCopiesCount(totalCopies || 1583);
-        setAvailableCount(availableCopies || 1579);
-        setTotalTitlesCount(totalTitles || 776);
+        setTotalCopiesCount(Number(totalCopies) || 0);
+        setAvailableCount(Number(availableCopies) || 0);
+        setTotalTitlesCount(Number(totalTitles) || 0);
 
         // Fetch partner schools with real availability data
         try {
@@ -400,10 +433,10 @@ function AdminDashboard({ books, unreadCount, studentCount = 0, onAddStudent, on
             </span>
           </div>
           <h3 className="text-3xl font-bold text-[#0F172A]">
-            {loading ? '...' : <AnimatedCounter value={totalCopiesCount || 1583} />}
+            {loading ? '...' : <AnimatedCounter value={totalCopiesCount || 0} />}
           </h3>
           <p className="text-xs mt-1.5 text-[#64748B]">
-            <AnimatedCounter value={availableCount || 1579} suffix=" avail" /> · <AnimatedCounter value={borrowedCount} suffix=" out" /> (<AnimatedCounter value={totalTitlesCount || 776} suffix=" titles" />)
+            <AnimatedCounter value={availableCount || 0} suffix=" avail" /> · <AnimatedCounter value={borrowedCount || 0} suffix=" out" /> (<AnimatedCounter value={totalTitlesCount || 0} suffix=" titles" />)
           </p>
         </div>
       </div>

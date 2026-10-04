@@ -21,7 +21,7 @@ import {
   downloadImportReport
 } from '../../../utils/bookImportUtils';
 
-function AdminBooksManagement({ darkMode, onNavigateTab }) {
+function AdminBooksManagement({ darkMode, onNavigateTab, selectedLibraryId }) {
   const [importStep, setImportStep] = useState('upload'); // upload, mapping, preview, results
   const [importStatus, setImportStatus] = useState('idle'); // idle, uploading, processing, validating, importing, completed, failed, cancelled
   const [file, setFile] = useState(null);
@@ -342,6 +342,7 @@ function AdminBooksManagement({ darkMode, onNavigateTab }) {
           data: chunkData,
           column_mapping: columnMapping,
           school_id: activeSchool,
+          library_id: selectedLibraryId || localStorage.getItem('currentLibraryId') || null,
           user_id: localStorage.getItem('currentUserId')
         }, {
           signal: abortControllerRef.current.signal

@@ -69,6 +69,7 @@ class LibrarySettings {
           school_id,
           setting_key,
           setting_value: parsedValue,
+          ...(currentSetting ? {} : { setting_type: this.getDefaultValue(setting_key).setting_type }),
           updated_at: new Date().toISOString()
         }, { onConflict: 'school_id,setting_key' })
         .select()
@@ -161,7 +162,11 @@ class LibrarySettings {
       'enable_visiting_fee': { setting_value: 'false', setting_type: 'BOOLEAN' },
       'visiting_fee_amount': { setting_value: '0.00', setting_type: 'DECIMAL' },
       'visiting_fee_type': { setting_value: 'per_visit', setting_type: 'STRING' },
-      'visiting_policy_notes': { setting_value: 'Visiting students from other consortium schools may review, read, and research this book on-site inside library premises.', setting_type: 'STRING' }
+      'visiting_policy_notes': { setting_value: 'Visiting students from other consortium schools may review, read, and research this book on-site inside library premises.', setting_type: 'STRING' },
+      'damage_fee_minor': { setting_value: '0.00', setting_type: 'DECIMAL' },
+      'damage_fee_damaged': { setting_value: '50.00', setting_type: 'DECIMAL' },
+      'damage_fee_max': { setting_value: '500.00', setting_type: 'DECIMAL' },
+      'allow_unit_waive': { setting_value: 'false', setting_type: 'BOOLEAN' }
     };
     return defaults[setting_key] || { setting_value: '', setting_type: 'STRING' };
   }
@@ -248,7 +253,11 @@ class LibrarySettings {
         visitingTypeSetting,
         visitingNotesSetting,
         renewalsSetting,
-        finePolicy
+        finePolicy,
+        damageMinorSetting,
+        damageDamagedSetting,
+        damageMaxSetting,
+        unitWaiveSetting,
       ] = await Promise.all([
         this.getSetting(school_id, 'max_borrow_limit'),
         this.getSetting(school_id, 'home_borrowing_days'),
@@ -260,6 +269,10 @@ class LibrarySettings {
         this.getSetting(school_id, 'visiting_policy_notes'),
         this.getSetting(school_id, 'max_renewals'),
         this.getFinePolicy(school_id),
+        this.getSetting(school_id, 'damage_fee_minor'),
+        this.getSetting(school_id, 'damage_fee_damaged'),
+        this.getSetting(school_id, 'damage_fee_max'),
+        this.getSetting(school_id, 'allow_unit_waive'),
       ]);
 
       return {
@@ -273,6 +286,10 @@ class LibrarySettings {
         visiting_fee_amount: parseFloat(visitingAmountSetting.setting_value) || 0.00,
         visiting_fee_type: String(visitingTypeSetting.setting_value || 'per_visit'),
         visiting_policy_notes: String(visitingNotesSetting.setting_value || 'Visiting students from other consortium schools may review, read, and research this book on-site inside library premises.'),
+        damage_fee_minor: parseFloat(damageMinorSetting.setting_value) || 0.00,
+        damage_fee_damaged: parseFloat(damageDamagedSetting.setting_value) || 50.00,
+        damage_fee_max: parseFloat(damageMaxSetting.setting_value) || 500.00,
+        allow_unit_waive: unitWaiveSetting.setting_value === true || unitWaiveSetting.setting_value === 'true',
         ...finePolicy
       };
     } catch (error) {
@@ -291,7 +308,11 @@ class LibrarySettings {
         enable_fines: false,
         fine_amount_per_day: 5.00,
         max_fine_cap: 500.00,
-        grace_period_days: 0
+        grace_period_days: 0,
+        damage_fee_minor: 0.00,
+        damage_fee_damaged: 50.00,
+        damage_fee_max: 500.00,
+        allow_unit_waive: false
       };
     }
   }
@@ -324,6 +345,18 @@ class LibrarySettings {
       }
       if (policy.visiting_policy_notes !== undefined) {
         await this.updateSetting(school_id, 'visiting_policy_notes', policy.visiting_policy_notes);
+      }
+      if (policy.damage_fee_minor !== undefined) {
+        await this.updateSetting(school_id, 'damage_fee_minor', policy.damage_fee_minor);
+      }
+      if (policy.damage_fee_damaged !== undefined) {
+        await this.updateSetting(school_id, 'damage_fee_damaged', policy.damage_fee_damaged);
+      }
+      if (policy.damage_fee_max !== undefined) {
+        await this.updateSetting(school_id, 'damage_fee_max', policy.damage_fee_max);
+      }
+      if (policy.allow_unit_waive !== undefined) {
+        await this.updateSetting(school_id, 'allow_unit_waive', policy.allow_unit_waive);
       }
       if (policy.enable_fines !== undefined || policy.fine_amount_per_day !== undefined || policy.max_fine_cap !== undefined || policy.grace_period_days !== undefined) {
         await this.updateFinePolicy(school_id, {

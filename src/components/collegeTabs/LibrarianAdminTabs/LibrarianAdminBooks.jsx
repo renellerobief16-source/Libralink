@@ -73,7 +73,7 @@ function AnimatedNumber({ value, duration = 800 }) {
   return <span>{displayValue.toLocaleString()}</span>;
 }
 
-function LibrarianAdminBooks() {
+function LibrarianAdminBooks({ selectedLibraryId = 'all', libraries = [], onNavigateTab = null }) {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -90,6 +90,7 @@ function LibrarianAdminBooks() {
   const [editLoading, setEditLoading] = useState(false);
   const [lastAction, setLastAction] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [internalLibraries, setInternalLibraries] = useState(libraries || []);
   const [addFormData, setAddFormData] = useState({
     title: '',
     author: '',
@@ -104,7 +105,8 @@ function LibrarianAdminBooks() {
     shelf_location: 'Main Stacks',
     category: 'General Collection',
     cover_image: null,
-    quantity: 1
+    quantity: 1,
+    library_id: selectedLibraryId && selectedLibraryId !== 'all' ? selectedLibraryId : ''
   });
   const [addLoading, setAddLoading] = useState(false);
   const [coverImagePreview, setCoverImagePreview] = useState(null);
@@ -118,6 +120,19 @@ function LibrarianAdminBooks() {
 
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    if (libraries && libraries.length > 0) {
+      setInternalLibraries(libraries);
+    } else {
+      const schoolId = localStorage.getItem('schoolId');
+      if (schoolId) {
+        api.get(`/libraries/school/${schoolId}`)
+          .then(res => setInternalLibraries(res.data?.data || res.data?.libraries || []))
+          .catch(err => console.warn('Could not fetch libraries for books dropdown:', err));
+      }
+    }
+  }, [libraries]);
 
   const handleExport = async (format = 'excel') => {
     setShowExportMenu(false);
@@ -210,7 +225,10 @@ function LibrarianAdminBooks() {
     }
 
     try {
-      const response = await api.get(`/books/school?school_id=${schoolId}&group=true`);
+      const url = selectedLibraryId && selectedLibraryId !== 'all'
+        ? `/books/school?school_id=${schoolId}&group=true&library_id=${selectedLibraryId}`
+        : `/books/school?school_id=${schoolId}&group=true`;
+      const response = await api.get(url);
 
       let booksData = [];
       if (response.data && response.data.data && response.data.data.books) {
@@ -263,7 +281,10 @@ function LibrarianAdminBooks() {
           available_copies: avail,
           total_copies: total,
           book_copies: book.book_copies || [],
-          grouped_book_ids: book.grouped_book_ids || [book.book_id || book.id]
+          grouped_book_ids: book.grouped_book_ids || [book.book_id || book.id],
+          library_id: book.library_id,
+          library_name: book.library_name || book.libraries?.name || '',
+          library_type: book.library_type || book.libraries?.library_type || ''
         };
       });
 
@@ -296,6 +317,11 @@ function LibrarianAdminBooks() {
           if (!existing.ddc && book.ddc) existing.ddc = book.ddc;
           if (!existing.accession_number && book.accession_number) existing.accession_number = book.accession_number;
           if (!existing.year && book.year) existing.year = book.year;
+          if (!existing.library_name && book.library_name) {
+            existing.library_name = book.library_name;
+            existing.library_id = book.library_id;
+            existing.library_type = book.library_type;
+          }
         }
       });
 
@@ -315,7 +341,7 @@ function LibrarianAdminBooks() {
 
   useEffect(() => {
     void loadBooks();
-  }, []);
+  }, [selectedLibraryId]);
 
   const categories = useMemo(() => {
     const set = new Set();
@@ -384,7 +410,8 @@ function LibrarianAdminBooks() {
       shelf_location: book.location || 'Main Stacks',
       category: book.category || 'General Collection',
       quantity: book.total_copies || 1,
-      cover_image: book.cover_image || null
+      cover_image: book.cover_image || null,
+      library_id: book.library_id || ''
     });
     const initialCover = book.cover_image && typeof book.cover_image === 'string' && book.cover_image.trim() !== ''
       ? getBackendAssetUrl(book.cover_image.trim())
@@ -469,6 +496,7 @@ function LibrarianAdminBooks() {
         if (editFormData.series) formData.append('series_title', editFormData.series.trim());
         if (editFormData.remarks) formData.append('general_note', editFormData.remarks.trim());
         if (editFormData.quantity) formData.append('quantity', parseInt(editFormData.quantity, 10));
+        if (editFormData.library_id) formData.append('library_id', parseInt(editFormData.library_id, 10));
         formData.append('cover_image', editCoverImageFile);
         await api.put(`/books/${editingBook.id}`, formData);
       } else {
@@ -486,7 +514,8 @@ function LibrarianAdminBooks() {
           series_title: editFormData.series ? editFormData.series.trim() : null,
           general_note: editFormData.remarks ? editFormData.remarks.trim() : null,
           quantity: editFormData.quantity ? parseInt(editFormData.quantity, 10) : 1,
-          cover_image: editCoverImagePreview ? editFormData.cover_image : null
+          cover_image: editCoverImagePreview ? editFormData.cover_image : null,
+          library_id: editFormData.library_id ? parseInt(editFormData.library_id, 10) : null
         };
 
         await api.put(`/books/${editingBook.id}`, updateData);
@@ -630,6 +659,11 @@ function LibrarianAdminBooks() {
       if (addFormData.shelf_location) formData.append('shelf_location', addFormData.shelf_location.trim());
       if (addFormData.category) formData.append('category', addFormData.category.trim());
       if (addFormData.cover_image) formData.append('cover_image', addFormData.cover_image);
+      if (addFormData.library_id) {
+        formData.append('library_id', parseInt(addFormData.library_id, 10));
+      } else if (selectedLibraryId && selectedLibraryId !== 'all') {
+        formData.append('library_id', parseInt(selectedLibraryId, 10));
+      }
 
       await api.post('/books', formData, {
         headers: {
@@ -750,6 +784,18 @@ function LibrarianAdminBooks() {
                 </>
               )}
             </div>
+
+            {onNavigateTab && (
+              <Button
+                variant="secondary"
+                onClick={() => onNavigateTab('books-management')}
+                className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-purple-200/90 bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 text-xs font-bold shadow-2xs transition-all active:scale-95 shrink-0 cursor-pointer"
+                title="Bulk import books from Excel or CSV file"
+              >
+                <FiUploadCloud className="w-4 h-4 text-purple-600" />
+                <span>Import Books</span>
+              </Button>
+            )}
 
             <Button
               variant="primary"
@@ -909,10 +955,18 @@ function LibrarianAdminBooks() {
                     <div>
                       {/* Top Bar: Category Pill & Stock Status Badge */}
                       <div className="flex items-center justify-between gap-2 mb-4">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-100 truncate max-w-[150px]">
-                          <FiBookmark className="w-3 h-3 text-blue-500 shrink-0" />
-                          <span className="truncate">{book.category}</span>
-                        </span>
+                        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-100 truncate max-w-[140px]">
+                            <FiBookmark className="w-3 h-3 text-blue-500 shrink-0" />
+                            <span className="truncate">{book.category}</span>
+                          </span>
+                          {book.library_name && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 truncate max-w-[130px]" title={book.library_name}>
+                              <FiGrid className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
+                              <span className="truncate">{book.library_name}</span>
+                            </span>
+                          )}
+                        </div>
 
                         <button
                           type="button"
@@ -1216,12 +1270,18 @@ function LibrarianAdminBooks() {
                             </div>
                           </td>
 
-                          {/* Location Cell */}
+                          {/* Location & Library Cell */}
                           <td className="py-2.5 px-3">
                             <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-lg max-w-full truncate" title={book.location || 'Main Stacks'}>
                               <FiMapPin className="w-2.5 h-2.5 text-blue-600 shrink-0" />
                               <span className="truncate">{book.location || 'Main Stacks'}</span>
                             </span>
+                            {book.library_name && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded mt-1 truncate block max-w-full" title={book.library_name}>
+                                <FiGrid className="w-2.5 h-2.5 shrink-0 text-indigo-600" />
+                                <span className="truncate">{book.library_name}</span>
+                              </span>
+                            )}
                           </td>
 
                           {/* Stock Pill Cell */}
@@ -1664,17 +1724,36 @@ function LibrarianAdminBooks() {
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Series Title (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        value={addFormData.series}
-                        onChange={(e) => setAddFormData({...addFormData, series: e.target.value})}
-                        className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all placeholder:text-slate-400"
-                        placeholder="e.g. Computer Science Monographs Series Vol. 4"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Series Title (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={addFormData.series}
+                          onChange={(e) => setAddFormData({...addFormData, series: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all placeholder:text-slate-400"
+                          placeholder="e.g. CS Monographs Series"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Target Library Unit
+                        </label>
+                        <select
+                          value={addFormData.library_id}
+                          onChange={(e) => setAddFormData({...addFormData, library_id: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all text-slate-700 font-medium"
+                        >
+                          <option value="">-- Campus Default Library --</option>
+                          {internalLibraries.map((lib) => (
+                            <option key={lib.id} value={lib.id}>
+                              {lib.library_type === 'college' ? '📚' : lib.library_type === 'senior_high_school' ? '🎓' : lib.library_type === 'junior_high_school' ? '🎒' : '📖'} {lib.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
 
@@ -2095,17 +2174,36 @@ function LibrarianAdminBooks() {
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Series Title (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        value={editFormData.series || ''}
-                        onChange={(e) => setEditFormData({...editFormData, series: e.target.value})}
-                        className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder:text-slate-400"
-                        placeholder="e.g. Computer Science Monographs Series Vol. 4"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Series Title (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={editFormData.series || ''}
+                          onChange={(e) => setEditFormData({...editFormData, series: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                          placeholder="e.g. CS Monographs Series"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Target Library Unit
+                        </label>
+                        <select
+                          value={editFormData.library_id || ''}
+                          onChange={(e) => setEditFormData({...editFormData, library_id: e.target.value})}
+                          className="w-full px-3 py-2 text-sm bg-slate-50/60 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-700 font-medium"
+                        >
+                          <option value="">-- Campus Default Library --</option>
+                          {internalLibraries.map((lib) => (
+                            <option key={lib.id} value={lib.id}>
+                              {lib.library_type === 'college' ? '📚' : lib.library_type === 'senior_high_school' ? '🎓' : lib.library_type === 'junior_high_school' ? '🎒' : '📖'} {lib.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
 

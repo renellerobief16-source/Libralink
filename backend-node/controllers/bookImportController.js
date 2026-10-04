@@ -12,13 +12,15 @@ async function bulkImportBooks(req, res) {
      const { 
        data, 
        column_mapping, 
-       school_id, 
+       school_id,
+       library_id,
        user_id,
        custom_columns
      } = req.body;
 
      console.log('[BULK IMPORT] Data length:', data?.length);
      console.log('[BULK IMPORT] School ID:', school_id);
+     console.log('[BULK IMPORT] Library ID:', library_id || 'none (school-level)');
      console.log('[BULK IMPORT] User ID:', user_id);
      console.log('[BULK IMPORT] Column mapping:', column_mapping);
      console.log('[BULK IMPORT] Custom columns:', custom_columns);
@@ -116,18 +118,32 @@ async function bulkImportBooks(req, res) {
     };
 
     console.log('[BULK IMPORT] Fetching existing accession numbers...');
-    // Get existing accession numbers for this school
-    const { data: existingCopies, error: copiesError } = await supabase
-      .from('book_copies')
-      .select('accession_number')
-      .ilike('accession_number', `${school?.school_code || ''}%`);
+    // Get existing accession numbers for this school from both book_copies and books tables
+    const [copiesRes, booksRes] = await Promise.all([
+      supabase
+        .from('book_copies')
+        .select('accession_number')
+        .not('accession_number', 'is', null),
+      supabase
+        .from('books')
+        .select('accession_number')
+        .eq('school_id', actualSchoolId)
+        .not('accession_number', 'is', null)
+    ]);
 
-    if (copiesError) {
-      console.log('[BULK IMPORT WARNING] Could not fetch existing accession numbers:', copiesError);
+    if (copiesRes.error) {
+      console.log('[BULK IMPORT WARNING] Could not fetch existing accession numbers from book_copies:', copiesRes.error);
+    }
+    if (booksRes.error) {
+      console.log('[BULK IMPORT WARNING] Could not fetch existing accession numbers from books:', booksRes.error);
     }
 
-  const existingAccessionNumbers = existingCopies?.map(c => c.accession_number) || [];
-  console.log('[BULK IMPORT] Existing accession numbers count:', existingAccessionNumbers.length);
+    const existingAccessionSet = new Set([
+      ...(copiesRes.data?.map(c => String(c.accession_number).trim()) || []),
+      ...(booksRes.data?.map(b => String(b.accession_number).trim()) || [])
+    ]);
+    const existingAccessionNumbers = Array.from(existingAccessionSet);
+    console.log('[BULK IMPORT] Existing accession numbers count:', existingAccessionNumbers.length);
 
   // Create dynamic custom columns if any were auto-detected
   if (custom_columns && Array.isArray(custom_columns) && custom_columns.length > 0) {
@@ -187,6 +203,7 @@ async function bulkImportBooks(req, res) {
   const importContext = {
     schoolId: actualSchoolId,
     schoolCode: schoolCode,
+    libraryId: (library_id || req.user?.library_id) ? parseInt(library_id || req.user?.library_id, 10) || (library_id || req.user?.library_id) : null,
     categoryCache: new Map(),
     publisherCache: new Map(),
     accessionCounter: lastSeq
@@ -207,7 +224,7 @@ async function bulkImportBooks(req, res) {
         }
 
         // ALWAYS create new book - fast optimized creation
-        console.log(`[BULK IMPORT] Row ${i + 1} creating new book...`);
+        console.log(`[BULK IMPORT] Row ${i + 1} creating new book (library: ${importContext.libraryId || 'school-level'})...`);
         const bookId = await createNewBook(normalizedData, actualSchoolId, user_id, importContext);
         results.successful++;
         results.copies_created += normalizedData.quantity || 1;
@@ -534,7 +551,7 @@ async function findExistingBook(data, schoolId) {
  * "Could not find column" errors. Author/category/publisher are handled
  * through their linking tables.
  */
-async function createNewBook(data, schoolId, userId) {
+async function createNewBook(data, schoolId, userId, importContext = null) {
   try {
     console.log('[CREATE BOOK] Creating book with data:', {
       title: data.title,
@@ -573,6 +590,7 @@ async function createNewBook(data, schoolId, userId) {
 
     const bookData = {
       school_id: schoolId,
+      library_id: importContext?.libraryId || null,
       category_id: categoryId,
       publisher_id: publisherId,
       title: data.title,

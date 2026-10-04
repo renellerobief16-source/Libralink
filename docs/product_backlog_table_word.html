@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Product Backlog Table for Microsoft Word</title>
+<style>
+  body {
+    font-family: 'Calibri', 'Times New Roman', Arial, sans-serif;
+    padding: 30px;
+    background-color: #f8fafc;
+  }
+  .instructions {
+    background-color: #e0f2fe;
+    border: 1px solid #0284c7;
+    padding: 12px 18px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    color: #0369a1;
+    font-size: 14px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #ffffff;
+    font-size: 11pt;
+  }
+  th {
+    background-color: #1e293b;
+    color: #ffffff;
+    font-weight: bold;
+    text-align: left;
+    padding: 10px 12px;
+    border: 1px solid #334155;
+  }
+  td {
+    padding: 8px 12px;
+    border: 1px solid #cbd5e1;
+    vertical-align: top;
+    color: #0f172a;
+    line-height: 1.4;
+  }
+  tr:nth-child(even) {
+    background-color: #f1f5f9;
+  }
+  .center {
+    text-align: center;
+    font-weight: bold;
+  }
+</style>
+</head>
+<body>
+
+<div class="instructions">
+  <strong>💡 Tip para sa Word:</strong> I-highlight ang buong table sa ibaba, pindutin ang <code>Ctrl + C</code>, at i-paste (<code>Ctrl + V</code>) direkta sa Microsoft Word. Kusang magiging native editable Word table ito na may maayos na borders at padding!
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width: 10%; text-align: center;">Story ID</th>
+      <th style="width: 12%; text-align: center;">User Role</th>
+      <th style="width: 45%;">User Story Description</th>
+      <th style="width: 33%;">Acceptance Criteria</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="center">US-01</td>
+      <td class="center">Student</td>
+      <td>As a student, I want to search for books by title, author, or subject across GNC and SRC so that I can discover academic materials quickly.</td>
+      <td>The catalog returns matching books from both campuses with call number, campus name, and available copies.</td>
+    </tr>
+    <tr>
+      <td class="center">US-02</td>
+      <td class="center">Student</td>
+      <td>As a student, I want the system to suggest partner school holdings when a book is unavailable locally so that I know where to obtain it.</td>
+      <td>When local copies equal zero, an alert highlights partner holdings with a direct "Request Borrow" action.</td>
+    </tr>
+    <tr>
+      <td class="center">US-03</td>
+      <td class="center">Student</td>
+      <td>As a student, I want to submit an inter-library borrow request through the web portal so that I do not need manual paper referral letters.</td>
+      <td>Form captures target book, submits request to home librarian queue, and logs status as <code>Pending_Home_Approval</code>.</td>
+    </tr>
+    <tr>
+      <td class="center">US-04</td>
+      <td class="center">Student</td>
+      <td>As a student, I want to receive a Digital Access Token upon approval so that I can present proof of clearance at the partner library.</td>
+      <td>System renders a secure alphanumeric token and QR code displaying student ID, host campus, and a 72-hour countdown.</td>
+    </tr>
+    <tr>
+      <td class="center">US-05</td>
+      <td class="center">Librarian</td>
+      <td>As a home librarian, I want to review incoming borrow requests so that I can verify student standing before endorsing cross-campus visits.</td>
+      <td>Inbox displays student details, academic level, book title, and one-click <code>Approve</code> and <code>Reject</code> buttons.</td>
+    </tr>
+    <tr>
+      <td class="center">US-06</td>
+      <td class="center">Librarian</td>
+      <td>As a host librarian, I want to verify a visiting student's access token at my desk so that I can confirm validity and release the book.</td>
+      <td>Host librarian enters token string or scans QR; system validates authenticity, displays student info, and marks token as <code>Redeemed</code>.</td>
+    </tr>
+    <tr>
+      <td class="center">US-07</td>
+      <td class="center">Librarian</td>
+      <td>As a librarian, I want to add, update, and categorize book inventory records so that our online catalog remains accurate and up-to-date.</td>
+      <td>Full CRUD interface supporting title, author, ISBN, academic level (College/SHS/JHS), and shelf location.</td>
+    </tr>
+    <tr>
+      <td class="center">US-08</td>
+      <td class="center">Librarian</td>
+      <td>As a host librarian, I want to mark borrowed books as returned when students return them so that catalog availability is restored.</td>
+      <td>Action updates transaction to <code>Returned</code>, releases borrower obligation, and increments available copy count.</td>
+    </tr>
+    <tr>
+      <td class="center">US-09</td>
+      <td class="center">Admin</td>
+      <td>As a super admin, I want to manage participating school configurations so that multi-tenant isolation is maintained.</td>
+      <td>Interface allows toggling institutional settings, domain parameters, and active statuses for GNC and SRC.</td>
+    </tr>
+    <tr>
+      <td class="center">US-10</td>
+      <td class="center">Admin</td>
+      <td>As a super admin, I want to view system audit logs so that all transactions, approvals, and inventory changes are trackable.</td>
+      <td>Chronological audit table recording event type, user identifier, IP address, and timestamp.</td>
+    </tr>
+    <tr>
+      <td class="center">US-11</td>
+      <td class="center">Student</td>
+      <td>As a student, I want the web application to be fully usable on mobile devices so that I can check tokens while in transit.</td>
+      <td>UI dynamically scales and refits on mobile viewports (360px–430px) without horizontal scrolling or clipping.</td>
+    </tr>
+    <tr>
+      <td class="center">US-12</td>
+      <td class="center">All Users</td>
+      <td>As a user, I want secure authentication so that my personal details and institutional records remain private.</td>
+      <td>Passwords hashed using bcrypt; API endpoints protected via JSON Web Tokens (JWT) and role verification middleware.</td>
+    </tr>
+  </tbody>
+</table>
+
+</body>
+</html>

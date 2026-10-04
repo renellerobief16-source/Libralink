@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
-import { Book, X, MapPin, AlertCircle, CheckCircle, Clock, Shield, Loader2 } from 'lucide-react';
+import { Book, X, MapPin, Building2, AlertCircle, CheckCircle, Clock, Shield, Loader2 } from 'lucide-react';
 import api from '../../../utils/api';
 import CartBookCover from './CartBookCover';
 
@@ -305,9 +305,22 @@ const StudentBorrowingList = forwardRef(({ onCheckout, onContinueBrowsing }, ref
                         <div className="flex-1 min-w-0">
                           <h4 className="font-semibold text-[#0F172A] mb-1 line-clamp-2">{item.title}</h4>
                           <p className="text-sm text-[#64748B] mb-2">{item.author}</p>
-                          <div className="flex items-center gap-2 mb-2">
-                            <MapPin className="w-4 h-4 text-[#64748B]" />
-                            <span className="text-xs text-[#64748B]">{item.owner_school_name}</span>
+                          <div className="flex items-center gap-2 mb-2 flex-wrap text-xs">
+                            <span className="inline-flex items-center gap-1 font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200/70">
+                              <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                              <span>
+                                {item.owner_school_name || "Campus"} • {(() => {
+                                  const rawL = String(item.library_name || '').toLowerCase();
+                                  const lId = Number(item.library_id || 0);
+                                  const isS = [10, 11].includes(lId) || rawL.includes('shs') || rawL.includes('senior high') || rawL.includes('high school');
+                                  return item.library_name || (isS ? 'SHS Library' : 'College Library');
+                                })()}
+                              </span>
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-slate-500">
+                              <MapPin className="w-3 h-3 text-emerald-600" />
+                              <span>Claim at {item.pickup_location || `${item.owner_school_name || 'Campus'} Desk`}</span>
+                            </span>
                           </div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={`text-xs px-2 py-1 rounded-full font-medium ${

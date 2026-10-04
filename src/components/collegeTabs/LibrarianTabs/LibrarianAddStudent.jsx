@@ -4,15 +4,17 @@ import {
   FiCheckCircle, FiAlertCircle, FiEye, FiEyeOff, FiHash, 
   FiBriefcase, FiBookOpen, FiShield, FiRefreshCw,
   FiCopy, FiCheck, FiX, FiUserCheck, FiPrinter, FiSend, FiAward, FiMapPin,
-  FiCamera, FiUpload, FiZap, FiImage, FiRotateCw
+  FiCamera, FiUpload, FiZap, FiImage, FiRotateCw, FiGrid
 } from "react-icons/fi";
 import { signUp } from "../../../utils/api";
 import api from "../../../utils/api";
 import Button from "../../ui/Button";
 
 
-function AdminAddStudent({ darkMode, onNavigateTab }) {
+function AdminAddStudent({ darkMode, onNavigateTab, selectedLibraryId }) {
   const [pinSuffix, setPinSuffix] = useState(() => Math.floor(1000 + Math.random() * 9000));
+  const [libraries, setLibraries] = useState([]);
+  const [targetLibraryId, setTargetLibraryId] = useState('');
   
   const [registerForm, setRegisterForm] = useState({
     firstname: "",
@@ -73,7 +75,7 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
   }, []);
 
   useEffect(() => {
-    const schoolId = localStorage.getItem('schoolId');
+    const schoolId = localStorage.getItem('schoolId') || '1';
     if (schoolId) {
       api.get(`/schools/${schoolId}`)
         .then(res => {
@@ -86,8 +88,35 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
           }
         })
         .catch(err => console.warn('Could not fetch school details:', err));
+
+      api.get(`/libraries/school/${schoolId}`)
+        .then(res => {
+          const libs = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+          setLibraries(libs);
+          if (selectedLibraryId && selectedLibraryId !== 'all') {
+            setTargetLibraryId(String(selectedLibraryId));
+          } else if (libs.length > 0) {
+            const userStr = localStorage.getItem('currentUser');
+            let userLibId = null;
+            try {
+              userLibId = JSON.parse(userStr)?.library_id;
+            } catch {}
+            if (userLibId && libs.some(l => String(l.library_id) === String(userLibId))) {
+              setTargetLibraryId(String(userLibId));
+            } else {
+              setTargetLibraryId(String(libs[0].library_id));
+            }
+          }
+        })
+        .catch(err => console.warn('Could not fetch school libraries:', err));
     }
-  }, []);
+  }, [selectedLibraryId]);
+
+  useEffect(() => {
+    if (selectedLibraryId && selectedLibraryId !== 'all') {
+      setTargetLibraryId(String(selectedLibraryId));
+    }
+  }, [selectedLibraryId]);
 
   // Flexible Student ID / LRN Handler (No enforced format)
   const handleIdChange = (e) => {
@@ -782,6 +811,7 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
           lastname: registerForm.lastname.trim(),
           student_number: registerForm.student_number.trim(),
           lrn: registerForm.student_number.trim(),
+          library_id: targetLibraryId ? Number(targetLibraryId) : undefined,
           policy_accepted: false, // will prompt for onboarding on first login
         }
       );
@@ -817,6 +847,8 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
         }
       }
 
+      const matchedLibrary = libraries.find(l => String(l.library_id) === String(targetLibraryId));
+
       setRegisteredStudent({
         name: formattedStudentName,
         firstname: registerForm.firstname.trim(),
@@ -827,6 +859,8 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
         temporary_password: finalPassword,
         school_name: schoolInfo.name,
         school_code: schoolInfo.code,
+        library_name: matchedLibrary?.name || null,
+        library_type: matchedLibrary?.library_type || null,
         id_photo_url: savedPhotoUrl, // for success screen thumbnail
       });
 
@@ -989,6 +1023,7 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
             <div>
               <div class="pass-type">Institutional Library Pass</div>
               <div class="school-title">${registeredStudent.school_name} (${registeredStudent.school_code})</div>
+              ${registeredStudent.library_name ? `<div style="font-size: 11px; font-weight: 700; color: #0284c7; margin-top: 2px;">🏛️ Unit: ${registeredStudent.library_name}</div>` : ''}
             </div>
             <div class="badge">Student Patron</div>
           </div>
@@ -1581,6 +1616,39 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
               </div>
               <p className="text-[11px] text-slate-400 mt-1">Institutional Student ID or barcode identifier</p>
             </div>
+
+            {/* Target Library Unit Selection */}
+            <div className="pt-3">
+              <label className={`flex items-center gap-1.5 text-xs font-semibold mb-1.5 ${
+                darkMode ? "text-slate-300" : "text-slate-700"
+              }`} htmlFor="student_reg_library">
+                <FiGrid className="w-3.5 h-3.5 text-blue-500" />
+                <span>Assigned Library Unit <span className="text-rose-500">*</span></span>
+              </label>
+              <select
+                id="student_reg_library"
+                value={targetLibraryId}
+                onChange={(e) => setTargetLibraryId(e.target.value)}
+                className={`w-full px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer ${
+                  darkMode 
+                    ? "bg-slate-900/60 border border-slate-700 text-white focus:bg-slate-900" 
+                    : "bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white"
+                }`}
+              >
+                {libraries.length === 0 ? (
+                  <option value="">Default College Library</option>
+                ) : (
+                  libraries.map(lib => (
+                    <option key={lib.library_id} value={lib.library_id}>
+                      {lib.name} {lib.library_type ? `(${lib.library_type.replace(/_/g, ' ').toUpperCase()})` : ''}
+                    </option>
+                  ))
+                )}
+              </select>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Student will be registered under this library unit and educational level.
+              </p>
+            </div>
           </div>
 
               {/* Automatic Credentials Preview Card */}
@@ -1770,9 +1838,16 @@ function AdminAddStudent({ darkMode, onNavigateTab }) {
                       </span>
                     </div>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-blue-600 text-white tracking-wider shadow-xs">
-                    Student Pass
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {registeredStudent.library_name && (
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-300 dark:border-sky-800 tracking-wider shadow-xs">
+                        🏛️ {registeredStudent.library_name}
+                      </span>
+                    )}
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-blue-600 text-white tracking-wider shadow-xs">
+                      Student Pass
+                    </span>
+                  </div>
                 </div>
 
                 {/* Centered Photo & Identity Badge (Top Center ID Picture) */}

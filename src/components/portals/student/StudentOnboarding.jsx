@@ -63,6 +63,7 @@ function StudentOnboarding() {
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [schoolInfo, setSchoolInfo] = useState(null);
+  const [libraries, setLibraries] = useState([]);
 
   const steps = [
     { key: 'welcome', label: 'Welcome' },
@@ -124,7 +125,7 @@ function StudentOnboarding() {
     const safePic = (rawPic && rawPic !== parsedUser.id_card_picture) ? rawPic : '';
     setPreview(safePic);
 
-    const schoolId = localStorage.getItem('schoolId');
+    const schoolId = localStorage.getItem('schoolId') || parsedUser?.school_id;
     if (schoolId) {
       api.get(`/schools/${schoolId}`)
         .then((response) => {
@@ -132,6 +133,13 @@ function StudentOnboarding() {
           setSchoolInfo(schoolData);
         })
         .catch(() => setSchoolInfo(null));
+
+      api.get(`/libraries/school/${schoolId}`)
+        .then((response) => {
+          const libList = Array.isArray(response) ? response : (response?.data || []);
+          setLibraries(libList);
+        })
+        .catch(() => setLibraries([]));
     }
 
     if (isOnboardingComplete(parsedUser)) {
@@ -205,6 +213,23 @@ function StudentOnboarding() {
 
       const userId = userInfo?.user_id || userInfo?.id || Number(localStorage.getItem('currentUserId'));
       const cleanedEmail = form.recoveryEmail.trim();
+
+      // Resolve matching library unit for the student's selected academic level
+      let matchedLibrary = null;
+      if (libraries.length > 0) {
+        const lvl = (form.academicLevel || '').toLowerCase();
+        if (lvl.includes('senior') || lvl.includes('shs')) {
+          matchedLibrary = libraries.find(l => l.library_type === 'senior_high' || l.name.toLowerCase().includes('senior') || l.name.toLowerCase().includes('shs'));
+        } else if (lvl.includes('junior') || lvl.includes('jhs')) {
+          matchedLibrary = libraries.find(l => l.library_type === 'junior_high' || l.name.toLowerCase().includes('junior') || l.name.toLowerCase().includes('jhs'));
+        } else if (lvl.includes('college')) {
+          matchedLibrary = libraries.find(l => l.library_type === 'college' || l.name.toLowerCase().includes('college'));
+        }
+        if (!matchedLibrary) matchedLibrary = libraries[0];
+      }
+
+      const targetLibraryId = matchedLibrary?.library_id || userInfo?.library_id || null;
+
       const payload = {
         username: form.username.trim(),
         contact_number: form.cellphone.trim(),
@@ -213,6 +238,7 @@ function StudentOnboarding() {
         academic_level: form.academicLevel,
         course: form.course.trim(),
         address: form.address.trim(),
+        library_id: targetLibraryId ? Number(targetLibraryId) : undefined,
         profile_picture: uploadedPicture,
         profile_image: uploadedPicture,
         policy_accepted: true,
@@ -226,6 +252,9 @@ function StudentOnboarding() {
       const updatedUser = {
         ...userInfo,
         ...payload,
+        library_id: targetLibraryId ? Number(targetLibraryId) : userInfo?.library_id,
+        library_name: matchedLibrary?.name || userInfo?.library_name,
+        library_type: matchedLibrary?.library_type || userInfo?.library_type,
         student_number: userInfo?.student_number || userInfo?.lrn || userInfo?.studentNumber || '',
         lrn: userInfo?.lrn || userInfo?.student_number || '',
         academic_level: form.academicLevel,
@@ -355,7 +384,7 @@ function StudentOnboarding() {
             <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">
               1. Choose Academic Level
             </label>
-            <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="grid grid-cols-3 gap-2 mb-3">
               {['College', 'Senior High School', 'Junior High School'].map((lvl) => {
                 const isLvlSelected = form.academicLevel === lvl;
                 return (
@@ -377,6 +406,40 @@ function StudentOnboarding() {
                 );
               })}
             </div>
+
+            {/* Display auto-assigned library unit for this level */}
+            {(() => {
+              const lvl = (form.academicLevel || '').toLowerCase();
+              let matched = null;
+              if (lvl.includes('senior') || lvl.includes('shs')) {
+                matched = libraries.find(l => l.library_type === 'senior_high' || l.name.toLowerCase().includes('senior') || l.name.toLowerCase().includes('shs'));
+              } else if (lvl.includes('junior') || lvl.includes('jhs')) {
+                matched = libraries.find(l => l.library_type === 'junior_high' || l.name.toLowerCase().includes('junior') || l.name.toLowerCase().includes('jhs'));
+              } else if (lvl.includes('college')) {
+                matched = libraries.find(l => l.library_type === 'college' || l.name.toLowerCase().includes('college'));
+              }
+              const displayLib = matched || libraries[0];
+              if (!displayLib) return null;
+
+              return (
+                <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-blue-50/80 border border-blue-200/90 flex items-center justify-between animate-fade-in">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base">🏛️</span>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 block leading-tight">
+                        Assigned Library Unit
+                      </span>
+                      <span className="text-xs font-bold text-slate-800">
+                        {displayLib.name} {displayLib.library_type ? `(${displayLib.library_type.replace(/_/g, ' ').toUpperCase()})` : ''}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-300">
+                    Auto-Linked
+                  </span>
+                </div>
+              );
+            })()}
 
             <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
               2. Select {form.academicLevel === 'College' ? 'Degree Program / Course' : form.academicLevel === 'Senior High School' ? 'Senior High Strand' : 'Grade Level / Curriculum'}

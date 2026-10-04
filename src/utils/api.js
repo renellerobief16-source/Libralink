@@ -142,6 +142,21 @@ export async function signIn(email, password) {
       localStorage.setItem('userRole', normalizedRole);
       localStorage.setItem('userRoleName', user.role_name || '');
       localStorage.setItem('userCollege', user.school_code || '');
+      if (user.library_id) {
+        localStorage.setItem('currentLibraryId', String(user.library_id));
+      } else {
+        localStorage.removeItem('currentLibraryId');
+      }
+      if (user.library_name) {
+        localStorage.setItem('currentLibraryName', user.library_name);
+      } else {
+        localStorage.removeItem('currentLibraryName');
+      }
+      if (user.library_type) {
+        localStorage.setItem('currentLibraryType', user.library_type);
+      } else {
+        localStorage.removeItem('currentLibraryType');
+      }
       window.dispatchEvent(new Event('libralink-user-changed'));
 
       return {
@@ -179,6 +194,9 @@ export function clearAuthStorage() {
   localStorage.removeItem('userRole');
   localStorage.removeItem('userRoleName');
   localStorage.removeItem('userCollege');
+  localStorage.removeItem('currentLibraryId');
+  localStorage.removeItem('currentLibraryName');
+  localStorage.removeItem('currentLibraryType');
 }
 
 export async function signOut() {
@@ -329,9 +347,13 @@ export async function createBasicBorrow(
   }
 }
 
-export async function getBorrowRequests(schoolId) {
+export async function getBorrowRequests(schoolId, libraryId = null) {
   try {
-    const response = await api.get(`/borrow-requests/school/${schoolId}`);
+    let url = `/borrow-requests/school/${schoolId}`;
+    if (libraryId && libraryId !== 'all') {
+      url += `?library_id=${libraryId}`;
+    }
+    const response = await api.get(url);
 
     return { data: response.data || [], error: null };
   } catch (error) {
@@ -380,9 +402,9 @@ export async function createActiveBorrow(studentId, bookId, college, requestId, 
   return createBorrowRequest(studentId, bookId, college, '', {});
 }
 
-export async function returnBook(borrowId) {
+export async function returnBook(borrowId, options = {}) {
   try {
-    const response = await api.post('/borrow/return', { borrow_id: borrowId });
+    const response = await api.post('/borrow/return', { borrow_id: borrowId, ...options });
 
     return { data: response.data, error: null };
   } catch (error) {
@@ -390,9 +412,13 @@ export async function returnBook(borrowId) {
   }
 }
 
-export async function getAllActiveBorrows(schoolId) {
+export async function getAllActiveBorrows(schoolId, libraryId = null) {
   try {
-    const response = await api.get('/borrow/active/school', { params: { school_id: schoolId } });
+    const params = { school_id: schoolId };
+    if (libraryId && libraryId !== 'all') {
+      params.library_id = libraryId;
+    }
+    const response = await api.get('/borrow/active/school', { params });
     const rows = Array.isArray(response.data?.data)
       ? response.data.data
       : (Array.isArray(response.data) ? response.data : []);
@@ -818,6 +844,9 @@ function normalizeUser(user) {
     course: user.course || user.position || '',
     position: user.position || user.course || '',
     academic_level: user.academic_level || user.academicLevel || '',
+    library_id: user.library_id ?? null,
+    library_name: user.library_name ?? null,
+    library_type: user.library_type ?? null,
     profile_picture: profilePicture,
     profile_image: profilePicture,
     id_card_picture: user.id_card_picture || null,

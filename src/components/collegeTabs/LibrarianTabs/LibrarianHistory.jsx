@@ -101,7 +101,7 @@ const Avatar = ({ student, size = "md", className = "" }) => {
 
 // ── main component ────────────────────────────────────────────────────────────
 
-function LibrarianHistory({ darkMode }) {
+function LibrarianHistory({ darkMode, selectedLibraryId }) {
   const [history, setHistory]               = useState([]);
   const [loading, setLoading]               = useState(true);
   const [filter, setFilter]                 = useState('all');
@@ -111,7 +111,7 @@ function LibrarianHistory({ darkMode }) {
   const [copiedId, setCopiedId]             = useState(false);
   const drawerRef = useRef(null);
 
-  useEffect(() => { fetchHistory(); }, []);
+  useEffect(() => { fetchHistory(); }, [selectedLibraryId]);
 
   // Close drawer on Escape
   useEffect(() => {
@@ -134,9 +134,17 @@ function LibrarianHistory({ darkMode }) {
   const fetchHistory = async () => {
     const schoolId = localStorage.getItem('schoolId');
     if (!schoolId) { setHistory([]); setLoading(false); return; }
+    const effectiveLibId = selectedLibraryId || (typeof window !== 'undefined' ? localStorage.getItem('currentLibraryId') : null);
+    const currentLibType = typeof window !== 'undefined' ? localStorage.getItem('currentLibraryType') : '';
+    const isCollege = currentLibType === 'college';
+
     setLoading(true);
     try {
-      const response = await api.get(`/borrow-requests/school/${schoolId}`);
+      let url = `/borrow-requests/school/${schoolId}`;
+      if (effectiveLibId && effectiveLibId !== 'all') {
+        url += `?library_id=${effectiveLibId}`;
+      }
+      const response = await api.get(url);
       const requests = response.dataWithItems || response.data || [];
       const records = [];
       requests.forEach(req => {
@@ -146,13 +154,15 @@ function LibrarianHistory({ darkMode }) {
               item_id: item.item_id || `${req.request_id}-${item.book_id}`,
               request_id: req.request_id,
               request_type: req.request_type || 'home_school',
+              library_id: item.library_id || item.book?.library_id || req.home_library_id || req.library_id,
               student: req.student,
               book: item.book || item.book_copies?.books || { 
                 title: item.title || 'Unknown Title', 
                 author: item.author || '—',
                 cover_image: item.cover_image || null,
                 category: item.category || null,
-                isbn: item.isbn || null
+                isbn: item.isbn || null,
+                library_id: item.library_id
               },
               book_copies: item.book_copies,
               borrow_date: req.borrow_date || req.pickup_date || req.created_at,
@@ -169,6 +179,7 @@ function LibrarianHistory({ darkMode }) {
             item_id: req.request_id,
             request_id: req.request_id,
             request_type: req.request_type || 'home_school',
+            library_id: req.home_library_id || req.library_id,
             student: req.student,
             book: req.book || { 
               title: req.book_title || 'General Request', 
@@ -188,7 +199,19 @@ function LibrarianHistory({ darkMode }) {
           });
         }
       });
-      setHistory(records);
+
+      let finalRecords = records;
+      if (effectiveLibId && effectiveLibId !== 'all') {
+        finalRecords = records.filter(r => {
+          const rLib = r.library_id || r.book?.library_id || r.student?.library_id;
+          if (rLib) {
+            return String(rLib) === String(effectiveLibId);
+          }
+          return isCollege;
+        });
+      }
+
+      setHistory(finalRecords);
     } catch (err) {
       console.error('Error fetching history:', err);
       setHistory([]);

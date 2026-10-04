@@ -29,7 +29,7 @@ router.get('/', async (req, res) => {
   try {
     console.log('[PUBLIC BOOKS] Route hit');
     const requestedLimit = parseInt(req.query.limit, 10) || 100;
-    const limit = Math.min(Math.max(requestedLimit, 1), 500);
+    const limit = Math.min(Math.max(requestedLimit, 1), 2000);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
     const searchTerm = String(req.query.q || '').trim().replace(/[(),]/g, ' ');
     const groupBooks = req.query.group === 'true'; // Enable grouping
@@ -46,8 +46,10 @@ router.get('/', async (req, res) => {
         shelf_location,
         call_number,
         school_id,
+        library_id,
         cover_image,
         schools(school_id, school_name, school_code, address, latitude, longitude, logo),
+        libraries(library_id, name, library_type),
         categories(category_name)
       `, { count: 'exact' })
       .order('title');
@@ -253,14 +255,32 @@ router.get('/school', auth, async (req, res) => {
     return res.status(400).json({ success: false, message: 'school_id query parameter is required' });
   }
 
+  // Role-based library scoping
+  const userRoleId = Number(req.user?.role_id || 0);
+  const userRole = String(req.user?.role_name || req.user?.role || '').toLowerCase();
+  const isRegularLibrarian = userRoleId === 3 || userRole === 'librarian';
+
+  let effectiveLibraryId = null;
+  if (isRegularLibrarian && req.user?.library_id) {
+    effectiveLibraryId = req.user.library_id;
+  } else if (req.query.library_id) {
+    effectiveLibraryId = parseInt(req.query.library_id, 10);
+  }
+
   try {
     // Supabase caps a single response at 1,000 rows. Count first, then fetch pages concurrently.
     const pageSize = 1000;
 
-    const { count, error: countError } = await supabase
+    let countQuery = supabase
       .from('books')
       .select('book_id', { count: 'exact', head: true })
       .eq('school_id', schoolId);
+
+    if (effectiveLibraryId) {
+      countQuery = countQuery.eq('library_id', effectiveLibraryId);
+    }
+
+    const { count, error: countError } = await countQuery;
 
     if (countError) throw countError;
 
@@ -270,7 +290,7 @@ router.get('/school', auth, async (req, res) => {
     );
 
     const pages = await Promise.all(pageStarts.map(async (pageStart) => {
-      const { data: page, error } = await supabase
+      let pageQuery = supabase
         .from('books')
         .select(`
           book_id,
@@ -280,6 +300,7 @@ router.get('/school', auth, async (req, res) => {
           shelf_location,
           call_number,
           school_id,
+          library_id,
           cover_image,
           quantity,
           available_quantity,
@@ -293,10 +314,17 @@ router.get('/school', auth, async (req, res) => {
           remarks,
           condition,
           categories(category_id, category_name),
-          schools(school_id, school_name, address, latitude, longitude),
+          libraries(library_id, name, library_type),
+          schools(school_id, school_name, school_code, address, latitude, longitude),
           book_copies(copy_id, status, accession_number, barcode, shelf_location, condition)
         `)
-        .eq('school_id', schoolId)
+        .eq('school_id', schoolId);
+
+      if (effectiveLibraryId) {
+        pageQuery = pageQuery.eq('library_id', effectiveLibraryId);
+      }
+
+      const { data: page, error } = await pageQuery
         .order('book_id', { ascending: true })
         .range(pageStart, pageStart + pageSize - 1);
 
@@ -348,7 +376,7 @@ router.get('/school', auth, async (req, res) => {
 
       for (const book of books) {
         const clean = (s) => String(s || '').trim().toLowerCase();
-        const key = `${clean(book.title)}:::${clean(book.author)}`;
+        const key = `${clean(book.title)}:::${clean(book.author)}:::${book.library_id || ''}`;
 
         if (!bookMap.has(key)) {
           bookMap.set(key, {
@@ -579,6 +607,8 @@ router.get('/search-other-schools', auth, async (req, res) => {
         author,
         isbn,
         school_id,
+        library_id,
+        libraries(library_id, name, library_type),
         cover_image,
         shelf_location,
         call_number,
@@ -598,7 +628,7 @@ router.get('/search-other-schools', auth, async (req, res) => {
           status
         )
       `)
-      .ilike('title', '%' + cleanTitle + '%');
+      .or(`title.ilike.%${cleanTitle}%,author.ilike.%${cleanTitle}%`);
 
     if (error) {
       console.error('[INTER-SCHOOL SEARCH] Error searching books:', error);
@@ -616,6 +646,8 @@ router.get('/search-other-schools', auth, async (req, res) => {
             author,
             isbn,
             school_id,
+            library_id,
+            libraries(library_id, name, library_type),
             cover_image,
             shelf_location,
             call_number,
@@ -760,10 +792,10 @@ router.get('/search-other-schools', auth, async (req, res) => {
       schools.forEach(school => schoolMap.set(String(school.school_id), school));
     }
 
-    // Group filtered books by school_id + normalized title to capture all copies (either in book_copies or multiple book rows)
+    // Group filtered books by school_id + library_id + normalized title to capture all copies per library
     const groupedBySchoolAndTitle = new Map();
     filtered.forEach(book => {
-      const normalizedGroupKey = `${book.school_id}_${String(book.title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+      const normalizedGroupKey = `${book.school_id}_${book.library_id || ''}_${String(book.title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '')}`;
       if (!groupedBySchoolAndTitle.has(normalizedGroupKey)) {
         groupedBySchoolAndTitle.set(normalizedGroupKey, []);
       }
@@ -933,6 +965,9 @@ router.get('/search-other-schools', auth, async (req, res) => {
 
       finalResult.push({
         school_id: primaryBook.school_id,
+        library_id: primaryBook.library_id || null,
+        library_name: primaryBook.libraries?.name || ([10, 11].includes(Number(primaryBook.library_id)) || primaryBook.libraries?.library_type === 'senior_high_school' ? 'Senior High School Library' : 'College Library'),
+        library_type: primaryBook.libraries?.library_type || ([10, 11].includes(Number(primaryBook.library_id)) ? 'senior_high_school' : 'college'),
         school_name: school?.school_name || 'Unknown School',
         address: school?.address || 'Unknown Address',
         school_code: school?.school_code,
@@ -1386,6 +1421,7 @@ router.post('/', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBook
       title: (req.body.title || '').trim(),
       author: (req.body.author || '').trim(),
       school_id: req.body.school_id ? parseInt(req.body.school_id, 10) : null,
+      library_id: req.body.library_id ? parseInt(req.body.library_id, 10) : (req.user?.library_id || null),
       quantity: initialQty,
       available_quantity: initialQty,
       borrowed_quantity: 0,
@@ -1493,6 +1529,10 @@ router.put('/:id', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBo
 
     if (req.body.callNumber !== undefined && updateData.call_number === undefined) {
       updateData.call_number = req.body.callNumber ? String(req.body.callNumber).trim() : null;
+    }
+
+    if (req.body.library_id !== undefined && req.body.library_id !== '') {
+      updateData.library_id = parseInt(req.body.library_id, 10);
     }
 
     if (req.body.location !== undefined && updateData.shelf_location === undefined) {

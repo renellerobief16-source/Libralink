@@ -153,13 +153,14 @@ function getLevelBadgeInfo(levelKey) {
   }
 }
 
-function AdminListStudents() {
+function AdminListStudents({ darkMode, selectedLibraryId }) {
   const [students, setStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [schoolName, setSchoolName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive'
   const [academicLevelFilter, setAcademicLevelFilter] = useState('all'); // 'all' | 'college' | 'shs' | 'jhs'
+  const [libraries, setLibraries] = useState([]);
 
   // Edit Student Modal State
   const [editingStudent, setEditingStudent] = useState(null);
@@ -174,7 +175,8 @@ function AdminListStudents() {
     contact_number: '',
     address: '',
     email: '',
-    status: 'active'
+    status: 'active',
+    library_id: ''
   });
   const [customCourseMode, setCustomCourseMode] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
@@ -224,7 +226,8 @@ function AdminListStudents() {
       contact_number: student.contact_number || '',
       address: student.address || '',
       email: student.email || '',
-      status: student.status || 'active'
+      status: student.status || 'active',
+      library_id: student.library_id ? String(student.library_id) : ''
     });
   };
 
@@ -247,7 +250,8 @@ function AdminListStudents() {
         contact_number: editForm.contact_number.trim() || null,
         address: editForm.address.trim() || null,
         email: editForm.email.trim(),
-        status: editForm.status
+        status: editForm.status,
+        library_id: editForm.library_id ? Number(editForm.library_id) : null
       });
 
       // If a new physical ID card photo was chosen, upload it to /api/users/:id/id-card
@@ -311,17 +315,21 @@ function AdminListStudents() {
   };
 
   const fetchStudents = async () => {
-    const schoolId = localStorage.getItem('schoolId');
-    if (!schoolId) {
-      console.error('No schoolId found in localStorage');
-      return;
-    }
-
+    const schoolId = localStorage.getItem('schoolId') || '1';
     setStudentsLoading(true);
     try {
-      const response = await api.get(`/users/school/${schoolId}`);
+      const effectiveLibId = selectedLibraryId || (typeof window !== 'undefined' ? localStorage.getItem('currentLibraryId') : null);
+      const currentLibType = typeof window !== 'undefined' ? localStorage.getItem('currentLibraryType') : '';
+      const isCollege = currentLibType === 'college';
+
+      let url = `/users/school/${schoolId}?role_id=4`;
+      if (effectiveLibId && effectiveLibId !== 'all') {
+        url += `&library_id=${effectiveLibId}`;
+      }
+      const response = await api.get(url);
+      const rawList = Array.isArray(response) ? response : (response?.data || response?.users || []);
       // Role ID 4 is Student in Libralink
-      const studentList = (response.data || []).filter(u => {
+      let studentList = rawList.filter(u => {
         const role = String(u.role_name || u.role || '').toLowerCase();
         const roleId = Number(u.role_id || 0);
         // Exclude staff & admins
@@ -329,11 +337,24 @@ function AdminListStudents() {
         if (role.includes('admin') || role.includes('librarian') || role.includes('staff')) return false;
         return roleId === 4 || role.includes('student') || (!roleId && !role);
       });
+
+      if (effectiveLibId && effectiveLibId !== 'all') {
+        studentList = studentList.filter(u => {
+          if (u.library_id) {
+            return String(u.library_id) === String(effectiveLibId);
+          }
+          return isCollege;
+        });
+      }
       setStudents(studentList);
       
       // Fetch school name
       const schoolResponse = await api.get(`/schools/${schoolId}`);
       setSchoolName(schoolResponse.data?.school_name || 'School');
+
+      // Fetch libraries
+      const libRes = await api.get(`/libraries/school/${schoolId}`);
+      setLibraries(Array.isArray(libRes.data) ? libRes.data : (libRes.data?.data || []));
     } catch (err) {
       console.error('Error fetching students:', err);
     } finally {
@@ -343,7 +364,7 @@ function AdminListStudents() {
 
   useEffect(() => {
     fetchStudents();
-  }, []);
+  }, [selectedLibraryId]);
 
   // Filter logic
   const filteredStudents = students.filter(student => {
@@ -652,10 +673,17 @@ function AdminListStudents() {
                           {/* Academic Level & Program */}
                           <td className="py-3.5 px-4">
                             <div className="space-y-1">
-                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-extrabold uppercase border ${levelBadge.badgeClass}`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${levelBadge.dotClass}`} />
-                                {levelBadge.label}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-extrabold uppercase border ${levelBadge.badgeClass}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${levelBadge.dotClass}`} />
+                                  {levelBadge.label}
+                                </span>
+                                {student.library_name && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                                    🏛️ {student.library_name}
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-xs font-semibold text-slate-800 line-clamp-1 max-w-[200px]" title={student.position || 'General Studies'}>
                                 {student.position || 'General Academics / Unassigned'}
                               </p>
@@ -1121,19 +1149,37 @@ function AdminListStudents() {
                   </div>
                 </div>
 
-                {/* 5. Address & Status */}
+                {/* 5. Address, Status & Library Unit */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="sm:col-span-2">
+                  <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      Residence / Complete Address
+                      Residence Address
                     </label>
                     <input
                       type="text"
                       value={editForm.address}
                       onChange={(e) => setEditForm({...editForm, address: e.target.value})}
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
-                      placeholder="e.g. Brgy. San Jose, Antipolo City, Rizal"
+                      placeholder="e.g. Antipolo City, Rizal"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Assigned Library Unit
+                    </label>
+                    <select
+                      value={editForm.library_id}
+                      onChange={(e) => setEditForm({...editForm, library_id: e.target.value})}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
+                    >
+                      <option value="">Default (Campus Main)</option>
+                      {libraries.map(lib => (
+                        <option key={lib.library_id} value={lib.library_id}>
+                          {lib.name} {lib.library_type ? `(${lib.library_type.replace(/_/g, ' ').toUpperCase()})` : ''}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>

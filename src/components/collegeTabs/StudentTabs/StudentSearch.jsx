@@ -203,6 +203,42 @@ function BookStatusBadge({
   );
 }
 
+function getBookLocationBadge(book) {
+  const isOtherSchool = Boolean(book.is_from_other_school);
+  const schoolCode = book.schools?.school_code || book.school_code || (String(book.school_id) === '1' ? 'SRC' : 'GNC');
+  
+  const rawLibName = String(book.libraries?.name || book.library_name || '').toLowerCase();
+  const rawLibType = String(book.libraries?.library_type || book.library_type || '').toLowerCase();
+  const libId = Number(book.library_id || 0);
+  const isSHS = [10, 11].includes(libId) || rawLibName.includes('shs') || rawLibName.includes('senior high') || rawLibName.includes('high school') || rawLibType === 'senior_high_school';
+  
+  const unitLabel = isSHS ? 'SHS Library' : 'College Library';
+  const pickupDesk = isSHS ? `${schoolCode} SHS Library Desk` : `${schoolCode} College Circulation Desk`;
+  const pickupText = `📍 Pickup: ${pickupDesk}`;
+
+  if (isSHS) {
+    return {
+      text: `${schoolCode} • ${unitLabel}`,
+      pickupText,
+      className: "bg-amber-50 text-amber-900 border-amber-300 font-bold",
+      topCardClassName: "bg-amber-600 text-white font-bold shadow-amber-600/30",
+      icon: "🎒",
+      isSHS: true,
+      isOtherSchool
+    };
+  }
+
+  return {
+    text: `${schoolCode} • ${unitLabel}`,
+    pickupText,
+    className: isOtherSchool ? "bg-indigo-50 text-indigo-900 border-indigo-200 font-bold" : "bg-blue-50 text-blue-700 border-blue-200 font-bold",
+    topCardClassName: isOtherSchool ? "bg-indigo-600 text-white font-bold shadow-indigo-600/30" : "bg-slate-900/80 backdrop-blur-md text-white border border-white/10 font-bold",
+    icon: "🏛️",
+    isSHS: false,
+    isOtherSchool
+  };
+}
+
 function CategoryShelfRow({
   category,
   categoryBooks,
@@ -335,6 +371,20 @@ function CategoryShelfRow({
                             availableCopies={book.available_copies}
                             totalCopies={book.total_copies}
                           />
+                          {(() => {
+                            const badge = getBookLocationBadge(book);
+                            return (
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-bold border ${badge.className}`}>
+                                  <span>{badge.icon}</span>
+                                  <span>{badge.text}</span>
+                                </span>
+                                <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 border border-slate-200/90 px-1.5 py-0.5 text-[9px] font-semibold text-slate-700">
+                                  <span>{badge.pickupText}</span>
+                                </span>
+                              </div>
+                            );
+                          })()}
                           <span className="text-[9px] font-medium text-slate-500">
                             {getBookCategory(book)}
                           </span>
@@ -444,13 +494,15 @@ function CategoryShelfRow({
                       <div className="pointer-events-none absolute inset-y-0 left-0 w-3 bg-gradient-to-r from-black/25 via-black/5 to-transparent z-[2]" />
 
                       {/* Top Badges & Actions */}
-                      <div className={`absolute top-2 left-2 max-w-[calc(100%-3rem)] truncate rounded-full px-2 py-0.5 text-[8px] font-bold shadow-xs z-10 pointer-events-none ${
-                        book.is_from_other_school
-                          ? "bg-blue-600 text-white shadow-blue-500/30"
-                          : "bg-slate-900/60 backdrop-blur-md text-white"
-                      }`}>
-                        {book.is_from_other_school ? `${book.school_code || 'SRC'} • Partner Campus` : (book.library || "Campus Library")}
-                      </div>
+                      {(() => {
+                        const badge = getBookLocationBadge(book);
+                        return (
+                          <div className={`absolute top-2 left-2 max-w-[calc(100%-3rem)] truncate rounded-full px-2 py-0.5 text-[8px] font-bold shadow-xs z-10 pointer-events-none flex items-center gap-1 ${badge.topCardClassName}`}>
+                            <span>{badge.icon}</span>
+                            <span className="truncate">{badge.text}</span>
+                          </div>
+                        );
+                      })()}
 
                       <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-90 transition-opacity group-hover:opacity-100 z-10 pointer-events-auto">
                         <button
@@ -518,6 +570,16 @@ function CategoryShelfRow({
                       <p className="text-[#64748B] text-[10px] line-clamp-1">
                         {book.author || "Unknown Author"}
                       </p>
+                      {(() => {
+                        const badge = getBookLocationBadge(book);
+                        return (
+                          <div className="pt-0.5">
+                            <span className="inline-flex items-center gap-1 text-[8.5px] font-bold text-slate-700 bg-slate-100/90 border border-slate-200/90 rounded px-1.5 py-0.5 line-clamp-1 w-full truncate" title={badge.pickupText}>
+                              {badge.pickupText}
+                            </span>
+                          </div>
+                        );
+                      })()}
                       <div className="flex items-center justify-between gap-1 pt-1">
                         <BookStatusBadge
                           status={displayStatus}
@@ -1499,8 +1561,27 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
             grouped_book_ids: book.grouped_book_ids || [book.book_id],
 
             school_id: book.school_id,
-
-            library: book.schools?.school_name || "Your Library",
+            library_id: book.library_id || null,
+            library_name: book.libraries?.name || (
+              [10, 11].includes(Number(book.library_id)) ||
+              book.libraries?.library_type === 'senior_high_school' ||
+              String(book.libraries?.name || '').toLowerCase().includes('shs') ||
+              String(book.libraries?.name || '').toLowerCase().includes('high school')
+                ? 'Senior High School Library'
+                : 'College Library'
+            ),
+            library_type: book.libraries?.library_type || (
+              [10, 11].includes(Number(book.library_id)) ||
+              String(book.libraries?.name || '').toLowerCase().includes('shs') ||
+              String(book.libraries?.name || '').toLowerCase().includes('high school')
+                ? 'senior_high_school'
+                : 'college'
+            ),
+            libraries: book.libraries || null,
+            schools: book.schools || null,
+            school_name: book.schools?.school_name || (String(book.school_id) === '1' ? 'Santa Rita College' : 'Guagua National Colleges'),
+            school_code: book.schools?.school_code || (String(book.school_id) === '1' ? 'SRC' : 'GNC'),
+            library: book.libraries?.name || book.schools?.school_name || "Your Library",
 
             schoolAddress: book.schools?.address || null,
 
@@ -1799,7 +1880,10 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
               isbn: item.isbn || "Unknown",
               school_id: item.school_id,
               school_name: item.school_name,
-              library: item.school_name || "Partner Library",
+              library_id: item.library_id || null,
+              library_name: item.library_name || item.libraries?.name || item.school_name || "Partner Library",
+              library_type: item.library_type || item.libraries?.library_type || 'college',
+              library: item.library_name || item.school_name || "Partner Library",
               address: item.address,
               school_code: item.school_code,
               latitude: item.latitude,
@@ -1855,7 +1939,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
 
   const getBookCategory = (book) => getBookCategoryValue(book);
 
-  // Combine Home Library books first, followed by Partner School books (e.g. SRC)
+  // Combine Home Library books with Other Schools when searching
   const combinedFilteredBooks = useMemo(() => {
     if (debouncedQuery.trim().length > 0 && otherSchoolBooks.length > 0) {
       return [...filteredBooks, ...otherSchoolBooks];
@@ -2572,7 +2656,25 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
         category: (typeof getBookCategoryValue === 'function' ? getBookCategoryValue(book) : '') || book.category || '',
         cover_image: rawCover,
         owner_school_id: book.school_id,
-        owner_school_name: book.library,
+        owner_school_id: book.school_id,
+        owner_school_name: book.school_name || book.library || "Campus Library",
+        library_id: book.library_id || null,
+        library_name: (() => {
+          const rawL = String(book.library_name || book.libraries?.name || '').toLowerCase();
+          const rawT = String(book.library_type || book.libraries?.library_type || '').toLowerCase();
+          const lId = Number(book.library_id || 0);
+          const isS = [10, 11].includes(lId) || rawL.includes('shs') || rawL.includes('senior high') || rawL.includes('high school') || rawT === 'senior_high_school';
+          return book.library_name || (isS ? 'Senior High School Library' : 'College Library');
+        })(),
+        pickup_location: (() => {
+          const rawL = String(book.library_name || book.libraries?.name || '').toLowerCase();
+          const rawT = String(book.library_type || book.libraries?.library_type || '').toLowerCase();
+          const lId = Number(book.library_id || 0);
+          const isS = [10, 11].includes(lId) || rawL.includes('shs') || rawL.includes('senior high') || rawL.includes('high school') || rawT === 'senior_high_school';
+          const sCode = book.schools?.school_code || (String(book.school_id) === '1' ? 'SRC' : 'GNC');
+          return `${sCode} ${isS ? 'SHS Library Desk' : 'College Circulation Desk'}`;
+        })(),
+        shelf_location: book.location || book.shelf_location || 'Main Stacks',
         partner_school_id:
           book.school_id !== currentSchoolId ? currentSchoolId : null,
         borrow_type:

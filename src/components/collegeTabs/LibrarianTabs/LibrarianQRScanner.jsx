@@ -28,7 +28,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import api, { scanQRToken, releaseBookItem, returnBookItem, returnBook, getBackendAssetUrl } from '../../../utils/api';
 import { formatPhilippineDate, formatTimeWithRelative, getDueStatusDetails } from '../../../utils/timeUtils';
 
-function LibrarianQRScanner({ darkMode }) {
+function LibrarianQRScanner({ darkMode, selectedLibraryId }) {
   const [activeMode, setActiveMode] = useState('qr'); // 'qr' | 'desk-return'
   
   // QR Scanner States
@@ -56,6 +56,7 @@ function LibrarianQRScanner({ darkMode }) {
   const [zoomIdPhoto, setZoomIdPhoto] = useState(false);
   const [idPhotoFallback, setIdPhotoFallback] = useState(false);
   const [idPhotoFailed, setIdPhotoFailed] = useState(false);
+  const [libraryMismatchWarning, setLibraryMismatchWarning] = useState(null);
 
   // Desk Fast Return States
   const [activeLoans, setActiveLoans] = useState([]);
@@ -414,7 +415,22 @@ function LibrarianQRScanner({ darkMode }) {
     try {
       const res = await api.get('/borrow/active/school', { params: { school_id: schoolId } });
       const list = Array.isArray(res.data?.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
-      setActiveLoans(list);
+      
+      const effectiveLibId = selectedLibraryId || (typeof window !== 'undefined' ? localStorage.getItem('currentLibraryId') : null);
+      const currentLibType = typeof window !== 'undefined' ? localStorage.getItem('currentLibraryType') : '';
+      const isCollege = currentLibType === 'college';
+
+      let loans = list;
+      if (effectiveLibId && effectiveLibId !== 'all') {
+        loans = loans.filter(item => {
+          const itemLib = item.library_id || item.book?.library_id || item.student?.library_id;
+          if (itemLib) {
+            return String(itemLib) === String(effectiveLibId);
+          }
+          return isCollege;
+        });
+      }
+      setActiveLoans(loans);
     } catch (err) {
       console.error('[CIRCULATION COUNTER] Error fetching active loans:', err);
     } finally {
@@ -426,7 +442,7 @@ function LibrarianQRScanner({ darkMode }) {
     if (activeMode === 'desk-return') {
       fetchActiveLoans();
     }
-  }, [activeMode]);
+  }, [activeMode, selectedLibraryId]);
 
   // -------------------------------------------------------------
   // QR SCAN HANDLERS
@@ -457,6 +473,29 @@ function LibrarianQRScanner({ darkMode }) {
           setIdPhotoFallback(false);
           setIdPhotoFailed(false);
           setZoomIdPhoto(false);
+
+          const effectiveLibId = selectedLibraryId || (typeof window !== 'undefined' ? localStorage.getItem('currentLibraryId') : null);
+          const currentLibType = typeof window !== 'undefined' ? localStorage.getItem('currentLibraryType') : '';
+          const isCollege = currentLibType === 'college' || (!currentLibType && (!effectiveLibId || String(effectiveLibId) === '1'));
+
+          if (effectiveLibId && effectiveLibId !== 'all') {
+            const lid = Number(effectiveLibId);
+            const items = scannedRequest.items || [];
+            const hasOtherLibraryBook = items.some(it => {
+              const bLib = it.book?.library_id ?? it.library_id ?? null;
+              if (bLib !== null && bLib !== undefined) {
+                return Number(bLib) !== lid;
+              }
+              return !isCollege;
+            });
+            if (hasOtherLibraryBook) {
+              setLibraryMismatchWarning('Warning: This book request contains materials assigned to another library unit (e.g. Main/College Library). Please ensure borrower claims books at the correct library desk.');
+            } else {
+              setLibraryMismatchWarning(null);
+            }
+          } else {
+            setLibraryMismatchWarning(null);
+          }
         }
       }
     } catch (err) {
@@ -568,17 +607,29 @@ function LibrarianQRScanner({ darkMode }) {
     }
   };
 
+  // Inter-school loan identifier
+  const isLoanInterSchool = (loan) => {
+    if (!loan) return false;
+    if (loan.borrow_type === 'INTER_SCHOOL_LIBRARY_USE' || loan.borrow_type?.includes('INTER_SCHOOL')) return true;
+    const studentSchool = loan.student?.school_id;
+    const bookSchool = loan.book_copies?.books?.school_id || loan.school_id;
+    if (studentSchool && bookSchool && Number(studentSchool) !== Number(bookSchool)) return true;
+    return false;
+  };
+
   // Filter Active Loans in Desk Return tab
   const now = new Date();
   const in48Hours = new Date(now.getTime() + 48 * 60 * 60 * 1000);
 
   const filteredActiveLoans = activeLoans.filter((loan) => {
+    const isInterSchool = isLoanInterSchool(loan);
     const dueDate = loan.due_date ? new Date(loan.due_date) : null;
-    const isOverdue = dueDate && dueDate < now;
-    const isDueSoon = dueDate && !isOverdue && dueDate <= in48Hours;
+    const isOverdue = !isInterSchool && dueDate && dueDate < now;
+    const isDueSoon = !isInterSchool && dueDate && !isOverdue && dueDate <= in48Hours;
 
     if (deskFilter === 'overdue' && !isOverdue) return false;
     if (deskFilter === 'due-soon' && !isDueSoon) return false;
+    if (deskFilter === 'inter-school' && !isInterSchool) return false;
 
     if (!deskSearchQuery.trim()) return true;
 
@@ -599,15 +650,19 @@ function LibrarianQRScanner({ darkMode }) {
   });
 
   const dueSoonCount = activeLoans.filter((l) => {
+    if (isLoanInterSchool(l)) return false;
     if (!l.due_date) return false;
     const d = new Date(l.due_date);
     return d > now && d <= in48Hours;
   }).length;
 
   const overdueCount = activeLoans.filter((l) => {
+    if (isLoanInterSchool(l)) return false;
     if (!l.due_date) return false;
     return new Date(l.due_date) < now;
   }).length;
+
+  const interSchoolCount = activeLoans.filter((l) => isLoanInterSchool(l)).length;
 
   // Counts for scanned request items
   const totalScannedItems = request?.items?.length || 0;
@@ -886,6 +941,20 @@ function LibrarianQRScanner({ darkMode }) {
                 <AlertTriangle className="h-3 w-3" />
                 Overdue ({overdueCount})
               </button>
+              {interSchoolCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setDeskFilter('inter-school')}
+                  className={`rounded-xl px-3 py-2 text-xs font-bold transition flex items-center gap-1 ${
+                    deskFilter === 'inter-school'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                  }`}
+                >
+                  <Building2 className="h-3 w-3" />
+                  Library Use ({interSchoolCount})
+                </button>
+              )}
             </div>
           </div>
 
@@ -942,9 +1011,20 @@ function LibrarianQRScanner({ darkMode }) {
 
                         <td className="px-4 py-3">
                           <div>
-                            <p className="font-semibold text-slate-900">
-                              {student.firstname ? `${student.firstname} ${student.lastname}` : 'Student'}
-                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-semibold text-slate-900">
+                                {student.firstname ? `${student.firstname} ${student.lastname}` : 'Student'}
+                              </p>
+                              {isLoanInterSchool(loan) ? (
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-purple-100 text-purple-800 shrink-0">
+                                  Partner Student
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-blue-100 text-blue-800 shrink-0">
+                                  Home Student
+                                </span>
+                              )}
+                            </div>
                             <p className="text-[10px] text-slate-400 font-mono">
                               {student.student_number || `ID: ${loan.student_id}`}
                             </p>
@@ -958,12 +1038,25 @@ function LibrarianQRScanner({ darkMode }) {
 
                         <td className="px-4 py-3 whitespace-nowrap">
                           <div>
-                            <span className={`font-semibold ${dueStatus.textClass}`}>
-                              {formatPhilippineDate(loan.due_date)}
-                            </span>
-                            <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.2 rounded-md mt-0.5 ${dueStatus.badgeClass}`}>
-                              <span>{dueStatus.label}</span>
-                            </div>
+                            {isLoanInterSchool(loan) ? (
+                              <div className="space-y-0.5">
+                                <span className="font-semibold text-slate-700 text-xs block">
+                                  {formatPhilippineDate(loan.due_date)}
+                                </span>
+                                <span className="inline-flex items-center gap-1 text-[9.5px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                  <span>🏛️ Library Use Only (Same-Day)</span>
+                                </span>
+                              </div>
+                            ) : (
+                              <div>
+                                <span className={`font-semibold ${dueStatus.textClass}`}>
+                                  {formatPhilippineDate(loan.due_date)}
+                                </span>
+                                <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.2 rounded-md mt-0.5 ${dueStatus.badgeClass}`}>
+                                  <span>{dueStatus.label}</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </td>
 
@@ -1028,6 +1121,19 @@ function LibrarianQRScanner({ darkMode }) {
 
             {/* Modal Scrollable Body */}
             <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1">
+              {/* Library Desk Warning Alert */}
+              {libraryMismatchWarning && (
+                <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-900 flex items-start gap-3 shadow-xs animate-slide-up">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-sm text-amber-900">Desk Verification Warning</h4>
+                    <p className="text-xs text-amber-800 mt-0.5 leading-relaxed font-medium">
+                      {libraryMismatchWarning}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Borrower Details & Photo ID Match Row */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 space-y-3">
@@ -1832,6 +1938,82 @@ function LibrarianQRScanner({ darkMode }) {
                 </p>
               )}
             </div>
+
+            {/* Overdue Delinquency Alert Banner */}
+            {(() => {
+              const dueStatus = getDueStatusDetails(loanToReturn.due_date);
+              if (!dueStatus.isOverdue) return null;
+              return (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-3 space-y-2 text-rose-950">
+                  <div className="flex items-center justify-between text-xs font-bold text-rose-900">
+                    <span className="flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 animate-pulse" />
+                      ⚠️ OVERDUE ALERT: {dueStatus.daysOverdue} Day{dueStatus.daysOverdue !== 1 ? 's' : ''} Late
+                    </span>
+                    <span className="font-mono text-rose-800 text-sm font-black">
+                      ₱{(dueStatus.daysOverdue * 5).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-rose-800 flex items-center justify-between">
+                    <span>Due Date: {formatPhilippineDate(loanToReturn.due_date)}</span>
+                    <span className="text-[10px] font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
+                      Home Student
+                    </span>
+                  </div>
+
+                  {/* 3-Option Fine Settlement */}
+                  <div className="pt-2 border-t border-rose-200/80">
+                    <span className="text-[10px] uppercase font-bold text-rose-800 block mb-1">
+                      Fine Settlement Decision:
+                    </span>
+                    <div className="grid grid-cols-3 gap-1.5 text-xs font-bold">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsFinePaid(true);
+                          setManualFineAmount(String(dueStatus.daysOverdue * 5));
+                        }}
+                        className={`py-1.5 px-1 rounded-xl text-[11px] font-bold border transition text-center cursor-pointer ${
+                          isFinePaid && parseFloat(manualFineAmount) > 0
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                            : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50'
+                        }`}
+                      >
+                        ✓ Paid Now
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsFinePaid(false);
+                          setManualFineAmount(String(dueStatus.daysOverdue * 5));
+                        }}
+                        className={`py-1.5 px-1 rounded-xl text-[11px] font-bold border transition text-center cursor-pointer ${
+                          !isFinePaid && parseFloat(manualFineAmount) > 0
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                            : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-50'
+                        }`}
+                      >
+                        ⏱ Pay Later
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setManualFineAmount('0');
+                          setIsFinePaid(true);
+                        }}
+                        className={`py-1.5 px-1 rounded-xl text-[11px] font-bold border transition text-center cursor-pointer ${
+                          parseFloat(manualFineAmount) === 0
+                            ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                            : 'bg-white text-purple-700 border-purple-300 hover:bg-purple-50'
+                        }`}
+                      >
+                        🕊 Waive Fine
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Condition Check */}
             <div className="space-y-1.5">

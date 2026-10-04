@@ -321,6 +321,129 @@ export default function BookDetailsModal({
             )}
           </div>
 
+          {/* Campus & Library Branch Location / Pickup Counter */}
+          <div className="p-4 rounded-2xl border border-blue-200/90 bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-blue-50/70 space-y-3 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                  <FiMapPin className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-blue-950">
+                    Campus Library Unit & Pickup Desk
+                  </h3>
+                  <p className="text-[11px] text-blue-700/80 font-medium">
+                    Designated circulation counter where this physical copy is shelved and claimed
+                  </p>
+                </div>
+              </div>
+              {(() => {
+                const rawLibName = String(book?.libraries?.name || book?.library_name || '').toLowerCase();
+                const rawLibType = String(book?.libraries?.library_type || book?.library_type || '').toLowerCase();
+                const libId = Number(book?.library_id || 0);
+                const isSHS = [10, 11].includes(libId) || rawLibName.includes('shs') || rawLibName.includes('senior high') || rawLibName.includes('high school') || rawLibType === 'senior_high_school';
+                const schoolCode = book?.schools?.school_code || book?.school_code || (String(book?.school_id) === '1' ? 'SRC' : 'GNC');
+                const pickupDesk = isSHS ? `${schoolCode} SHS Library Desk` : `${schoolCode} College Circulation Desk`;
+
+                return (
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                    book.is_from_other_school
+                      ? "bg-amber-100 text-amber-900 border-amber-300"
+                      : (isSHS
+                          ? "bg-amber-50 text-amber-900 border-amber-300 font-bold"
+                          : "bg-blue-100 text-blue-900 border-blue-300 font-bold")
+                  }`}>
+                    {book.is_from_other_school ? "Inter-School Partner Campus" : (isSHS ? "🎒 Senior High School Library" : "🏛️ College Library")}
+                  </span>
+                );
+              })()}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+              <div className="rounded-xl border border-blue-200/70 bg-white/90 p-3 shadow-2xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                  Campus
+                </span>
+                <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <span>🏛️</span>
+                  <span className="truncate">{book.schools?.school_name || book.school_name || (String(book.school_id) === '1' ? 'Santa Rita College' : 'Guagua National Colleges')}</span>
+                </span>
+              </div>
+
+              <div className="rounded-xl border border-blue-200/70 bg-white/90 p-3 shadow-2xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                  Library Branch / Unit
+                </span>
+                <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                  {(() => {
+                    const rawLibName = String(book?.libraries?.name || book?.library_name || '').toLowerCase();
+                    const rawLibType = String(book?.libraries?.library_type || book?.library_type || '').toLowerCase();
+                    const libId = Number(book?.library_id || 0);
+                    const isSHS = [10, 11].includes(libId) || rawLibName.includes('shs') || rawLibName.includes('senior high') || rawLibName.includes('high school') || rawLibType === 'senior_high_school';
+                    return (
+                      <>
+                        <span>{isSHS ? '🎒' : '📚'}</span>
+                        <span className="truncate">
+                          {book.libraries?.name || book.library_name || (isSHS ? 'Senior High School Library' : 'College Library')}
+                        </span>
+                      </>
+                    );
+                  })()}
+                </span>
+              </div>
+
+              <div className="rounded-xl border border-blue-200/70 bg-white/90 p-3 shadow-2xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                  Pickup Counter
+                </span>
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5" title={(() => {
+                  const rawLibName = String(book?.libraries?.name || book?.library_name || '').toLowerCase();
+                  const rawLibType = String(book?.libraries?.library_type || book?.library_type || '').toLowerCase();
+                  const libId = Number(book?.library_id || 0);
+                  const isSHS = [10, 11].includes(libId) || rawLibName.includes('shs') || rawLibName.includes('senior high') || rawLibName.includes('high school') || rawLibType === 'senior_high_school';
+                  const schoolCode = book?.schools?.school_code || book?.school_code || (String(book?.school_id) === '1' ? 'SRC' : 'GNC');
+                  return `${schoolCode} ${isSHS ? 'SHS Library Desk' : 'College Circulation Desk'}`;
+                })()}>
+                  <span>📍</span>
+                  <span className="truncate">
+                    {(() => {
+                      const rawLibName = String(book?.libraries?.name || book?.library_name || '').toLowerCase();
+                      const rawLibType = String(book?.libraries?.library_type || book?.library_type || '').toLowerCase();
+                      const libId = Number(book?.library_id || 0);
+                      const isSHS = [10, 11].includes(libId) || rawLibName.includes('shs') || rawLibName.includes('senior high') || rawLibName.includes('high school') || rawLibType === 'senior_high_school';
+                      const schoolCode = book?.schools?.school_code || book?.school_code || (String(book?.school_id) === '1' ? 'SRC' : 'GNC');
+                      return `${schoolCode} ${isSHS ? 'SHS Desk' : 'College Desk'} (${location || 'Main Stacks'})`;
+                    })()}
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            {/* If title has multiple holdings across campus libraries */}
+            {Array.isArray(book.locations) && book.locations.length > 1 && (
+              <div className="mt-2 pt-2 border-t border-blue-200/60">
+                <span className="text-[10.5px] font-bold text-blue-950 block mb-1.5">
+                  Other Library Holdings for this Title:
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {book.locations.map((loc, idx) => (
+                    <span 
+                      key={idx}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold border ${
+                        loc.is_current 
+                          ? "bg-blue-600 text-white border-blue-700 shadow-2xs" 
+                          : "bg-white text-slate-700 border-slate-200"
+                      }`}
+                    >
+                      <span>{loc.library_name} ({loc.campus_code || 'GNC'}):</span>
+                      <strong className={loc.is_current ? "text-white" : "text-emerald-700"}>{loc.available_copies} avail</strong>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Physical Copy Holdings & Accession Registry */}
           <div className="p-4 rounded-2xl border border-slate-200/90 bg-slate-50/60 space-y-3">
             <div className="flex items-center justify-between">

@@ -1,14 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   FiHome, FiMail, FiLogOut, FiBook, FiMoon, FiSun, FiUsers, FiList, 
   FiCheckCircle, FiGrid, FiClock, FiFileText, FiAlertOctagon, FiX, FiShield, FiInfo, FiCheck,
-  FiSettings, FiUserPlus, FiSliders
+  FiSettings, FiUserPlus, FiSliders, FiChevronDown, FiLayers
 } from "react-icons/fi";
 import { getUserNotifications, getBackendAssetUrl, signOut, getBorrowRequests } from "../../../utils/api";
 import api from "../../../utils/api";
 import { ConfirmationOverlay, GlobalHeader, LogoutConfirmationModal } from "../../common";
 import { useNotifications } from "../../../context/NotificationContext";
+import { getLibraryBranding } from "../../../utils/libraryBranding";
 import {
   LibrarianDashboard as AdminDashboard,
   LibrarianAddStudent as AdminAddStudent,
@@ -24,6 +25,7 @@ import {
   LibrarianOverdueBooks as AdminOverdueBooks,
   LibrarianSettings as AdminSettings,
 } from "../../collegeTabs/LibrarianTabs";
+import GlobalCirculationScanner from '../../common/GlobalCirculationScanner';
 
 function LibrarianPortal() {
   const navigate = useNavigate();
@@ -43,6 +45,8 @@ function LibrarianPortal() {
   const [userInfo, setUserInfo] = useState(null);
   const [showStaffModal, setShowStaffModal] = useState(false);
   const [libraryPolicy, setLibraryPolicy] = useState(null);
+  const [libraries, setLibraries] = useState([]);
+  const [activeLibrary, setActiveLibrary] = useState(null);
 
   // Keep mobile view confined to the 3 permitted tabs: Registration, Directory, Catalog
   useEffect(() => {
@@ -81,17 +85,77 @@ function LibrarianPortal() {
 
     const effectiveSchoolId = schoolId && schoolId !== 'null' && schoolId !== 'undefined' ? schoolId : '1';
 
-    const fetchSchool = async () => {
+    const fetchSchoolAndLibraries = async () => {
       try {
-        const res = await api.get(`/schools/${effectiveSchoolId}`);
-        setSchoolInfo(res.data);
+        const [schoolRes, librariesRes] = await Promise.allSettled([
+          api.get(`/schools/${effectiveSchoolId}`),
+          api.get(`/libraries/school/${effectiveSchoolId}`)
+        ]);
+
+        if (schoolRes.status === 'fulfilled' && schoolRes.value?.data) {
+          setSchoolInfo(schoolRes.value.data);
+        }
+
+        if (librariesRes.status === 'fulfilled') {
+          const payload = librariesRes.value.data;
+          const libs = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
+          setLibraries(libs);
+
+          // Resolve active library based on stored credentials or user assignments
+          const rawUserStr = localStorage.getItem('currentUser');
+          let userObj = null;
+          try { userObj = rawUserStr ? JSON.parse(rawUserStr) : null; } catch {}
+
+          const roleId = Number(localStorage.getItem('roleId') || userObj?.role_id || 0);
+          const isRegularLibrarian = roleId === 3;
+
+          let matched = null;
+
+          // For regular librarian, strictly lock to user's assigned library_id
+          if (isRegularLibrarian && userObj?.library_id) {
+            matched = libs.find(l => String(l.library_id || l.id) === String(userObj.library_id));
+          }
+
+          if (!matched) {
+            const storedLibId = localStorage.getItem('currentLibraryId');
+            if (storedLibId) {
+              matched = libs.find(l => String(l.library_id || l.id) === String(storedLibId));
+            }
+          }
+
+          if (!matched) {
+            const storedLibType = localStorage.getItem('currentLibraryType');
+            if (storedLibType) {
+              matched = libs.find(l => l.library_type === storedLibType);
+            }
+          }
+
+          if (!matched && userObj?.library_id) {
+            matched = libs.find(l => String(l.library_id || l.id) === String(userObj.library_id));
+          }
+
+          if (!matched && libs.length > 0) {
+            matched = libs[0];
+          }
+
+          if (matched) {
+            setActiveLibrary(matched);
+            localStorage.setItem('currentLibraryId', String(matched.library_id || matched.id));
+            localStorage.setItem('currentLibraryName', matched.name);
+            localStorage.setItem('currentLibraryType', matched.library_type || 'college');
+          }
+        }
       } catch (err) {
-        console.error(err);
+        console.error('Error fetching school details:', err);
       }
     };
 
-    fetchSchool();
+    fetchSchoolAndLibraries();
   }, [navigate]);
+
+  const branding = useMemo(() => {
+    return getLibraryBranding(activeLibrary?.library_type, activeLibrary?.name);
+  }, [activeLibrary]);
 
   useEffect(() => setSchoolLogoError(false), [schoolInfo?.logo]);
 
@@ -99,22 +163,53 @@ function LibrarianPortal() {
     const load = async () => {
       const schoolId = localStorage.getItem("schoolId");
       if (!schoolId) return;
+      const targetLibId = activeLibrary?.library_id || localStorage.getItem('currentLibraryId');
+
       try {
-        const booksRes = await api.get(`/books/school?school_id=${schoolId}&group=true`);
+        let booksUrl = `/books/school?school_id=${schoolId}&group=true`;
+        if (targetLibId && targetLibId !== 'all') {
+          booksUrl += `&library_id=${targetLibId}`;
+        }
+        const booksRes = await api.get(booksUrl);
         const booksList = Array.isArray(booksRes.data) ? booksRes.data : (booksRes.data?.books || []);
-        setBooks(booksList);
+        const filteredBooks = (targetLibId && targetLibId !== 'all')
+          ? booksList.filter(b => b.library_id && String(b.library_id) === String(targetLibId))
+          : booksList;
+        setBooks(filteredBooks);
+
         const notRes = await getUserNotifications();
         if (notRes.data) {
-          setNotifications(notRes.data);
-          setUnreadCount(notRes.data.filter((n) => !n.read).length);
+          const rawNotes = Array.isArray(notRes.data) ? notRes.data : (notRes.data?.data || []);
+          const currentUserId = localStorage.getItem('userId') || localStorage.getItem('currentUserId');
+          const userOnlyNotes = rawNotes.filter(n => {
+            if (n.type === 'announcement' && (n.is_global || String(n.school_id) === String(schoolId))) return true;
+            return currentUserId && Number(n.user_id) === Number(currentUserId);
+          });
+          setNotifications(userOnlyNotes);
+          setUnreadCount(userOnlyNotes.filter((n) => !n.read && !n.is_read).length);
         }
-        const usersRes = await api.get(`/users/school/${schoolId}`);
-        setStudentCount(usersRes.data?.filter((u) => u.role_id === 3).length || 0);
+
+        let usersUrl = `/users/school/${schoolId}?role_id=4`;
+        if (targetLibId && targetLibId !== 'all') {
+          usersUrl += `&library_id=${targetLibId}`;
+        }
+        const usersRes = await api.get(usersUrl);
+        const userList = Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data?.data || []);
+        const filteredStudents = (targetLibId && targetLibId !== 'all')
+          ? userList.filter(u => u.library_id && String(u.library_id) === String(targetLibId))
+          : userList;
+        setStudentCount(filteredStudents.length);
         
-        // Get pending borrow requests count
-        const borrowRes = await getBorrowRequests(schoolId);
+        // Get pending borrow requests count scoped by targetLibId
+        const borrowRes = await getBorrowRequests(schoolId, targetLibId);
         if (borrowRes.data) {
-          setPendingRequestsCount(borrowRes.data.filter(r => r.status === 'pending').length);
+          const filteredBorrows = (targetLibId && targetLibId !== 'all')
+            ? (borrowRes.data || []).filter(r => {
+                const rLib = r.library_id || r.home_library_id || r.source_library_id;
+                return rLib && String(rLib) === String(targetLibId);
+              })
+            : (borrowRes.data || []);
+          setPendingRequestsCount(filteredBorrows.filter(r => r.status === 'pending').length);
         }
 
         // Fetch user info
@@ -142,7 +237,7 @@ function LibrarianPortal() {
     load();
     const iv = setInterval(load, 30000);
     return () => clearInterval(iv);
-  }, []);
+  }, [activeLibrary]);
 
   // Reset pending requests count when viewing borrow requests tab
   useEffect(() => {
@@ -176,8 +271,14 @@ function LibrarianPortal() {
       // Refresh notifications
       const notRes = await getUserNotifications();
       if (notRes.data) {
-        setNotifications(notRes.data);
-        setUnreadCount(notRes.data.filter((n) => !n.read).length);
+        const rawNotes = Array.isArray(notRes.data) ? notRes.data : (notRes.data?.data || []);
+        const currentUserId = localStorage.getItem('userId') || localStorage.getItem('currentUserId');
+        const userOnlyNotes = rawNotes.filter(n => {
+          if (n.type === 'announcement' && (n.is_global || String(n.school_id) === String(localStorage.getItem('schoolId')))) return true;
+          return currentUserId && Number(n.user_id) === Number(currentUserId);
+        });
+        setNotifications(userOnlyNotes);
+        setUnreadCount(userOnlyNotes.filter((n) => !n.read && !n.is_read).length);
       }
     } catch (error) {
       console.error('Error deleting notification:', error);
@@ -190,8 +291,14 @@ function LibrarianPortal() {
       // Refresh notifications
       const notRes = await getUserNotifications();
       if (notRes.data) {
-        setNotifications(notRes.data);
-        setUnreadCount(notRes.data.filter((n) => !n.read).length);
+        const rawNotes = Array.isArray(notRes.data) ? notRes.data : (notRes.data?.data || []);
+        const currentUserId = localStorage.getItem('userId') || localStorage.getItem('currentUserId');
+        const userOnlyNotes = rawNotes.filter(n => {
+          if (n.type === 'announcement' && (n.is_global || String(n.school_id) === String(localStorage.getItem('schoolId')))) return true;
+          return currentUserId && Number(n.user_id) === Number(currentUserId);
+        });
+        setNotifications(userOnlyNotes);
+        setUnreadCount(userOnlyNotes.filter((n) => !n.read && !n.is_read).length);
       }
     } catch (error) {
       console.error('Error deleting all notifications:', error);
@@ -249,17 +356,21 @@ function LibrarianPortal() {
         <aside className={`fixed left-0 top-0 h-full w-64 z-50 hidden lg:block ${darkMode ? 'bg-gray-900 border-r border-gray-800' : 'bg-white border-r border-slate-200/70'}`}>
           <div className="flex flex-col h-full">
             {/* Minimalist Seamless Brand & Campus Header */}
-            <div className={`p-5 border-b ${darkMode ? 'border-gray-800' : 'border-slate-100'}`}>
+            <div className={`p-4 border-b ${darkMode ? 'border-gray-800' : 'border-slate-100'}`}>
               <div className="flex items-center gap-3">
                 <img src="/L.png" alt="Libralink Logo" className="w-8 h-8 rounded-lg object-cover" />
                 <div className="min-w-0 flex-1">
                   <span className={`text-base font-bold tracking-tight block leading-tight ${darkMode ? 'text-white' : 'text-slate-900'}`}>LibraLink</span>
-                  {schoolInfo ? (
-                    <p className="text-[11px] font-medium text-slate-400 truncate mt-0.5" title={schoolInfo.school_name}>
-                      {schoolInfo.school_name} {schoolInfo.school_code ? `• ${schoolInfo.school_code}` : ''}
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-xs">{branding.icon}</span>
+                    <span className={`text-xs font-semibold truncate ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                      {activeLibrary?.name || branding.badgeText}
+                    </span>
+                  </div>
+                  {schoolName && (
+                    <p className="text-[10px] text-slate-400 truncate mt-0.5" title={schoolName}>
+                      {schoolName} {schoolCode ? `• ${schoolCode}` : ''}
                     </p>
-                  ) : (
-                    <p className="text-[11px] font-medium text-slate-400">Librarian Counter</p>
                   )}
                 </div>
               </div>
@@ -386,36 +497,7 @@ function LibrarianPortal() {
             darkMode={darkMode}
           />
 
-          {/* Admin Librarian Counter Mode Notice Banner */}
-          {(() => {
-            const rawRole = (localStorage.getItem("userRole") || '').toLowerCase().replace(/[-_]/g, ' ').trim();
-            const roleId = Number(localStorage.getItem("roleId") || 0);
-            const isAdminLibrarian = rawRole.includes('admin') || roleId === 2 || roleId === 1;
 
-            if (!isAdminLibrarian) return null;
-
-            return (
-              <div className="bg-slate-900 text-white px-4 py-2.5 text-xs flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 shadow-xs">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-2 w-2 relative">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                  </span>
-                  <span className="text-slate-200">
-                    <strong className="text-white font-semibold">Circulation Desk Mode Active</strong>
-                    <span className="text-slate-400 hidden sm:inline"> — You are operating with Admin Librarian privileges.</span>
-                  </span>
-                </div>
-                <button
-                  onClick={() => navigate('/librarian-admin')}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-all shadow-xs cursor-pointer"
-                >
-                  <FiShield className="w-3.5 h-3.5 text-blue-200" />
-                  <span>Return to Admin Console →</span>
-                </button>
-              </div>
-            );
-          })()}
 
           <div className="p-4 lg:p-6 min-w-0">
 
@@ -435,24 +517,70 @@ function LibrarianPortal() {
                 onNavigateToProfile={() => setActiveTab('settings')}
                 onNavigateToSettings={() => setActiveTab('settings')}
                 onLogout={handleLogout}
+                selectedLibraryId={activeLibrary?.library_id}
               />
             )}
-            {activeTab === 'students' && <AdminAddStudent darkMode={darkMode} onNavigateTab={setActiveTab} />}
-            {activeTab === 'list-students' && <AdminListStudents darkMode={darkMode} />}
-            {activeTab === 'borrow-requests' && <AdminBorrowRequests darkMode={darkMode} />}
-            {(activeTab === 'book-approved' || activeTab === 'circulation-counter') && <AdminQRScanner darkMode={darkMode} />}
-            {activeTab === 'history' && <AdminHistory darkMode={darkMode} />}
+            {activeTab === 'students' && (
+              <AdminAddStudent 
+                darkMode={darkMode} 
+                onNavigateTab={setActiveTab} 
+                selectedLibraryId={activeLibrary?.library_id} 
+              />
+            )}
+            {activeTab === 'list-students' && (
+              <AdminListStudents 
+                darkMode={darkMode} 
+                selectedLibraryId={activeLibrary?.library_id} 
+              />
+            )}
+            {activeTab === 'borrow-requests' && (
+              <AdminBorrowRequests 
+                darkMode={darkMode} 
+                selectedLibraryId={activeLibrary?.library_id} 
+              />
+            )}
+            {(activeTab === 'book-approved' || activeTab === 'circulation-counter') && (
+              <AdminQRScanner 
+                darkMode={darkMode} 
+                selectedLibraryId={activeLibrary?.library_id} 
+              />
+            )}
+            {activeTab === 'history' && (
+              <AdminHistory 
+                darkMode={darkMode} 
+                selectedLibraryId={activeLibrary?.library_id} 
+              />
+            )}
             {activeTab === 'overdue-books' && (
               <AdminOverdueBooks 
                 darkMode={darkMode} 
                 schoolId={localStorage.getItem('schoolId') || schoolInfo?.school_id} 
                 librarianId={localStorage.getItem('currentUserId') || localStorage.getItem('userId') || userInfo?.user_id} 
+                selectedLibraryId={activeLibrary?.library_id}
               />
             )}
             {activeTab === 'permission-letter' && <AdminPermissionLetter darkMode={darkMode} />}
-            {activeTab === 'books' && <AdminBooks darkMode={darkMode} />}
-            {activeTab === 'books-management' && <AdminBooksManagement darkMode={darkMode} onNavigateTab={setActiveTab} />}
-            {activeTab === 'inbox' && <AdminInbox darkMode={darkMode} notifications={notifications} onNavigateTab={setActiveTab} />}
+            {activeTab === 'books' && (
+              <AdminBooks 
+                darkMode={darkMode} 
+                selectedLibraryId={activeLibrary?.library_id} 
+                onNavigateTab={setActiveTab}
+              />
+            )}
+            {activeTab === 'books-management' && (
+              <AdminBooksManagement 
+                darkMode={darkMode} 
+                onNavigateTab={setActiveTab} 
+                selectedLibraryId={activeLibrary?.library_id} 
+              />
+            )}
+            {activeTab === 'inbox' && (
+              <AdminInbox 
+                darkMode={darkMode} 
+                notifications={notifications} 
+                onNavigateTab={setActiveTab} 
+              />
+            )}
             {activeTab === 'settings' && (
               <AdminSettings 
                 darkMode={darkMode} 
@@ -460,6 +588,7 @@ function LibrarianPortal() {
                 userInfo={userInfo} 
                 schoolInfo={schoolInfo} 
                 onNavigateTab={setActiveTab} 
+                activeLibrary={activeLibrary}
               />
             )}
           </div>
@@ -718,6 +847,13 @@ function LibrarianPortal() {
             </div>
           </div>
         )}
+
+        {/* Global Instant Circulation Scanner (Anywhere / Any Tab) */}
+        <GlobalCirculationScanner
+          schoolId={schoolInfo?.school_id || localStorage.getItem('schoolId')}
+          libraryId={activeLibrary?.library_id || localStorage.getItem('currentLibraryId')}
+          darkMode={darkMode}
+        />
       </div>
     </div>
   );

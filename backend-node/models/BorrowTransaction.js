@@ -83,14 +83,14 @@ class BorrowTransaction {
     }
   }
 
-  static async getActiveBySchool(school_id) {
+  static async getActiveBySchool(school_id, library_id = null) {
     try {
       const { data, error } = await supabase
         .from('borrow_transactions')
         .select(`
           *,
-          student:student_id(firstname, lastname, student_number, email, contact_number, profile_image, school_id),
-          book_copies(copy_id, accession_number, books(book_id, title, author, isbn, cover_image, school_id, schools(school_id, school_name)))
+          student:student_id(firstname, lastname, student_number, email, contact_number, profile_image, id_card_picture, school_id),
+          book_copies(copy_id, accession_number, books(book_id, title, author, isbn, cover_image, school_id, library_id, schools(school_id, school_name)))
         `)
         .eq('status', 'active')
         .order('borrow_date', { ascending: false });
@@ -99,7 +99,7 @@ class BorrowTransaction {
       
       // Filter by school_id in JavaScript to match book owner school OR borrower home school
       const parsedSchoolId = parseInt(school_id);
-      const filtered = (data || []).filter(
+      let filtered = (data || []).filter(
         borrow => 
           borrow.book_copies?.books?.school_id === parsedSchoolId ||
           borrow.book_copies?.books?.schools?.school_id === parsedSchoolId ||
@@ -108,6 +108,17 @@ class BorrowTransaction {
         ...borrow,
         book_id: borrow.book_id || borrow.book_copies?.books?.book_id
       }));
+
+      if (library_id && library_id !== 'all') {
+        const lid = Number(library_id);
+        filtered = filtered.filter(b => {
+          const bookLibId = b.book_copies?.books?.library_id;
+          if (bookLibId !== null && bookLibId !== undefined) {
+            return Number(bookLibId) === lid;
+          }
+          return false;
+        });
+      }
       
       return filtered;
     } catch (error) {
@@ -136,8 +147,16 @@ class BorrowTransaction {
     }
   }
 
-  static async returnBook(borrow_id) {
+  static async returnBook(borrow_id, options = {}) {
     try {
+      const {
+        condition = 'good',
+        remarks = '',
+        fine_amount = null,
+        damage_fee = 0,
+        is_paid = true,
+      } = options || {};
+
       // Get borrow transaction details with book and copy info
       const { data: borrow, error: borrowError } = await supabase
         .from('borrow_transactions')
@@ -198,7 +217,7 @@ class BorrowTransaction {
         console.warn('[RETURN BOOK] No copy_id found for borrow transaction:', borrow_id);
       }
 
-      // Calculate fine if overdue
+      // Calculate fine if overdue or damaged
       let fineAssessed = 0;
       let daysOverdue = 0;
       const schoolId = borrow.book_copies?.books?.school_id;
@@ -226,29 +245,6 @@ class BorrowTransaction {
               if (daysOverdue > 0) {
                 const rawFine = daysOverdue * finePolicy.fine_amount_per_day;
                 fineAssessed = Math.min(rawFine, finePolicy.max_fine_cap);
-
-                // Prevent duplicate fines
-                const { data: existingFine } = await supabase
-                  .from('fines')
-                  .select('fine_id')
-                  .eq('student_id', borrow.student_id)
-                  .eq('borrow_id', borrow_id)
-                  .maybeSingle();
-
-                if (!existingFine && fineAssessed > 0) {
-                  await supabase
-                    .from('fines')
-                    .insert({
-                      student_id: borrow.student_id,
-                      school_id: schoolId,
-                      borrow_id: borrow_id,
-                      amount: fineAssessed,
-                      reason: `Overdue return (${daysOverdue} day${daysOverdue > 1 ? 's' : ''} late)`,
-                      status: 'pending',
-                      created_at: new Date().toISOString()
-                    });
-                  console.log(`[BORROW TRANSACTION] Generated fine: ₱${fineAssessed} for borrow_id: ${borrow_id}`);
-                }
               }
             }
           }
@@ -257,14 +253,88 @@ class BorrowTransaction {
         }
       }
 
-      return { success: true, fineAssessed, daysOverdue };
+      // If fine_amount is explicitly passed from frontend inspection, prioritize it
+      const overdueComponent = fine_amount !== null && fine_amount !== undefined ? Number(fine_amount) : fineAssessed;
+      const damageComponent = Number(damage_fee) || 0;
+      const totalFine = overdueComponent + damageComponent;
+
+      const bookTitle = borrow.book_copies?.books?.title || 'Book';
+
+      if (totalFine > 0 && borrow.student_id) {
+        try {
+          // Check existing fine
+          const { data: existingFine } = await supabase
+            .from('fines')
+            .select('fine_id')
+            .eq('student_id', borrow.student_id)
+            .eq('borrow_id', borrow_id)
+            .maybeSingle();
+
+          const fineReason = [
+            overdueComponent > 0 ? `Overdue return (${daysOverdue} days: ₱${overdueComponent.toFixed(2)})` : '',
+            damageComponent > 0 ? `Physical Condition: ${condition.toUpperCase()} (₱${damageComponent.toFixed(2)})` : '',
+            remarks ? `Remarks: ${remarks}` : ''
+          ].filter(Boolean).join(' | ');
+
+          if (!existingFine) {
+            await supabase
+              .from('fines')
+              .insert({
+                student_id: borrow.student_id,
+                school_id: schoolId,
+                borrow_id: borrow_id,
+                amount: totalFine,
+                reason: fineReason || 'Library Penalty',
+                status: is_paid ? 'paid' : 'pending',
+                created_at: new Date().toISOString(),
+                ...(is_paid ? { paid_at: new Date().toISOString() } : {})
+              });
+            console.log(`[BORROW TRANSACTION] Generated fine record: ₱${totalFine} (Status: ${is_paid ? 'paid' : 'pending'}) for borrow_id: ${borrow_id}`);
+          }
+
+          // Student Clearance Notification
+          if (!is_paid) {
+            await supabase
+              .from('notifications')
+              .insert({
+                user_id: borrow.student_id,
+                school_id: schoolId || null,
+                type: 'clearance_hold',
+                title: 'Library Clearance Hold: Unpaid Penalty ⚠️',
+                message: `May naiwang hindi nabayarang ${damageComponent > 0 ? 'damage penalty' : 'overdue fine'} (Kabuuang ₱${totalFine.toFixed(2)}) para sa aklat na "${bookTitle}". Hindi mapipirmahan ang iyong clearance hangga't hindi ito nababayaran sa circulation counter.`,
+                related_id: parseInt(borrow_id, 10) || null,
+                is_read: false,
+                is_admin_notification: false,
+                created_at: new Date().toISOString(),
+              });
+          } else {
+            await supabase
+              .from('notifications')
+              .insert({
+                user_id: borrow.student_id,
+                school_id: schoolId || null,
+                type: 'book_returned',
+                title: 'Book Returned & Fine Cleared ✅',
+                message: `Isinauli ang aklat na "${bookTitle}". Ang multa na ₱${totalFine.toFixed(2)} ay nabayaran at na-clear na sa circulation desk. Official library return clearance signed.`,
+                related_id: parseInt(borrow_id, 10) || null,
+                is_read: false,
+                is_admin_notification: false,
+                created_at: new Date().toISOString(),
+              });
+          }
+        } catch (fineDbErr) {
+          console.error('[BORROW TRANSACTION] Fine DB error:', fineDbErr);
+        }
+      }
+
+      return { success: true, fineAssessed: totalFine, daysOverdue };
     } catch (error) {
       console.error('[RETURN BOOK] Error returning book:', error);
       throw error;
     }
   }
 
-  static async getOverdue(school_id = null) {
+  static async getOverdue(school_id = null, library_id = null) {
     try {
       const manilaDateOptions = { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' };
       const todayStr = new Intl.DateTimeFormat('en-CA', manilaDateOptions).format(new Date());
@@ -273,8 +343,8 @@ class BorrowTransaction {
         .from('borrow_transactions')
         .select(`
           *,
-          student:student_id(firstname, lastname, student_number, email, contact_number, profile_image),
-          book_copies(copy_id, accession_number, books(book_id, title, author, isbn, cover_image, school_id, schools(school_id, school_name)))
+          student:student_id(user_id, firstname, lastname, student_number, email, contact_number, profile_image, library_id, school_id),
+          book_copies(copy_id, accession_number, books(book_id, title, author, isbn, cover_image, library_id, school_id, schools(school_id, school_name)))
         `)
         .eq('status', 'active')
         .lt('due_date', todayStr)
@@ -288,8 +358,22 @@ class BorrowTransaction {
         const parsedSchoolId = parseInt(school_id);
         filtered = filtered.filter(
           b => b.book_copies?.books?.school_id === parsedSchoolId ||
-               b.book_copies?.books?.schools?.school_id === parsedSchoolId
+               b.book_copies?.books?.schools?.school_id === parsedSchoolId ||
+               b.school_id === parsedSchoolId
         );
+      }
+
+      // Filter strictly by Home Library and Home Student if library_id is provided
+      if (library_id && library_id !== 'all') {
+        const lid = Number(library_id);
+        const isCollege = lid === 1 || lid === 2;
+        filtered = filtered.filter(b => {
+          const bookLib = b.book_copies?.books?.library_id ?? b.library_id ?? null;
+          const studentLib = b.student?.library_id ?? null;
+          const matchesBook = bookLib !== null ? Number(bookLib) === lid : isCollege;
+          const matchesStudent = studentLib !== null ? Number(studentLib) === lid : isCollege;
+          return matchesBook && matchesStudent;
+        });
       }
 
       // Fetch fine policy for school if known

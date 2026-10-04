@@ -81,19 +81,26 @@ function BookDetail() {
     }
   }, [bookId]);
 
-  const handleBorrow = () => {
-    if (book) {
-      const resolvedBookId = Number(book.book_id || book.id);
+  const handleBorrow = (targetLocation = null) => {
+    const targetBook = targetLocation || book;
+    if (targetBook) {
+      const resolvedBookId = Number(targetBook.book_id || book.book_id || book.id);
       if (!resolvedBookId || isNaN(resolvedBookId)) return;
+
+      const userSchoolId = userData?.school_id || localStorage.getItem('schoolId');
+      const bookSchoolId = targetBook.school_id || book.school_id;
+      const isInter = userSchoolId && bookSchoolId && String(userSchoolId) !== String(bookSchoolId);
 
       setBorrowingFormList([{
         book_id: resolvedBookId,
         title: book.title,
         author: book.author,
         isbn: book.isbn,
-        owner_school_id: book.school_id || currentSchoolId,
-        owner_school_name: book.schools?.school_name || 'Your Library',
-        borrow_type: isInterSchool ? 'INTER_SCHOOL_LIBRARY_USE' : 'HOME',
+        library_id: targetBook.library_id || book.library_id || null,
+        library_name: targetBook.library_name || book.libraries?.name || 'Main Library',
+        owner_school_id: bookSchoolId || userSchoolId,
+        owner_school_name: targetBook.campus_name || book.schools?.school_name || 'Your Library',
+        borrow_type: isInter ? 'INTER_SCHOOL_LIBRARY_USE' : 'HOME',
       }]);
       setShowBorrowingForm(true);
     }
@@ -268,8 +275,10 @@ function BookDetail() {
                 <div className="flex items-start gap-2 sm:gap-3">
                   <FiHome className="w-4 h-4 text-[#0077B6] mt-0.5 sm:w-5 sm:h-5" />
                   <div>
-                    <p className="text-xs font-medium text-[#0F172A] sm:text-sm">Library</p>
-                    <p className="text-xs text-[#64748B] sm:text-sm">{book.schools?.school_name || 'Your Library'}</p>
+                    <p className="text-xs font-medium text-[#0F172A] sm:text-sm">Current Library</p>
+                    <p className="text-xs text-[#64748B] sm:text-sm">
+                      {book.schools?.school_name || 'Your Campus'}{book.libraries?.name ? ` • ${book.libraries.name}` : ''}
+                    </p>
                   </div>
                 </div>
                 {book.shelf_location && (
@@ -308,6 +317,94 @@ function BookDetail() {
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Multi-Library Campus & Unit Holdings */}
+              <div className="pt-4 border-t border-[#E2E8F0]">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-[#0F172A]">Available Locations & Libraries</h3>
+                    <p className="text-xs text-[#64748B]">Copies of this title across campus and consortium units</p>
+                  </div>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                    {book.locations?.length || 1} {book.locations?.length === 1 ? 'Location' : 'Locations'}
+                  </span>
+                </div>
+
+                <div className="space-y-2.5">
+                  {(book.locations && book.locations.length > 0 ? book.locations : [
+                    {
+                      book_id: book.book_id,
+                      campus_name: book.schools?.school_name || 'Main Campus',
+                      library_name: book.libraries?.name || 'Main Library',
+                      library_type: book.libraries?.library_type || 'college',
+                      shelf_location: book.shelf_location || 'Main Stacks',
+                      status: book.available_copies > 0 ? 'Available' : 'Borrowed',
+                      available_copies: book.available_copies || 0,
+                      total_copies: book.total_copies || 1,
+                      is_current: true
+                    }
+                  ]).map((loc, idx) => {
+                    const isAvailable = loc.status === 'Available' || loc.available_copies > 0;
+                    return (
+                      <div 
+                        key={loc.book_id || idx}
+                        className={`p-3.5 rounded-xl border transition-all ${
+                          loc.is_current 
+                            ? 'bg-blue-50/50 border-blue-200 ring-1 ring-blue-500/20' 
+                            : 'bg-slate-50/70 border-slate-200 hover:bg-white'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-bold text-[#0F172A]">
+                                Campus: {loc.campus_name}
+                              </span>
+                              {loc.is_current && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
+                                  Viewing
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              <span className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                                <span>{loc.library_type === 'senior_high_school' ? '🎓' : loc.library_type === 'junior_high_school' ? '🎒' : loc.library_type === 'elementary' ? '🧸' : '📚'}</span>
+                                Library: <strong className="text-blue-900">{loc.library_name}</strong>
+                              </span>
+                              {loc.shelf_location && (
+                                <span className="text-[11px] text-slate-500">
+                                  • Shelf: {loc.shelf_location}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${
+                              isAvailable 
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${isAvailable ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                              Status: {isAvailable ? 'Available' : 'Borrowed'}
+                              {loc.total_copies > 0 && ` (${loc.available_copies}/${loc.total_copies})`}
+                            </span>
+
+                            {isAvailable && (
+                              <button
+                                onClick={() => handleBorrow(loc)}
+                                className="px-3 py-1 bg-[#0077B6] hover:bg-[#005f8f] text-white text-xs font-bold rounded-lg transition-colors shadow-xs"
+                              >
+                                Borrow Here
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 

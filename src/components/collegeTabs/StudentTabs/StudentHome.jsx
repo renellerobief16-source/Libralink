@@ -80,6 +80,14 @@ function ShuffledBookCard({ book, onBookClick }) {
   const coverUrl = getTopicBookCover(book);
   const ownerSchool =
     book.schools?.school_name || book.school_name || "Partner Library";
+  const schoolCode =
+    book.schools?.school_code || book.school_code || (String(book.school_id) === '1' ? 'SRC' : 'GNC');
+  const rawLibName = String(book.libraries?.name || book.library_name || '').toLowerCase();
+  const rawLibType = String(book.libraries?.library_type || book.library_type || '').toLowerCase();
+  const libId = Number(book.library_id || 0);
+  const isSHS = [10, 11].includes(libId) || rawLibName.includes('shs') || rawLibName.includes('senior high') || rawLibName.includes('high school') || rawLibType === 'senior_high_school';
+  const unitLabel = isSHS ? 'SHS Library' : 'College Library';
+  const pickupDesk = isSHS ? `${schoolCode} SHS Library Desk` : `${schoolCode} College Circulation Desk`;
   const categoryName =
     book.categories?.category_name || book.category || "General";
   const isAvailable = (book.available_copies ?? 1) > 0;
@@ -122,12 +130,23 @@ function ShuffledBookCard({ book, onBookClick }) {
           </div>
         </div>
 
-        {/* School Badge */}
-        <div className="mb-1.5 flex items-center gap-1">
-          <span className="inline-flex items-center gap-1 max-w-full truncate rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
-            <Building2 className="h-2.5 w-2.5 shrink-0" />
-            <span className="truncate">{ownerSchool}</span>
-          </span>
+        {/* School & Library Branch Badge + Pickup location */}
+        <div className="mb-1.5 space-y-1">
+          <div className="flex flex-wrap items-center gap-1">
+            <span className={`inline-flex items-center gap-1 max-w-full truncate rounded-md px-1.5 py-0.5 text-[9px] font-bold border ${
+              isSHS
+                ? 'bg-amber-50 text-amber-900 border-amber-300'
+                : 'bg-blue-50 text-blue-700 border-blue-200'
+            }`}>
+              <span>{isSHS ? '🎒' : '🏛️'}</span>
+              <span className="truncate">{schoolCode} • {unitLabel}</span>
+            </span>
+          </div>
+          <div className="flex items-center">
+            <span className="text-[8.5px] font-semibold text-slate-500 truncate" title={`📍 Pickup: ${pickupDesk}`}>
+              📍 Pickup: {pickupDesk}
+            </span>
+          </div>
         </div>
 
         {/* Course Match Pill if relevant */}
@@ -214,7 +233,6 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
   const [shuffledBooks, setShuffledBooks] = useState([]);
   const [loadingAllBooks, setLoadingAllBooks] = useState(false);
   const [isShuffling, setIsShuffling] = useState(false);
-  const [selectedSchoolFilter, setSelectedSchoolFilter] = useState("all");
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("all");
 
   // Raffle Challenge States
@@ -438,10 +456,10 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
             console.error("Error fetching registered schools:", partnersError);
           }
 
-          // 4. Fetch all books across partner libraries (load full catalog limit 500)
+          // 4. Fetch all books across partner libraries (load full catalog limit 1000)
           try {
             setLoadingAllBooks(true);
-            const booksRes = await api.get("/books?limit=500");
+            const booksRes = await api.get("/books?limit=1000");
             const rawBooks = booksRes.data?.data || booksRes.data || [];
             const safeBooks = Array.isArray(rawBooks) ? rawBooks : [];
             setAllCatalogBooks(safeBooks);
@@ -593,12 +611,6 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
   // Filtered books in the "All" view (search is removed as requested)
   const filteredCatalogBooks = useMemo(() => {
     return shuffledBooks.filter((book) => {
-      // School filter
-      if (selectedSchoolFilter !== "all") {
-        const bookSchoolId = String(book.school_id || book.schools?.school_id || "");
-        if (bookSchoolId !== String(selectedSchoolFilter)) return false;
-      }
-
       // Category / Course filter
       if (selectedCategoryFilter === "course_only") {
         if (book._matchScore <= 0) return false;
@@ -609,7 +621,7 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
 
       return true;
     });
-  }, [shuffledBooks, selectedSchoolFilter, selectedCategoryFilter]);
+  }, [shuffledBooks, selectedCategoryFilter]);
 
   // Candidate book currently displayed in raffle reel
   const currentRaffleCandidate =
@@ -1252,35 +1264,18 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
                   );
                 })}
               </div>
-
-              {/* School Library Dropdown */}
-              <div className="sm:w-60 shrink-0">
-                <select
-                  value={selectedSchoolFilter}
-                  onChange={(e) => setSelectedSchoolFilter(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
-                >
-                  <option value="all">All School Libraries ({partnerSchools.length})</option>
-                  {partnerSchools.map((s) => (
-                    <option key={s.school_id} value={s.school_id}>
-                      {s.school_name || s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
             </div>
 
-            {(selectedSchoolFilter !== "all" || selectedCategoryFilter !== "all") && (
+            {selectedCategoryFilter !== "all" && (
               <div className="flex justify-end pt-1 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => {
-                    setSelectedSchoolFilter("all");
                     setSelectedCategoryFilter("all");
                   }}
                   className="text-xs font-semibold text-rose-600 hover:text-rose-800 transition"
                 >
-                  Reset Filters
+                  Reset Category
                 </button>
               </div>
             )}
@@ -1422,20 +1417,12 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xs text-slate-400 font-medium">
-                      Campus Library
+                    <span className="text-xs text-slate-500 font-medium">
+                      Consortium Partner Campus
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedSchoolFilter(school.school_id);
-                        setActiveTab("all");
-                      }}
-                      className="inline-flex items-center gap-1 rounded-xl bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 transition active:scale-95"
-                    >
-                      <span>View Books</span>
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </button>
+                    <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
+                      College & SHS Active
+                    </span>
                   </div>
                 </div>
               );

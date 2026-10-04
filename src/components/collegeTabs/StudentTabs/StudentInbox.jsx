@@ -310,6 +310,13 @@ function StudentInbox({ isDrawer = false, onClose }) {
         border: "border-rose-200",
       };
     }
+    if (t.includes('clearance') || t.includes('penalty') || t.includes('damage')) {
+      return {
+        icon: ShieldAlert,
+        bg: "bg-red-100 text-red-700 animate-pulse",
+        border: "border-red-300 ring-2 ring-red-400/30",
+      };
+    }
     if (t.includes('overdue')) {
       return {
         icon: AlertTriangle,

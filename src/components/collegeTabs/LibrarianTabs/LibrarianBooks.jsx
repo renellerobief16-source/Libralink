@@ -73,11 +73,13 @@ function AnimatedNumber({ value, duration = 800 }) {
   return <span>{displayValue.toLocaleString()}</span>;
 }
 
-function AdminBooks() {
+function AdminBooks({ darkMode = false, selectedLibraryId = null, onNavigateTab = null } = {}) {
   const [books, setBooks] = useState([]);
+  const [rawBooks, setRawBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [catalogScopeFilter, setCatalogScopeFilter] = useState('scoped'); // 'scoped' | 'all'
   const [stockFilter, setStockFilter] = useState("all"); // 'all', 'in-stock', 'out-of-stock'
   const [viewMode, setViewMode] = useState('card'); // 'card' or 'table'
   const [editingBook, setEditingBook] = useState(null);
@@ -263,13 +265,32 @@ function AdminBooks() {
           available_copies: avail,
           total_copies: total,
           book_copies: book.book_copies || [],
-          grouped_book_ids: book.grouped_book_ids || [book.book_id || book.id]
+          grouped_book_ids: book.grouped_book_ids || [book.book_id || book.id],
+          library_id: book.library_id,
+          library_name: book.library_name || book.libraries?.name || '',
+          library_type: book.library_type || book.libraries?.library_type || ''
         };
       });
 
+      setRawBooks(normalizedBooks);
+      const effectiveLibraryId = selectedLibraryId || (typeof window !== 'undefined' ? localStorage.getItem('currentLibraryId') : null);
+
+      const currentLibType = typeof window !== 'undefined' ? localStorage.getItem('currentLibraryType') : '';
+      const isCollege = currentLibType === 'college';
+
+      const listToProcess = (catalogScopeFilter === 'scoped' && effectiveLibraryId && effectiveLibraryId !== 'all')
+        ? normalizedBooks.filter(b => {
+            if (b.library_id) {
+              return String(b.library_id) === String(effectiveLibraryId);
+            }
+            // Only legacy books with NO library_id belong to College; new libraries remain completely clean!
+            return isCollege;
+          })
+        : normalizedBooks;
+
       // Unified consolidation by title & author
       const groupMap = new Map();
-      normalizedBooks.forEach((book) => {
+      listToProcess.forEach((book) => {
         const clean = (s) => String(s || '').trim().toLowerCase();
         const key = `${clean(book.title)}:::${clean(book.author)}`;
 
@@ -296,6 +317,11 @@ function AdminBooks() {
           if (!existing.ddc && book.ddc) existing.ddc = book.ddc;
           if (!existing.accession_number && book.accession_number) existing.accession_number = book.accession_number;
           if (!existing.year && book.year) existing.year = book.year;
+          if (!existing.library_name && book.library_name) {
+            existing.library_name = book.library_name;
+            existing.library_id = book.library_id;
+            existing.library_type = book.library_type;
+          }
         }
       });
 
@@ -315,7 +341,7 @@ function AdminBooks() {
 
   useEffect(() => {
     void loadBooks();
-  }, []);
+  }, [selectedLibraryId, catalogScopeFilter]);
 
   const categories = useMemo(() => {
     const set = new Set();
@@ -630,6 +656,11 @@ function AdminBooks() {
       if (addFormData.category) formData.append('category', addFormData.category.trim());
       if (addFormData.cover_image) formData.append('cover_image', addFormData.cover_image);
 
+      const targetLibId = selectedLibraryId || (typeof window !== 'undefined' ? localStorage.getItem('currentLibraryId') : null);
+      if (targetLibId && targetLibId !== 'all') {
+        formData.append('library_id', parseInt(targetLibId, 10));
+      }
+
       await api.post('/books', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
@@ -750,6 +781,18 @@ function AdminBooks() {
               )}
             </div>
 
+            {onNavigateTab && (
+              <Button
+                variant="secondary"
+                onClick={() => onNavigateTab('books-management')}
+                className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-purple-200/90 bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 text-xs font-bold shadow-2xs transition-all active:scale-95 shrink-0 cursor-pointer"
+                title="Bulk import books from Excel or CSV file"
+              >
+                <FiUploadCloud className="w-4 h-4 text-purple-600" />
+                <span>Import Books</span>
+              </Button>
+            )}
+
             <Button
               variant="primary"
               onClick={handleAddBook}
@@ -841,6 +884,53 @@ function AdminBooks() {
           </div>
         </div>
 
+        {/* Unit vs Campus Scope Switcher */}
+        {(() => {
+          const effectiveLibraryId = selectedLibraryId || (typeof window !== 'undefined' ? localStorage.getItem('currentLibraryId') : null);
+          const currentLibName = (typeof window !== 'undefined' ? localStorage.getItem('currentLibraryName') : '') || 'Assigned Unit';
+
+          if (!effectiveLibraryId || effectiveLibraryId === 'all') return null;
+
+          return (
+            <div className="flex items-center justify-between py-1.5 px-3 rounded-2xl bg-blue-50/60 border border-blue-100/80 text-xs flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-blue-900 flex items-center gap-1.5">
+                  <FiMapPin className="w-3.5 h-3.5 text-blue-600" /> Catalog Scope:
+                </span>
+                <div className="inline-flex rounded-xl p-0.5 bg-white border border-blue-200/80 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setCatalogScopeFilter('scoped')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      catalogScopeFilter === 'scoped'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    📍 {currentLibName} Only
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCatalogScopeFilter('all')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      catalogScopeFilter === 'all'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    🌐 All Campus Libraries
+                  </button>
+                </div>
+              </div>
+              <span className="text-[11px] text-blue-700/80">
+                {catalogScopeFilter === 'scoped' 
+                  ? `Filtered to ${currentLibName}. Newly added books are automatically assigned here.`
+                  : 'Viewing consolidated catalog across all school library units.'}
+              </span>
+            </div>
+          );
+        })()}
+
         {/* Category Filter Pills */}
         {categories.length > 2 && (
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar text-xs">
@@ -908,10 +998,18 @@ function AdminBooks() {
                     <div>
                       {/* Top Bar: Category Pill & Stock Status Badge */}
                       <div className="flex items-center justify-between gap-2 mb-4">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-100 truncate max-w-[150px]">
-                          <FiBookmark className="w-3 h-3 text-blue-500 shrink-0" />
-                          <span className="truncate">{book.category}</span>
-                        </span>
+                        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-100 truncate max-w-[140px]">
+                            <FiBookmark className="w-3 h-3 text-blue-500 shrink-0" />
+                            <span className="truncate">{book.category}</span>
+                          </span>
+                          {book.library_name && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 truncate max-w-[130px]" title={book.library_name}>
+                              <FiGrid className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
+                              <span className="truncate">{book.library_name}</span>
+                            </span>
+                          )}
+                        </div>
 
                         <button
                           type="button"
@@ -1214,12 +1312,18 @@ function AdminBooks() {
                             </div>
                           </td>
 
-                          {/* Location Cell */}
+                          {/* Location & Library Cell */}
                           <td className="py-2.5 px-3">
                             <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-lg max-w-full truncate" title={book.location || 'Main Stacks'}>
                               <FiMapPin className="w-2.5 h-2.5 text-blue-600 shrink-0" />
                               <span className="truncate">{book.location || 'Main Stacks'}</span>
                             </span>
+                            {book.library_name && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded mt-1 truncate block max-w-full" title={book.library_name}>
+                                <FiGrid className="w-2.5 h-2.5 shrink-0 text-indigo-600" />
+                                <span className="truncate">{book.library_name}</span>
+                              </span>
+                            )}
                           </td>
 
                           {/* Stock Pill Cell */}

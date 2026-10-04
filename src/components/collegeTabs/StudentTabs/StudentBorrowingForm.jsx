@@ -542,10 +542,15 @@ function StudentBorrowingForm({
                     </div>
 
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
-                        <Building2 className="h-3 w-3 text-blue-500 shrink-0" />
-                        <span className="truncate max-w-[130px]">
-                          {item.owner_school_name || item.school_name || "Home Campus Library"}
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-800 bg-blue-50 border border-blue-200/80 px-2 py-0.5 rounded-md">
+                        <Building2 className="h-3 w-3 text-blue-600 shrink-0" />
+                        <span className="truncate max-w-[220px]">
+                          {item.owner_school_name || item.school_name || "Campus"} • {(() => {
+                            const rawL = String(item.library_name || '').toLowerCase();
+                            const lId = Number(item.library_id || 0);
+                            const isS = [10, 11].includes(lId) || rawL.includes('shs') || rawL.includes('senior high') || rawL.includes('high school');
+                            return item.library_name || (isS ? 'SHS Library' : 'College Library');
+                          })()}
                         </span>
                       </span>
 
@@ -564,6 +569,16 @@ function StudentBorrowingForm({
                           Fee: ₱{Number(item.visiting_fee).toFixed(2)}
                         </span>
                       )}
+                    </div>
+
+                    <div className="mt-1.5 text-[10px] text-slate-500 font-medium flex items-center gap-1">
+                      <MapPin className="h-3 w-3 text-emerald-600 shrink-0" />
+                      <span>Pickup Counter: <strong className="text-slate-800 font-semibold">{item.pickup_location || (() => {
+                        const rawL = String(item.library_name || '').toLowerCase();
+                        const lId = Number(item.library_id || 0);
+                        const isS = [10, 11].includes(lId) || rawL.includes('shs') || rawL.includes('senior high') || rawL.includes('high school');
+                        return `${item.owner_school_name || 'Campus'} - ${isS ? 'Senior High School Library' : 'College Library'} Desk`;
+                      })()}</strong></span>
                     </div>
                   </div>
                 </div>

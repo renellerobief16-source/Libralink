@@ -281,6 +281,23 @@ function Login() {
 
       // Route based on role_id first, then fall back to the normalized role label
       // DB role mapping: 1 = Super Admin, 2 = Admin/Librarian Admin, 3 = Librarian, 4 = Student
+      const currentLibType = (
+        localStorage.getItem('currentLibraryType') || 
+        userRecord?.library_type || 
+        ''
+      ).toLowerCase();
+      const currentLibName = (
+        localStorage.getItem('currentLibraryName') || 
+        userRecord?.library_name || 
+        ''
+      ).toLowerCase();
+
+      const isSHSLibrarian = 
+        currentLibType === 'senior_high_school' || 
+        currentLibName.includes('senior high') || 
+        currentLibName.includes('shs') ||
+        currentLibName.includes('high school');
+
       if (routeRoleId === 1) {
         console.log('Routing to superadmin portal (role_id 1)');
         navigate('/superadmin');
@@ -288,8 +305,13 @@ function Login() {
         console.log('Routing to librarian admin portal (role_id 2)');
         navigate('/librarian-admin');
       } else if (routeRoleId === 3) {
-        console.log('Routing to librarian portal (role_id 3)');
-        navigate('/admin');
+        if (isSHSLibrarian) {
+          console.log('Routing to SHS librarian portal (role_id 3, SHS)');
+          navigate('/shs-librarian');
+        } else {
+          console.log('Routing to college librarian portal (role_id 3)');
+          navigate('/librarian');
+        }
       } else if (routeRoleId === 4) {
         console.log('Routing to student portal (role_id 4)');
         const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
@@ -302,8 +324,13 @@ function Login() {
         console.log('Routing to librarian admin portal (role name)');
         navigate('/librarian-admin');
       } else if (normalizedRole === 'librarian') {
-        console.log('Routing to librarian portal (role name)');
-        navigate('/admin');
+        if (isSHSLibrarian) {
+          console.log('Routing to SHS librarian portal (role name, SHS)');
+          navigate('/shs-librarian');
+        } else {
+          console.log('Routing to college librarian portal (role name)');
+          navigate('/librarian');
+        }
       } else if (normalizedRole === 'student') {
         console.log('Routing to student portal (role name)');
         const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');

@@ -54,7 +54,11 @@ const getAvatarGradient = (name = '') => {
   return gradients[index];
 };
 
-function LibrarianAdminAddLibrarian() {
+function LibrarianAdminAddLibrarian({ 
+  selectedLibraryId = 'all', 
+  libraries = [], 
+  onLibrariesUpdated = () => {} 
+}) {
   const [activeTab, setActiveTab] = useState('students'); // 'students' or 'librarians'
   const [students, setStudents] = useState([]);
   const [librarians, setLibrarians] = useState([]);
@@ -65,6 +69,8 @@ function LibrarianAdminAddLibrarian() {
   const [schoolInfo, setSchoolInfo] = useState(null);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'grid'
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'inactive'
+  const [selectedLibraryFilter, setSelectedLibraryFilter] = useState(selectedLibraryId || 'all');
+  const [internalLibraries, setInternalLibraries] = useState(libraries || []);
   const [viewTargetUser, setViewTargetUser] = useState(null);
   const [zoomIdPhotoUrl, setZoomIdPhotoUrl] = useState(null);
 
@@ -86,6 +92,7 @@ function LibrarianAdminAddLibrarian() {
     department: '',
     year_level: '',
     address: '',
+    library_id: '',
   });
   const [profileImageFile, setProfileImageFile] = useState(null);
   const [profileImagePreview, setProfileImagePreview] = useState(null);
@@ -109,6 +116,22 @@ function LibrarianAdminAddLibrarian() {
     fetchLibrarians();
     fetchSchoolInfo();
   }, [schoolId]);
+
+  useEffect(() => {
+    if (libraries && libraries.length > 0) {
+      setInternalLibraries(libraries);
+    } else if (schoolId) {
+      api.get(`/libraries/school/${schoolId}`)
+        .then(res => setInternalLibraries(res.data?.data || res.data?.libraries || []))
+        .catch(err => console.warn('Could not fetch libraries for user dropdown:', err));
+    }
+  }, [libraries, schoolId]);
+
+  useEffect(() => {
+    if (selectedLibraryId) {
+      setSelectedLibraryFilter(selectedLibraryId);
+    }
+  }, [selectedLibraryId]);
 
   const fetchStudents = async () => {
     try {
@@ -176,6 +199,7 @@ function LibrarianAdminAddLibrarian() {
       data.append('role_id', activeTab === 'students' ? 4 : 3);
       data.append('gender', formData.gender || 'other');
 
+      if (formData.library_id) data.append('library_id', formData.library_id);
       if (formData.contact_number?.trim()) data.append('contact_number', formData.contact_number.trim());
       if (formData.address?.trim()) data.append('address', formData.address.trim());
 
@@ -233,6 +257,7 @@ function LibrarianAdminAddLibrarian() {
       department: user.department || '',
       year_level: user.year_level || '',
       address: user.address || '',
+      library_id: user.library_id || '',
     });
     setProfileImageFile(null);
     setProfileImagePreview(user.profile_image || user.profile_picture ? getBackendAssetUrl(user.profile_image || user.profile_picture) : null);
@@ -255,6 +280,7 @@ function LibrarianAdminAddLibrarian() {
       data.append('school_id', schoolId);
       data.append('gender', formData.gender || 'other');
 
+      if (formData.library_id) data.append('library_id', formData.library_id);
       if (formData.password?.trim()) data.append('password', formData.password.trim());
       if (formData.contact_number?.trim()) data.append('contact_number', formData.contact_number.trim());
       if (formData.address?.trim()) data.append('address', formData.address.trim());
@@ -356,6 +382,7 @@ function LibrarianAdminAddLibrarian() {
       department: '',
       year_level: '',
       address: '',
+      library_id: '',
     });
   };
 
@@ -371,14 +398,16 @@ function LibrarianAdminAddLibrarian() {
         user.email?.toLowerCase().includes(q) ||
         user.student_number?.toLowerCase().includes(q) ||
         user.employee_number?.toLowerCase().includes(q) ||
-        user.position?.toLowerCase().includes(q);
+        user.position?.toLowerCase().includes(q) ||
+        user.library_name?.toLowerCase().includes(q);
 
       const userStatus = user.status?.toLowerCase() || 'active';
       const matchesStatus = statusFilter === 'all' || userStatus === statusFilter;
+      const matchesLibrary = selectedLibraryFilter === 'all' || String(user.library_id) === String(selectedLibraryFilter);
 
-      return matchesQuery && matchesStatus;
+      return matchesQuery && matchesStatus && matchesLibrary;
     });
-  }, [currentUsers, searchQuery, statusFilter]);
+  }, [currentUsers, searchQuery, statusFilter, selectedLibraryFilter]);
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredUsers.length / rowsPerPage) || 1;
@@ -606,6 +635,25 @@ function LibrarianAdminAddLibrarian() {
               )}
             </div>
 
+            {/* Library / Branch Scope Filter */}
+            <div className="flex items-center gap-1">
+              <select
+                value={selectedLibraryFilter}
+                onChange={(e) => {
+                  setSelectedLibraryFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-500 cursor-pointer shadow-2xs max-w-[180px] truncate"
+              >
+                <option value="all">🏛️ All Libraries</option>
+                {internalLibraries.map((lib) => (
+                  <option key={lib.id} value={lib.id}>
+                    {lib.library_type === 'college' ? '📚' : lib.library_type === 'senior_high_school' ? '🎓' : lib.library_type === 'junior_high_school' ? '🎒' : '📖'} {lib.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Status Filter */}
             <div className="flex items-center gap-1">
               <select
@@ -778,11 +826,19 @@ function LibrarianAdminAddLibrarian() {
                             </span>
                           </td>
 
-                          {/* Campus */}
+                          {/* Campus & Library */}
                           <td className="py-3.5 px-4">
-                            <span className="text-slate-600 font-medium truncate block" title={schoolInfo?.school_name}>
-                              {schoolInfo?.school_name || 'Santa Rita College'}
+                            <span className="text-slate-700 font-medium truncate block" title={schoolInfo?.school_name}>
+                              {schoolInfo?.school_name || 'Campus Main'}
                             </span>
+                            {user.library_name ? (
+                              <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                <FiGrid className="w-2.5 h-2.5 shrink-0" />
+                                <span className="truncate max-w-[130px]">{user.library_name}</span>
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 block mt-0.5">Campus General</span>
+                            )}
                           </td>
 
                           {/* Status */}
@@ -1380,6 +1436,31 @@ function LibrarianAdminAddLibrarian() {
                       </div>
                     </>
                   )}
+
+                  {/* Assigned Library Unit */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Assigned Library Unit <span className="text-slate-400 font-normal">(Optional — defaults to Campus default library)</span>
+                    </label>
+                    <div className="relative">
+                      <FiGrid className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <select
+                        value={formData.library_id}
+                        onChange={(e) => setFormData({ ...formData, library_id: e.target.value })}
+                        className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all cursor-pointer bg-white"
+                      >
+                        <option value="">-- Campus Default Library --</option>
+                        {internalLibraries.map((lib) => (
+                          <option key={lib.id} value={lib.id}>
+                            {lib.library_type === 'college' ? '📚' : lib.library_type === 'senior_high_school' ? '🎓' : lib.library_type === 'junior_high_school' ? '🎒' : '📖'} {lib.name} ({lib.library_type?.replace(/_/g, ' ')})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Assigning to a specific library scopes permissions for librarians and home catalog discovery for students.
+                    </p>
+                  </div>
 
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-bold text-slate-700 mb-1">Address / Residence</label>

@@ -225,6 +225,7 @@ router.post('/', auth, requireRole(['Student']), async (req, res) => {
       ...req.body,
       student_id: req.user.user_id,
       home_school_id: req.user.school_id,
+      home_library_id: req.user.library_id || null,
     };
 
     const result = await BorrowRequest.create(requestData);
@@ -291,8 +292,20 @@ router.get('/inter-school-status', auth, async (req, res) => {
 // @access  Private (Librarian, Librarian Admin)
 router.get('/school/:school_id', auth, requireRole(['Librarian', 'Librarian Admin', 'Super Admin']), async (req, res) => {
   try {
-    const { status } = req.query;
-    const requests = await BorrowRequest.getBySchool(req.params.school_id, status);
+    const { status, library_id } = req.query;
+
+    const userRoleId = Number(req.user?.role_id || 0);
+    const userRole = String(req.user?.role_name || req.user?.role || '').toLowerCase();
+    const isRegularLibrarian = userRoleId === 3 || userRole === 'librarian';
+
+    let effectiveLibraryId = null;
+    if (isRegularLibrarian && req.user?.library_id) {
+      effectiveLibraryId = req.user.library_id;
+    } else if (library_id && library_id !== 'all') {
+      effectiveLibraryId = parseInt(library_id, 10);
+    }
+
+    const requests = await BorrowRequest.getBySchool(req.params.school_id, status, effectiveLibraryId);
     res.json({ success: true, data: requests });
   } catch (error) {
     console.error('[BORROW REQUESTS] Error getting school requests:', error);
@@ -305,8 +318,21 @@ router.get('/school/:school_id', auth, requireRole(['Librarian', 'Librarian Admi
 // @access  Private (Librarian, Librarian Admin)
 router.get('/partner/:school_id', auth, requireRole(['Librarian', 'Librarian Admin']), async (req, res) => {
   try {
-    console.log('[BORROW REQUESTS] Fetching partner school requests for school_id:', req.params.school_id);
-    const requests = await BorrowRequest.getByPartnerSchool(req.params.school_id);
+    const { status, library_id } = req.query;
+
+    const userRoleId = Number(req.user?.role_id || 0);
+    const userRole = String(req.user?.role_name || req.user?.role || '').toLowerCase();
+    const isRegularLibrarian = userRoleId === 3 || userRole === 'librarian';
+
+    let effectiveLibraryId = null;
+    if (isRegularLibrarian && req.user?.library_id) {
+      effectiveLibraryId = req.user.library_id;
+    } else if (library_id && library_id !== 'all') {
+      effectiveLibraryId = parseInt(library_id, 10);
+    }
+
+    console.log('[BORROW REQUESTS] Fetching partner school requests for school_id:', req.params.school_id, 'library_id:', effectiveLibraryId);
+    const requests = await BorrowRequest.getByPartnerSchool(req.params.school_id, status, effectiveLibraryId);
     res.json({ success: true, data: requests });
   } catch (error) {
     console.error('[BORROW REQUESTS] Error getting partner school requests:', error);
@@ -753,11 +779,12 @@ router.put('/items/:item_id/return', auth, requireRole(['Librarian', 'Librarian 
       return res.status(403).json({ success: false, message: 'Unauthorized - You can only return books for your library' });
     }
 
-    const { condition = 'good', remarks = '', fine_amount = null, is_paid = true } = req.body || {};
+    const { condition = 'good', remarks = '', fine_amount = null, damage_fee = 0, is_paid = true } = req.body || {};
     const result = await BorrowRequest.returnBook(req.params.item_id, req.user.user_id, {
       condition,
       remarks,
       fine_amount,
+      damage_fee,
       is_paid
     });
 
@@ -771,17 +798,21 @@ router.put('/items/:item_id/return', auth, requireRole(['Librarian', 'Librarian 
           .single();
 
         const bookTitle = book?.title || 'the book';
-        const assessedFine = fine_amount !== null && fine_amount !== undefined ? fine_amount : (result?.fineAssessed || 0);
+        const assessedFine = fine_amount !== null && fine_amount !== undefined 
+          ? (Number(fine_amount) + Number(damage_fee || 0)) 
+          : (result?.fineAssessed || 0);
         let notifTitle = 'Book Returned Successfully ✅';
         let notifMessage = `You have successfully returned "${bookTitle}". Condition: ${condition.toUpperCase()}. Thank you for returning your library book on time!`;
+        let notifType = 'book_returned';
 
         if (assessedFine > 0) {
           if (is_paid) {
             notifTitle = 'Book Returned & Fine Cleared ✅';
-            notifMessage = `You returned "${bookTitle}". Fine of ₱${Number(assessedFine).toFixed(2)} was paid and cleared at the circulation desk.`;
+            notifMessage = `Isinauli ang aklat na "${bookTitle}". Ang multa na ₱${Number(assessedFine).toFixed(2)} ay nabayaran at na-clear na sa circulation desk. Official library return clearance signed.`;
           } else {
-            notifTitle = 'Book Returned with Overdue Fine ⚠️';
-            notifMessage = `You returned "${bookTitle}". An overdue fine of ₱${Number(assessedFine).toFixed(2)} has been recorded on your account. Please settle it at the library circulation desk.`;
+            notifType = 'clearance_hold';
+            notifTitle = 'Library Clearance Hold: Unpaid Penalty ⚠️';
+            notifMessage = `May naiwang hindi nabayarang ${Number(damage_fee) > 0 ? 'damage penalty' : 'penalty'} (Kabuuang ₱${Number(assessedFine).toFixed(2)}) para sa aklat na "${bookTitle}". Hindi mapipirmahan ang iyong clearance hangga't hindi ito nababayaran sa circulation counter.`;
           }
         }
 
@@ -790,7 +821,7 @@ router.put('/items/:item_id/return', auth, requireRole(['Librarian', 'Librarian 
           .insert({
             user_id: request.student_id,
             school_id: req.user.school_id || itemDetails.owner_school_id || null,
-            type: 'book_returned',
+            type: notifType,
             title: notifTitle,
             message: notifMessage,
             related_id: parseInt(itemDetails.item_id, 10) || null,

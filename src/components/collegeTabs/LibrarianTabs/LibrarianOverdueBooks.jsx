@@ -9,7 +9,7 @@ import { formatPhilippineDate, formatPhilippineDateTime, formatRelativeTime } fr
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 
-function LibrarianOverdueBooks({ schoolId, librarianId }) {
+function LibrarianOverdueBooks({ schoolId, librarianId, selectedLibraryId, darkMode }) {
   const [overdueBooks, setOverdueBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -28,7 +28,7 @@ function LibrarianOverdueBooks({ schoolId, librarianId }) {
   useEffect(() => {
     fetchOverdueBooks();
     fetchHeadLibrarian();
-  }, [schoolId]);
+  }, [schoolId, selectedLibraryId]);
 
   const fetchHeadLibrarian = async () => {
     const activeSchoolId = schoolId || localStorage.getItem('schoolId');
@@ -50,10 +50,31 @@ function LibrarianOverdueBooks({ schoolId, librarianId }) {
       return;
     }
 
+    const effectiveLibId = selectedLibraryId || (typeof window !== 'undefined' ? localStorage.getItem('currentLibraryId') : null);
+    const currentLibType = typeof window !== 'undefined' ? localStorage.getItem('currentLibraryType') : '';
+    const isCollege = currentLibType === 'college';
+
     setLoading(true);
     try {
-      const response = await api.get(`/borrow/overdue?school_id=${schoolId}`);
-      setOverdueBooks(response.data || []);
+      let url = `/borrow/overdue?school_id=${schoolId}`;
+      if (effectiveLibId && effectiveLibId !== 'all') {
+        url += `&library_id=${effectiveLibId}`;
+      }
+      const response = await api.get(url);
+      const raw = Array.isArray(response.data?.data) ? response.data.data : (Array.isArray(response.data) ? response.data : []);
+      let list = raw;
+      if (effectiveLibId && effectiveLibId !== 'all') {
+        const lid = Number(effectiveLibId);
+        const isCollege = lid === 1 || lid === 2 || currentLibType === 'college';
+        list = raw.filter(item => {
+          const bookLib = item.book_copies?.books?.library_id ?? item.library_id ?? item.book?.library_id ?? null;
+          const studentLib = item.student?.library_id ?? null;
+          const matchesBook = bookLib !== null ? Number(bookLib) === lid : isCollege;
+          const matchesStudent = studentLib !== null ? Number(studentLib) === lid : isCollege;
+          return matchesBook && matchesStudent;
+        });
+      }
+      setOverdueBooks(list);
     } catch (error) {
       console.error('[OVERDUE FRONTEND] Error fetching overdue books:', error);
       setOverdueBooks([]);
@@ -145,8 +166,18 @@ function LibrarianOverdueBooks({ schoolId, librarianId }) {
   const handleSendReminder = async (book) => {
     setReminding(true);
     try {
-      // Simulate sending email notice trigger
-      await new Promise(r => setTimeout(r, 800));
+      const studentId = book.student?.user_id || book.student_id;
+      const bookTitle = book.book_copies?.books?.title || book.book?.title || 'Borrowed Book';
+      const days = book.days_overdue || 1;
+      if (studentId) {
+        await api.post('/notifications', {
+          user_id: studentId,
+          school_id: schoolId || localStorage.getItem('schoolId'),
+          type: 'overdue_reminder',
+          title: '⚠️ Urgent: Overdue Book Notice',
+          message: `Your borrowed book "${bookTitle}" is overdue by ${days} day(s). Please return it immediately to the library desk to avoid further fines.`
+        }).catch(err => console.warn('[OVERDUE] Notification dispatch warning:', err.message));
+      }
       setReminderSent(true);
       setTimeout(() => setReminderSent(false), 2500);
     } catch (err) {

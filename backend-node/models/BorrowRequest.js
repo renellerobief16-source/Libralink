@@ -44,6 +44,7 @@ class BorrowRequest {
         request_id,
         student_id: data.student_id,
         home_school_id: data.home_school_id,
+        home_library_id: data.home_library_id || null,
         request_type: data.request_type || 'HOME',
         status: 'pending',
         purpose: data.purpose ? data.purpose.substring(0, 500) : 'Academic Study & Research',
@@ -79,7 +80,10 @@ class BorrowRequest {
       // Create request items
       if (data.items && data.items.length > 0) {
         for (const item of data.items) {
-          await this.createItem(request_id, item);
+          await this.createItem(request_id, {
+            ...item,
+            requesting_library_id: data.home_library_id || null
+          });
         }
       }
 
@@ -123,10 +127,27 @@ class BorrowRequest {
         console.warn('[BORROW REQUEST] Could not reserve copy immediately:', copyErr.message);
       }
 
+      // Resolve book's holding library
+      let bookLibraryId = itemData.library_id ? Number(itemData.library_id) : null;
+      if (!bookLibraryId) {
+        try {
+          const { data: bookRecord } = await supabase
+            .from('books')
+            .select('library_id')
+            .eq('book_id', book_id)
+            .maybeSingle();
+          if (bookRecord?.library_id) {
+            bookLibraryId = bookRecord.library_id;
+          }
+        } catch (_) {}
+      }
+
       const item = {
         request_id,
         book_id,
         assigned_copy_id: assignedCopyId,
+        owner_library_id: bookLibraryId,
+        requesting_library_id: itemData.requesting_library_id || null,
         owner_school_id: itemData.owner_school_id ? Number(itemData.owner_school_id) : null,
         partner_school_id: itemData.partner_school_id ? Number(itemData.partner_school_id) : null,
         borrow_type: itemData.borrow_type || 'HOME',
@@ -291,7 +312,7 @@ class BorrowRequest {
     }
   }
 
-  static async getBySchool(school_id, status = null) {
+  static async getBySchool(school_id, status = null, library_id = null) {
     try {
       // ONLY get home school requests (student from this school requesting books)
       // DO NOT include inter-school requests - those should be fetched separately
@@ -299,11 +320,11 @@ class BorrowRequest {
         .from('borrow_requests')
         .select(`
           *,
-          student:student_id(firstname, lastname, student_number, email, contact_number, address, id_card_picture, profile_image),
+          student:student_id(firstname, lastname, student_number, email, contact_number, address, id_card_picture, profile_image, library_id),
           home_school:home_school_id(school_name, school_code),
           items:borrow_request_items(
             *,
-            book:book_id(title, author),
+            book:book_id(title, author, library_id),
             owner_school:owner_school_id(school_name, school_code)
           )
         `)
@@ -319,8 +340,23 @@ class BorrowRequest {
       const { data, error } = await query;
       if (error) throw error;
 
+      let resultList = data || [];
+      if (library_id && library_id !== 'all') {
+        const lid = Number(library_id);
+        const isCollege = lid === 1 || lid === 2;
+        resultList = resultList.filter(request => {
+          return (request.items || []).some(item => {
+            const bLib = item.owner_library_id ?? item.book?.library_id ?? null;
+            if (bLib !== null && bLib !== undefined) {
+              return Number(bLib) === lid;
+            }
+            return isCollege;
+          });
+        });
+      }
+
       // Transform data to match component expectations
-      return (data || []).map(request => ({
+      return resultList.map(request => ({
         ...request,
         items: (request.items || []).map(item => ({
           ...item,
@@ -371,15 +407,15 @@ class BorrowRequest {
     return data || [];
   }
 
-  static async getByPartnerSchool(school_id, status = null) {
+  static async getByPartnerSchool(school_id, status = null, library_id = null) {
     try {
-      console.log('[BORROW REQUEST] Fetching partner school requests for school_id:', school_id);
+      console.log('[BORROW REQUEST] Fetching partner school requests for school_id:', school_id, 'library_id:', library_id);
       
       let query = supabase
         .from('borrow_request_items')
         .select(`
           *,
-          book:book_id(title, author, isbn),
+          book:book_id(title, author, isbn, library_id),
           owner_school:owner_school_id(school_name, school_code),
           partner_school:partner_school_id(school_name, school_code)
         `)
@@ -395,7 +431,19 @@ class BorrowRequest {
       console.log('[BORROW REQUEST] Filtered requests error:', error);
       if (error) throw error;
 
-      const requestIds = [...new Set((data || []).map(item => item.request_id).filter(Boolean))];
+      let filteredItems = data || [];
+      if (library_id && library_id !== 'all') {
+        const lid = Number(library_id);
+        filteredItems = filteredItems.filter(item => {
+          const bookLibId = item.book?.library_id;
+          if (bookLibId !== null && bookLibId !== undefined) {
+            return Number(bookLibId) === lid;
+          }
+          return false;
+        });
+      }
+
+      const requestIds = [...new Set(filteredItems.map(item => item.request_id).filter(Boolean))];
       if (requestIds.length === 0) return [];
 
       const { data: requests, error: requestsError } = await supabase
@@ -406,7 +454,7 @@ class BorrowRequest {
           home_school:home_school_id(school_name, school_code),
           items:borrow_request_items(
             *,
-            book:book_id(title, author),
+            book:book_id(title, author, library_id),
             owner_school:owner_school_id(school_name, school_code)
           )
         `)
@@ -415,7 +463,7 @@ class BorrowRequest {
       if (requestsError) throw requestsError;
 
       const requestsById = new Map((requests || []).map(request => [request.request_id, request]));
-      return (data || []).map(item => ({
+      return filteredItems.map(item => ({
         ...item,
         borrow_request: requestsById.get(item.request_id) || null,
       }));
@@ -430,32 +478,56 @@ class BorrowRequest {
       const cleanToken = String(qr_token || '').trim();
       if (!cleanToken) return null;
 
-      let request = null;
-      const { data: directReq, error: requestError } = await supabase
-        .from('borrow_requests')
-        .select('*')
-        .or(`qr_token.eq."${cleanToken}",request_id.eq."${cleanToken}"`)
-        .maybeSingle();
+      // 1. Generate normalized candidate tokens to handle hardware scanner wedge artifacts
+      const shiftedMap = {
+        '!': '1', '@': '2', '#': '3', '$': '4', '%': '5',
+        '^': '6', '&': '7', '*': '8', '(': '9', ')': '0'
+      };
 
-      if (directReq) {
-        request = directReq;
-      } else {
-        const { data: fallbackReq } = await supabase
+      const candidates = new Set([cleanToken]);
+
+      // Unshift symbols produced by keyboard-wedge scanners with Caps/Shift mismatch
+      let unshifted = '';
+      for (const ch of cleanToken) {
+        unshifted += shiftedMap[ch] !== undefined ? shiftedMap[ch] : ch;
+      }
+      unshifted = unshifted.replace(/^LL[6_]/i, 'LL-');
+      unshifted = unshifted.replace(/(\d{10,14})[6_]([A-Za-z0-9])/i, (m, p1, p2) => `${p1}-${p2}`);
+      candidates.add(unshifted);
+
+      // AZERTY swaps (Z <-> W)
+      if (unshifted.includes('Z')) candidates.add(unshifted.replace(/Z/g, 'W'));
+      if (unshifted.includes('W')) candidates.add(unshifted.replace(/W/g, 'Z'));
+
+      let request = null;
+
+      // Try looking up candidates in order
+      for (const token of candidates) {
+        const { data: directReq } = await supabase
           .from('borrow_requests')
           .select('*')
-          .eq('qr_token', cleanToken)
+          .or(`qr_token.eq."${token}",request_id.eq."${token}"`)
           .maybeSingle();
-        
-        if (fallbackReq) {
-          request = fallbackReq;
-        } else {
-          const { data: reqById } = await supabase
+
+        if (directReq) {
+          request = directReq;
+          break;
+        }
+      }
+
+      // Fallback: If not found yet, check by unique timestamp embedded in the token
+      if (!request) {
+        const tsMatch = unshifted.match(/(\d{10,14})/);
+        if (tsMatch) {
+          const timestamp = tsMatch[1];
+          const { data: tsReq } = await supabase
             .from('borrow_requests')
             .select('*')
-            .eq('request_id', cleanToken)
+            .ilike('qr_token', `%${timestamp}%`)
             .maybeSingle();
-          if (reqById) {
-            request = reqById;
+
+          if (tsReq) {
+            request = tsReq;
           }
         }
       }
@@ -487,29 +559,47 @@ class BorrowRequest {
         .flatMap(item => [item.owner_school_id, item.partner_school_id])
         .filter(Boolean))];
 
-      const [{ data: books, error: booksError }, { data: schools, error: schoolsError }] = await Promise.all([
+      const [{ data: books, error: booksError }, { data: schools, error: schoolsError }, { data: libraries, error: libError }] = await Promise.all([
         bookIds.length > 0
-          ? supabase.from('books').select('book_id, title, author, isbn, call_number').in('book_id', bookIds)
+          ? supabase.from('books').select('book_id, title, author, isbn, call_number, library_id, cover_image').in('book_id', bookIds)
           : Promise.resolve({ data: [], error: null }),
         schoolIds.length > 0
           ? supabase.from('schools').select('school_id, school_name, school_code, address').in('school_id', schoolIds)
-          : Promise.resolve({ data: [], error: null })
+          : Promise.resolve({ data: [], error: null }),
+        supabase.from('libraries').select('library_id, name, library_type, school_id')
       ]);
       if (booksError) throw booksError;
       if (schoolsError) throw schoolsError;
 
       const booksById = new Map((books || []).map(book => [String(book.book_id), book]));
       const schoolsById = new Map((schools || []).map(school => [String(school.school_id), school]));
+      const librariesById = new Map((libraries || []).map(lib => [String(lib.library_id), lib]));
+
+      // Determine default college library for this school
+      const schoolLibs = (libraries || []).filter(lib => String(lib.school_id) === String(request.home_school_id || 1));
+      const defaultCollegeLib = schoolLibs.find(l => l.library_type === 'college' || /college/i.test(l.name)) || schoolLibs[0] || { library_id: 1, name: 'College Library' };
+
+      const resolvedItems = (items || []).map(item => {
+        const b = booksById.get(String(item.book_id)) || null;
+        const targetLibId = b?.library_id || request.source_library_id || defaultCollegeLib.library_id;
+        const targetLib = librariesById.get(String(targetLibId)) || defaultCollegeLib;
+        return {
+          ...item,
+          book: b ? { ...b, library: targetLib, library_id: targetLibId } : null,
+          target_library: targetLib,
+          owner_school: schoolsById.get(String(item.owner_school_id)) || null,
+          partner_school: schoolsById.get(String(item.partner_school_id)) || null,
+        };
+      });
+
+      const primaryTargetLib = resolvedItems[0]?.target_library || defaultCollegeLib;
+
       return {
         ...request,
         student,
         home_school: homeSchool,
-        items: (items || []).map(item => ({
-          ...item,
-          book: booksById.get(String(item.book_id)) || null,
-          owner_school: schoolsById.get(String(item.owner_school_id)) || null,
-          partner_school: schoolsById.get(String(item.partner_school_id)) || null,
-        }))
+        target_library: primaryTargetLib,
+        items: resolvedItems
       };
     } catch (error) {
       console.error('[BORROW REQUEST] Error getting request by QR token:', error);
@@ -925,8 +1015,16 @@ class BorrowRequest {
     }
   }
 
-  static async returnBook(item_id, returned_by) {
+  static async returnBook(item_id, returned_by, options = {}) {
     try {
+      const {
+        condition = 'good',
+        remarks = '',
+        fine_amount = null,
+        damage_fee = 0,
+        is_paid = true,
+      } = options || {};
+
       const { data: existingItem, error: checkError } = await supabase
         .from('borrow_request_items')
         .select('item_id, status, copy_id, request_id, assigned_copy_id, owner_school_id, book_id')
@@ -1059,30 +1157,6 @@ class BorrowRequest {
               if (daysOverdue > 0) {
                 const rawFine = daysOverdue * finePolicy.fine_amount_per_day;
                 fineAssessed = Math.min(rawFine, finePolicy.max_fine_cap);
-
-                // Prevent duplicate fines for the same borrow transaction / student
-                const studentId = parentRequest?.student_id || activeTx?.student_id;
-                const { data: existingFine } = await supabase
-                  .from('fines')
-                  .select('fine_id')
-                  .eq('student_id', studentId)
-                  .eq('borrow_id', activeTx?.borrow_id || null)
-                  .maybeSingle();
-
-                if (!existingFine && fineAssessed > 0) {
-                  await supabase
-                    .from('fines')
-                    .insert({
-                      student_id: studentId,
-                      school_id: schoolId,
-                      borrow_id: activeTx?.borrow_id || null,
-                      amount: fineAssessed,
-                      reason: `Overdue return (${daysOverdue} day${daysOverdue > 1 ? 's' : ''} late)`,
-                      status: 'pending',
-                      created_at: new Date().toISOString()
-                    });
-                  console.log(`[BORROW REQUEST] Generated overdue fine: ₱${fineAssessed} for student ${studentId}`);
-                }
               }
             }
           }
@@ -1091,8 +1165,49 @@ class BorrowRequest {
         }
       }
 
-      console.log('[BORROW REQUEST] Book returned successfully:', item_id, 'copy:', actualCopyId, 'fine:', fineAssessed);
-      return { success: true, copy_id: actualCopyId, fineAssessed, daysOverdue };
+      // Overdue + damage fees
+      const overdueComponent = fine_amount !== null && fine_amount !== undefined ? Number(fine_amount) : fineAssessed;
+      const damageComponent = Number(damage_fee) || 0;
+      const totalFine = overdueComponent + damageComponent;
+      const studentId = parentRequest?.student_id || activeTx?.student_id;
+
+      if (totalFine > 0 && studentId) {
+        try {
+          const fineReason = [
+            overdueComponent > 0 ? `Overdue return (${daysOverdue} days: ₱${overdueComponent.toFixed(2)})` : '',
+            damageComponent > 0 ? `Physical Condition: ${condition.toUpperCase()} (₱${damageComponent.toFixed(2)})` : '',
+            remarks ? `Remarks: ${remarks}` : ''
+          ].filter(Boolean).join(' | ');
+
+          const { data: existingFine } = await supabase
+            .from('fines')
+            .select('fine_id')
+            .eq('student_id', studentId)
+            .eq('borrow_id', activeTx?.borrow_id || null)
+            .maybeSingle();
+
+          if (!existingFine) {
+            await supabase
+              .from('fines')
+              .insert({
+                student_id: studentId,
+                school_id: schoolId,
+                borrow_id: activeTx?.borrow_id || null,
+                amount: totalFine,
+                reason: fineReason || 'Library Penalty',
+                status: is_paid ? 'paid' : 'pending',
+                created_at: new Date().toISOString(),
+                ...(is_paid ? { paid_at: new Date().toISOString() } : {})
+              });
+            console.log(`[BORROW REQUEST] Generated fine record: ₱${totalFine} (Status: ${is_paid ? 'paid' : 'pending'}) for student ${studentId}`);
+          }
+        } catch (fineDbErr) {
+          console.error('[BORROW REQUEST] Error recording fine:', fineDbErr);
+        }
+      }
+
+      console.log('[BORROW REQUEST] Book returned successfully:', item_id, 'copy:', actualCopyId, 'totalFine:', totalFine);
+      return { success: true, copy_id: actualCopyId, fineAssessed: totalFine, daysOverdue };
     } catch (error) {
       console.error('[BORROW REQUEST] Error returning book:', error);
       throw error;

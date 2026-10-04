@@ -577,6 +577,28 @@ function QRCodeDisplay({ request, token, requestId, onClose, onShare, compact = 
             </span>
           </div>
         </div>
+
+        {/* Designated Pickup Counter & Desk */}
+        {(() => {
+          const firstItem = request?.items?.[0] || {};
+          const rawL = String(firstItem.book?.libraries?.name || firstItem.library_name || '').toLowerCase();
+          const rawT = String(firstItem.book?.libraries?.library_type || firstItem.library_type || '').toLowerCase();
+          const lId = Number(firstItem.book?.library_id || firstItem.library_id || 0);
+          const isS = [10, 11].includes(lId) || rawL.includes('shs') || rawL.includes('senior high') || rawL.includes('high school') || rawT === 'senior_high_school';
+          const libName = firstItem.book?.libraries?.name || firstItem.library_name || (isS ? 'Senior High School Library' : 'College Library');
+          const schName = request?.partner_school?.school_name || firstItem.book?.schools?.school_name || firstItem.owner_school_name || (request?.request_type === 'INTER_SCHOOL' ? 'Partner Campus' : 'Home Campus');
+          return (
+            <div className="mt-3 pt-2.5 border-t border-blue-400/25 flex items-center justify-between text-xs">
+              <span className="text-blue-200 text-[10.5px] font-medium flex items-center gap-1">
+                <span>📍</span>
+                <span>Claim Counter:</span>
+              </span>
+              <span className="font-bold text-white text-[11px] truncate max-w-[240px]">
+                {schName} • {libName} Desk
+              </span>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Branded QR Pass Display with Center L.png Logo */}

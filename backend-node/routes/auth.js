@@ -36,7 +36,8 @@ router.post('/login', async (req, res) => {
         user_id: user.user_id, 
         role: user.role_name,
         role_name: user.role_name,
-        school_id: user.school_id
+        school_id: user.school_id,
+        library_id: user.library_id || null
       },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRE || '7d' }
@@ -153,6 +154,7 @@ router.post('/register', auth, requireRole(['Librarian Admin', 'Librarian']), as
   try {
     const {
       role_id,
+      library_id,
       student_number,
       employee_number,
       firstname,
@@ -188,8 +190,11 @@ router.post('/register', auth, requireRole(['Librarian Admin', 'Librarian']), as
       });
     }
 
+    const assignedLibraryId = library_id || req.user?.library_id || null;
+
     const user_id = await User.create({
       school_id,
+      library_id: assignedLibraryId,
       role_id: role_id || 4,
       student_number,
       employee_number,

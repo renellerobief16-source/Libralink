@@ -24,6 +24,7 @@ class Book {
         .select(`
           *,
           schools(school_id, school_name, school_code, address, latitude, longitude, logo),
+          libraries(library_id, name, library_type),
           categories(category_name),
           book_copies(copy_id, status, accession_number, barcode, shelf_location, condition)
         `)
@@ -57,6 +58,80 @@ class Book {
           }));
       } else {
         data.current_borrowers = [];
+      }
+
+      // Find all library locations holding this book across the campus or consortium
+      try {
+        let siblingsQuery = supabase
+          .from('books')
+          .select(`
+            book_id,
+            title,
+            author,
+            isbn,
+            shelf_location,
+            call_number,
+            available_quantity,
+            quantity,
+            school_id,
+            library_id,
+            schools(school_id, school_name, school_code),
+            libraries(library_id, name, library_type)
+          `);
+
+        if (data.isbn && String(data.isbn).trim().length > 3) {
+          siblingsQuery = siblingsQuery.eq('isbn', String(data.isbn).trim());
+        } else if (data.title && String(data.title).trim()) {
+          const cleanTitle = String(data.title).trim().replace(/[(),"%_]/g, ' ').replace(/\s+/g, ' ').trim();
+          siblingsQuery = siblingsQuery.ilike('title', cleanTitle);
+        } else {
+          siblingsQuery = siblingsQuery.eq('book_id', id);
+        }
+
+        const { data: siblings, error: sibError } = await siblingsQuery;
+        if (!sibError && Array.isArray(siblings) && siblings.length > 0) {
+          data.locations = siblings.map(sib => {
+            const availQty = Number(sib.available_quantity !== undefined ? sib.available_quantity : (sib.quantity ?? 1));
+            const totalQty = Number(sib.quantity ?? 1);
+            const isAvail = availQty > 0;
+            return {
+              book_id: sib.book_id,
+              campus_name: sib.schools?.school_name || data.schools?.school_name || 'Campus Library',
+              campus_code: sib.schools?.school_code || data.schools?.school_code || '',
+              school_id: sib.school_id,
+              library_id: sib.library_id || null,
+              library_name: sib.libraries?.name || 'Main College Library',
+              library_type: sib.libraries?.library_type || 'college',
+              shelf_location: sib.shelf_location || 'Main Stacks',
+              call_number: sib.call_number || null,
+              available_copies: availQty,
+              total_copies: totalQty,
+              status: isAvail ? 'Available' : 'Borrowed',
+              is_current: Number(sib.book_id) === Number(id)
+            };
+          });
+        } else {
+          const availQty = Number(data.available_quantity !== undefined ? data.available_quantity : (data.quantity ?? 1));
+          const totalQty = Number(data.quantity ?? 1);
+          data.locations = [{
+            book_id: data.book_id,
+            campus_name: data.schools?.school_name || 'Campus Library',
+            campus_code: data.schools?.school_code || '',
+            school_id: data.school_id,
+            library_id: data.library_id || null,
+            library_name: data.libraries?.name || 'Main College Library',
+            library_type: data.libraries?.library_type || 'college',
+            shelf_location: data.shelf_location || 'Main Stacks',
+            call_number: data.call_number || null,
+            available_copies: availQty,
+            total_copies: totalQty,
+            status: availQty > 0 ? 'Available' : 'Borrowed',
+            is_current: true
+          }];
+        }
+      } catch (locErr) {
+        console.warn('[BOOK] Error resolving multi-library locations:', locErr.message);
+        data.locations = [];
       }
 
       return data;
@@ -186,6 +261,7 @@ class Book {
           .select(`
             *,
             schools(school_id, school_name, school_code, address, latitude, longitude, logo),
+            libraries(library_id, name, library_type),
             categories(category_name)
           `)
           .eq('school_id', school_id)

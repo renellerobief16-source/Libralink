@@ -309,6 +309,25 @@ export function StudentRecommendedShelf({ books = [], onBookClick }) {
                       </div>
                     </div>
 
+                    {/* Campus & Unit Pill */}
+                    {(() => {
+                      const rawLibName = String(book.libraries?.name || book.library_name || '').toLowerCase();
+                      const rawLibType = String(book.libraries?.library_type || book.library_type || '').toLowerCase();
+                      const libId = Number(book.library_id || 0);
+                      const isSHS = [10, 11].includes(libId) || rawLibName.includes('shs') || rawLibName.includes('senior high') || rawLibName.includes('high school') || rawLibType === 'senior_high_school';
+                      const schoolCode = book.schools?.school_code || (String(book.school_id) === '1' ? 'SRC' : 'GNC');
+                      return (
+                        <div className="mb-1">
+                          <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 text-[8px] font-bold border ${
+                            isSHS ? 'bg-amber-50 text-amber-900 border-amber-300' : 'bg-blue-50 text-blue-700 border-blue-200'
+                          }`}>
+                            <span>{isSHS ? '🎒' : '🏛️'}</span>
+                            <span className="truncate">{schoolCode} • {isSHS ? 'SHS' : 'College'}</span>
+                          </span>
+                        </div>
+                      );
+                    })()}
+
                     {/* Title */}
                     <h4
                       className="text-[11px] sm:text-xs font-semibold text-slate-900 line-clamp-2 leading-snug group-hover:text-blue-600 transition-colors"

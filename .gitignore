@@ -29,3 +29,5 @@ backend-node/debug_*.cjs
 backend-node/check_*.js
 backend-node/inspect_*.js
 backend-node/uploads/
+scratch_ch4/
+scratch_extracted/

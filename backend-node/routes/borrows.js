@@ -23,8 +23,9 @@ router.get('/active', auth, async (req, res) => {
 router.get('/overdue', auth, async (req, res) => {
   try {
     const schoolId = req.query.school_id || req.query.schoolId || req.query.school;
-    console.log('[OVERDUE API] Fetching overdue books, schoolId:', schoolId);
-    const overdueData = await BorrowTransaction.getOverdue(schoolId);
+    const libraryId = req.query.library_id || req.user?.library_id || null;
+    console.log('[OVERDUE API] Fetching overdue books, schoolId:', schoolId, 'libraryId:', libraryId);
+    const overdueData = await BorrowTransaction.getOverdue(schoolId, libraryId);
     res.json({ success: true, data: overdueData });
   } catch (error) {
     console.error('Error getting overdue borrows:', error);
@@ -38,11 +39,23 @@ router.get('/overdue', auth, async (req, res) => {
 router.get('/active/school', auth, async (req, res) => {
   try {
     const schoolId = req.query.school_id || req.query.schoolId || req.query.school;
+    const libraryId = req.query.library_id || req.query.libraryId || null;
     if (!schoolId) {
       return res.status(400).json({ success: false, message: 'school_id query parameter is required' });
     }
 
-    const borrows = await BorrowTransaction.getActiveBySchool(schoolId);
+    const userRoleId = Number(req.user?.role_id || 0);
+    const userRole = String(req.user?.role_name || req.user?.role || '').toLowerCase();
+    const isRegularLibrarian = userRoleId === 3 || userRole === 'librarian';
+
+    let effectiveLibraryId = null;
+    if (isRegularLibrarian && req.user?.library_id) {
+      effectiveLibraryId = req.user.library_id;
+    } else if (libraryId && libraryId !== 'all') {
+      effectiveLibraryId = parseInt(libraryId, 10);
+    }
+
+    const borrows = await BorrowTransaction.getActiveBySchool(schoolId, effectiveLibraryId);
     res.json({ success: true, data: borrows });
   } catch (error) {
     console.error('Error getting active borrows by school (query):', error);
@@ -55,7 +68,19 @@ router.get('/active/school', auth, async (req, res) => {
 // @access  Private
 router.get('/active/school/:school_id', auth, async (req, res) => {
   try {
-    const borrows = await BorrowTransaction.getActiveBySchool(req.params.school_id);
+    const libraryId = req.query.library_id || req.query.libraryId || null;
+    const userRoleId = Number(req.user?.role_id || 0);
+    const userRole = String(req.user?.role_name || req.user?.role || '').toLowerCase();
+    const isRegularLibrarian = userRoleId === 3 || userRole === 'librarian';
+
+    let effectiveLibraryId = null;
+    if (isRegularLibrarian && req.user?.library_id) {
+      effectiveLibraryId = req.user.library_id;
+    } else if (libraryId && libraryId !== 'all') {
+      effectiveLibraryId = parseInt(libraryId, 10);
+    }
+
+    const borrows = await BorrowTransaction.getActiveBySchool(req.params.school_id, effectiveLibraryId);
     res.json({ success: true, data: borrows });
   } catch (error) {
     console.error('Error getting active borrows by school:', error);
@@ -163,7 +188,7 @@ const handleReturnBookRoute = async (req, res) => {
     if (!borrowId) {
       return res.status(400).json({ success: false, message: 'borrow_id is required' });
     }
-    const result = await BorrowTransaction.returnBook(borrowId);
+    const result = await BorrowTransaction.returnBook(borrowId, req.body);
     res.json({ success: true, message: 'Book returned successfully', data: result });
   } catch (error) {
     console.error('Error returning book:', error);

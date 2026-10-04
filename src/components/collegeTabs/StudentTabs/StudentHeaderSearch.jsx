@@ -1024,6 +1024,22 @@ export function StudentHeaderSearch({ className = "" }) {
                               <span className="truncate shrink min-w-0">
                                 <HighlightMatch text={book.author || "Unknown author"} query={searchQuery} />
                               </span>
+                              {(() => {
+                                const rawLibName = String(book.libraries?.name || book.library_name || '').toLowerCase();
+                                const rawLibType = String(book.libraries?.library_type || book.library_type || '').toLowerCase();
+                                const libId = Number(book.library_id || 0);
+                                const isSHS = [10, 11].includes(libId) || rawLibName.includes('shs') || rawLibName.includes('senior high') || rawLibName.includes('high school') || rawLibType === 'senior_high_school';
+                                return (
+                                  <>
+                                    <span className="text-slate-300 shrink-0">•</span>
+                                    <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 text-[9px] font-bold border shrink-0 ${
+                                      isSHS ? "bg-amber-50 text-amber-900 border-amber-300" : "bg-blue-50 text-blue-700 border-blue-200"
+                                    }`}>
+                                      <span>{isSHS ? "🎒 SHS Library" : "🏛️ College Library"}</span>
+                                    </span>
+                                  </>
+                                );
+                              })()}
                               {book.category && (
                                 <>
                                   <span className="text-slate-300 shrink-0">•</span>
@@ -1104,6 +1120,22 @@ export function StudentHeaderSearch({ className = "" }) {
                                 <span className="font-medium text-blue-700 truncate shrink min-w-0">
                                   {partnerBook.school_name}
                                 </span>
+                                {(() => {
+                                  const rawLibName = String(partnerBook.library_name || '').toLowerCase();
+                                  const rawLibType = String(partnerBook.library_type || '').toLowerCase();
+                                  const libId = Number(partnerBook.library_id || 0);
+                                  const isSHS = [10, 11].includes(libId) || rawLibName.includes('shs') || rawLibName.includes('senior high') || rawLibName.includes('high school') || rawLibType === 'senior_high_school';
+                                  return (
+                                    <>
+                                      <span className="text-slate-300 shrink-0">•</span>
+                                      <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 text-[9px] font-bold border shrink-0 ${
+                                        isSHS ? "bg-amber-50 text-amber-900 border-amber-300" : "bg-indigo-50 text-indigo-900 border-indigo-200"
+                                      }`}>
+                                        <span>{isSHS ? "🎒 SHS Library" : "🏛️ College Library"}</span>
+                                      </span>
+                                    </>
+                                  );
+                                })()}
                                 <span className="text-slate-300 shrink-0">•</span>
                                 <span className="truncate shrink min-w-0 max-w-[90px] text-slate-400">
                                   {partnerBook.address || "Campus"}

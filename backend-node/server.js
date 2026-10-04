@@ -22,6 +22,7 @@ const notificationRoutes = require('./routes/notifications');
 const finesRoutes = require('./routes/fines');
 const mapTilesRoutes = require('./routes/mapTiles');
 const idScannerRoutes = require('./routes/idScanner');
+const libraryRoutes = require('./routes/libraries');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -80,6 +81,7 @@ app.use('/api/books', bookRoutes);
 app.use('/api/borrow', borrowRoutes);
 app.use('/api/borrow-requests', borrowRequestRoutes);
 app.use('/api/library-settings', librarySettingsRoutes);
+app.use('/api/libraries', libraryRoutes);
 app.use('/api/activities', activityLogRoutes);
 app.use('/api/activity-logs', activityLogRoutes);
 app.use('/api/announcements', announcementRoutes);

@@ -224,13 +224,24 @@ async function ensureBorrowRequestNotification(user) {
   // Students do not receive librarian staff review notifications
   if (isStudentRole(user)) return;
 
+  const userLibraryId = user.library_id ? Number(user.library_id) : null;
+
   const { data: items, error: itemsError } = await supabase
     .from('borrow_request_items')
-    .select('request_id, book_id')
+    .select('request_id, book_id, book:book_id(library_id)')
     .eq('owner_school_id', user.school_id);
 
   if (itemsError) throw itemsError;
-  const requestIds = [...new Set((items || []).map(item => item.request_id).filter(Boolean))];
+
+  let filteredItems = items || [];
+  if (userLibraryId) {
+    filteredItems = filteredItems.filter(item => {
+      const bookLibId = item.book?.library_id;
+      return bookLibId && Number(bookLibId) === userLibraryId;
+    });
+  }
+
+  const requestIds = [...new Set(filteredItems.map(item => item.request_id).filter(Boolean))];
   if (requestIds.length === 0) return;
 
   const { data: requests, error: requestsError } = await supabase

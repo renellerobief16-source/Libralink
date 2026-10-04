@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   FiBook, FiUsers, FiClock, FiAlertTriangle, FiTrendingUp, FiTrendingDown,
   FiActivity, FiArrowRight, FiDownload, FiRefreshCw, FiCheckCircle, FiXCircle,
-  FiLayers, FiSliders, FiShield, FiCalendar, FiEye, FiZap, FiAward,
-  FiChevronRight, FiInfo, FiBookOpen, FiDollarSign, FiFilter, FiExternalLink
+  FiLayers, FiSliders, FiShield, FiCalendar, FiEye, FiEyeOff, FiZap, FiAward,
+  FiChevronRight, FiChevronDown, FiChevronUp, FiInfo, FiBookOpen, FiDollarSign, FiFilter, FiExternalLink
 } from 'react-icons/fi';
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -16,13 +16,39 @@ import { AnimatedCounter } from '../../common';
 // Currency Icon Helper
 const PesoSymbol = ({ className = 'text-xs font-bold' }) => <span className={className}>₱</span>;
 
-function LibrarianAdminDashboard({ onNavigate = () => {} }) {
+function LibrarianAdminDashboard({ 
+  onNavigate = () => {}, 
+  selectedLibraryId = 'all', 
+  onSelectLibrary = () => {}, 
+  libraries = [] 
+}) {
   // ─── STATE MANAGEMENT ──────────────────────────────────────────────
   const [timeRange, setTimeRange] = useState('7d'); // '7d' | '14d' | '30d' | 'all'
   const [chartMetric, setChartMetric] = useState('all'); // 'all' | 'borrows' | 'returns'
   const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Collapsible state for Campus Libraries section with persistence
+  const [isLibrariesCollapsed, setIsLibrariesCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('libralink_dashboard_hide_libraries') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleLibrariesCollapse = () => {
+    setIsLibrariesCollapsed(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('libralink_dashboard_hide_libraries', String(next));
+      } catch (e) {
+        console.warn(e);
+      }
+      return next;
+    });
+  };
 
   // Raw Data State
   const [booksList, setBooksList] = useState([]);
@@ -33,6 +59,7 @@ function LibrarianAdminDashboard({ onNavigate = () => {} }) {
   const [borrowRequests, setBorrowRequests] = useState([]);
   const [schoolInfo, setSchoolInfo] = useState(null);
   const [finesList, setFinesList] = useState([]);
+  const [librariesStats, setLibrariesStats] = useState([]);
 
   // Live Philippine Clock
   useEffect(() => {
@@ -64,7 +91,8 @@ function LibrarianAdminDashboard({ onNavigate = () => {} }) {
         overdueRes,
         requestsRes,
         schoolRes,
-        finesRes
+        finesRes,
+        librariesRes
       ] = await Promise.allSettled([
         api.get(`/books/school?school_id=${schoolId}&group=true`),
         api.get(`/users/school/${schoolId}?role_id=4`),
@@ -73,7 +101,8 @@ function LibrarianAdminDashboard({ onNavigate = () => {} }) {
         api.get(`/borrow/overdue?school_id=${schoolId}`),
         api.get(`/borrow-requests/school/${schoolId}`),
         api.get(`/schools/${schoolId}`),
-        api.get(`/fines/school/${schoolId}`)
+        api.get(`/fines/school/${schoolId}`),
+        api.get(`/libraries/school/${schoolId}/stats`)
       ]);
 
       if (booksRes.status === 'fulfilled' && booksRes.value) {
@@ -115,6 +144,11 @@ function LibrarianAdminDashboard({ onNavigate = () => {} }) {
         const rows = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : (Array.isArray(payload?.data?.data) ? payload.data.data : []));
         setFinesList(rows);
       }
+      if (librariesRes.status === 'fulfilled' && librariesRes.value) {
+        const payload = librariesRes.value;
+        const list = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : (Array.isArray(payload?.data?.data) ? payload.data.data : []));
+        setLibrariesStats(list);
+      }
     } catch (err) {
       console.error('[ADMIN DASHBOARD] Error loading data:', err);
     } finally {
@@ -127,29 +161,107 @@ function LibrarianAdminDashboard({ onNavigate = () => {} }) {
     fetchDashboardData();
   }, []);
 
+  // Effective libraries list
+  const displayLibraries = useMemo(() => {
+    return librariesStats.length > 0 ? librariesStats : libraries;
+  }, [librariesStats, libraries]);
+
+  // ─── FILTERED DATA BY SELECTED LIBRARY SCOPE ──────────────────────
+  const scopedBooks = useMemo(() => {
+    if (!selectedLibraryId || selectedLibraryId === 'all') return booksList;
+    return booksList.filter(b => String(b.library_id) === String(selectedLibraryId));
+  }, [booksList, selectedLibraryId]);
+
+  const scopedStudents = useMemo(() => {
+    if (!selectedLibraryId || selectedLibraryId === 'all') return studentsList;
+    return studentsList.filter(s => String(s.library_id) === String(selectedLibraryId));
+  }, [studentsList, selectedLibraryId]);
+
+  const scopedLibrarians = useMemo(() => {
+    if (!selectedLibraryId || selectedLibraryId === 'all') return librariansList;
+    return librariansList.filter(l => String(l.library_id) === String(selectedLibraryId));
+  }, [librariansList, selectedLibraryId]);
+
+  // Fast ID lookups for scoped items
+  const scopedBookIds = useMemo(() => new Set(scopedBooks.map(b => String(b.book_id || b.id))), [scopedBooks]);
+  const scopedStudentIds = useMemo(() => new Set(scopedStudents.map(s => String(s.user_id || s.id))), [scopedStudents]);
+
+  const scopedActiveLoans = useMemo(() => {
+    if (!selectedLibraryId || selectedLibraryId === 'all') return activeLoans;
+    return activeLoans.filter(loan => {
+      if (loan.library_id && String(loan.library_id) === String(selectedLibraryId)) return true;
+      const bId = String(loan.book_id || loan.book_copies?.books?.book_id || '');
+      if (bId && scopedBookIds.has(bId)) return true;
+      const sId = String(loan.student_id || loan.student?.user_id || '');
+      if (sId && scopedStudentIds.has(sId)) return true;
+      return false;
+    });
+  }, [activeLoans, selectedLibraryId, scopedBookIds, scopedStudentIds]);
+
+  const scopedOverdueLoans = useMemo(() => {
+    if (!selectedLibraryId || selectedLibraryId === 'all') return overdueLoans;
+    return overdueLoans.filter(loan => {
+      if (loan.library_id && String(loan.library_id) === String(selectedLibraryId)) return true;
+      const bId = String(loan.book_id || loan.book_copies?.books?.book_id || '');
+      if (bId && scopedBookIds.has(bId)) return true;
+      const sId = String(loan.student_id || loan.student?.user_id || '');
+      if (sId && scopedStudentIds.has(sId)) return true;
+      return false;
+    });
+  }, [overdueLoans, selectedLibraryId, scopedBookIds, scopedStudentIds]);
+
+  const scopedBorrowRequests = useMemo(() => {
+    if (!selectedLibraryId || selectedLibraryId === 'all') return borrowRequests;
+    return borrowRequests.filter(req => {
+      if (req.library_id && String(req.library_id) === String(selectedLibraryId)) return true;
+      const bId = String(req.book_id || req.book?.book_id || '');
+      if (bId && scopedBookIds.has(bId)) return true;
+      const sId = String(req.user_id || req.student_id || req.student?.user_id || '');
+      if (sId && scopedStudentIds.has(sId)) return true;
+      if (Array.isArray(req.items)) {
+        if (req.items.some(i => scopedBookIds.has(String(i.book_id || i.book?.book_id)))) return true;
+      }
+      return false;
+    });
+  }, [borrowRequests, selectedLibraryId, scopedBookIds, scopedStudentIds]);
+
+  const scopedFines = useMemo(() => {
+    if (!selectedLibraryId || selectedLibraryId === 'all') return finesList;
+    return finesList.filter(fine => {
+      if (fine.library_id && String(fine.library_id) === String(selectedLibraryId)) return true;
+      const sId = String(fine.user_id || fine.student_id || fine.student?.user_id || '');
+      if (sId && scopedStudentIds.has(sId)) return true;
+      const bId = String(fine.book_id || fine.loan?.book_id || '');
+      if (bId && scopedBookIds.has(bId)) return true;
+      return false;
+    });
+  }, [finesList, selectedLibraryId, scopedBookIds, scopedStudentIds]);
+
   // ─── COMPUTED METRICS & KPI ENGINE ─────────────────────────────────
   const metrics = useMemo(() => {
-    const { totalCopies: consolidatedCopies, availableCopies: consolidatedAvail, totalTitles: consolidatedTitles } = consolidateBookInventory(booksList);
-    const totalTitles = consolidatedTitles || 776;
-    const totalCopies = consolidatedCopies || 1583;
-    const availableCopies = consolidatedAvail || 1579;
-    const activeLoansCount = activeLoans.length;
-    const overdueCount = overdueLoans.length;
-    const totalStudents = studentsList.length;
-    const totalStaff = librariansList.length;
+    const { totalCopies: consolidatedCopies, availableCopies: consolidatedAvail, totalTitles: consolidatedTitles } = consolidateBookInventory(scopedBooks);
+    const totalTitles = consolidatedTitles || scopedBooks.length;
+    const totalCopies = consolidatedCopies || scopedBooks.length;
+    const availableCopies = consolidatedAvail !== undefined ? consolidatedAvail : scopedBooks.length;
+    const activeLoansCount = scopedActiveLoans.length;
+    const overdueCount = scopedOverdueLoans.length;
+    const totalStudents = scopedStudents.length;
+    const totalStaff = scopedLibrarians.length;
     const totalUsers = totalStudents + totalStaff;
 
-    // Circulation Velocity (Returned vs Borrowed this week)
-    const returnedItemsCount = borrowRequests.filter(r => r.status === 'returned' || r.items?.some(i => i.item_status === 'returned')).length;
+    // Circulation Velocity (Returned vs Active)
+    const returnedItemsCount = scopedBorrowRequests.filter(r => r.status === 'returned' || r.items?.some(i => i.item_status === 'returned')).length;
     const totalCirculations = activeLoansCount + returnedItemsCount;
-    const returnRate = totalCirculations > 0 ? ((returnedItemsCount / totalCirculations) * 100).toFixed(1) : '95.2';
+    const returnRate = totalCirculations > 0 
+      ? ((returnedItemsCount / totalCirculations) * 100).toFixed(1) 
+      : (overdueCount === 0 ? '100.0' : '0.0');
 
-    // Fines Outstanding
-    const totalFinesPending = finesList
+    // Fines Outstanding (Sum of pending or unpaid fines)
+    const totalFinesPending = scopedFines
       .filter(f => f.status === 'pending' || f.status === 'unpaid')
       .reduce((sum, f) => sum + (parseFloat(f.amount || f.fine_amount) || 0), 0);
 
-    const shelfAvailabilityPercent = totalCopies > 0 ? Math.min(100, Math.round((availableCopies / totalCopies) * 100)) : 88;
+    const shelfAvailabilityPercent = totalCopies > 0 ? Math.min(100, Math.round((availableCopies / totalCopies) * 100)) : 0;
 
     return {
       totalTitles,
@@ -162,11 +274,12 @@ function LibrarianAdminDashboard({ onNavigate = () => {} }) {
       totalStaff,
       totalUsers,
       returnRate,
-      totalFinesPending: totalFinesPending > 0 ? totalFinesPending : (overdueCount * 20) // fallback estimate
+      returnedItemsCount,
+      totalFinesPending
     };
-  }, [booksList, studentsList, librariansList, activeLoans, overdueLoans, borrowRequests, finesList]);
+  }, [scopedBooks, scopedStudents, scopedLibrarians, scopedActiveLoans, scopedOverdueLoans, scopedBorrowRequests, scopedFines]);
 
-  // ─── TIME-SERIES CHART DATA GENERATOR ──────────────────────────────
+  // ─── TIME-SERIES CHART DATA GENERATOR (ACCURATE REAL DATA) ────────
   const chartData = useMemo(() => {
     const days = timeRange === '30d' ? 30 : timeRange === '14d' ? 14 : 7;
     const data = [];
@@ -178,63 +291,116 @@ function LibrarianAdminDashboard({ onNavigate = () => {} }) {
       const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       const isoDate = d.toISOString().split('T')[0];
 
-      // Count actual loans for this day if match
-      const actualBorrows = activeLoans.filter(l => (l.borrow_date || '').startsWith(isoDate)).length;
-      const actualReturns = borrowRequests.filter(r => (r.updated_at || r.borrow_date || '').startsWith(isoDate) && r.status === 'returned').length;
+      // Count actual loans for this day
+      const activeBorrowsForDay = scopedActiveLoans.filter(l => {
+        const dStr = (l.borrow_date || l.created_at || '').substring(0, 10);
+        return dStr === isoDate;
+      }).length;
 
-      // Realistic blended trends
-      const baseBorrows = actualBorrows > 0 ? actualBorrows : Math.max(1, Math.floor((Math.sin(i * 0.8) + 1.5) * 3));
-      const baseReturns = actualReturns > 0 ? actualReturns : Math.max(1, Math.floor((Math.cos(i * 0.8) + 1.2) * 2.5));
-      const partnerBorrows = Math.floor(baseBorrows * 0.3);
+      const requestsForDay = scopedBorrowRequests.filter(r => {
+        const dStr = (r.borrow_date || r.approved_at || r.created_at || '').substring(0, 10);
+        return dStr === isoDate && (r.status === 'approved' || r.status === 'borrowed' || r.status === 'active' || r.status === 'returned');
+      }).length;
+
+      const actualBorrows = Math.max(activeBorrowsForDay, requestsForDay);
+
+      // Actual completed returns for this day
+      const actualReturns = scopedBorrowRequests.filter(r => {
+        const dStr = (r.returned_at || r.updated_at || '').substring(0, 10);
+        return dStr === isoDate && r.status === 'returned';
+      }).length;
+
+      // Cross-library / Inter-unit loans
+      const interUnitBorrows = scopedActiveLoans.filter(l => {
+        const dStr = (l.borrow_date || l.created_at || '').substring(0, 10);
+        const isCross = (l.is_cross_school || l.cross_school) || (l.library_id && l.student?.library_id && String(l.library_id) !== String(l.student?.library_id));
+        return dStr === isoDate && isCross;
+      }).length;
 
       data.push({
         date: dateStr,
-        borrows: baseBorrows,
-        returns: baseReturns,
-        interSchool: partnerBorrows,
-        total: baseBorrows + baseReturns
+        borrows: actualBorrows,
+        returns: actualReturns,
+        interSchool: interUnitBorrows,
+        total: actualBorrows + actualReturns
       });
     }
     return data;
-  }, [timeRange, activeLoans, borrowRequests]);
+  }, [timeRange, scopedActiveLoans, scopedBorrowRequests]);
+
+  // Mini Sparkline bars for Active Loans KPI card
+  const sparklineBars = useMemo(() => {
+    const last7 = chartData.slice(-7);
+    const max = Math.max(...last7.map(d => d.borrows), 1);
+    return last7.map(d => ({
+      date: d.date,
+      count: d.borrows,
+      percent: Math.max(15, Math.round((d.borrows / max) * 100))
+    }));
+  }, [chartData]);
+
+  // Circulation Breakdown by Channel
+  const circulationBreakdown = useMemo(() => {
+    const total = metrics.activeLoansCount + metrics.returnedItemsCount + metrics.overdueCount;
+    if (total === 0) {
+      const totalC = metrics.totalCopies || 1;
+      const shelfPct = Math.round((metrics.availableCopies / totalC) * 100);
+      const loanPct = Math.round((metrics.activeLoansCount / totalC) * 100);
+      return [
+        { label: 'Available on Library Shelf', count: metrics.availableCopies, percent: shelfPct, color: 'bg-blue-600', dot: 'bg-blue-600' },
+        { label: 'Currently in Circulation', count: metrics.activeLoansCount, percent: loanPct, color: 'bg-purple-600', dot: 'bg-purple-600' },
+        { label: 'Overdue / Follow-up Needed', count: metrics.overdueCount, percent: 0, color: 'bg-rose-500', dot: 'bg-rose-500' }
+      ];
+    }
+
+    const activePct = Math.round((metrics.activeLoansCount / total) * 100);
+    const returnedPct = Math.round((metrics.returnedItemsCount / total) * 100);
+    const overduePct = Math.max(0, 100 - activePct - returnedPct);
+
+    return [
+      { label: 'Active Checkouts (Borrowers)', count: metrics.activeLoansCount, percent: activePct, color: 'bg-blue-600', dot: 'bg-blue-600' },
+      { label: 'Completed Clean Returns', count: metrics.returnedItemsCount, percent: returnedPct, color: 'bg-emerald-500', dot: 'bg-emerald-500' },
+      { label: 'Past Due / Overdue Follow-up', count: metrics.overdueCount, percent: overduePct, color: 'bg-rose-500', dot: 'bg-rose-500' }
+    ];
+  }, [metrics]);
 
   // ─── TOP CIRCULATING BOOKS LEADERBOARD ─────────────────────────────
   const topBooks = useMemo(() => {
-    if (booksList.length === 0) return [];
-    return [...booksList]
+    if (scopedBooks.length === 0) return [];
+    return [...scopedBooks]
       .sort((a, b) => (parseInt(b.borrow_count || b.popularity || 0) - parseInt(a.borrow_count || a.popularity || 0)))
       .slice(0, 5);
-  }, [booksList]);
+  }, [scopedBooks]);
 
   // ─── RECENT ACTIVITY FEED ──────────────────────────────────────────
   const recentActivities = useMemo(() => {
     const list = [];
     
     // Active loans as recent borrows
-    activeLoans.slice(0, 4).forEach((loan) => {
+    scopedActiveLoans.slice(0, 4).forEach((loan) => {
       const book = loan.book_copies?.books || {};
       const student = loan.student || {};
       list.push({
-        id: `loan-${loan.borrow_id}`,
+        id: `loan-${loan.borrow_id || loan.id}`,
         type: 'borrow',
         title: 'Book Checked Out',
         description: `"${book.title || 'Library Title'}" checked out by ${student.firstname ? `${student.firstname} ${student.lastname}` : 'Student Borrower'}`,
-        timestamp: loan.borrow_date || new Date().toISOString(),
+        timestamp: loan.borrow_date || loan.created_at || new Date().toISOString(),
         badgeColor: 'blue',
         badgeText: 'Active Loan'
       });
     });
 
     // Overdue items as alert notices
-    overdueLoans.slice(0, 2).forEach((od) => {
+    scopedOverdueLoans.slice(0, 2).forEach((od) => {
       const book = od.book_copies?.books || {};
       const student = od.student || {};
       list.push({
-        id: `od-${od.borrow_id}`,
+        id: `od-${od.borrow_id || od.id}`,
         type: 'overdue',
         title: 'Overdue Notice',
         description: `"${book.title || 'Library Title'}" is past its due date (${student.firstname ? `${student.firstname} ${student.lastname}` : 'Student Borrower'})`,
-        timestamp: od.due_date || new Date().toISOString(),
+        timestamp: od.due_date || od.created_at || new Date().toISOString(),
         badgeColor: 'rose',
         badgeText: 'Overdue'
       });
@@ -242,7 +408,7 @@ function LibrarianAdminDashboard({ onNavigate = () => {} }) {
 
     // Sort by timestamp descending
     return list.slice(0, 5);
-  }, [activeLoans, overdueLoans]);
+  }, [scopedActiveLoans, scopedOverdueLoans]);
 
   // ─── CSV REPORT EXPORT ──────────────────────────────────────────────
   const handleExportReport = () => {
@@ -266,11 +432,11 @@ function LibrarianAdminDashboard({ onNavigate = () => {} }) {
       ['Loan ID', 'Book Title', 'Student Borrower', 'Borrow Date', 'Due Date']
     ];
 
-    activeLoans.forEach((l) => {
+    scopedActiveLoans.forEach((l) => {
       const b = l.book_copies?.books || {};
       const s = l.student || {};
       rows.push([
-        l.borrow_id,
+        l.borrow_id || l.id,
         `"${b.title || 'Book'}"`,
         `"${s.firstname ? `${s.firstname} ${s.lastname}` : 'Student'}"`,
         l.borrow_date || '—',
@@ -380,8 +546,8 @@ function LibrarianAdminDashboard({ onNavigate = () => {} }) {
             <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               {loading ? '...' : <AnimatedCounter value={metrics.totalCopies || metrics.totalTitles} />}
             </h3>
-            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded">
-              +8.4%
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded font-mono">
+              {metrics.shelfAvailabilityPercent}% shelf
             </span>
           </div>
           <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
@@ -412,19 +578,22 @@ function LibrarianAdminDashboard({ onNavigate = () => {} }) {
             <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               {loading ? '...' : <AnimatedCounter value={metrics.activeLoansCount} />}
             </h3>
-            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1 py-0.2 rounded">
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded font-mono">
               Live
             </span>
           </div>
           <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
             <span className="text-slate-500">Velocity:</span>
-            <span className="font-bold text-emerald-600">+12% vs wk</span>
+            <span className="font-bold text-indigo-700 font-mono">
+              {metrics.activeLoansCount === 1 ? '1 active checkout' : `${metrics.activeLoansCount} active checkouts`}
+            </span>
           </div>
-          <div className="h-3.5 mt-1.5 flex items-end gap-1">
-            {[40, 65, 50, 80, 60, 90, 75].map((val, idx) => (
+          <div className="h-3.5 mt-1.5 flex items-end gap-1" title="7-day live borrowing activity">
+            {sparklineBars.map((bar, idx) => (
               <div
                 key={idx}
-                style={{ height: `${val}%` }}
+                style={{ height: `${bar.percent}%` }}
+                title={`${bar.date}: ${bar.count} borrows`}
                 className="flex-1 bg-indigo-200 group-hover:bg-indigo-500 rounded-xs transition-colors"
               />
             ))}
@@ -445,13 +614,21 @@ function LibrarianAdminDashboard({ onNavigate = () => {} }) {
             <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               {loading ? '...' : <AnimatedCounter value={metrics.returnRate} decimals={1} suffix="%" />}
             </h3>
-            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded">
-              +2.1%
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-mono">
+              {metrics.returnedItemsCount} Returned
             </span>
           </div>
           <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
             <span className="text-slate-500">Compliance:</span>
-            <span className="font-bold text-emerald-700">Excellent</span>
+            <span className={`font-bold ${
+              parseFloat(metrics.returnRate) >= 90 ? 'text-emerald-700' :
+              parseFloat(metrics.returnRate) >= 75 ? 'text-blue-700' :
+              parseFloat(metrics.returnRate) >= 50 ? 'text-amber-700' : 'text-rose-700'
+            }`}>
+              {parseFloat(metrics.returnRate) >= 90 ? 'Excellent' :
+               parseFloat(metrics.returnRate) >= 75 ? 'Good' :
+               parseFloat(metrics.returnRate) >= 50 ? 'Fair' : 'Attention'}
+            </span>
           </div>
           <div className="w-full bg-slate-100 h-1 rounded-full mt-1.5 overflow-hidden">
             <div className="bg-emerald-500 h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${metrics.returnRate}%` }} />
@@ -475,10 +652,10 @@ function LibrarianAdminDashboard({ onNavigate = () => {} }) {
             <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               {loading ? '...' : <AnimatedCounter value={metrics.overdueCount} />}
             </h3>
-            <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1 py-0.2 rounded ${
-              metrics.overdueCount > 0 ? 'text-rose-700 bg-rose-50' : 'text-slate-600 bg-slate-100'
+            <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded font-mono ${
+              metrics.overdueCount > 0 ? 'text-rose-700 bg-rose-50' : 'text-emerald-700 bg-emerald-50'
             }`}>
-              {metrics.overdueCount > 0 ? 'Action' : 'All Clear'}
+              {metrics.overdueCount > 0 ? `${metrics.overdueCount} Overdue` : 'All Clear'}
             </span>
           </div>
           <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
@@ -511,8 +688,8 @@ function LibrarianAdminDashboard({ onNavigate = () => {} }) {
             <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               {loading ? '...' : <AnimatedCounter value={metrics.totalUsers} />}
             </h3>
-            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-purple-700 bg-purple-50 px-1 py-0.2 rounded">
-              +5.0%
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded font-mono">
+              {selectedLibraryId !== 'all' ? 'Unit Users' : 'Campus Total'}
             </span>
           </div>
           <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
@@ -529,6 +706,197 @@ function LibrarianAdminDashboard({ onNavigate = () => {} }) {
             <FiChevronRight className="w-3 h-3" />
           </button>
         </div>
+      </div>
+
+      {/* ─────────────────────────────────────────────────────────────
+          2.5. CAMPUS LIBRARIES OVERVIEW (COLLAPSIBLE)
+      ───────────────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                <FiLayers className="w-5 h-5 text-blue-600" />
+                Campus Libraries & Multi-Unit Holdings
+              </h3>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                {displayLibraries.length} {displayLibraries.length === 1 ? 'Library Unit' : 'Library Units'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Consolidated view of all separate educational and branch libraries under {schoolInfo?.school_name || 'this campus'}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {selectedLibraryId !== 'all' && (
+              <button
+                onClick={() => onSelectLibrary('all')}
+                className="text-xs px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition cursor-pointer"
+              >
+                Clear Filter (View Campus All)
+              </button>
+            )}
+            {/* HIDE / SHOW BUTTON */}
+            <button
+              onClick={toggleLibrariesCollapse}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition shadow-2xs cursor-pointer ${
+                isLibrariesCollapsed
+                  ? 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+              }`}
+              title={isLibrariesCollapsed ? "Show Campus Libraries Unit cards" : "Hide Campus Libraries Unit cards to focus directly on analytics"}
+            >
+              {isLibrariesCollapsed ? (
+                <>
+                  <FiEye className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Show Units</span>
+                  <FiChevronDown className="w-3.5 h-3.5 text-blue-600" />
+                </>
+              ) : (
+                <>
+                  <FiEyeOff className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Hide Units</span>
+                  <FiChevronUp className="w-3.5 h-3.5 text-slate-600" />
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => onNavigate('libraries')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition shadow-2xs cursor-pointer"
+            >
+              <span>Manage Libraries Directory</span>
+              <FiChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Collapsible Content */}
+        {isLibrariesCollapsed ? (
+          <div 
+            onClick={toggleLibrariesCollapse}
+            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-gradient-to-r from-slate-50 to-blue-50/40 hover:to-blue-50/70 rounded-2xl border border-dashed border-slate-200 hover:border-blue-300 cursor-pointer transition-all group"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                <FiLayers className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold text-slate-800 group-hover:text-blue-700 transition-colors">
+                    {displayLibraries.length} Library Units Configured (Cards Collapsed)
+                  </span>
+                  {selectedLibraryId !== 'all' && (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                      Active Scope: {displayLibraries.find(l => String(l.id || l.library_id) === String(selectedLibraryId))?.name || 'Selected Unit'}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                  Holding cards hidden so you can inspect checkout velocity and distribution charts immediately • Click anywhere to expand
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-bold text-blue-600 group-hover:text-blue-700 flex items-center gap-1 shrink-0 self-end sm:self-auto">
+              <span>Show {displayLibraries.length} Units</span>
+              <FiChevronDown className="w-4 h-4 transition-transform group-hover:translate-y-0.5" />
+            </span>
+          </div>
+        ) : (
+          /* Libraries Cards Grid */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {displayLibraries.length === 0 ? (
+              <div className="col-span-full py-8 text-center text-slate-400 text-xs">
+                No libraries configured yet. Click "Manage Libraries Directory" to create a library unit.
+              </div>
+            ) : (
+              displayLibraries.map((lib, idx) => {
+                const libKey = lib.library_id || lib.id || idx;
+                const isSelected = String(selectedLibraryId) === String(lib.library_id || lib.id);
+                const typeLabel = lib.library_type === 'college' ? 'College Library'
+                  : lib.library_type === 'senior_high_school' ? 'SHS Library'
+                  : lib.library_type === 'junior_high_school' ? 'JHS Library'
+                  : lib.library_type === 'elementary' ? 'Elementary'
+                  : 'Specialized';
+
+                return (
+                  <div
+                    key={libKey}
+                    className={`rounded-2xl p-4 border transition-all relative ${
+                      isSelected
+                        ? 'bg-blue-50/50 border-blue-500 shadow-md ring-2 ring-blue-500/20'
+                        : 'bg-slate-50/50 hover:bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-xs'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-base">
+                            {lib.library_type === 'college' ? '📚' : lib.library_type === 'senior_high_school' ? '🎓' : lib.library_type === 'junior_high_school' ? '🎒' : '📖'}
+                          </span>
+                          <h4 className="font-bold text-slate-900 text-sm truncate" title={lib.name}>
+                            {lib.name}
+                          </h4>
+                        </div>
+                        <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-white border border-slate-200 text-slate-600">
+                          {typeLabel}
+                        </span>
+                      </div>
+
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        lib.status === 'active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {lib.status || 'active'}
+                      </span>
+                    </div>
+
+                    {lib.description && (
+                      <p className="text-[11px] text-slate-500 line-clamp-2 mb-3">
+                        {lib.description}
+                      </p>
+                    )}
+
+                    {/* 3 mini stats */}
+                    <div className="grid grid-cols-3 gap-2 bg-white rounded-xl p-2.5 border border-slate-100 mb-3 text-center">
+                      <div>
+                        <div className="text-[10px] text-slate-400 font-medium">Books</div>
+                        <div className="text-xs font-bold text-slate-800">{lib.total_books || 0}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-400 font-medium">Students</div>
+                        <div className="text-xs font-bold text-slate-800">{lib.total_students || 0}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-400 font-medium">Staff</div>
+                        <div className="text-xs font-bold text-slate-800">{lib.total_librarians || 0}</div>
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex items-center justify-between pt-1">
+                      <button
+                        onClick={() => onSelectLibrary(isSelected ? 'all' : (lib.library_id || lib.id))}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                        }`}
+                      >
+                        {isSelected ? '✓ Viewing Library' : 'Select Scope'}
+                      </button>
+                      <button
+                        onClick={() => onNavigate('libraries')}
+                        className="text-[11px] text-slate-500 hover:text-blue-600 font-medium cursor-pointer"
+                      >
+                        Edit Unit →
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
@@ -677,47 +1045,23 @@ function LibrarianAdminDashboard({ onNavigate = () => {} }) {
 
             {/* Visual Channel Breakdown Bars */}
             <div className="mt-5 space-y-4">
-              {/* Channel 1: Home School Take-Home */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
-                    Home School Take-Home Loans
-                  </span>
-                  <span className="font-mono font-bold text-slate-900">72%</span>
+              {circulationBreakdown.map((item, idx) => (
+                <div key={idx} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-800 flex items-center gap-1.5 truncate">
+                      <span className={`w-2.5 h-2.5 rounded-full ${item.dot} shrink-0`} />
+                      <span className="truncate">{item.label}</span>
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      <span className="text-[11px] text-slate-500 font-mono">({item.count})</span>
+                      <span className="font-mono font-bold text-slate-900">{item.percent}%</span>
+                    </div>
+                  </div>
+                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                    <div className={`${item.color} h-full rounded-full transition-all duration-700`} style={{ width: `${item.percent}%` }} />
+                  </div>
                 </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div className="bg-blue-600 h-full rounded-full" style={{ width: '72%' }} />
-                </div>
-              </div>
-
-              {/* Channel 2: Inter-School Partner Access */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-purple-600" />
-                    Inter-School Reading Room Access
-                  </span>
-                  <span className="font-mono font-bold text-slate-900">18%</span>
-                </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div className="bg-purple-600 h-full rounded-full" style={{ width: '18%' }} />
-                </div>
-              </div>
-
-              {/* Channel 3: Special Research & Faculty Holds */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                    Faculty & In-Library Reserved
-                  </span>
-                  <span className="font-mono font-bold text-slate-900">10%</span>
-                </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div className="bg-emerald-500 h-full rounded-full" style={{ width: '10%' }} />
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
@@ -823,11 +1167,11 @@ function LibrarianAdminDashboard({ onNavigate = () => {} }) {
                     </div>
 
                     <div className="text-right shrink-0">
-                      <span className="inline-block px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 font-black text-xs">
-                        {book.borrow_count || (topBooks.length - idx) * 4} Borrows
+                      <span className="inline-block px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 font-black text-xs font-mono">
+                        {book.borrow_count || 0} Borrows
                       </span>
-                      <p className="text-[10px] text-emerald-600 font-bold mt-0.5">
-                        {book.available_copies || 1} on shelf
+                      <p className="text-[10px] text-emerald-600 font-bold mt-0.5 font-mono">
+                        {book.available_copies !== undefined ? book.available_copies : 0} on shelf
                       </p>
                     </div>
                   </div>

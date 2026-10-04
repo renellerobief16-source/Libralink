@@ -13,6 +13,7 @@ import {
   getBookById,
   getBackendAssetUrl,
   returnBook,
+  returnBookItem,
   confirmBorrowCancellation,
   declineBorrowCancellation,
   approveBookRenewal,
@@ -101,7 +102,7 @@ function getStoredUserRole() {
   }
 }
 
-function AdminBorrowRequests() {
+function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}) {
   const { addNotification } = useNotifications();
   const userRole = getStoredUserRole();
   const isAdminLibrarian = userRole.includes('admin') || userRole === '2' || userRole === 'librarian_admin';
@@ -428,13 +429,37 @@ function AdminBorrowRequests() {
 
     setBorrowRequestsLoading(true);
     try {
-      console.log('[LIBRARIAN] Fetching home school borrow requests for school:', schoolId);
-      const { data, error } = await getBorrowRequests(schoolId);
+      const effectiveLibraryId = selectedLibraryId || (typeof window !== 'undefined' ? localStorage.getItem('currentLibraryId') : null);
+      console.log('[LIBRARIAN] Fetching home school borrow requests for school:', schoolId, 'library_id:', effectiveLibraryId);
+      const { data, error } = await getBorrowRequests(schoolId, effectiveLibraryId);
       console.log('[LIBRARIAN] Home school borrow requests response:', data, error);
       if (error) throw error;
       
       // Keep the home queue limited to requests owned by this library.
-      setBorrowRequests((data || []).filter(request => request.request_type !== 'INTER_SCHOOL'));
+      let homeQueue = (data || []).filter(request => request.request_type !== 'INTER_SCHOOL');
+      const currentLibType = typeof window !== 'undefined' ? localStorage.getItem('currentLibraryType') : '';
+      const lid = effectiveLibraryId && effectiveLibraryId !== 'all' ? Number(effectiveLibraryId) : null;
+      const isCollegeUnit = lid === null || lid === 1 || lid === 2 || (currentLibType === 'college' && lid !== 10);
+
+      if (lid) {
+        homeQueue = homeQueue.filter(r => {
+          if (r.items && r.items.length > 0) {
+            return r.items.some(item => {
+              const bLib = item.book?.library_id ?? item.library_id ?? null;
+              if (bLib !== null && bLib !== undefined) {
+                return Number(bLib) === lid;
+              }
+              return isCollegeUnit;
+            });
+          }
+          const reqLibId = r.book?.library_id || r.source_library_id || r.library_id;
+          if (reqLibId !== null && reqLibId !== undefined) {
+            return Number(reqLibId) === lid;
+          }
+          return isCollegeUnit;
+        });
+      }
+      setBorrowRequests(homeQueue);
       
       // Fetch all book details at once (more efficient)
       if (data && data.length > 0) {
@@ -479,17 +504,37 @@ function AdminBorrowRequests() {
 
     setInterSchoolRequestsLoading(true);
     try {
-      console.log('[LIBRARIAN] Fetching inter-school requests for school (owner school):', schoolId);
-      const response = await api.get(`/borrow-requests/partner/${schoolId}`);
+      const effectiveLibraryId = selectedLibraryId || (typeof window !== 'undefined' ? localStorage.getItem('currentLibraryId') : null);
+      let partnerUrl = `/borrow-requests/partner/${schoolId}`;
+      if (effectiveLibraryId && effectiveLibraryId !== 'all') {
+        partnerUrl += `?library_id=${effectiveLibraryId}`;
+      }
+      console.log('[LIBRARIAN] Fetching inter-school requests for school (owner school):', schoolId, 'url:', partnerUrl);
+      const response = await api.get(partnerUrl);
       console.log('[LIBRARIAN] Inter-school requests full response:', response);
       console.log('[LIBRARIAN] Inter-school requests data:', response.data);
       console.log('[LIBRARIAN] Inter-school requests error:', response.error);
       if (response.error) throw response.error;
-      setInterSchoolRequests(response.data || []);
+      const rawData = response.data || [];
+      const currentLibType = typeof window !== 'undefined' ? localStorage.getItem('currentLibraryType') : '';
+      const lid = effectiveLibraryId && effectiveLibraryId !== 'all' ? Number(effectiveLibraryId) : null;
+      const isCollegeUnit = lid === null || lid === 1 || lid === 2 || (currentLibType === 'college' && lid !== 10);
+
+      let filteredInter = Array.isArray(rawData) ? rawData : (Array.isArray(response) ? response : []);
+      if (lid) {
+        filteredInter = filteredInter.filter(r => {
+          const itemBookLib = r.book?.library_id ?? r.borrow_request?.items?.[0]?.book?.library_id ?? null;
+          if (itemBookLib !== null && itemBookLib !== undefined) {
+            return Number(itemBookLib) === lid;
+          }
+          return isCollegeUnit;
+        });
+      }
+      setInterSchoolRequests(filteredInter);
       
       // Fetch all book details at once
-      if (response.data && response.data.length > 0) {
-        const uniqueBookIds = [...new Set(response.data.flatMap(r => r.items?.map(item => item.book_id) || [r.book_id]))].filter(id => id && id.length > 0);
+      if (filteredInter && filteredInter.length > 0) {
+        const uniqueBookIds = [...new Set(filteredInter.flatMap(r => r.items?.map(item => item.book_id) || [r.book_id]))].filter(id => id && id.length > 0);
         
         if (uniqueBookIds.length > 0) {
           try {
@@ -523,14 +568,30 @@ function AdminBorrowRequests() {
 
     setActiveBorrowsLoading(true);
     try {
-      const { data, error } = await getAllActiveBorrows(schoolId);
+      const effectiveLibraryId = selectedLibraryId || (typeof window !== 'undefined' ? localStorage.getItem('currentLibraryId') : null);
+      const { data, error } = await getAllActiveBorrows(schoolId, effectiveLibraryId);
       if (error) throw error;
-      setActiveBorrows(data || []);
+      const rawBorrows = Array.isArray(data) ? data : [];
+      const currentLibType = typeof window !== 'undefined' ? localStorage.getItem('currentLibraryType') : '';
+      const lid = effectiveLibraryId && effectiveLibraryId !== 'all' ? Number(effectiveLibraryId) : null;
+      const isCollegeUnit = lid === null || lid === 1 || lid === 2 || (currentLibType === 'college' && lid !== 10);
+
+      let filteredBorrows = rawBorrows;
+      if (lid) {
+        filteredBorrows = rawBorrows.filter(b => {
+          const bookLibId = b.book_copies?.books?.library_id ?? b.library_id ?? null;
+          if (bookLibId !== null && bookLibId !== undefined) {
+            return Number(bookLibId) === lid;
+          }
+          return isCollegeUnit;
+        });
+      }
+      setActiveBorrows(filteredBorrows);
       
       // Fetch all book details at once (more efficient)
-      if (data && data.length > 0) {
-        const uniqueBookIds = [...new Set(data.map(b => b.book_id || b.book_copies?.books?.book_id))].filter(id => id && String(id).length > 0);
-        const uniqueStudentIds = [...new Set(data.map(b => b.student_id))].filter(id => id && String(id).length > 0);
+      if (filteredBorrows && filteredBorrows.length > 0) {
+        const uniqueBookIds = [...new Set(filteredBorrows.map(b => b.book_id || b.book_copies?.books?.book_id))].filter(id => id && String(id).length > 0);
+        const uniqueStudentIds = [...new Set(filteredBorrows.map(b => b.student_id))].filter(id => id && String(id).length > 0);
         
         // Fetch books using API
         if (uniqueBookIds.length > 0) {
@@ -597,7 +658,7 @@ function AdminBorrowRequests() {
         if (unsubscribe) unsubscribe();
       };
     }
-  }, []);
+  }, [selectedLibraryId]);
 
   useEffect(() => {
     if (activeRequestTab === 'inter-school') {
@@ -3939,6 +4000,61 @@ function AdminBorrowRequests() {
                         Waived
                       </span>
                     )}
+                  </div>
+
+                  {/* 3-Option Fine Settlement Buttons */}
+                  <div className="pt-2 border-t border-rose-200/80">
+                    <span className="text-[10px] uppercase font-bold text-rose-800 block mb-1.5">
+                      Fine Settlement Decision:
+                    </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsFinePaid(true);
+                          if (parseFloat(manualFineAmount) === 0) {
+                            setManualFineAmount(String(loanToInspect.dueStatus.daysOverdue * 5));
+                          }
+                        }}
+                        className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1 cursor-pointer ${
+                          isFinePaid && parseFloat(manualFineAmount) > 0
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                            : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50'
+                        }`}
+                      >
+                        ✓ Paid Now
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsFinePaid(false);
+                          if (parseFloat(manualFineAmount) === 0) {
+                            setManualFineAmount(String(loanToInspect.dueStatus.daysOverdue * 5));
+                          }
+                        }}
+                        className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1 cursor-pointer ${
+                          !isFinePaid && parseFloat(manualFineAmount) > 0
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                            : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-50'
+                        }`}
+                      >
+                        ⏱ Pay Later
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setManualFineAmount('0');
+                          setIsFinePaid(true);
+                        }}
+                        className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1 cursor-pointer ${
+                          parseFloat(manualFineAmount) === 0
+                            ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                            : 'bg-white text-purple-700 border-purple-300 hover:bg-purple-50'
+                        }`}
+                      >
+                        🕊 Waive Fine
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : (

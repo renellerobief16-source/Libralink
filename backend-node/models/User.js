@@ -8,6 +8,7 @@ function normalizeUserCreateData(data = {}) {
   return {
     ...data,
     school_id: data.school_id !== undefined && data.school_id !== null && data.school_id !== '' ? Number(data.school_id) : null,
+    library_id: data.library_id !== undefined && data.library_id !== null && data.library_id !== '' ? Number(data.library_id) : null,
     role_id: data.role_id !== undefined && data.role_id !== null && data.role_id !== '' ? Number(data.role_id) : null,
     student_number: data.student_number || null,
     employee_number: data.employee_number || null,
@@ -43,6 +44,7 @@ function normalizeUserUpdateData(data = {}) {
 
   const safeFields = {
     school_id: updateData.school_id,
+    library_id: updateData.library_id,
     role_id: updateData.role_id,
     student_number: updateData.student_number,
     employee_number: updateData.employee_number,
@@ -79,6 +81,7 @@ class User {
     const normalizedData = normalizeUserCreateData(data);
     const {
       school_id,
+      library_id,
       role_id,
       student_number,
       employee_number,
@@ -107,6 +110,7 @@ class User {
 
     const userData = {
       school_id,
+      library_id: library_id || null,
       role_id,
       student_number,
       employee_number,
@@ -150,7 +154,8 @@ class User {
         .select(`
           *,
           schools(school_name, school_code),
-          roles(role_name)
+          roles(role_name),
+          libraries(library_id, name, library_type)
         `)
         .eq('email', email)
         .eq('status', 'active')
@@ -187,12 +192,16 @@ class User {
         ...user,
         school_name: user.schools?.school_name,
         school_code: user.schools?.school_code,
-        role_name: user.roles?.role_name
+        role_name: user.roles?.role_name,
+        library_id: user.library_id || user.libraries?.library_id || null,
+        library_name: user.libraries?.name || null,
+        library_type: user.libraries?.library_type || null
       };
       
       delete transformedUser.password;
       delete transformedUser.schools;
       delete transformedUser.roles;
+      delete transformedUser.libraries;
       
       console.log('Login successful for:', email);
       return transformedUser;
@@ -210,7 +219,8 @@ class User {
         .select(`
           *,
           schools(school_name, school_code),
-          roles(role_name)
+          roles(role_name),
+          libraries(library_id, name, library_type)
         `)
         .eq('user_id', user_id)
         .single();
@@ -230,7 +240,10 @@ class User {
         ...user,
         school_name: user.schools?.school_name,
         school_code: user.schools?.school_code,
-        role_name: user.roles?.role_name
+        role_name: user.roles?.role_name,
+        library_id: user.library_id || user.libraries?.library_id || null,
+        library_name: user.libraries?.name || null,
+        library_type: user.libraries?.library_type || null
       };
 
       if (!includePassword) {
@@ -238,6 +251,7 @@ class User {
       }
       delete transformedUser.schools;
       delete transformedUser.roles;
+      delete transformedUser.libraries;
 
       console.log('[USER] User found successfully');
       return transformedUser;
@@ -280,19 +294,24 @@ class User {
     }
   }
 
-  static async getBySchool(school_id, role_id = null) {
+  static async getBySchool(school_id, role_id = null, library_id = null) {
     try {
       let query = supabase
         .from('users')
         .select(`
           *,
           schools(school_name),
-          roles(role_name)
+          roles(role_name),
+          libraries(library_id, name, library_type)
         `)
         .eq('school_id', school_id);
 
       if (role_id) {
         query = query.eq('role_id', role_id);
+      }
+
+      if (library_id) {
+        query = query.eq('library_id', library_id);
       }
 
       const { data: users, error } = await query.order('lastname, firstname');
@@ -303,12 +322,16 @@ class User {
         const transformedUser = {
           ...user,
           school_name: user.schools?.school_name,
-          role_name: user.roles?.role_name
+          role_name: user.roles?.role_name,
+          library_id: user.library_id || user.libraries?.library_id || null,
+          library_name: user.libraries?.name || null,
+          library_type: user.libraries?.library_type || null
         };
         
         delete transformedUser.password;
         delete transformedUser.schools;
         delete transformedUser.roles;
+        delete transformedUser.libraries;
         
         return transformedUser;
       });
@@ -465,6 +488,7 @@ class User {
 
     const supportedColumns = new Set([
       'school_id',
+      'library_id',
       'role_id',
       'student_number',
       'employee_number',
