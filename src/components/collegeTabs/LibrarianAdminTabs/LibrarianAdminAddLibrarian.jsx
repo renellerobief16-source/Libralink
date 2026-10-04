@@ -1026,7 +1026,7 @@ function LibrarianAdminAddLibrarian({
           )}
 
           {/* Sleek Modern Sticky Translucent Glassmorphic Floating Island Pagination Toolbar */}
-          <div className="sticky bottom-4 z-20 rounded-2xl border border-slate-200/80 bg-white/75 backdrop-blur-md p-3 sm:p-3.5 shadow-xl shadow-slate-900/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs transition-all">
+          <div className="sticky bottom-4 z-20 rounded-2xl border border-slate-200/80 bg-white/75 backdrop-blur-md p-3 sm:p-3.5 pb-16 sm:pb-3.5 sm:pr-48 shadow-xl shadow-slate-900/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs transition-all">
             <div className="flex items-center gap-3 text-slate-600 font-medium">
               <span>
                 Showing <strong className="text-slate-900 font-bold">{filteredUsers.length > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0}</strong> to <strong className="text-slate-900 font-bold">{Math.min(currentPage * rowsPerPage, filteredUsers.length)}</strong> of <strong className="text-slate-900 font-bold">{filteredUsers.length}</strong> {activeTab}

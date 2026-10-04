@@ -288,11 +288,11 @@ function AdminBooks({ darkMode = false, selectedLibraryId = null, onNavigateTab 
           })
         : normalizedBooks;
 
-      // Unified consolidation by title & author
+      // Unified consolidation by title & author & library_id
       const groupMap = new Map();
       listToProcess.forEach((book) => {
         const clean = (s) => String(s || '').trim().toLowerCase();
-        const key = `${clean(book.title)}:::${clean(book.author)}`;
+        const key = `${clean(book.title)}:::${clean(book.author)}:::${book.library_id || ''}`;
 
         if (!groupMap.has(key)) {
           groupMap.set(key, {
@@ -342,6 +342,18 @@ function AdminBooks({ darkMode = false, selectedLibraryId = null, onNavigateTab 
   useEffect(() => {
     void loadBooks();
   }, [selectedLibraryId, catalogScopeFilter]);
+
+  useEffect(() => {
+    const handleCirculationUpdate = () => {
+      void loadBooks();
+    };
+    window.addEventListener('circulationUpdated', handleCirculationUpdate);
+    window.addEventListener('libralink-circulation-updated', handleCirculationUpdate);
+    return () => {
+      window.removeEventListener('circulationUpdated', handleCirculationUpdate);
+      window.removeEventListener('libralink-circulation-updated', handleCirculationUpdate);
+    };
+  }, []);
 
   const categories = useMemo(() => {
     const set = new Set();
@@ -1204,15 +1216,15 @@ function AdminBooks({ darkMode = false, selectedLibraryId = null, onNavigateTab 
           {viewMode === 'table' && (
             <div className="rounded-2xl border border-slate-200 bg-white shadow-xs">
               <div className="overflow-x-auto custom-scrollbar">
-                <table className="w-full text-left border-collapse table-fixed min-w-[780px]">
-                  <thead className="sticky top-16 z-20 bg-slate-50 shadow-xs">
+                <table className="w-full text-left border-collapse table-fixed min-w-[1080px]">
+                  <thead className="bg-slate-50 shadow-xs">
                     <tr className="border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3.5 w-[30%]">Book Title & Info</th>
-                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3 w-[15%]">Academic Category</th>
-                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3 w-[18%]">DDC / Call / ISBN</th>
-                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3 w-[12%]">Shelf Location</th>
-                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3 w-[12%] text-center">Stock & Copies</th>
-                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3.5 w-[13%] text-right pr-4">Actions</th>
+                      <th className="bg-slate-50 py-3 px-3.5 w-[26%]">Book Title & Info</th>
+                      <th className="bg-slate-50 py-3 px-3 w-[12%]">Academic Category</th>
+                      <th className="bg-slate-50 py-3 px-3 w-[16%]">DDC / Call / ISBN</th>
+                      <th className="bg-slate-50 py-3 px-3 w-[14%]">Shelf Location</th>
+                      <th className="bg-slate-50 py-3 px-3 w-[10%] text-center">Stock & Copies</th>
+                      <th className="bg-slate-50 py-3 px-3.5 w-[22%] text-right pr-4">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
@@ -1331,7 +1343,7 @@ function AdminBooks({ darkMode = false, selectedLibraryId = null, onNavigateTab 
                             <button
                               type="button"
                               onClick={() => !isAvail && setActiveBorrowersBook(book)}
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all ${
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border whitespace-nowrap transition-all ${
                                 isAvail
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200 cursor-default'
                                   : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200 cursor-pointer shadow-2xs'
@@ -1346,7 +1358,7 @@ function AdminBooks({ darkMode = false, selectedLibraryId = null, onNavigateTab 
 
                           {/* Actions Cell */}
                           <td className="py-2.5 px-3.5 text-right pr-4">
-                            <div className="flex items-center justify-end gap-1">
+                            <div className="flex items-center justify-end gap-1 flex-nowrap whitespace-nowrap">
                               <button
                                 type="button"
                                 onClick={() => setViewingBook(book)}
@@ -1422,7 +1434,7 @@ function AdminBooks({ darkMode = false, selectedLibraryId = null, onNavigateTab 
           )}
 
           {/* Sleek Modern Sticky Translucent Glassmorphic Floating Island Pagination Toolbar */}
-          <div className="sticky bottom-4 z-20 rounded-2xl border border-slate-200/80 bg-white/75 backdrop-blur-md p-3 sm:p-3.5 shadow-xl shadow-slate-900/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs transition-all">
+          <div className="sticky bottom-4 z-20 rounded-2xl border border-slate-200/80 bg-white/75 backdrop-blur-md p-3 sm:p-3.5 pb-16 sm:pb-3.5 sm:pr-48 shadow-xl shadow-slate-900/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs transition-all">
             <div className="flex items-center gap-3 text-slate-600 font-medium">
               <span>
                 Showing <strong className="text-slate-900 font-bold">{filteredBooks.length > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0}</strong> to <strong className="text-slate-900 font-bold">{Math.min(currentPage * rowsPerPage, filteredBooks.length)}</strong> of <strong className="text-slate-900 font-bold">{filteredBooks.length}</strong> books

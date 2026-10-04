@@ -835,7 +835,7 @@ class BorrowRequest {
     try {
       const { data: existingItem, error: checkError } = await supabase
         .from('borrow_request_items')
-        .select('item_id, status, copy_id, book_id, assigned_copy_id, request_id, owner_school_id')
+        .select('item_id, status, item_status, released_at, copy_id, book_id, assigned_copy_id, request_id, owner_school_id')
         .eq('item_id', item_id)
         .single();
 
@@ -844,9 +844,10 @@ class BorrowRequest {
         throw new Error(`Item ${item_id} not found: ${message}`);
       }
 
-      // Check if item is already released (prevent duplicate transactions)
-      if (existingItem.item_status === 'borrowed' || existingItem.released_at) {
-        throw new Error(`Item ${item_id} has already been released`);
+      // Check if item is already released (prevent duplicate transactions, return safely for batch operations)
+      if (existingItem.item_status === 'borrowed' || existingItem.status === 'borrowed' || existingItem.released_at) {
+        console.log(`[BORROW REQUEST] Item ${item_id} is already released.`);
+        return { success: true, copy_id: existingItem.copy_id || existingItem.assigned_copy_id, already_released: true };
       }
 
       let actualCopyId = copy_id || existingItem.assigned_copy_id || existingItem.copy_id;
@@ -997,13 +998,22 @@ class BorrowRequest {
         }
 
         // Update parent borrow_requests status to 'borrowed'
+        const parentUpdate = {
+          status: 'borrowed',
+          borrow_date: releaseTimestamp.toISOString(),
+          due_date: computedDueDate,
+          updated_at: releaseTimestamp.toISOString()
+        };
+        if (!parentRequest.approved_at) {
+          parentUpdate.approved_at = releaseTimestamp.toISOString();
+        }
+        if (!parentRequest.approved_by && released_by) {
+          parentUpdate.approved_by = released_by;
+        }
+
         await supabase
           .from('borrow_requests')
-          .update({
-            status: 'borrowed',
-            borrow_date: releaseTimestamp.toISOString(),
-            due_date: computedDueDate
-          })
+          .update(parentUpdate)
           .eq('request_id', existingItem.request_id);
       }
 

@@ -80,6 +80,14 @@ function LibrarianAdminBooks({ selectedLibraryId = 'all', libraries = [], onNavi
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [stockFilter, setStockFilter] = useState("all"); // 'all', 'in-stock', 'out-of-stock'
   const [viewMode, setViewMode] = useState('card'); // 'card' or 'table'
+  const [libraryFilter, setLibraryFilter] = useState(() => selectedLibraryId || 'all');
+
+  useEffect(() => {
+    if (selectedLibraryId) {
+      setLibraryFilter(selectedLibraryId);
+    }
+  }, [selectedLibraryId]);
+
   const [editingBook, setEditingBook] = useState(null);
   const [activeBorrowersBook, setActiveBorrowersBook] = useState(null);
   const [viewingBook, setViewingBook] = useState(null);
@@ -225,9 +233,8 @@ function LibrarianAdminBooks({ selectedLibraryId = 'all', libraries = [], onNavi
     }
 
     try {
-      const url = selectedLibraryId && selectedLibraryId !== 'all'
-        ? `/books/school?school_id=${schoolId}&group=true&library_id=${selectedLibraryId}`
-        : `/books/school?school_id=${schoolId}&group=true`;
+      // Always load all books for the school so multi-library switching & counts are instantaneous
+      const url = `/books/school?school_id=${schoolId}&group=true`;
       const response = await api.get(url);
 
       let booksData = [];
@@ -288,11 +295,11 @@ function LibrarianAdminBooks({ selectedLibraryId = 'all', libraries = [], onNavi
         };
       });
 
-      // Unified consolidation by title & author
+      // Unified consolidation by title, author, and library_id so SHS and College copies are kept distinct
       const groupMap = new Map();
       normalizedBooks.forEach((book) => {
         const clean = (s) => String(s || '').trim().toLowerCase();
-        const key = `${clean(book.title)}:::${clean(book.author)}`;
+        const key = `${clean(book.title)}:::${clean(book.author)}:::${book.library_id || ''}`;
 
         if (!groupMap.has(key)) {
           groupMap.set(key, {
@@ -343,6 +350,18 @@ function LibrarianAdminBooks({ selectedLibraryId = 'all', libraries = [], onNavi
     void loadBooks();
   }, [selectedLibraryId]);
 
+  useEffect(() => {
+    const handleCirculationUpdate = () => {
+      void loadBooks();
+    };
+    window.addEventListener('circulationUpdated', handleCirculationUpdate);
+    window.addEventListener('libralink-circulation-updated', handleCirculationUpdate);
+    return () => {
+      window.removeEventListener('circulationUpdated', handleCirculationUpdate);
+      window.removeEventListener('libralink-circulation-updated', handleCirculationUpdate);
+    };
+  }, []);
+
   const categories = useMemo(() => {
     const set = new Set();
     books.forEach(b => {
@@ -350,6 +369,54 @@ function LibrarianAdminBooks({ selectedLibraryId = 'all', libraries = [], onNavi
     });
     return ['All', ...Array.from(set)];
   }, [books]);
+
+  const libraryCounts = useMemo(() => {
+    const counts = { all: books.length };
+    books.forEach(b => {
+      const libId = String(b.library_id || 'unknown');
+      counts[libId] = (counts[libId] || 0) + 1;
+
+      const type = String(b.library_type || '').toLowerCase();
+      const name = String(b.library_name || '').toLowerCase();
+      if (type === 'shs' || type === 'senior_high_school' || name.includes('shs') || name.includes('senior high')) {
+        counts['shs'] = (counts['shs'] || 0) + 1;
+      }
+      if (type === 'college' || name.includes('college')) {
+        counts['college'] = (counts['college'] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [books]);
+
+  const renderLibraryBadge = (book) => {
+    const isShs = String(book.library_type || '').toLowerCase() === 'shs' || 
+                  String(book.library_type || '').toLowerCase() === 'senior_high_school' ||
+                  /shs|senior high/i.test(book.library_name || '') ||
+                  String(book.library_id) === '11';
+    const libName = book.library_name || (isShs ? 'SHS Library' : 'College Library');
+
+    if (isShs) {
+      return (
+        <span 
+          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-black bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs shrink-0" 
+          title={`Campus Branch: ${libName}`}
+        >
+          <span>🎒</span>
+          <span className="truncate">{libName}</span>
+        </span>
+      );
+    }
+
+    return (
+      <span 
+        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-black bg-blue-50 text-blue-800 border border-blue-200 shadow-2xs shrink-0" 
+        title={`Campus Branch: ${libName}`}
+      >
+        <span>🏛️</span>
+        <span className="truncate">{libName}</span>
+      </span>
+    );
+  };
 
   const totalCopiesCount = useMemo(() => {
     return books.reduce((acc, b) => acc + (Number(b.total_copies) || 1), 0);
@@ -367,18 +434,24 @@ function LibrarianAdminBooks({ selectedLibraryId = 'all', libraries = [], onNavi
         (book.author || '').toLowerCase().includes(q) ||
         (book.isbn || '').toLowerCase().includes(q) ||
         (book.callNumber || '').toLowerCase().includes(q) ||
-        (book.location || '').toLowerCase().includes(q);
+        (book.location || '').toLowerCase().includes(q) ||
+        (book.library_name || '').toLowerCase().includes(q);
 
       const matchesCategory = selectedCategory === 'All' || book.category === selectedCategory;
+
+      const matchesLibrary = libraryFilter === 'all' || 
+        String(book.library_id) === String(libraryFilter) ||
+        (libraryFilter === 'shs' && (String(book.library_type).toLowerCase() === 'shs' || String(book.library_type).toLowerCase() === 'senior_high_school' || /shs|senior high/i.test(book.library_name || '') || String(book.library_id) === '11')) ||
+        (libraryFilter === 'college' && (String(book.library_type).toLowerCase() === 'college' || /college/i.test(book.library_name || '') || String(book.library_id) === '1'));
 
       const avail = (book.available_copies ?? 0) > 0;
       let matchesStock = true;
       if (stockFilter === 'in-stock') matchesStock = avail;
       if (stockFilter === 'out-of-stock') matchesStock = !avail;
 
-      return matchesSearch && matchesCategory && matchesStock;
+      return matchesSearch && matchesCategory && matchesLibrary && matchesStock;
     });
-  }, [books, searchTerm, selectedCategory, stockFilter]);
+  }, [books, searchTerm, selectedCategory, libraryFilter, stockFilter]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(15);
@@ -392,7 +465,7 @@ function LibrarianAdminBooks({ selectedLibraryId = 'all', libraries = [], onNavi
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedCategory, stockFilter]);
+  }, [searchTerm, selectedCategory, libraryFilter, stockFilter]);
 
   const handleEdit = (book) => {
     setEditingBook(book);
@@ -811,6 +884,93 @@ function LibrarianAdminBooks({ selectedLibraryId = 'all', libraries = [], onNavi
 
       {/* Filter and Search Toolbar */}
       <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3.5">
+        {/* Library Branch Selector Tabs */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
+          <button
+            type="button"
+            onClick={() => setLibraryFilter('all')}
+            className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shrink-0 ${
+              libraryFilter === 'all'
+                ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20'
+                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+            }`}
+          >
+            <span>🏢 All Libraries</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+              libraryFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+            }`}>
+              {libraryCounts.all || books.length}
+            </span>
+          </button>
+
+          {internalLibraries.length > 0 ? (
+            internalLibraries.map((lib) => {
+              const isShs = String(lib.library_type || '').toLowerCase() === 'shs' || 
+                            String(lib.library_type || '').toLowerCase() === 'senior_high_school' || 
+                            /shs|senior high/i.test(lib.name || '');
+              const count = libraryCounts[String(lib.id)] ?? (isShs ? libraryCounts.shs : libraryCounts.college) ?? 0;
+              const isSelected = String(libraryFilter) === String(lib.id);
+
+              return (
+                <button
+                  key={lib.id}
+                  type="button"
+                  onClick={() => setLibraryFilter(String(lib.id))}
+                  className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shrink-0 ${
+                    isSelected
+                      ? isShs
+                        ? 'bg-amber-600 border-amber-600 text-white shadow-md shadow-amber-500/20'
+                        : 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+                  }`}
+                >
+                  <span>{isShs ? '🎒' : '🏛️'} {lib.name}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setLibraryFilter('college')}
+                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shrink-0 ${
+                  libraryFilter === 'college'
+                    ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+                }`}
+              >
+                <span>🏛️ College Library</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  libraryFilter === 'college' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                }`}>
+                  {libraryCounts.college || 0}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLibraryFilter('shs')}
+                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shrink-0 ${
+                  libraryFilter === 'shs'
+                    ? 'bg-amber-600 border-amber-600 text-white shadow-md shadow-amber-500/20'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+                }`}
+              >
+                <span>🎒 SHS Library</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  libraryFilter === 'shs' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                }`}>
+                  {libraryCounts.shs || 0}
+                </span>
+              </button>
+            </>
+          )}
+        </div>
+
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           <div className="relative flex-1">
             <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -960,12 +1120,7 @@ function LibrarianAdminBooks({ selectedLibraryId = 'all', libraries = [], onNavi
                             <FiBookmark className="w-3 h-3 text-blue-500 shrink-0" />
                             <span className="truncate">{book.category}</span>
                           </span>
-                          {book.library_name && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 truncate max-w-[130px]" title={book.library_name}>
-                              <FiGrid className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
-                              <span className="truncate">{book.library_name}</span>
-                            </span>
-                          )}
+                          {renderLibraryBadge(book)}
                         </div>
 
                         <button
@@ -1162,15 +1317,15 @@ function LibrarianAdminBooks({ selectedLibraryId = 'all', libraries = [], onNavi
           {viewMode === 'table' && (
             <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
               <div className="overflow-x-auto custom-scrollbar">
-                <table className="w-full text-left border-collapse table-fixed min-w-[780px]">
-                  <thead className="sticky top-16 z-20 bg-slate-50 shadow-xs">
+                <table className="w-full text-left border-collapse table-fixed min-w-[1080px]">
+                  <thead className="bg-slate-50 shadow-xs">
                     <tr className="border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3.5 w-[30%]">Book Title & Info</th>
-                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3 w-[15%]">Academic Category</th>
-                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3 w-[18%]">DDC / Call / ISBN</th>
-                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3 w-[12%]">Shelf Location</th>
-                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3 w-[12%] text-center">Stock & Copies</th>
-                      <th className="sticky top-16 z-20 bg-slate-50/95 backdrop-blur-xs py-3 px-3.5 w-[13%] text-right pr-4">Actions</th>
+                      <th className="bg-slate-50 py-3 px-3.5 w-[26%]">Book Title & Info</th>
+                      <th className="bg-slate-50 py-3 px-3 w-[12%]">Academic Category</th>
+                      <th className="bg-slate-50 py-3 px-3 w-[16%]">DDC / Call / ISBN</th>
+                      <th className="bg-slate-50 py-3 px-3 w-[14%]">Shelf Location</th>
+                      <th className="bg-slate-50 py-3 px-3 w-[10%] text-center">Stock & Copies</th>
+                      <th className="bg-slate-50 py-3 px-3.5 w-[22%] text-right pr-4">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
@@ -1276,12 +1431,9 @@ function LibrarianAdminBooks({ selectedLibraryId = 'all', libraries = [], onNavi
                               <FiMapPin className="w-2.5 h-2.5 text-blue-600 shrink-0" />
                               <span className="truncate">{book.location || 'Main Stacks'}</span>
                             </span>
-                            {book.library_name && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded mt-1 truncate block max-w-full" title={book.library_name}>
-                                <FiGrid className="w-2.5 h-2.5 shrink-0 text-indigo-600" />
-                                <span className="truncate">{book.library_name}</span>
-                              </span>
-                            )}
+                            <div className="mt-1">
+                              {renderLibraryBadge(book)}
+                            </div>
                           </td>
 
                           {/* Stock Pill Cell */}
@@ -1289,7 +1441,7 @@ function LibrarianAdminBooks({ selectedLibraryId = 'all', libraries = [], onNavi
                             <button
                               type="button"
                               onClick={() => !isAvail && setActiveBorrowersBook(book)}
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all ${
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border whitespace-nowrap transition-all ${
                                 isAvail
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200 cursor-default'
                                   : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200 cursor-pointer shadow-2xs'
@@ -1304,7 +1456,7 @@ function LibrarianAdminBooks({ selectedLibraryId = 'all', libraries = [], onNavi
 
                           {/* Actions Cell */}
                           <td className="py-2.5 px-3.5 text-right pr-4">
-                            <div className="flex items-center justify-end gap-1">
+                            <div className="flex items-center justify-end gap-1 flex-nowrap whitespace-nowrap">
                               <button
                                 type="button"
                                 onClick={() => setViewingBook(book)}
@@ -1380,7 +1532,7 @@ function LibrarianAdminBooks({ selectedLibraryId = 'all', libraries = [], onNavi
           )}
 
           {/* Sleek Modern Sticky Translucent Glassmorphic Floating Island Pagination Toolbar */}
-          <div className="sticky bottom-4 z-20 rounded-2xl border border-slate-200/80 bg-white/75 backdrop-blur-md p-3 sm:p-3.5 shadow-xl shadow-slate-900/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs transition-all max-w-full">
+          <div className="sticky bottom-4 z-20 rounded-2xl border border-slate-200/80 bg-white/75 backdrop-blur-md p-3 sm:p-3.5 pb-16 sm:pb-3.5 sm:pr-48 shadow-xl shadow-slate-900/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs transition-all max-w-full">
             <div className="flex items-center gap-3 text-slate-600 font-medium">
               <span>
                 Showing <strong className="text-slate-900 font-bold">{filteredBooks.length > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0}</strong> to <strong className="text-slate-900 font-bold">{Math.min(currentPage * rowsPerPage, filteredBooks.length)}</strong> of <strong className="text-slate-900 font-bold">{filteredBooks.length}</strong> books

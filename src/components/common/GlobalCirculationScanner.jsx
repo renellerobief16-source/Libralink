@@ -177,33 +177,50 @@ export default function GlobalCirculationScanner({ schoolId, libraryId, darkMode
     const rawDue = reqData.due_date || reqData.items?.[0]?.due_date;
     const dueStatus = rawDue ? getDueStatusDetails(rawDue) : { isOverdue: false, daysOverdue: 0 };
     
-    // Check if items are already completed / returned
-    const isAlreadyReturned = 
-      reqData.status === 'returned' || 
-      (reqData.items?.length > 0 && reqData.items.every(i => i.status === 'returned' || i.item_status === 'returned'));
-
-    // Check if items are currently released / borrowed (lifecycle status 'borrowed' or 'released')
-    const hasReleasedItem = !isAlreadyReturned && (
-      reqData.status === 'borrowed' || 
-      reqData.status === 'released' ||
-      reqData.items?.some(i => 
-        i.status === 'borrowed' || 
-        i.status === 'released' || 
-        i.item_status === 'borrowed' || 
-        Boolean(i.released_at)
-      )
+    // Check item lifecycles individually
+    const items = reqData.items || [];
+    
+    const unreleasedItems = items.filter(i => 
+      !i.released_at && 
+      i.item_status !== 'borrowed' && 
+      i.status !== 'borrowed' && 
+      i.status !== 'returned' && 
+      i.item_status !== 'returned' &&
+      i.status !== 'rejected' &&
+      i.status !== 'cancelled'
     );
 
-    const isOverdue = dueStatus.isOverdue && hasReleasedItem;
+    const activeLoanItems = items.filter(i => 
+      (i.released_at || i.item_status === 'borrowed' || i.status === 'borrowed') && 
+      i.status !== 'returned' && 
+      i.item_status !== 'returned'
+    );
+
+    const returnedItems = items.filter(i => 
+      i.status === 'returned' || i.item_status === 'returned'
+    );
+
+    const isAlreadyReturned = items.length > 0 && unreleasedItems.length === 0 && activeLoanItems.length === 0;
+
+    let suggestedAction = 'release';
+    if (isAlreadyReturned) {
+      suggestedAction = 'completed';
+    } else if (unreleasedItems.length > 0) {
+      suggestedAction = 'release';
+    } else if (activeLoanItems.length > 0) {
+      suggestedAction = 'return';
+    }
+
+    const isOverdue = dueStatus.isOverdue && activeLoanItems.length > 0;
     const fine = isOverdue ? (dueStatus.daysOverdue * 5) : 0;
 
     const targetLibrary = reqData.target_library || 
-      reqData.items?.[0]?.target_library || 
-      reqData.items?.[0]?.book?.library || 
+      items[0]?.target_library || 
+      items[0]?.book?.library || 
       null;
     const targetLibraryId = targetLibrary?.library_id || 
       reqData.source_library_id || 
-      reqData.items?.[0]?.book?.library_id || 
+      items[0]?.book?.library_id || 
       null;
 
     const profilePic = reqData.student?.profile_image || null;
@@ -219,19 +236,15 @@ export default function GlobalCirculationScanner({ schoolId, libraryId, darkMode
     setIdCardImgError(false);
     setZoomImage(null);
 
-    let suggestedAction = 'release';
-    if (isAlreadyReturned) {
-      suggestedAction = 'completed';
-    } else if (hasReleasedItem) {
-      suggestedAction = 'return';
-    }
-
     setScanResult({
       type: 'request',
       raw: reqData,
       requestId: reqData.request_id,
       student: reqData.student || {},
-      items: reqData.items || [],
+      items,
+      unreleasedItems,
+      activeLoanItems,
+      returnedItems,
       borrowType: reqData.borrow_type || 'REGULAR',
       status: reqData.status,
       dueStatus,
@@ -295,35 +308,62 @@ export default function GlobalCirculationScanner({ schoolId, libraryId, darkMode
   // -----------------------------------------------------------------
   // 3. EXECUTE RELEASE OR RETURN IN 1 CLICK
   // -----------------------------------------------------------------
-  const handleExecuteAction = async () => {
+  // -----------------------------------------------------------------
+  // 3. EXECUTE RELEASE OR RETURN IN 1 CLICK (Multi-Item Aware)
+  // -----------------------------------------------------------------
+  const handleExecuteAction = async (forcedAction = null) => {
     if (!scanResult) return;
+    const actionToRun = forcedAction || scanResult.suggestedAction;
     setActionProcessing(true);
     setError(null);
 
     try {
-      if (scanResult.suggestedAction === 'release') {
-        // Release pending approved items
-        const itemToRelease = scanResult.items?.[0];
-        if (itemToRelease) {
-          const { error: relErr } = await releaseBookItem(itemToRelease.item_id, itemToRelease.copy_id || null);
-          if (relErr) throw relErr;
+      if (actionToRun === 'release') {
+        const itemsToRelease = (scanResult.unreleasedItems && scanResult.unreleasedItems.length > 0)
+          ? scanResult.unreleasedItems
+          : (scanResult.items || []).filter(i => !i.released_at && i.status !== 'returned' && i.status !== 'rejected');
+
+        if (itemsToRelease.length === 0) {
+          throw new Error('All books in this request have already been released.');
         }
+
+        // Release ALL unreleased items in parallel
+        const results = await Promise.all(
+          itemsToRelease.map(item => releaseBookItem(item.item_id, item.copy_id || null))
+        );
+
+        const failed = results.find(r => r.error);
+        if (failed) {
+          throw new Error(failed.error?.response?.data?.message || failed.error?.message || 'Failed to release book');
+        }
+
         setSuccessAction('released');
-      } else if (scanResult.suggestedAction === 'return') {
-        // Return item
+      } else if (actionToRun === 'return') {
         if (scanResult.type === 'request') {
-          const itemToReturn = scanResult.items?.[0];
-          if (!itemToReturn?.item_id) throw new Error('Item ID missing for return');
-          
+          const itemsToReturn = (scanResult.activeLoanItems && scanResult.activeLoanItems.length > 0)
+            ? scanResult.activeLoanItems
+            : (scanResult.items || []).filter(i => (i.released_at || i.status === 'borrowed') && i.status !== 'returned');
+
+          if (itemsToReturn.length === 0) {
+            throw new Error('No active loans found to return.');
+          }
+
           const returnPayload = {
             condition: returnCondition,
             remarks: returnRemarks.trim() || undefined,
             fine_amount: scanResult.isOverdue ? (parseFloat(fineAmount) || 0) : 0,
             is_paid: fineDecision === 'paid'
           };
-          
-          const { error: retErr } = await returnBookItem(itemToReturn.item_id, returnPayload);
-          if (retErr) throw retErr;
+
+          // Return all active loan items
+          const results = await Promise.all(
+            itemsToReturn.map(item => returnBookItem(item.item_id, returnPayload))
+          );
+
+          const failed = results.find(r => r.error);
+          if (failed) {
+            throw new Error(failed.error?.response?.data?.message || failed.error?.message || 'Failed to return book');
+          }
         } else {
           // Direct borrow transaction
           const borrowId = scanResult.borrowId || scanResult.items?.[0]?.item_id || scanResult.raw?.borrow_id;
@@ -333,9 +373,10 @@ export default function GlobalCirculationScanner({ schoolId, libraryId, darkMode
         setSuccessAction('returned');
       }
 
-      // Notify parent components / dashboard to refresh
+      // Notify parent components, dashboard, and books catalog to refresh in real-time
       window.dispatchEvent(new CustomEvent('refreshStats'));
       window.dispatchEvent(new CustomEvent('circulationUpdated'));
+      window.dispatchEvent(new CustomEvent('libralink-circulation-updated'));
     } catch (err) {
       console.error('[GLOBAL SCANNER ACTION ERROR]:', err);
       setError(err?.response?.data?.message || err.message || 'Failed to complete transaction.');
@@ -361,18 +402,26 @@ export default function GlobalCirculationScanner({ schoolId, libraryId, darkMode
   // Resolve libraries & mismatch
   const collegeLib = libraries.find(l => l.library_type === 'college' || /college/i.test(l.name)) || libraries[0] || { library_id: 1, name: 'College Library' };
   
-  const currentDeskId = libraryId ? Number(libraryId) : Number(collegeLib.library_id || 1);
+  const currentDeskId = libraryId && libraryId !== 'all' ? Number(libraryId) : Number(collegeLib.library_id || 1);
   const currentDeskLib = libraries.find(l => Number(l.library_id) === currentDeskId) || { name: 'Main Library Desk', library_id: currentDeskId };
 
   const targetLibId = scanResult?.targetLibraryId ? Number(scanResult.targetLibraryId) : Number(collegeLib.library_id || 1);
   const targetLib = libraries.find(l => Number(l.library_id) === targetLibId) || scanResult?.targetLibrary || { name: 'College Library', library_id: targetLibId };
 
-  const isWrongLibrary = Boolean(scanResult && currentDeskId !== targetLibId);
-
   // Check admin role
   const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
   const userRoleId = Number(storedUser.role_id || localStorage.getItem('roleId') || 0);
-  const isLibrarianAdmin = userRoleId === 2 || userRoleId === 1;
+  const userRole = (localStorage.getItem('userRole') || '').toLowerCase();
+  const isLibrarianAdmin = userRoleId === 2 || userRoleId === 1 || userRole.includes('admin');
+
+  // If Admin Librarian or if libraryId is 'all', they have full authority over all campus libraries!
+  const isWrongLibrary = Boolean(
+    scanResult && 
+    !isLibrarianAdmin && 
+    libraryId && 
+    libraryId !== 'all' && 
+    currentDeskId !== targetLibId
+  );
 
   return (
     <>
@@ -600,24 +649,46 @@ export default function GlobalCirculationScanner({ schoolId, libraryId, darkMode
                           </span>
                         </div>
 
-                        {/* Book(s) */}
+                        {/* Book(s) with Individual Lifecycle Badges */}
                         {scanResult.items?.map((item, idx) => {
                           const book = item.book || {};
+                          const isReleased = Boolean(item.released_at || item.item_status === 'borrowed' || item.status === 'borrowed');
+                          const isReturned = item.status === 'returned' || item.item_status === 'returned';
+                          const isReadyForHandover = !isReleased && !isReturned;
+
                           return (
-                            <div key={idx} className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5">
-                              <h5 className="text-sm font-extrabold text-slate-900 leading-snug line-clamp-2">
-                                {book.title || 'Book Title'}
-                              </h5>
-                              <p className="text-[11px] text-slate-500 mt-0.5">
-                                Author: <span className="font-bold text-slate-700">{book.author || 'Not indicated'}</span>
-                              </p>
-                              <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-200/80 text-[11px] text-slate-500">
+                            <div key={idx} className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <h5 className="text-sm font-extrabold text-slate-900 leading-snug line-clamp-2">
+                                    {book.title || 'Book Title'}
+                                  </h5>
+                                  <p className="text-[11px] text-slate-500 mt-0.5">
+                                    Author: <span className="font-bold text-slate-700">{book.author || 'Not indicated'}</span>
+                                  </p>
+                                </div>
+                                <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full shrink-0 border shadow-2xs ${
+                                  isReturned
+                                    ? 'bg-slate-100 text-slate-700 border-slate-200'
+                                    : isReadyForHandover
+                                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300 animate-pulse'
+                                      : 'bg-blue-100 text-blue-800 border-blue-300'
+                                }`}>
+                                  {isReturned ? '✓ Returned' : isReadyForHandover ? 'Ready for Handover' : '● Currently Borrowed'}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/80 text-[11px] text-slate-500">
                                 <span className="inline-flex items-center gap-1 font-semibold">
                                   {isPartner && <FiBookOpen className="w-3.5 h-3.5 text-purple-600" />}
                                   {isPartner ? 'Library Use Only' : 'Standard Loan'} · {targetLib?.name || 'College Library'}
                                 </span>
                                 <span className="font-bold text-slate-700">
-                                  {scanResult.dueStatus?.isOverdue ? (
+                                  {isReadyForHandover ? (
+                                    <span className="text-emerald-700 font-bold">Awaiting Handover</span>
+                                  ) : isReturned ? (
+                                    <span className="text-slate-500">Completed</span>
+                                  ) : scanResult.dueStatus?.isOverdue ? (
                                     <span className="text-rose-600">Due Expired</span>
                                   ) : (
                                     <>Due: {formatPhilippineDate(item.due_date || scanResult.raw?.due_date)}</>
@@ -802,28 +873,67 @@ export default function GlobalCirculationScanner({ schoolId, libraryId, darkMode
                           Done / Close
                         </button>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={handleExecuteAction}
-                          disabled={actionProcessing}
-                          className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold text-white shadow-md transition active:scale-95 cursor-pointer disabled:opacity-50 ${
-                            scanResult.suggestedAction === 'release'
-                              ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700'
-                              : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
-                          }`}
-                        >
-                          {actionProcessing ? (
-                            <>
-                              <FiRefreshCw className="w-4 h-4 animate-spin" />
-                              Processing Circulation...
-                            </>
+                        <div className="flex items-center gap-2">
+                          {/* If unreleased items exist: prioritize Release */}
+                          {scanResult.unreleasedItems && scanResult.unreleasedItems.length > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => handleExecuteAction('release')}
+                              disabled={actionProcessing}
+                              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold text-white shadow-md bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 transition active:scale-95 cursor-pointer disabled:opacity-50"
+                            >
+                              {actionProcessing ? (
+                                <>
+                                  <FiRefreshCw className="w-4 h-4 animate-spin" />
+                                  Releasing Books...
+                                </>
+                              ) : (
+                                <>
+                                  <FiCheckCircle className="w-4 h-4" />
+                                  Authorize Handover / Release {scanResult.unreleasedItems.length > 1 ? `(${scanResult.unreleasedItems.length} Books)` : ''}
+                                </>
+                              )}
+                            </button>
+                          ) : scanResult.activeLoanItems && scanResult.activeLoanItems.length > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => handleExecuteAction('return')}
+                              disabled={actionProcessing}
+                              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold text-white shadow-md bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition active:scale-95 cursor-pointer disabled:opacity-50"
+                            >
+                              {actionProcessing ? (
+                                <>
+                                  <FiRefreshCw className="w-4 h-4 animate-spin" />
+                                  Checking In...
+                                </>
+                              ) : (
+                                <>
+                                  <FiCheckCircle className="w-4 h-4" />
+                                  Confirm Return & Check In {scanResult.activeLoanItems.length > 1 ? `(${scanResult.activeLoanItems.length} Books)` : ''}
+                                </>
+                              )}
+                            </button>
                           ) : (
-                            <>
-                              <FiCheckCircle className="w-4 h-4" />
-                              {scanResult.suggestedAction === 'release' ? 'Authorize Handover / Release' : 'Confirm Return & Check In'}
-                            </>
+                            <button
+                              type="button"
+                              onClick={() => handleExecuteAction()}
+                              disabled={actionProcessing}
+                              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold text-white shadow-md bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 transition active:scale-95 cursor-pointer disabled:opacity-50"
+                            >
+                              {actionProcessing ? (
+                                <>
+                                  <FiRefreshCw className="w-4 h-4 animate-spin" />
+                                  Processing...
+                                </>
+                              ) : (
+                                <>
+                                  <FiCheckCircle className="w-4 h-4" />
+                                  Authorize Handover / Release
+                                </>
+                              )}
+                            </button>
                           )}
-                        </button>
+                        </div>
                       )}
                     </div>
                   )}

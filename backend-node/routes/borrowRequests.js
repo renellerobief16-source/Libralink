@@ -612,20 +612,6 @@ router.post('/scan', auth, requireRole(['Librarian', 'Librarian Admin']), async 
       return res.status(400).json({ success: false, message: 'This request has already been returned' });
     }
 
-    // Check if any items have already been released (prevent duplicate transactions)
-    const alreadyReleasedItems = (request.items || []).filter(item =>
-      item.item_status === 'borrowed' || item.released_at
-    );
-
-    if (alreadyReleasedItems.length > 0) {
-      console.log('[SCAN QR] Warning: Some items already released:', alreadyReleasedItems.map(i => i.item_id));
-      return res.json({
-        success: true,
-        data: request,
-        warning: 'Some items in this request have already been released'
-      });
-    }
-
     // Check school involvement authorization
     const involvedSchoolIds = new Set([
       String(request.home_school_id),
@@ -643,7 +629,25 @@ router.post('/scan', auth, requireRole(['Librarian', 'Librarian Admin']), async 
       return res.status(403).json({ success: false, message: 'Unauthorized - Not involved in this request' });
     }
 
-    res.json({ success: true, data: request });
+    const alreadyReleasedItems = (request.items || []).filter(item =>
+      item.item_status === 'borrowed' || item.status === 'borrowed' || item.released_at
+    );
+    const unreleasedItems = (request.items || []).filter(item =>
+      !item.released_at && item.item_status !== 'borrowed' && item.status !== 'borrowed' && item.status !== 'returned'
+    );
+
+    let warning = null;
+    if (alreadyReleasedItems.length > 0 && unreleasedItems.length > 0) {
+      warning = `${alreadyReleasedItems.length} of ${request.items.length} items have already been released. ${unreleasedItems.length} awaiting release.`;
+    }
+
+    res.json({ 
+      success: true, 
+      data: request,
+      warning,
+      unreleased_count: unreleasedItems.length,
+      released_count: alreadyReleasedItems.length
+    });
   } catch (error) {
     console.error('[BORROW REQUESTS] Error scanning QR:', error);
     console.error('[BORROW REQUESTS] Error message:', error.message);
@@ -1169,4 +1173,173 @@ router.put('/:id/decline-renewal', auth, requireRole(['Librarian', 'Librarian Ad
   }
 });
 
+// @route   GET /api/borrow-requests/active-loans
+// @desc    Get currently borrowed items sourced from borrow_request_items (item_status='borrowed')
+//          This is the authoritative source for Quick Scan releases — more reliable than borrow_transactions
+// @access  Private (Librarian, Librarian Admin, Super Admin)
+router.get('/active-loans', auth, async (req, res) => {
+  try {
+    const schoolId = req.query.school_id || req.query.schoolId;
+    const libraryId = req.query.library_id || req.query.libraryId || null;
+
+    if (!schoolId) {
+      return res.status(400).json({ success: false, message: 'school_id query parameter is required' });
+    }
+
+    const userRoleId = Number(req.user?.role_id || 0);
+    const userRole = String(req.user?.role_name || req.user?.role || '').toLowerCase();
+    const isRegularLibrarian = userRoleId === 3 || userRole === 'librarian';
+
+    let effectiveLibraryId = null;
+    if (isRegularLibrarian && req.user?.library_id) {
+      effectiveLibraryId = req.user.library_id;
+    } else if (libraryId && libraryId !== 'all') {
+      effectiveLibraryId = parseInt(libraryId, 10);
+    }
+
+    // Query borrow_request_items with item_status='borrowed' (unreturned)
+    const { data, error } = await supabase
+      .from('borrow_request_items')
+      .select(`
+        item_id,
+        request_id,
+        book_id,
+        copy_id,
+        assigned_copy_id,
+        item_status,
+        status,
+        released_at,
+        due_date,
+        returned_at,
+        owner_school_id,
+        borrow_request:request_id(
+          request_id,
+          student_id,
+          home_school_id,
+          borrow_date,
+          due_date,
+          status,
+          student:student_id(
+            id,
+            firstname,
+            lastname,
+            student_number,
+            email,
+            contact_number,
+            profile_image,
+            school_id
+          )
+        ),
+        book:book_id(
+          book_id,
+          title,
+          author,
+          isbn,
+          cover_image,
+          library_id,
+          school_id,
+          library:library_id(library_name, library_type)
+        ),
+        copy:copy_id(
+          copy_id,
+          accession_number,
+          barcode
+        )
+      `)
+      .eq('item_status', 'borrowed')
+      .is('returned_at', null)
+      .order('released_at', { ascending: false });
+
+    if (error) throw error;
+
+    const parsedSchoolId = parseInt(schoolId, 10);
+
+    // Filter by school: either the book owner school or the student's home school
+    let filtered = (data || []).filter(item => {
+      const bookSchoolId = item.book?.school_id;
+      const homeSchoolId = item.borrow_request?.home_school_id;
+      const studentSchoolId = item.borrow_request?.student?.school_id;
+      const ownerSchoolId = item.owner_school_id;
+
+      return (
+        Number(bookSchoolId) === parsedSchoolId ||
+        Number(homeSchoolId) === parsedSchoolId ||
+        Number(studentSchoolId) === parsedSchoolId ||
+        Number(ownerSchoolId) === parsedSchoolId
+      );
+    });
+
+    // Further filter by library if applicable
+    if (effectiveLibraryId) {
+      filtered = filtered.filter(item => {
+        const libId = item.book?.library_id;
+        return libId !== null && libId !== undefined
+          ? Number(libId) === Number(effectiveLibraryId)
+          : false;
+      });
+    }
+
+    // Normalize shape to be compatible with the existing Active Loans table
+    const normalized = filtered.map(item => {
+      const student = item.borrow_request?.student || {};
+      const book = item.book || {};
+      const copy = item.copy || {};
+      const req = item.borrow_request || {};
+
+      return {
+        // Loan identification
+        borrow_id: `req-item-${item.item_id}`,
+        item_id: item.item_id,
+        request_id: item.request_id,
+
+        // Student info (flat — same shape as borrow_transactions)
+        student_id: req.student_id,
+        student: {
+          id: student.id,
+          firstname: student.firstname,
+          lastname: student.lastname,
+          student_number: student.student_number,
+          email: student.email,
+          contact_number: student.contact_number,
+          profile_image: student.profile_image,
+          school_id: student.school_id,
+        },
+
+        // Book info via book_copies shape the UI expects
+        book_id: item.book_id,
+        book_copies: {
+          copy_id: item.copy_id || item.assigned_copy_id,
+          accession_number: copy.accession_number || null,
+          barcode: copy.barcode || null,
+          books: {
+            book_id: book.book_id,
+            title: book.title,
+            author: book.author,
+            isbn: book.isbn,
+            cover_image: book.cover_image,
+            library_id: book.library_id,
+            school_id: book.school_id,
+          },
+        },
+
+        // Dates — prefer item-level due_date if set, else fall back to parent request
+        borrow_date: item.released_at || req.borrow_date,
+        due_date: item.due_date || req.due_date,
+        returned_at: item.returned_at,
+        released_at: item.released_at,
+
+        status: 'active',
+        item_status: item.item_status,
+        _source: 'borrow_request_item',
+      };
+    });
+
+    res.json({ success: true, data: normalized });
+  } catch (error) {
+    console.error('[BORROW REQUESTS] Error fetching active loans from items:', error);
+    res.status(500).json({ success: false, message: 'Server error fetching active loans' });
+  }
+});
+
 module.exports = router;
+

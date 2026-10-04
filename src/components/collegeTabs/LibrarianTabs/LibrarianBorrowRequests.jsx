@@ -10,6 +10,7 @@ import {
   getBorrowRequests,
   updateBorrowRequestStatus,
   getAllActiveBorrows,
+  getActiveLoansFromRequests,
   getBookById,
   getBackendAssetUrl,
   returnBook,
@@ -312,9 +313,6 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
     if (!loanToInspect) return;
     try {
       setReturnInspectionProcessing(true);
-      const borrowId = loanToInspect.borrow_id;
-      const { data, error } = await returnBook(borrowId);
-      if (error) throw error;
 
       const bookTitle = loanToInspect.book?.title || 'Book';
       const studentName = loanToInspect.student?.firstname 
@@ -323,6 +321,23 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
 
       const conditionLabel = returnCondition === 'good' ? 'Good / Intact' : returnCondition === 'minor' ? 'Minor Wear' : 'Damaged';
       const totalFee = (parseFloat(manualFineAmount) || 0) + (parseFloat(damageFee) || 0);
+
+      // If this loan came from a borrow_request_item (Quick Scan release), use returnBookItem
+      // Otherwise use the legacy borrow_transactions returnBook path
+      if (loanToInspect._source === 'borrow_request_item' && loanToInspect.item_id) {
+        const { data, error } = await returnBookItem(loanToInspect.item_id, {
+          condition: returnCondition,
+          remarks: returnRemarks,
+          fine_amount: parseFloat(manualFineAmount) || 0,
+          damage_fee: parseFloat(damageFee) || 0,
+          is_paid: isFinePaid,
+        });
+        if (error) throw error;
+      } else {
+        const borrowId = loanToInspect.borrow_id;
+        const { data, error } = await returnBook(borrowId);
+        if (error) throw error;
+      }
 
       showToast('approve', `"${bookTitle}" successfully returned and restocked into catalog!`);
 
@@ -338,6 +353,7 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
       await fetchActiveBorrows();
       await fetchBorrowRequests();
       window.dispatchEvent(new CustomEvent('refreshStats'));
+      window.dispatchEvent(new CustomEvent('circulationUpdated'));
     } catch (err) {
       console.error('Error returning book:', err);
       alert(err?.response?.data?.message || err.message || 'Failed to check in returned book. Please try again.');
@@ -345,6 +361,7 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
       setReturnInspectionProcessing(false);
     }
   };
+
 
   const handleReturnBook = async (borrowId, bookTitle = 'Book', studentName = 'Student') => {
     // Locate the borrow record to open the inspection modal
@@ -569,66 +586,40 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
     setActiveBorrowsLoading(true);
     try {
       const effectiveLibraryId = selectedLibraryId || (typeof window !== 'undefined' ? localStorage.getItem('currentLibraryId') : null);
-      const { data, error } = await getAllActiveBorrows(schoolId, effectiveLibraryId);
-      if (error) throw error;
-      const rawBorrows = Array.isArray(data) ? data : [];
-      const currentLibType = typeof window !== 'undefined' ? localStorage.getItem('currentLibraryType') : '';
-      const lid = effectiveLibraryId && effectiveLibraryId !== 'all' ? Number(effectiveLibraryId) : null;
-      const isCollegeUnit = lid === null || lid === 1 || lid === 2 || (currentLibType === 'college' && lid !== 10);
 
-      let filteredBorrows = rawBorrows;
-      if (lid) {
-        filteredBorrows = rawBorrows.filter(b => {
-          const bookLibId = b.book_copies?.books?.library_id ?? b.library_id ?? null;
-          if (bookLibId !== null && bookLibId !== undefined) {
-            return Number(bookLibId) === lid;
-          }
-          return isCollegeUnit;
-        });
+      // Use the new borrow_request_items-based endpoint as the authoritative source.
+      // This captures Quick Scan QR releases immediately since releaseBook() updates
+      // borrow_request_items.item_status → 'borrowed', whereas borrow_transactions
+      // inserts can silently fail leaving Active Loans empty.
+      const { data, error } = await getActiveLoansFromRequests(schoolId, effectiveLibraryId);
+      if (error) throw error;
+
+      const normalizedLoans = Array.isArray(data) ? data : [];
+      setActiveBorrows(normalizedLoans);
+
+      // Pre-populate booksData and studentsData caches from the inline data
+      // so the table renders without additional API round-trips
+      const newBooksMap = {};
+      const newStudentsMap = {};
+      normalizedLoans.forEach(loan => {
+        const book = loan.book_copies?.books;
+        const student = loan.student;
+        if (book && loan.book_id) {
+          newBooksMap[loan.book_id] = book;
+        }
+        if (student && loan.student_id) {
+          newStudentsMap[loan.student_id] = student;
+        }
+      });
+      if (Object.keys(newBooksMap).length > 0) {
+        setBooksData(prev => ({ ...prev, ...newBooksMap }));
       }
-      setActiveBorrows(filteredBorrows);
-      
-      // Fetch all book details at once (more efficient)
-      if (filteredBorrows && filteredBorrows.length > 0) {
-        const uniqueBookIds = [...new Set(filteredBorrows.map(b => b.book_id || b.book_copies?.books?.book_id))].filter(id => id && String(id).length > 0);
-        const uniqueStudentIds = [...new Set(filteredBorrows.map(b => b.student_id))].filter(id => id && String(id).length > 0);
-        
-        // Fetch books using API
-        if (uniqueBookIds.length > 0) {
-          try {
-            const booksMap = {};
-            for (const bookId of uniqueBookIds) {
-              const bookResponse = await getBookById(bookId);
-              if (bookResponse.data) {
-                booksMap[bookId] = bookResponse.data;
-              }
-            }
-            setBooksData(prev => ({ ...prev, ...booksMap }));
-          } catch (err) {
-            console.error('Error fetching books:', err);
-          }
-        }
-        
-        // Fetch students using API
-        if (uniqueStudentIds.length > 0) {
-          try {
-            const studentsMap = {};
-            for (const studentId of uniqueStudentIds) {
-              const studentResponse = await api.get(`/users/${studentId}`);
-              if (studentResponse.data) {
-                const userData = studentResponse.data.data || studentResponse.data;
-                studentsMap[studentId] = userData;
-              }
-            }
-            setStudentsData(prev => ({ ...prev, ...studentsMap }));
-          } catch (err) {
-            console.error('Error fetching students:', err);
-          }
-        }
+      if (Object.keys(newStudentsMap).length > 0) {
+        setStudentsData(prev => ({ ...prev, ...newStudentsMap }));
       }
     } catch (err) {
       console.error('Error fetching active borrows:', err);
-      setActiveBorrows([]); // Set empty array on error to prevent UI issues
+      setActiveBorrows([]);
     } finally {
       setActiveBorrowsLoading(false);
     }
@@ -641,8 +632,9 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
 
     // Subscribe to realtime changes for this school
     const schoolId = localStorage.getItem('schoolId');
+    let unsubscribe = null;
     if (schoolId) {
-      const unsubscribe = subscribeToSchoolChanges(schoolId, (change) => {
+      unsubscribe = subscribeToSchoolChanges(schoolId, (change) => {
         console.log('[LIBRARIAN] Realtime change detected:', change);
         // Refresh relevant data based on change type
         if (change.type === 'borrow_request' || change.type === 'borrow_request_item') {
@@ -653,11 +645,21 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
           fetchActiveBorrows();
         }
       });
-
-      return () => {
-        if (unsubscribe) unsubscribe();
-      };
     }
+
+    const handleCirculationUpdate = () => {
+      fetchBorrowRequests();
+      fetchInterSchoolRequests();
+      fetchActiveBorrows();
+    };
+    window.addEventListener('circulationUpdated', handleCirculationUpdate);
+    window.addEventListener('libralink-circulation-updated', handleCirculationUpdate);
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+      window.removeEventListener('circulationUpdated', handleCirculationUpdate);
+      window.removeEventListener('libralink-circulation-updated', handleCirculationUpdate);
+    };
   }, [selectedLibraryId]);
 
   useEffect(() => {

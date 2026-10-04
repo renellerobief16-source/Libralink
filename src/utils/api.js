@@ -428,6 +428,27 @@ export async function getAllActiveBorrows(schoolId, libraryId = null) {
   }
 }
 
+/**
+ * Fetch currently borrowed items sourced from borrow_request_items (item_status='borrowed').
+ * This is the authoritative source after Quick Scan QR releases, as it reflects
+ * the release status immediately without depending on borrow_transactions sync.
+ */
+export async function getActiveLoansFromRequests(schoolId, libraryId = null) {
+  try {
+    const params = { school_id: schoolId };
+    if (libraryId && libraryId !== 'all') {
+      params.library_id = libraryId;
+    }
+    const response = await api.get('/borrow-requests/active-loans', { params });
+    const rows = Array.isArray(response.data?.data)
+      ? response.data.data
+      : (Array.isArray(response.data) ? response.data : []);
+    return { data: rows, error: null };
+  } catch (error) {
+    return { data: [], error };
+  }
+}
+
 export async function getLibraryPolicy(schoolId) {
   try {
     const response = await api.get(`/library-settings/policy/${schoolId}`);
