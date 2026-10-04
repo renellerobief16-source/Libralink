@@ -89,7 +89,7 @@ class BorrowTransaction {
         .from('borrow_transactions')
         .select(`
           *,
-          student:student_id(firstname, lastname, student_number, email, contact_number, profile_image, id_card_picture, school_id),
+          student:student_id(firstname, lastname, student_number, email, contact_number, address, profile_image, id_card_picture, school_id),
           book_copies(copy_id, accession_number, books(book_id, title, author, isbn, cover_image, school_id, library_id, schools(school_id, school_name)))
         `)
         .eq('status', 'active')
@@ -133,7 +133,7 @@ class BorrowTransaction {
         .from('borrow_transactions')
         .select(`
           *,
-          student:student_id(firstname, lastname, student_number, email, contact_number, profile_image),
+          student:student_id(firstname, lastname, student_number, email, contact_number, address, profile_image, id_card_picture),
           book_copies(copy_id, accession_number, books(book_id, title, author, isbn, cover_image, school_id, schools(school_id, school_name)))
         `)
         .eq('status', 'active')
@@ -343,7 +343,7 @@ class BorrowTransaction {
         .from('borrow_transactions')
         .select(`
           *,
-          student:student_id(user_id, firstname, lastname, student_number, email, contact_number, profile_image, library_id, school_id),
+          student:student_id(user_id, firstname, lastname, student_number, email, contact_number, address, profile_image, id_card_picture, library_id, school_id),
           book_copies(copy_id, accession_number, books(book_id, title, author, isbn, cover_image, library_id, school_id, schools(school_id, school_name)))
         `)
         .eq('status', 'active')

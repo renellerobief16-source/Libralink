@@ -18,7 +18,12 @@ import {
   FiClipboard,
   FiXCircle,
   FiSlash,
-  FiCheck
+  FiCheck,
+  FiPhone,
+  FiMapPin,
+  FiMail,
+  FiBookmark,
+  FiInfo
 } from 'react-icons/fi';
 import { Sparkles, QrCode, ScanLine } from 'lucide-react';
 import api, { scanQRToken, releaseBookItem, returnBookItem, returnBook, getBackendAssetUrl } from '../../utils/api';
@@ -253,6 +258,7 @@ export default function GlobalCirculationScanner({ schoolId, libraryId, darkMode
       targetLibraryId,
       profilePic,
       idCardPic,
+      purpose: reqData.purpose || reqData.remarks || 'Academic Study & Research',
       suggestedAction
     });
   };
@@ -301,6 +307,7 @@ export default function GlobalCirculationScanner({ schoolId, libraryId, darkMode
       targetLibraryId,
       profilePic,
       idCardPic,
+      purpose: loanData.purpose || loanData.remarks || 'Academic Study & Research',
       suggestedAction: 'return'
     });
   };
@@ -447,7 +454,7 @@ export default function GlobalCirculationScanner({ schoolId, libraryId, darkMode
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200"
           onClick={(e) => { if (e.target === e.currentTarget && !actionProcessing) handleClose(); }}
         >
-          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200/80 animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+          <div className="relative w-full max-w-xl md:max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200/80 animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]">
             
             {/* Header */}
             <div className="px-6 py-4.5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
@@ -603,50 +610,167 @@ export default function GlobalCirculationScanner({ schoolId, libraryId, darkMode
                     </div>
                   )}
 
-                  {/* COMPACT BORROWER + BOOK CARD (ID photo only) */}
+                  {/* FULL STUDENT / BORROWER DETAILS & PURPOSE CARD */}
                   {(() => {
                     const validIdCardPic = scanResult?.idCardPic && !idCardImgError ? scanResult.idCardPic : null;
+                    const validProfilePic = scanResult?.profilePic && !profileImgError ? scanResult.profilePic : null;
                     const isPartner = scanResult.borrowType === 'INTER_SCHOOL_LIBRARY_USE';
+                    const homeSchoolName = scanResult.raw?.home_school?.school_name || 
+                      scanResult.student?.schools?.school_name || 
+                      (isPartner ? 'Partner Institution' : 'Home Campus');
 
                     return (
-                      <div className="space-y-3">
-                        {/* Borrower */}
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 flex items-center gap-3">
-                          {validIdCardPic ? (
-                            <button
-                              type="button"
-                              onClick={() => setZoomImage({ url: validIdCardPic, title: 'School ID Card' })}
-                              className="relative group w-16 h-12 rounded-lg overflow-hidden border border-slate-200 bg-white shrink-0 cursor-pointer"
-                              title="Click to zoom School ID"
-                            >
-                              <img
-                                src={getBackendAssetUrl(validIdCardPic)}
-                                alt="School ID Card"
-                                onError={() => setIdCardImgError(true)}
-                                className="w-full h-full object-cover"
-                              />
-                              <span className="absolute inset-0 bg-slate-900/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white">
-                                <FiZoomIn className="w-4 h-4" />
-                              </span>
-                            </button>
-                          ) : (
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
-                              {scanResult.student?.firstname?.[0] || 'S'}
+                      <div className="space-y-3.5">
+                        {/* Comprehensive Borrower Card */}
+                        <div className="rounded-2xl border border-slate-200/90 bg-slate-50/90 p-4 space-y-3.5 shadow-xs">
+                          {/* Student Header: Avatar, Name/ID, Status, and ID Card Preview */}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              {/* Profile Avatar */}
+                              {validProfilePic ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setZoomImage({ url: validProfilePic, title: 'Student Profile Photo' })}
+                                  className="relative group w-14 h-14 rounded-2xl overflow-hidden border-2 border-blue-500/20 bg-white shadow-xs shrink-0 cursor-pointer hover:border-blue-500 transition"
+                                  title="Click to zoom Profile Photo"
+                                >
+                                  <img
+                                    src={getBackendAssetUrl(validProfilePic)}
+                                    alt="Student Profile"
+                                    onError={() => setProfileImgError(true)}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <span className="absolute inset-0 bg-slate-900/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white">
+                                    <FiZoomIn className="w-4 h-4" />
+                                  </span>
+                                </button>
+                              ) : (
+                                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-700 text-white flex items-center justify-center font-black text-base shadow-xs shrink-0">
+                                  {(scanResult.student?.firstname?.[0] || 'S') + (scanResult.student?.lastname?.[0] || '')}
+                                </div>
+                              )}
+
+                              {/* Name, Student Number, Campus */}
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="text-base font-extrabold text-slate-900 leading-tight">
+                                    {scanResult.student?.firstname} {scanResult.student?.middle_name ? `${scanResult.student.middle_name} ` : ''}{scanResult.student?.lastname}
+                                  </h4>
+                                  <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                    isPartner ? 'bg-purple-100 text-purple-800 border-purple-200' : 'bg-blue-100 text-blue-800 border-blue-200'
+                                  }`}>
+                                    {isPartner ? 'Partner Student' : 'Home Student'}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-slate-600 font-medium mt-1 flex items-center gap-2 flex-wrap">
+                                  <span>Student ID: <strong className="font-mono font-bold text-slate-900">{scanResult.student?.student_number || 'N/A'}</strong></span>
+                                  {homeSchoolName && (
+                                    <>
+                                      <span className="text-slate-300">•</span>
+                                      <span className="text-slate-500 font-medium truncate max-w-[200px]" title={homeSchoolName}>{homeSchoolName}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <h4 className="text-sm font-extrabold text-slate-900 truncate">
-                              {scanResult.student?.firstname} {scanResult.student?.lastname}
-                            </h4>
-                            <p className="text-[11px] text-slate-500 font-medium truncate">
-                              ID: <span className="font-mono font-bold text-slate-700">{scanResult.student?.student_number || 'N/A'}</span>
-                            </p>
+
+                            {/* School ID Card Thumbnail Preview */}
+                            {validIdCardPic ? (
+                              <div className="flex flex-col items-end shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setZoomImage({ url: validIdCardPic, title: 'School ID Card' })}
+                                  className="relative group w-20 h-14 rounded-xl overflow-hidden border border-slate-300 bg-white shadow-xs cursor-pointer hover:ring-2 hover:ring-blue-500 transition"
+                                  title="Click to inspect School ID card"
+                                >
+                                  <img
+                                    src={getBackendAssetUrl(validIdCardPic)}
+                                    alt="School ID Card"
+                                    onError={() => setIdCardImgError(true)}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <div className="absolute inset-0 bg-slate-900/50 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center text-white">
+                                    <FiZoomIn className="w-4 h-4" />
+                                    <span className="text-[9px] font-bold mt-0.5">Enlarge</span>
+                                  </div>
+                                  <span className="absolute bottom-0 inset-x-0 bg-slate-900/75 text-[8px] font-bold text-white text-center py-0.5 leading-none">
+                                    School ID
+                                  </span>
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="text-[10px] text-slate-400 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200 shrink-0">
+                                No ID Photo
+                              </div>
+                            )}
                           </div>
-                          <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full shrink-0 border ${
-                            isPartner ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'
-                          }`}>
-                            {isPartner ? 'Partner Student' : 'Home Student'}
-                          </span>
+
+                          {/* Student Contact Details Grid */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2.5 border-t border-slate-200/80 text-xs">
+                            {/* Contact Number */}
+                            <div className="flex items-center gap-2 text-slate-700 bg-white/80 p-2.5 rounded-xl border border-slate-200/70 shadow-2xs">
+                              <div className="w-6 h-6 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                                <FiPhone className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <span className="text-[10px] uppercase font-bold text-slate-400 block leading-tight">Contact Number</span>
+                                {scanResult.student?.contact_number || scanResult.raw?.contact_number ? (
+                                  <a
+                                    href={`tel:${scanResult.student?.contact_number || scanResult.raw?.contact_number}`}
+                                    className="font-semibold text-blue-700 hover:underline truncate block"
+                                  >
+                                    {scanResult.student?.contact_number || scanResult.raw?.contact_number}
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-400 italic">Not provided</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Email Address */}
+                            <div className="flex items-center gap-2 text-slate-700 bg-white/80 p-2.5 rounded-xl border border-slate-200/70 shadow-2xs">
+                              <div className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                                <FiMail className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <span className="text-[10px] uppercase font-bold text-slate-400 block leading-tight">Email Address</span>
+                                <span className="font-semibold text-slate-800 truncate block" title={scanResult.student?.email || ''}>
+                                  {scanResult.student?.email || <span className="text-slate-400 italic">Not provided</span>}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Address */}
+                            <div className="sm:col-span-2 flex items-start gap-2 text-slate-700 bg-white/80 p-2.5 rounded-xl border border-slate-200/70 shadow-2xs">
+                              <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
+                                <FiMapPin className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <span className="text-[10px] uppercase font-bold text-slate-400 block leading-tight">Registered Home Address</span>
+                                <span className="font-semibold text-slate-800 break-words block leading-snug">
+                                  {scanResult.student?.address || <span className="text-slate-400 italic">No home address registered on profile</span>}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Borrow Request Purpose */}
+                          <div className="pt-2 border-t border-slate-200/80">
+                            <div className="rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 p-2.5 flex items-start gap-2.5">
+                              <div className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+                                <FiBookmark className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-[10px] uppercase font-extrabold text-amber-900 tracking-wider">Purpose of Request</span>
+                                  <span className="text-[10px] font-semibold text-amber-700/80">Borrow Reason</span>
+                                </div>
+                                <p className="text-xs text-amber-950 font-semibold mt-0.5 leading-relaxed">
+                                  {scanResult.purpose || scanResult.raw?.purpose || scanResult.raw?.remarks || 'Academic Study & Research'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
                         {/* Book(s) with Individual Lifecycle Badges */}

@@ -536,7 +536,7 @@ class BorrowRequest {
 
       const { data: student, error: studentError } = await supabase
         .from('users')
-        .select('firstname, lastname, student_number, email, contact_number, address, id_card_picture, profile_image')
+        .select('firstname, middle_name, lastname, student_number, email, contact_number, address, id_card_picture, profile_image, position')
         .eq('user_id', request.student_id)
         .maybeSingle();
       if (studentError) throw studentError;
