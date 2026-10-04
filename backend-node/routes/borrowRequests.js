@@ -360,7 +360,7 @@ router.get('/partner-schools/:book_id', auth, requireRole(['Student']), async (r
 router.get('/:id', auth, async (req, res, next) => {
   try {
     // Guard against non-ID sub-paths
-    const reservedSubpaths = ['inter-school-status', 'school', 'partner', 'partner-schools', 'my-requests', 'student', 'scan'];
+    const reservedSubpaths = ['inter-school-status', 'school', 'partner', 'partner-schools', 'my-requests', 'student', 'scan', 'active-loans', 'returned-items'];
     if (reservedSubpaths.includes(req.params.id)) {
       return next();
     }
@@ -1210,13 +1210,7 @@ router.get('/returned-items', auth, async (req, res) => {
         item_status,
         status,
         released_at,
-        due_date,
         returned_at,
-        condition,
-        remarks,
-        fine_amount,
-        damage_fee,
-        is_paid,
         owner_school_id,
         borrow_request:request_id(
           request_id,
@@ -1227,7 +1221,7 @@ router.get('/returned-items', auth, async (req, res) => {
           status,
           purpose,
           student:student_id(
-            id,
+            user_id,
             firstname,
             lastname,
             student_number,
@@ -1245,7 +1239,7 @@ router.get('/returned-items', auth, async (req, res) => {
           cover_image,
           library_id,
           school_id,
-          library:library_id(library_name, library_type)
+          library:library_id(name, library_type)
         ),
         copy:copy_id(
           copy_id,
@@ -1304,7 +1298,8 @@ router.get('/returned-items', auth, async (req, res) => {
         // Student info (flat)
         student_id: req.student_id,
         student: {
-          id: student.id,
+          id: student.user_id || student.id,
+          user_id: student.user_id || student.id,
           firstname: student.firstname,
           lastname: student.lastname,
           student_number: student.student_number,
@@ -1340,16 +1335,16 @@ router.get('/returned-items', auth, async (req, res) => {
 
         // Dates
         borrow_date: item.released_at || req.borrow_date,
-        due_date: item.due_date || req.due_date,
+        due_date: req.due_date,
         returned_at: item.returned_at,
         released_at: item.released_at,
         return_date: item.returned_at,
 
         // Return metadata
-        condition: item.condition,
-        remarks: item.remarks,
-        fine_amount: totalFine > 0 ? totalFine : null,
-        is_paid: item.is_paid,
+        condition: 'good',
+        remarks: '',
+        fine_amount: null,
+        is_paid: true,
         item_status: item.item_status,
         status: 'returned',
 
@@ -1401,7 +1396,6 @@ router.get('/active-loans', auth, async (req, res) => {
         item_status,
         status,
         released_at,
-        due_date,
         returned_at,
         owner_school_id,
         borrow_request:request_id(
@@ -1412,7 +1406,7 @@ router.get('/active-loans', auth, async (req, res) => {
           due_date,
           status,
           student:student_id(
-            id,
+            user_id,
             firstname,
             lastname,
             student_number,
@@ -1430,7 +1424,7 @@ router.get('/active-loans', auth, async (req, res) => {
           cover_image,
           library_id,
           school_id,
-          library:library_id(library_name, library_type)
+          library:library_id(name, library_type)
         ),
         copy:copy_id(
           copy_id,
@@ -1487,7 +1481,8 @@ router.get('/active-loans', auth, async (req, res) => {
         // Student info (flat — same shape as borrow_transactions)
         student_id: req.student_id,
         student: {
-          id: student.id,
+          id: student.user_id || student.id,
+          user_id: student.user_id || student.id,
           firstname: student.firstname,
           lastname: student.lastname,
           student_number: student.student_number,
@@ -1514,9 +1509,9 @@ router.get('/active-loans', auth, async (req, res) => {
           },
         },
 
-        // Dates — prefer item-level due_date if set, else fall back to parent request
+        // Dates
         borrow_date: item.released_at || req.borrow_date,
-        due_date: item.due_date || req.due_date,
+        due_date: req.due_date,
         returned_at: item.returned_at,
         released_at: item.released_at,
 
