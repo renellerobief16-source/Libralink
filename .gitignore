@@ -23,6 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 scratch/
+scratch_*/
 backend-node/test_*.js
 backend-node/test_*.cjs
 backend-node/debug_*.cjs

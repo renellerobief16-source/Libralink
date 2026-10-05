@@ -16,22 +16,30 @@ import {
   AlertTriangle,
   Send,
   Check,
-  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Layers,
+  Info,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import api, {
   getBackendAssetUrl,
-  cancelBorrowRequest,
+  cancelBorrowRequestItem,
   requestBorrowCancellation,
   requestBookRenewal,
 } from "../../../utils/api";
 import QRCodeDisplay from "./QRCodeDisplay";
-import { getDueStatusDetails, formatPhilippineDate } from "../../../utils/timeUtils";
+import {
+  getDueStatusDetails,
+  formatPhilippineDate,
+  formatSmartTime,
+  formatPhilippineFullTooltip,
+} from "../../../utils/timeUtils";
 
 function StudentHistory({ isDrawer = false, onClose }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [historyItems, setHistoryItems] = useState([]);
+  const [historySets, setHistorySets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState(() => {
@@ -49,14 +57,17 @@ function StudentHistory({ isDrawer = false, onClose }) {
   const [activeFilter, setActiveFilter] = useState(() => location.state?.filter || null); // null | 'overdue' | 'dueSoon'
   const [selectedRequestForQR, setSelectedRequestForQR] = useState(null);
 
-  // Cancellation States (Inline Accordion, No Overlay)
-  const [cancellingRequestId, setCancellingRequestId] = useState(null);
+  // Set Accordion expansion tracking
+  const [expandedSetIds, setExpandedSetIds] = useState(new Set());
+
+  // Item-level Cancellation States (Inline per-book)
+  const [cancellingItemId, setCancellingItemId] = useState(null);
   const [selectedReasonPreset, setSelectedReasonPreset] = useState("No longer needed for coursework / study");
   const [cancellationCustomNote, setCancellationCustomNote] = useState("");
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [toastFeedback, setToastFeedback] = useState(null);
 
-  // Renewal States (Inline Accordion)
+  // Renewal States (Inline per-book)
   const [renewingRequestId, setRenewingRequestId] = useState(null);
   const [renewalReason, setRenewalReason] = useState("");
   const [renewalSubmittingId, setRenewalSubmittingId] = useState(null);
@@ -66,11 +77,23 @@ function StudentHistory({ isDrawer = false, onClose }) {
     setTimeout(() => setToastFeedback(null), 4500);
   };
 
-  const handleRequestRenewal = async (item) => {
-    if (!item) return;
-    setRenewalSubmittingId(item.requestId);
+  const toggleSetExpanded = (requestId) => {
+    setExpandedSetIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(requestId)) {
+        next.delete(requestId);
+      } else {
+        next.add(requestId);
+      }
+      return next;
+    });
+  };
+
+  const handleRequestRenewal = async (requestId) => {
+    if (!requestId) return;
+    setRenewalSubmittingId(requestId);
     try {
-      const { data, error } = await requestBookRenewal(item.requestId, renewalReason);
+      const { data, error } = await requestBookRenewal(requestId, renewalReason);
       if (error) {
         showToast(typeof error === "string" ? error : "Failed to submit renewal request.", "error");
         return;
@@ -83,6 +106,34 @@ function StudentHistory({ isDrawer = false, onClose }) {
       showToast(err.message || "Error submitting renewal request.", "error");
     } finally {
       setRenewalSubmittingId(null);
+    }
+  };
+
+  // Item-level cancellation handler
+  const handleCancelSingleItem = async (item, parentSet) => {
+    if (!item?.itemId) return;
+
+    const combinedReason = cancellationCustomNote.trim()
+      ? `${selectedReasonPreset}: ${cancellationCustomNote.trim()}`
+      : selectedReasonPreset;
+
+    setActionLoadingId(item.itemId);
+    try {
+      const res = await cancelBorrowRequestItem(item.itemId, combinedReason);
+      if (res.error) {
+        const errorMsg = res.error?.response?.data?.message || res.error?.message || "Failed to cancel book item.";
+        showToast(errorMsg, "error");
+      } else {
+        showToast(`"${item.title}" was cancelled successfully.`);
+        setCancellingItemId(null);
+        setCancellationCustomNote("");
+        await fetchHistory();
+      }
+    } catch (err) {
+      console.error("Error cancelling item:", err);
+      showToast("An unexpected error occurred while cancelling book.", "error");
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -101,18 +152,13 @@ function StudentHistory({ isDrawer = false, onClose }) {
         ? response
         : [];
 
-      // Flatten and normalize request items
-      const normalized = requests.flatMap((req) => {
-        const rawItems =
-          Array.isArray(req.items) && req.items.length > 0
-            ? req.items
-            : [{}];
+      // Group into Sets by request_id
+      const sets = requests.map((req) => {
+        const rawItems = Array.isArray(req.items) && req.items.length > 0 ? req.items : [{}];
 
-        return rawItems.map((item, idx) => {
-          const bookTitle =
-            item.book?.title || item.title || item.book_title || "Academic Material";
-          const bookAuthor =
-            item.book?.author || item.author || "Academic Research";
+        const normalizedItems = rawItems.map((item, idx) => {
+          const bookTitle = item.book?.title || item.title || item.book_title || "Academic Material";
+          const bookAuthor = item.book?.author || item.author || "Academic Research";
           const coverImage = item.book?.cover_image || null;
           const schoolName =
             item.owner_school?.school_name ||
@@ -121,42 +167,66 @@ function StudentHistory({ isDrawer = false, onClose }) {
             "Main Library";
 
           const reqStatus = (req.status || "pending").toLowerCase();
-          const itemStatus = (item.status || "").toLowerCase();
-          // If parent request is cancelled, cancellation_requested, or renewal_requested, that takes precedence
-          const rawStatus = (reqStatus === "cancelled" || reqStatus === "cancellation_requested" || reqStatus === "renewal_requested" || !itemStatus)
-            ? reqStatus
-            : itemStatus;
+          const itemStatus = (item.status || item.item_status || "").toLowerCase();
+          const rawStatus =
+            reqStatus === "cancelled" || reqStatus === "cancellation_requested" || !itemStatus
+              ? reqStatus
+              : itemStatus;
 
-          const renewalCountMatch = (req.rejection_reason || '').match(/RENEWAL_COUNT:(\d+)/i);
+          const renewalCountMatch = (req.rejection_reason || "").match(/RENEWAL_COUNT:(\d+)/i);
           const renewalCount = renewalCountMatch ? parseInt(renewalCountMatch[1], 10) : 0;
 
           return {
-            id: `${req.request_id}_${item.item_id || idx}`,
-            requestId: req.request_id,
+            itemId: item.item_id || `${req.request_id}_${idx}`,
             bookId: item.book_id || item.book?.id,
             title: bookTitle,
             author: bookAuthor,
             coverImage: coverImage,
             schoolName: schoolName,
             status: rawStatus,
-            cancellationReason: req.cancellation_reason || item.cancellation_reason || null,
-            requestType: req.request_type || "HOME",
-            isHomeLibraryBook: (req.request_type || "HOME").toUpperCase() === "HOME",
+            cancellationReason: item.cancellation_reason || null,
+            dueDate: item.due_date || req.due_date,
+            returnedAt: item.returned_at || req.returned_at,
+            borrowType: item.borrow_type || req.request_type || "HOME",
+            isHomeLibraryBook: (item.borrow_type || req.request_type || "HOME").toUpperCase() === "HOME",
             renewalCount,
-            requestDate: req.created_at,
-            dueDate: req.due_date || item.due_date,
-            returnedAt: req.returned_at || item.returned_at,
-            qrToken: req.qr_token,
-            rawRequest: req,
+            rawItem: item,
           };
         });
+
+        // Determine primary school name for the set
+        const primarySchool =
+          req.home_school?.school_name ||
+          normalizedItems[0]?.schoolName ||
+          "University Library";
+
+        return {
+          requestId: req.request_id,
+          requestDate: req.created_at,
+          requestType: req.request_type || "HOME",
+          status: (req.status || "pending").toLowerCase(),
+          dueDate: req.due_date,
+          returnedAt: req.returned_at,
+          qrToken: req.qr_token,
+          purpose: req.purpose,
+          cancellationReason: req.cancellation_reason,
+          schoolName: primarySchool,
+          items: normalizedItems,
+          booksCount: normalizedItems.length,
+          rawRequest: req,
+        };
       });
 
-      setHistoryItems(normalized);
+      setHistorySets(sets);
+
+      // Auto-expand the newest set if only 1 exists
+      if (sets.length === 1) {
+        setExpandedSetIds(new Set([sets[0].requestId]));
+      }
     } catch (err) {
       console.error("Error fetching student borrow history:", err);
       setError("Unable to load borrowing history. Please try again.");
-      setHistoryItems([]);
+      setHistorySets([]);
     } finally {
       setLoading(false);
     }
@@ -168,7 +238,7 @@ function StudentHistory({ isDrawer = false, onClose }) {
 
   // Helper for due date calculation using standardized Philippine time
   const getDueStatus = (dueDate, status) => {
-    if (status === "returned") return null;
+    if (status === "returned" || status === "cancelled") return null;
     if (!dueDate) return null;
 
     const details = getDueStatusDetails(dueDate);
@@ -244,90 +314,66 @@ function StudentHistory({ isDrawer = false, onClose }) {
     }
   };
 
-  // Filter + sort items — when arriving from a badge, sort urgent items first
-  const filteredItems = (() => {
-    let items = historyItems.filter((item) => {
+  // Filter Sets by Tab
+  const filteredSets = (() => {
+    let sets = historySets.filter((set) => {
+      const activeStatuses = ["released", "borrowed", "approved", "renewal_requested"];
+      const isSetActive = activeStatuses.includes(set.status) || set.items.some((i) => activeStatuses.includes(i.status));
+
       if (activeTab === "active") {
-        return (
-          item.status === "released" ||
-          item.status === "borrowed" ||
-          item.status === "approved" ||
-          item.status === "renewal_requested"
-        );
+        return isSetActive;
       }
       if (activeTab === "returned") {
-        return item.status === "returned";
+        return set.status === "returned" || (set.items.length > 0 && set.items.every((i) => i.status === "returned"));
       }
       if (activeTab === "requests") {
         return (
-          item.status === "pending" ||
-          item.status === "cancel_requested" ||
-          item.status === "cancellation_requested" ||
-          item.status === "rejected" ||
-          item.status === "cancelled"
+          set.status === "pending" ||
+          set.status === "cancel_requested" ||
+          set.status === "cancellation_requested" ||
+          set.status === "rejected" ||
+          set.status === "cancelled"
         );
       }
       return true;
     });
 
-    // When arriving from Due Soon / Overdue badge, sort those items first
+    // When arriving from Due Soon / Overdue badge, sort sets with urgent due dates first
     if (activeFilter === "overdue" || activeFilter === "dueSoon") {
-      items = [...items].sort((a, b) => {
+      sets = [...sets].sort((a, b) => {
         const aStatus = getDueStatusDetails(a.dueDate);
         const bStatus = getDueStatusDetails(b.dueDate);
-        const aUrgent = activeFilter === "overdue" ? (aStatus.isOverdue ? -1 : 1) : (aStatus.isDueSoon || aStatus.isDueToday ? -1 : 1);
-        const bUrgent = activeFilter === "overdue" ? (bStatus.isOverdue ? -1 : 1) : (bStatus.isDueSoon || bStatus.isDueToday ? -1 : 1);
+        const aUrgent =
+          activeFilter === "overdue"
+            ? aStatus.isOverdue ? -1 : 1
+            : aStatus.isDueSoon || aStatus.isDueToday ? -1 : 1;
+        const bUrgent =
+          activeFilter === "overdue"
+            ? bStatus.isOverdue ? -1 : 1
+            : bStatus.isDueSoon || bStatus.isDueToday ? -1 : 1;
         return aUrgent - bUrgent;
       });
     }
-    return items;
+    return sets;
   })();
 
-  const activeCount = historyItems.filter(
-    (item) =>
-      item.status === "released" ||
-      item.status === "borrowed" ||
-      item.status === "approved" ||
-      item.status === "renewal_requested"
+  const activeCount = historySets.filter((set) => {
+    const activeStatuses = ["released", "borrowed", "approved", "renewal_requested"];
+    return activeStatuses.includes(set.status) || set.items.some((i) => activeStatuses.includes(i.status));
+  }).length;
+
+  const returnedCount = historySets.filter(
+    (set) => set.status === "returned" || (set.items.length > 0 && set.items.every((i) => i.status === "returned"))
   ).length;
 
-  const returnedCount = historyItems.filter((item) => item.status === "returned").length;
-
-  const requestsCount = historyItems.filter(
-    (item) =>
-      item.status === "pending" ||
-      item.status === "cancel_requested" ||
-      item.status === "cancellation_requested" ||
-      item.status === "rejected" ||
-      item.status === "cancelled"
+  const requestsCount = historySets.filter(
+    (set) =>
+      set.status === "pending" ||
+      set.status === "cancel_requested" ||
+      set.status === "cancellation_requested" ||
+      set.status === "rejected" ||
+      set.status === "cancelled"
   ).length;
-
-  // Submission of cancellation request for librarian review (applies to both pending and approved)
-  const handleSubmitCancellation = async (item) => {
-    if (!item) return;
-
-    const combinedReason = cancellationCustomNote.trim()
-      ? `${selectedReasonPreset}: ${cancellationCustomNote.trim()}`
-      : selectedReasonPreset;
-
-    setActionLoadingId(item.id);
-    try {
-      const res = await requestBorrowCancellation(item.requestId, combinedReason);
-      if (res.error) {
-        showToast(res.error?.response?.data?.message || "Failed to submit cancellation request", "error");
-      } else {
-        showToast("Cancellation request submitted! Library staff has been notified to review and confirm.");
-        setCancellingRequestId(null);
-        setCancellationCustomNote("");
-        await fetchHistory();
-      }
-    } catch (err) {
-      console.error("Error submitting cancellation request:", err);
-      showToast("An unexpected error occurred.", "error");
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
 
   const handleBookClick = (title) => {
     onClose?.();
@@ -338,20 +384,22 @@ function StudentHistory({ isDrawer = false, onClose }) {
 
   return (
     <div className={isDrawer ? "w-full pb-6" : "mx-auto w-full max-w-[1280px] px-3 sm:px-5 lg:px-8 py-4 sm:py-6"}>
-      {/* Compact Page Header */}
+      {/* Compact Page Header (if full page) */}
       {!isDrawer && (
         <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <Clock className="h-4 w-4 text-slate-500" />
-              Borrow History
+              Borrow History & Loan Sets
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">Track your borrowed books, pickup passes, and returns.</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Review transaction sets, view books, and manage item-level cancellations.
+            </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-semibold text-slate-700">
-              <span className="font-black">{historyItems.length}</span>
-              <span className="opacity-70">Total</span>
+              <span className="font-black">{historySets.length}</span>
+              <span className="opacity-70">Sets</span>
             </div>
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-xs font-semibold text-blue-700">
               <span className="font-black">{activeCount}</span>
@@ -365,40 +413,44 @@ function StudentHistory({ isDrawer = false, onClose }) {
               onClick={() => navigate("/studentpage/search")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
             >
-              <Search className="h-3.5 w-3.5" /> Browse Books
+              <Search className="h-3.5 w-3.5" /> Browse Catalog
             </button>
           </div>
         </div>
       )}
 
       {/* Tab Switcher Bar */}
-      <div className={`z-10 flex items-center justify-between gap-2 ${
-        isDrawer
-          ? "sticky -top-2 bg-[#F7FAFC]/95 backdrop-blur-md -mx-3 px-3 py-2 border-b border-slate-200/60 mb-3"
-          : "mb-3 border-b border-slate-200 pb-2"
-      }`}>
+      <div
+        className={`z-10 flex items-center justify-between gap-2 ${
+          isDrawer
+            ? "sticky -top-2 bg-[#F7FAFC]/95 backdrop-blur-md -mx-3 px-3 py-2 border-b border-slate-200/60 mb-3"
+            : "mb-3 border-b border-slate-200 pb-2"
+        }`}
+      >
         <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg overflow-x-auto scrollbar-hide">
           {[
-            { id: 'all',      label: 'All',      count: historyItems.length },
-            { id: 'active',   label: 'Active',   count: activeCount },
-            { id: 'returned', label: 'Returned', count: returnedCount },
-            { id: 'requests', label: 'Requests', count: requestsCount },
-          ].map(tab => (
+            { id: "all", label: "All Sets", count: historySets.length },
+            { id: "active", label: "Active", count: activeCount },
+            { id: "returned", label: "Returned", count: returnedCount },
+            { id: "requests", label: "Requests", count: requestsCount },
+          ].map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
               className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition ${
-                activeTab === tab.id
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
+                activeTab === tab.id ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"
               }`}
             >
               {tab.label}
               {tab.count > 0 && (
-                <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full ${
-                  activeTab === tab.id ? 'bg-slate-100 text-slate-600' : 'bg-slate-200/60 text-slate-500'
-                }`}>{tab.count}</span>
+                <span
+                  className={`text-[9px] font-bold px-1 py-0.5 rounded-full ${
+                    activeTab === tab.id ? "bg-slate-100 text-slate-600" : "bg-slate-200/60 text-slate-500"
+                  }`}
+                >
+                  {tab.count}
+                </span>
               )}
             </button>
           ))}
@@ -407,25 +459,31 @@ function StudentHistory({ isDrawer = false, onClose }) {
         <button
           type="button"
           onClick={fetchHistory}
-          title="Refresh"
+          title="Refresh Borrow History"
           className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition shrink-0"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-blue-600" : ""}`} />
         </button>
       </div>
 
       {/* Filter Banner — appears when arriving from Overdue / Due Soon badge */}
       {activeFilter && activeTab === "active" && (
-        <div className={`mb-3 flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${
-          activeFilter === "overdue"
-            ? "bg-rose-50 border-rose-200 text-rose-800"
-            : "bg-amber-50 border-amber-200 text-amber-800"
-        }`}>
+        <div
+          className={`mb-3 flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${
+            activeFilter === "overdue"
+              ? "bg-rose-50 border-rose-200 text-rose-800"
+              : "bg-amber-50 border-amber-200 text-amber-800"
+          }`}
+        >
           <span className="flex items-center gap-1.5">
             {activeFilter === "overdue" ? (
-              <><AlertTriangle className="h-3.5 w-3.5" /> Showing overdue books first</>
+              <>
+                <AlertTriangle className="h-3.5 w-3.5" /> Showing overdue loans first
+              </>
             ) : (
-              <><Clock className="h-3.5 w-3.5" /> Showing due-soon books first</>
+              <>
+                <Clock className="h-3.5 w-3.5" /> Showing due-soon loans first
+              </>
             )}
           </span>
           <button
@@ -439,45 +497,39 @@ function StudentHistory({ isDrawer = false, onClose }) {
         </div>
       )}
 
-      {/* Content */}
-      {loading && historyItems.length === 0 ? (
-        <div className="divide-y divide-slate-200/80 rounded-xl border border-slate-200/80 bg-white p-3 shadow-sm">
+      {/* Content Body */}
+      {loading && historySets.length === 0 ? (
+        <div className="space-y-3">
           {[1, 2, 3].map((n) => (
-            <div key={`hist-skel-${n}`} className="flex items-start gap-3 py-3 animate-pulse">
-              <div className="h-[76px] w-[52px] shrink-0 rounded-lg bg-slate-200" />
-              <div className="flex-1 space-y-2 py-1">
-                <div className="h-3 w-1/3 rounded bg-slate-200" />
-                <div className="h-3.5 w-3/4 rounded bg-slate-200" />
-                <div className="h-2.5 w-1/2 rounded bg-slate-100" />
+            <div key={`hist-skel-${n}`} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm animate-pulse space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="h-4 w-28 rounded bg-slate-200" />
+                <div className="h-4 w-20 rounded-full bg-slate-200" />
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-16 w-12 rounded-lg bg-slate-200" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3.5 w-3/4 rounded bg-slate-200" />
+                  <div className="h-3 w-1/2 rounded bg-slate-200" />
+                </div>
               </div>
             </div>
           ))}
         </div>
-      ) : error ? (
-        <div className="rounded-2xl border border-rose-200/80 bg-rose-50/50 p-6 text-center shadow-sm">
-          <AlertCircle className="mx-auto h-8 w-8 text-rose-500 mb-2" />
-          <h3 className="text-sm font-bold text-slate-900 mb-1">Failed to load history</h3>
-          <p className="text-xs text-slate-500 mb-4">{error}</p>
-          <button
-            type="button"
-            onClick={fetchHistory}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-blue-700 active:scale-95"
-          >
-            <RefreshCw className="h-3 w-3" /> Retry
-          </button>
-        </div>
-      ) : filteredItems.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center shadow-sm">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-500">
-            <Clock className="h-6 w-6" />
+      ) : filteredSets.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 mb-3">
+            <Layers className="h-6 w-6" />
           </div>
-          <h3 className="text-sm font-bold text-slate-900 mb-1">
-            {historyItems.length === 0 ? "No borrowing history yet" : `No ${activeTab} records`}
-          </h3>
-          <p className="text-xs text-slate-500 mb-4 max-w-xs leading-relaxed">
-            {historyItems.length === 0
-              ? "When you request and borrow books from campus libraries, your activity timeline will appear here."
-              : "No books match the selected filter."}
+          <h3 className="text-sm font-bold text-slate-800">No records found</h3>
+          <p className="mt-1 text-xs text-slate-500 max-w-xs mx-auto">
+            {activeTab === "active"
+              ? "You do not have any active loans or pickup passes."
+              : activeTab === "returned"
+              ? "No returned transactions recorded yet."
+              : activeTab === "requests"
+              ? "No pending borrowing requests under review."
+              : "You haven't placed any book borrow requests yet."}
           </p>
           <button
             type="button"
@@ -485,384 +537,417 @@ function StudentHistory({ isDrawer = false, onClose }) {
               onClose?.();
               navigate("/studentpage/search");
             }}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-95"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition active:scale-95"
           >
-            Find Books to Borrow <ArrowUpRight className="h-3.5 w-3.5" />
+            <Search className="h-3.5 w-3.5" />
+            Explore Union Catalog
           </button>
         </div>
       ) : (
-        /* Horizon Line History List */
-        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-          <div className="divide-y divide-slate-200/80">
-            {filteredItems.map((item) => {
-              const statusCfg = getStatusBadge(item.status);
-              const dueStatus = getDueStatus(item.dueDate, item.status);
-              const coverUrl = getBackendAssetUrl(item.coverImage);
-              const hasQR = Boolean(item.qrToken && (item.status === "approved" || item.status === "released" || item.status === "borrowed"));
+        <div className="space-y-3">
+          {filteredSets.map((set) => {
+            const isExpanded = expandedSetIds.has(set.requestId);
+            const statusCfg = getStatusBadge(set.status);
+            const dueStatus = getDueStatus(set.dueDate, set.status);
+            const hasQR = Boolean(
+              set.qrToken && (set.status === "approved" || set.status === "released" || set.status === "borrowed")
+            );
+            const nonCancelledCount = set.items.filter((i) => i.status !== "cancelled").length;
 
-              return (
+            return (
+              <div
+                key={`set-card-${set.requestId}`}
+                className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs transition-all hover:border-slate-300"
+              >
+                {/* ─── SET HEADER / SUMMARY CARD ─── */}
                 <div
-                  key={`hist-row-${item.id}`}
-                  className="group relative flex flex-col transition-colors hover:bg-slate-50/80"
+                  onClick={() => toggleSetExpanded(set.requestId)}
+                  className="cursor-pointer p-3 sm:p-4 hover:bg-slate-50/70 transition-colors select-none"
                 >
-                  <div className="flex items-start gap-3 p-3">
-                    {/* Left: Real Book Cover or Grey Libralink Fallback */}
-                  <div
-                    onClick={() => handleBookClick(item.title)}
-                    className="relative h-[78px] w-[54px] flex-shrink-0 cursor-pointer overflow-hidden rounded-lg bg-slate-100 shadow-2xs transition-transform duration-200 group-hover:scale-105 border border-slate-200/80"
-                  >
-                    {coverUrl ? (
-                      <img
-                        src={coverUrl}
-                        alt={item.title}
-                        className="absolute inset-0 h-full w-full object-cover z-[1]"
-                        onError={(e) => {
-                          e.target.style.display = "none";
-                        }}
-                      />
-                    ) : null}
+                  {/* Top Bar: Status + Time + Badges */}
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {/* Set Status Pill */}
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold border ${statusCfg.color}`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${statusCfg.dot}`} />
+                        {statusCfg.label}
+                      </span>
 
-                    {/* Fallback with Grey L.png */}
-                    <div
-                      className="absolute inset-0 flex flex-col items-center justify-center p-1 bg-slate-100 z-0 select-none"
-                    >
-                      <img
-                        src="/L.png"
-                        alt="Libralink"
-                        className="h-7 w-7 object-contain grayscale opacity-35"
-                      />
-                      <span className="mt-1 text-center text-[6px] font-semibold text-slate-400 line-clamp-1">
-                        Libralink
+                      {/* Due Alert Badge */}
+                      {dueStatus && (
+                        <span
+                          className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold border ${dueStatus.style}`}
+                        >
+                          <Clock className="h-2.5 w-2.5" />
+                          {dueStatus.label}
+                        </span>
+                      )}
+
+                      {/* Book count badge */}
+                      <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-700 border border-slate-200">
+                        <Book className="h-2.5 w-2.5 text-blue-600" />
+                        {set.booksCount} {set.booksCount === 1 ? "Book Set" : "Books Set"}
+                      </span>
+
+                      {/* Request Type badge */}
+                      <span className="rounded-md bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold text-blue-700 border border-blue-200/60">
+                        {set.requestType === "INTER_SCHOOL" ? "Inter-School" : "Home Campus"}
                       </span>
                     </div>
 
-                    {/* 3D Spine Crease */}
-                    <div className="pointer-events-none absolute inset-y-0 left-0 w-2 bg-gradient-to-r from-black/25 to-transparent" />
+                    {/* Exact PST Relative Timestamp */}
+                    <span
+                      className="shrink-0 text-[11px] text-slate-400 font-medium cursor-help"
+                      title={formatPhilippineFullTooltip(set.requestDate)}
+                    >
+                      {formatSmartTime(set.requestDate)}
+                    </span>
                   </div>
 
-                  {/* Middle: Details */}
-                  <div className="flex min-w-0 flex-1 flex-col justify-between self-stretch py-0.5">
-                    <div>
-                      {/* Status + Due Alert Row */}
-                      <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[8px] font-bold border ${statusCfg.color}`}
-                        >
-                          <span className={`h-1.5 w-1.5 rounded-full ${statusCfg.dot}`} />
-                          {statusCfg.label}
-                        </span>
-
-                        {dueStatus && (
-                          <span
-                            className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[8px] font-bold border ${dueStatus.style}`}
-                          >
-                            <Clock className="h-2.5 w-2.5" />
-                            {dueStatus.label}
-                          </span>
-                        )}
-
-                        {item.status === "returned" && item.returnedAt && (
-                          <span className="text-[8.5px] font-medium text-slate-400">
-                            Returned {new Date(item.returnedAt).toLocaleDateString()}
-                          </span>
-                        )}
+                  {/* Set Identity & Book Overview */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                          Request #{set.requestId}
+                        </h3>
                       </div>
 
-                      {/* Title */}
-                      <h3
-                        onClick={() => handleBookClick(item.title)}
-                        className="line-clamp-2 cursor-pointer text-xs font-bold leading-snug text-slate-900 group-hover:text-blue-600 transition-colors"
-                      >
-                        {item.title}
-                      </h3>
-
-                      {/* Author */}
-                      <p className="mt-0.5 truncate text-[11px] font-medium text-slate-500">
-                        {item.author}
+                      {/* Books preview list */}
+                      <p className="mt-1 text-xs text-slate-600 font-medium line-clamp-1">
+                        {set.items.map((i) => i.title).join(" • ")}
                       </p>
+
+                      <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-400">
+                        <div className="flex items-center gap-1 min-w-0">
+                          <Building2 className="h-3 w-3 text-blue-500 shrink-0" />
+                          <span className="truncate font-medium text-slate-600">{set.schoolName}</span>
+                        </div>
+                        {set.purpose && (
+                          <>
+                            <span>•</span>
+                            <span className="truncate max-w-[160px] text-slate-500 italic">
+                              "{set.purpose}"
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Meta Row: Library + Request ID + Actions */}
-                    <div className="mt-2 flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] text-slate-400">
-                      <div className="flex items-center gap-1 min-w-0 max-w-[170px]">
-                        <Building2 className="h-3 w-3 text-blue-500 shrink-0" />
-                        <span className="truncate font-medium text-slate-600">
-                          {item.schoolName}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {/* Cancel Request Button */}
-                        {item.status === "pending" && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedReasonPreset("No longer needed for coursework / study");
-                              setCancellationCustomNote("");
-                              setCancellingRequestId(cancellingRequestId === item.requestId ? null : item.requestId);
-                            }}
-                            className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700 hover:bg-amber-100 transition active:scale-95"
+                    {/* Thumbnail Stack Preview */}
+                    <div className="flex items-center -space-x-3 shrink-0 pt-0.5">
+                      {set.items.slice(0, 3).map((it, idx) => {
+                        const coverUrl = getBackendAssetUrl(it.coverImage);
+                        return (
+                          <div
+                            key={`preview-thumb-${idx}`}
+                            className="relative h-12 w-9 rounded-md overflow-hidden border border-white bg-slate-100 shadow-xs ring-1 ring-slate-200"
                           >
-                            <AlertTriangle className="h-2.5 w-2.5" />
-                            Cancel Request
-                          </button>
-                        )}
+                            {coverUrl ? (
+                              <img src={coverUrl} alt={it.title} className="h-full w-full object-cover" />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center bg-slate-100 text-[8px] font-bold text-slate-400">
+                                📖
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {set.items.length > 3 && (
+                        <div className="flex h-12 w-8 items-center justify-center rounded-md bg-slate-800 text-[10px] font-bold text-white shadow-xs ring-1 ring-white">
+                          +{set.items.length - 3}
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
-                        {/* Cancel Hold Button */}
-                        {(item.status === "approved" || item.status === "ready") && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedReasonPreset("No longer needed for coursework / study");
-                              setCancellationCustomNote("");
-                              setCancellingRequestId(cancellingRequestId === item.requestId ? null : item.requestId);
-                            }}
-                            className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700 hover:bg-amber-100 transition active:scale-95"
-                          >
-                            <AlertTriangle className="h-2.5 w-2.5" />
-                            Cancel Hold
-                          </button>
-                        )}
-
-                        {/* Renewal Action for Home Library Borrowed Books */}
-                        {(item.status === "borrowed" || item.status === "released") && item.isHomeLibraryBook && (
-                          dueStatus?.isUrgent && dueStatus.label.toLowerCase().includes("overdue") ? (
-                            <span
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-medium text-slate-400"
-                              title="Overdue books cannot be renewed online. Please return at circulation desk."
-                            >
-                              <RefreshCw className="h-2.5 w-2.5" />
-                              Overdue
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setRenewalReason("");
-                                setRenewingRequestId(renewingRequestId === item.requestId ? null : item.requestId);
-                              }}
-                              className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 transition active:scale-95"
-                            >
-                              <RefreshCw className="h-2.5 w-2.5" />
-                              Request Renewal
-                            </button>
-                          )
-                        )}
-
-                        {item.status === "renewal_requested" && (
-                          <span className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-semibold text-indigo-700">
-                            <RefreshCw className="h-2.5 w-2.5 animate-spin" />
-                            Renewal Pending
-                          </span>
-                        )}
-
-                        {/* QR Code Pass */}
-                        {hasQR && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setSelectedRequestForQR({
-                                request_id: item.requestId,
-                                book_title: item.title,
-                                school_name: item.schoolName,
-                                pickup_code: item.pickupCode,
-                                pickup_deadline: item.pickupDeadline,
-                                qr_token: item.qrToken || item.pickupCode || item.requestId,
-                              })
-                            }
-                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white shadow-2xs hover:bg-emerald-700 transition active:scale-95"
-                          >
-                            <QrCode className="h-2.5 w-2.5" />
-                            QR Pass
-                          </button>
-                        )}
-
-                        {/* View Details */}
+                  {/* Actions Row */}
+                  <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      {hasQR && (
                         <button
                           type="button"
-                          onClick={() => handleBookClick(item.title)}
-                          className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium text-slate-600 hover:bg-slate-50 transition"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedRequestForQR(set.rawRequest);
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-xs hover:bg-emerald-700 transition active:scale-95"
                         >
-                          View
-                          <ChevronRight className="h-2.5 w-2.5" />
+                          <QrCode className="h-3 w-3" />
+                          Pickup QR Pass
                         </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                      )}
 
-                {/* Inline Accordion Cancellation Form (No Full-Screen Overlay) */}
-                {cancellingRequestId === item.requestId && (
-                  <div className="mx-3 mb-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-left space-y-3 animate-in slide-in-from-top-2 duration-200 shadow-xs">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-amber-800">
-                        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                        <span className="text-xs font-bold">Cancel Borrow Request</span>
-                        <span className="text-[10px] font-mono text-slate-500">
-                          ({item.requestId})
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setCancellingRequestId(null)}
-                        className="rounded-lg p-1 text-slate-400 hover:text-slate-600 transition"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-
-                    <div className="rounded-xl border border-amber-200/80 bg-amber-100/60 p-2.5 text-[11px] text-amber-900 leading-relaxed">
-                      <strong>Librarian Confirmation Required:</strong> Submitting this cancellation notifies the librarian to confirm and restock the copy back into available inventory.
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                        Select Reason for Cancellation:
-                      </label>
-                      {[
-                        "No longer needed for coursework / study",
-                        "Found another copy or digital resource",
-                        "Schedule conflict / Unable to pick up from library",
-                        "Requested by mistake / Duplicate request",
-                        "Other reason",
-                      ].map((reason) => (
-                        <label
-                          key={reason}
-                          className={`flex items-center gap-2 rounded-xl border p-2 text-xs font-medium cursor-pointer transition ${
-                            selectedReasonPreset === reason
-                              ? "border-amber-400 bg-white text-amber-900 shadow-2xs"
-                              : "border-slate-200 bg-white/70 text-slate-700 hover:bg-white"
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name={`cancellationReason-${item.requestId}`}
-                            value={reason}
-                            checked={selectedReasonPreset === reason}
-                            onChange={(e) => setSelectedReasonPreset(e.target.value)}
-                            className="text-amber-600 focus:ring-amber-500 h-3.5 w-3.5"
-                          />
-                          <span>{reason}</span>
-                        </label>
-                      ))}
-                    </div>
-
-                    <div>
-                      <textarea
-                        rows={2}
-                        value={cancellationCustomNote}
-                        onChange={(e) => setCancellationCustomNote(e.target.value)}
-                        placeholder="Additional note for library staff (Optional)..."
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none resize-none"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-amber-200/60">
-                      <button
-                        type="button"
-                        onClick={() => setCancellingRequestId(null)}
-                        disabled={actionLoadingId === item.id}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
-                      >
-                        Keep Reservation
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSubmitCancellation(item)}
-                        disabled={actionLoadingId === item.id}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-amber-700 transition active:scale-95 disabled:opacity-60"
-                      >
-                        {actionLoadingId === item.id ? (
-                          <>
-                            <RefreshCw className="h-3 w-3 animate-spin" />
-                            Submitting...
-                          </>
-                        ) : (
-                          <>
-                            <Send className="h-3 w-3" />
-                            Submit Cancellation Request
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Inline Accordion Renewal Request Form */}
-                {renewingRequestId === item.requestId && (
-                  <div className="mx-3 mb-3 rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-left space-y-3 animate-in slide-in-from-top-2 duration-200 shadow-xs">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-blue-900">
-                        <RefreshCw className="h-4 w-4 text-blue-600 shrink-0" />
-                        <span className="text-xs font-bold">Request Home Library Book Renewal</span>
-                        <span className="text-[10px] font-mono text-slate-500">
-                          ({item.requestId})
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setRenewingRequestId(null)}
-                        className="rounded-lg p-1 text-slate-400 hover:text-slate-600 transition"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-
-                    <div className="rounded-xl border border-blue-200/80 bg-blue-100/60 p-2.5 text-[11px] text-blue-900 leading-relaxed">
-                      <strong>Librarian Approval Required:</strong> Your renewal request will be reviewed by the library staff. Once approved, your due date will be extended based on your school's standard loan duration.
-                      {item.renewalCount > 0 && (
-                        <span className="block mt-1 font-semibold text-blue-800">
-                          Current Renewals: {item.renewalCount}x
+                      {set.status === "cancelled" && (
+                        <span className="text-[10px] text-slate-400 italic">
+                          This entire transaction set was cancelled.
                         </span>
                       )}
                     </div>
 
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                        Reason for Extension (Optional):
-                      </label>
-                      <input
-                        type="text"
-                        value={renewalReason}
-                        onChange={(e) => setRenewalReason(e.target.value)}
-                        placeholder="e.g., Still conducting research / Exam review"
-                        className="w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                      />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSetExpanded(set.requestId);
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 transition"
+                    >
+                      <span>{isExpanded ? "Hide Books" : `View Books (${set.items.length})`}</span>
+                      {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* ─── EXPANDABLE BOOKS LIST (Collapsible Set Detail) ─── */}
+                {isExpanded && (
+                  <div className="border-t border-slate-100 bg-slate-50/70 p-3 sm:p-4 space-y-3">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        Books in this Set ({nonCancelledCount} active of {set.items.length})
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        You can cancel books individually below
+                      </span>
                     </div>
 
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-blue-200/60">
-                      <button
-                        type="button"
-                        onClick={() => setRenewingRequestId(null)}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        disabled={renewalSubmittingId === item.requestId}
-                        onClick={() => handleRequestRenewal(item)}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-blue-700 transition active:scale-95 disabled:opacity-60"
-                      >
-                        {renewalSubmittingId === item.requestId ? (
-                          <>
-                            <RefreshCw className="h-3 w-3 animate-spin" />
-                            Submitting...
-                          </>
-                        ) : (
-                          <>
-                            <Send className="h-3 w-3" />
-                            Submit Renewal Request
-                          </>
-                        )}
-                      </button>
+                    <div className="divide-y divide-slate-200/80 rounded-xl border border-slate-200/90 bg-white overflow-hidden shadow-2xs">
+                      {set.items.map((item, idx) => {
+                        const coverUrl = getBackendAssetUrl(item.coverImage);
+                        const itemStatusCfg = getStatusBadge(item.status);
+                        const isCancelled = item.status === "cancelled";
+                        const isReturned = item.status === "returned";
+                        const isBorrowed = item.status === "borrowed" || item.status === "released";
+                        const canCancel = !isCancelled && !isReturned && !isBorrowed;
+
+                        return (
+                          <div
+                            key={`set-item-${item.itemId}-${idx}`}
+                            className="p-3 transition-colors hover:bg-slate-50/60"
+                          >
+                            <div className="flex items-start gap-3">
+                              {/* Book Cover Thumbnail */}
+                              <div
+                                onClick={() => handleBookClick(item.title)}
+                                className="relative h-16 w-11 shrink-0 cursor-pointer overflow-hidden rounded-lg bg-slate-100 border border-slate-200 shadow-2xs"
+                              >
+                                {coverUrl ? (
+                                  <img
+                                    src={coverUrl}
+                                    alt={item.title}
+                                    className="h-full w-full object-cover"
+                                    onError={(e) => {
+                                      e.target.style.display = "none";
+                                    }}
+                                  />
+                                ) : null}
+                                <div className="absolute inset-0 flex items-center justify-center bg-slate-100 text-[10px] text-slate-400">
+                                  📖
+                                </div>
+                                <div className="pointer-events-none absolute inset-y-0 left-0 w-1.5 bg-gradient-to-r from-black/20 to-transparent" />
+                              </div>
+
+                              {/* Book Meta Details */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <h4
+                                      onClick={() => handleBookClick(item.title)}
+                                      className={`text-xs font-bold leading-snug cursor-pointer transition hover:text-blue-600 line-clamp-1 ${
+                                        isCancelled ? "text-slate-400 line-through" : "text-slate-900"
+                                      }`}
+                                    >
+                                      {item.title}
+                                    </h4>
+                                    <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+                                      {item.author}
+                                    </p>
+                                  </div>
+
+                                  {/* Item Status Pill */}
+                                  <span
+                                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[8.5px] font-bold border shrink-0 ${itemStatusCfg.color}`}
+                                  >
+                                    <span className={`h-1.5 w-1.5 rounded-full ${itemStatusCfg.dot}`} />
+                                    {itemStatusCfg.label}
+                                  </span>
+                                </div>
+
+                                <div className="mt-1 flex items-center gap-2 text-[10.5px] text-slate-500">
+                                  <span className="truncate">{item.schoolName}</span>
+                                  {item.dueDate && isBorrowed && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="font-semibold text-amber-700">
+                                        Due: {formatPhilippineDate(item.dueDate)}
+                                      </span>
+                                    </>
+                                  )}
+                                  {isReturned && item.returnedAt && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="text-slate-400">
+                                        Returned {formatPhilippineDate(item.returnedAt)}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+
+                                {/* Cancellation Audit Note if Cancelled */}
+                                {isCancelled && (
+                                  <div className="mt-1.5 flex items-center gap-1 rounded-md bg-rose-50 px-2 py-1 text-[10px] text-rose-700 border border-rose-100">
+                                    <AlertCircle className="h-3 w-3 shrink-0 text-rose-500" />
+                                    <span className="truncate">
+                                      Cancelled item. {item.cancellationReason || "No longer requested."}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Individual Action Bar */}
+                                <div className="mt-2 flex items-center justify-between pt-1 border-t border-slate-100">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleBookClick(item.title)}
+                                    className="text-[10px] font-semibold text-blue-600 hover:text-blue-800"
+                                  >
+                                    View in Catalog →
+                                  </button>
+
+                                  <div className="flex items-center gap-2">
+                                    {/* Individual Item Cancel Button */}
+                                    {canCancel && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedReasonPreset("No longer needed for coursework / study");
+                                          setCancellationCustomNote("");
+                                          setCancellingItemId(cancellingItemId === item.itemId ? null : item.itemId);
+                                        }}
+                                        className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-800 hover:bg-amber-100 transition active:scale-95"
+                                      >
+                                        <AlertTriangle className="h-2.5 w-2.5" />
+                                        Cancel Book
+                                      </button>
+                                    )}
+
+                                    {/* Renewal Action for Home Library Borrowed Books */}
+                                    {isBorrowed && item.isHomeLibraryBook && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setRenewalReason("");
+                                          setRenewingRequestId(
+                                            renewingRequestId === set.requestId ? null : set.requestId
+                                          );
+                                        }}
+                                        className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 transition active:scale-95"
+                                      >
+                                        <RefreshCw className="h-2.5 w-2.5" />
+                                        Request Renewal
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* ─── INLINE ITEM CANCELLATION ACCORDION FORM ─── */}
+                                {cancellingItemId === item.itemId && (
+                                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-left space-y-2.5 shadow-xs animate-in slide-in-from-top-1 duration-150">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-1.5 text-amber-900 font-bold text-xs">
+                                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                                        <span>Cancel "{item.title}"</span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => setCancellingItemId(null)}
+                                        className="rounded-md p-1 text-slate-400 hover:text-slate-600"
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+
+                                    <p className="text-[10.5px] text-amber-800 leading-relaxed">
+                                      Only this individual book will be cancelled. Any other books in Request #{set.requestId} will remain active.
+                                    </p>
+
+                                    <div className="space-y-1">
+                                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                                        Reason for cancellation:
+                                      </label>
+                                      <select
+                                        value={selectedReasonPreset}
+                                        onChange={(e) => setSelectedReasonPreset(e.target.value)}
+                                        className="w-full rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                      >
+                                        <option value="No longer needed for coursework / study">
+                                          No longer needed for coursework / study
+                                        </option>
+                                        <option value="Borrowed another book instead">
+                                          Borrowed another book instead
+                                        </option>
+                                        <option value="Schedule conflict / Cannot visit campus">
+                                          Schedule conflict / Cannot visit campus
+                                        </option>
+                                        <option value="Requested by mistake">Requested by mistake</option>
+                                        <option value="Found electronic / digital reference">
+                                          Found electronic / digital reference
+                                        </option>
+                                      </select>
+                                    </div>
+
+                                    <div>
+                                      <textarea
+                                        rows={2}
+                                        value={cancellationCustomNote}
+                                        onChange={(e) => setCancellationCustomNote(e.target.value)}
+                                        placeholder="Optional additional note for librarian..."
+                                        className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none resize-none"
+                                      />
+                                    </div>
+
+                                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-amber-200/60">
+                                      <button
+                                        type="button"
+                                        onClick={() => setCancellingItemId(null)}
+                                        disabled={actionLoadingId === item.itemId}
+                                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                                      >
+                                        Keep Book
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCancelSingleItem(item, set)}
+                                        disabled={actionLoadingId === item.itemId}
+                                        className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1 text-xs font-bold text-white shadow-xs hover:bg-amber-700 transition active:scale-95 disabled:opacity-60"
+                                      >
+                                        {actionLoadingId === item.itemId ? (
+                                          <>
+                                            <RefreshCw className="h-3 w-3 animate-spin" />
+                                            Cancelling...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Send className="h-3 w-3" />
+                                            Confirm Cancel Book
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
               </div>
             );
           })}
-          </div>
         </div>
       )}
 

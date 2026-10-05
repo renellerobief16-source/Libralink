@@ -24,6 +24,7 @@ import {
   getLibraryPolicy,
   updateLibraryPolicy,
   sendDueReminderNotification,
+  cancelBorrowRequestItem,
 } from "../../../utils/api";
 import api from "../../../utils/api";
 import { useNotifications } from "../../../context/NotificationContext";
@@ -402,6 +403,36 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
       alert(err?.response?.data?.message || err.message || 'Failed to check in returned book. Please try again.');
     } finally {
       setReturningBookId(null);
+    }
+  };
+
+  const handleLibrarianCancelItem = async (item, parentRequest) => {
+    if (!item?.item_id) return;
+    const book = item.book || booksData[item.book_id] || {};
+    const bookTitle = book?.title || item.title || 'Book';
+    const reason = window.prompt(`Enter reason for cancelling "${bookTitle}" from request ${parentRequest?.request_id}:`, 'Cancelled by library staff');
+    if (reason === null) return;
+
+    try {
+      const res = await cancelBorrowRequestItem(item.item_id, reason.trim() || 'Cancelled by library staff');
+      if (res.error) {
+        const errorMsg = res.error?.response?.data?.message || res.error?.message || 'Failed to cancel item.';
+        alert(errorMsg);
+        return;
+      }
+      showToast('decline', `"${bookTitle}" has been cancelled from the request.`);
+      await fetchBorrowRequests();
+      if (selectedRequest && parentRequest && (selectedRequest.request_id === parentRequest.request_id)) {
+        try {
+          const updated = await api.get(`/borrow-requests/${parentRequest.request_id}`);
+          if (updated?.data?.data || updated?.data) {
+            setSelectedRequest(updated.data.data || updated.data);
+          }
+        } catch {}
+      }
+    } catch (err) {
+      console.error('Error cancelling item by librarian:', err);
+      alert('An error occurred while cancelling the item.');
     }
   };
 
@@ -3507,16 +3538,21 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
                     <div className="space-y-2.5">
                       {(selectedRequest.items || selectedRequest.borrow_request?.items || []).map((item, index) => {
                         const book = item.book || booksData[item.book_id];
+                        const isCancelled = item.status === 'cancelled' || item.item_status === 'cancelled';
                         return (
-                          <div key={index} className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/50 flex items-start gap-3">
+                          <div key={index} className={`p-3.5 rounded-xl border flex items-start gap-3 transition-colors ${
+                            isCancelled ? 'border-rose-200 bg-rose-50/40 opacity-75' : 'border-slate-200/80 bg-slate-50/50'
+                          }`}>
                             <div className="w-10 h-12 bg-white border border-slate-200 rounded-lg flex-shrink-0 flex items-center justify-center shadow-2xs">
-                              <FiBook className="w-5 h-5 text-blue-600" />
+                              <FiBook className={`w-5 h-5 ${isCancelled ? 'text-rose-500' : 'text-blue-600'}`} />
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-2">
                                 <h4 
                                   onClick={() => handleOpenBookDetails(item.book_id, book)}
-                                  className="text-sm font-bold text-slate-900 truncate hover:text-blue-600 cursor-pointer transition-colors"
+                                  className={`text-sm font-bold truncate hover:text-blue-600 cursor-pointer transition-colors ${
+                                    isCancelled ? 'text-slate-500 line-through' : 'text-slate-900'
+                                  }`}
                                   title="Click to view complete details"
                                 >
                                   {book?.title || item.title || `Book ID: ${item.book_id}`}
@@ -3534,6 +3570,23 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
                                   <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-100 flex-shrink-0">
                                     {item.borrow_type === 'INTER_SCHOOL_LIBRARY_USE' ? 'Inter-School Use' : 'Local Home Loan'}
                                   </span>
+
+                                  {isCancelled ? (
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 flex-shrink-0">
+                                      Cancelled
+                                    </span>
+                                  ) : (
+                                    (selectedRequest.status === 'pending' || selectedRequest.status === 'approved') && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleLibrarianCancelItem(item, selectedRequest)}
+                                        className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 transition shadow-2xs"
+                                        title="Cancel this book from the request"
+                                      >
+                                        Cancel Item
+                                      </button>
+                                    )
+                                  )}
                                 </div>
                               </div>
                               <p className="text-xs text-slate-500 mt-0.5">
@@ -3544,6 +3597,15 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
                                 <span>·</span>
                                 <span>Item ID: {item.book_id}</span>
                               </div>
+
+                              {isCancelled && (
+                                <div className="mt-2 text-[11px] text-rose-700 bg-rose-50/80 p-2 rounded-lg border border-rose-200 flex items-center gap-1.5">
+                                  <FiAlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                                  <span>
+                                    <strong>Item Cancelled:</strong> {item.cancellation_reason || selectedRequest.cancellation_reason || 'Cancelled'}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         );

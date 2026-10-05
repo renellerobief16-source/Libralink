@@ -1602,6 +1602,9 @@ export function StudentLayout({
       className="student-layout min-h-[100dvh] w-full max-w-full overflow-x-visible bg-[#F7FAFC] flex"
       data-panel-open={activePanel ? "true" : "false"}
       data-active-panel={activePanel || ""}
+      style={{
+        "--student-header-height": isPreviewMode ? "96px" : "56px",
+      }}
     >
       {/* Top Student Preview Mode Banner */}
       {isPreviewMode && (
@@ -2114,12 +2117,15 @@ export function StudentLayout({
           }`}
       >
         <main
-          className={`w-full min-w-0 overflow-x-visible bg-[#F7FAFC] ${isPreviewMode ? "pt-[96px]" : "pt-[56px]"
-            } ${activePanel ? "lg:pl-[380px]" : ""}`}
+          className={`w-full min-w-0 bg-[#F7FAFC] ${isPreviewMode ? "pt-[96px]" : "pt-[56px]"
+            } ${activePanel ? "lg:pl-[380px]" : ""} ${isSearchRoute ? "overflow-x-clip" : "overflow-x-visible"}`}
         >
           <div
-            className={`box-border mx-auto min-w-0 w-full bg-[#F7FAFC] px-3 pb-28 sm:pb-24 sm:px-4 md:px-6 md:pb-6 lg:px-6 lg:pb-8 ${isSearchRoute ? "max-w-none" : "max-w-[1280px]"
-              }`}
+            className={`box-border mx-auto min-w-0 w-full bg-[#F7FAFC] ${
+              isSearchRoute
+                ? "max-w-none p-0"
+                : "max-w-[1280px] px-3 pb-28 sm:pb-24 sm:px-4 md:px-6 md:pb-6 lg:px-6 lg:pb-8"
+            }`}
           >
             {children}
           </div>

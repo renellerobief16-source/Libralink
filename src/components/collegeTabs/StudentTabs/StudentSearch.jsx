@@ -3011,6 +3011,21 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
     };
   }, [showSearchHistory]);
 
+  // Prevent double scrollbar / outer window overflow when book details or borrow form is open
+  useEffect(() => {
+    if (!selectedBook) return;
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = originalBodyOverflow;
+      document.documentElement.style.overflow = originalHtmlOverflow;
+    };
+  }, [selectedBook]);
+
   if (showBorrowingForm && !selectedBook) {
     return (
       <main className="fixed inset-0 z-[100] min-h-[100dvh] w-full min-w-0 overflow-y-auto bg-[#F7FAFC] px-4 pb-10 pt-4 sm:px-6 sm:pt-6 lg:px-10 lg:py-8">
@@ -3070,12 +3085,16 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
 
   return (
     <div
-      className={`student-search-shell ${selectedBook ? "student-search-has-details" : ""} box-border -mx-3 w-[calc(100%+1.5rem)] min-w-0 max-w-none px-0 pb-0 sm:mx-0 sm:w-full sm:px-6 lg:pl-[30px] lg:pr-0 ${selectedBook ? "lg:grid lg:h-[calc(100dvh-76px)] lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_var(--book-details-width)] lg:gap-3 lg:overflow-hidden" : "lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-5"}`}
+      className={`student-search-shell ${
+        selectedBook
+          ? "student-search-has-details box-border w-full min-w-0 max-w-none p-0 lg:pl-6 lg:pr-0 lg:grid lg:h-[calc(100dvh-var(--student-header-height,56px))] lg:max-h-[calc(100dvh-var(--student-header-height,56px))] lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_var(--book-details-width)] lg:gap-3 lg:overflow-hidden"
+          : "box-border w-full min-w-0 max-w-none px-3 pb-28 sm:px-6 sm:pb-24 lg:pl-6 lg:pr-0 lg:pb-0 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-0"
+      }`}
       style={{ "--book-details-width": `${bookDetailsWidth}px` }}
     >
       <div
         ref={searchScrollContainerRef}
-        className={`min-w-0 lg:px-0 ${selectedBook ? "overflow-hidden lg:col-start-1 lg:row-start-1 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-none" : ""}`}
+        className={`min-w-0 ${selectedBook ? "overflow-hidden lg:col-start-1 lg:row-start-1 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-none pr-1 lg:px-0" : "lg:pr-6 lg:pb-12"}`}
       >
         {/* Other school results - 4th panel - Sticky */}
 
@@ -4524,57 +4543,61 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
       </div>
 
       {!selectedBook && (
-        <aside className="student-search-recommendations hidden self-start lg:sticky lg:top-[80px] lg:block lg:h-[calc(100vh-96px)] lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:rounded-2xl lg:border lg:border-slate-200 lg:bg-[#F7FAFC] lg:p-4 lg:shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
-          {/* Header */}
-          <div className="mb-3.5 flex items-center gap-2 border-b border-slate-100 pb-3">
-            <img src="/L.png" alt="Libralink" className="h-8 w-8 object-contain" />
-            <span className="text-base font-bold tracking-tight text-slate-900">Libralink</span>
-          </div>
-
-          <div className="mb-2.5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-sm">
-                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-              </span>
-              <div>
-                <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-blue-600">Curated</p>
-                <h2 className="text-sm font-bold text-slate-900">Recommended for You</h2>
-              </div>
+        <aside className="student-search-recommendations hidden self-start lg:sticky lg:top-[var(--student-header-height,56px)] lg:block lg:h-[calc(100dvh-var(--student-header-height,56px))] lg:w-[340px] lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:rounded-none lg:border-l lg:border-r-0 lg:border-y-0 lg:border-slate-200 lg:bg-white lg:p-4 lg:pr-3.5 lg:shadow-none">
+          {/* Sticky Panel Header */}
+          <div className="sticky -top-4 -mt-4 z-10 bg-white/95 backdrop-blur-md pt-4 pb-3 border-b border-slate-100">
+            {/* Header */}
+            <div className="mb-3 flex items-center gap-2">
+              <img src="/L.png" alt="Libralink" className="h-7 w-7 object-contain" />
+              <span className="text-base font-bold tracking-tight text-slate-900">Libralink</span>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowPreferencesModal(true)}
-              className="flex items-center gap-1 rounded-lg border border-slate-200/90 bg-white px-2 py-1 text-[10px] font-bold text-slate-600 shadow-xs transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 active:scale-95"
-              title="Change Course or Topic Preferences"
-            >
-              <SlidersHorizontal className="h-3 w-3" />
-              <span>Preferences</span>
-            </button>
-          </div>
 
-          {/* Interactive Filter Pills */}
-          <div className="mb-3.5 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-            {recoFilterOptions.map((opt) => {
-              const IconComponent = opt.icon;
-              return (
-                <button
-                  key={`d-reco-${opt.id}`}
-                  type="button"
-                  onClick={() => setRecoFilter(opt.id)}
-                  className={`inline-flex items-center gap-1.5 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-all ${recoFilter === opt.id
-                      ? "bg-blue-600 text-white shadow-sm ring-1 ring-blue-600"
-                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/90"
+            <div className="mb-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-sm">
+                  <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                </span>
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-blue-600">Curated</p>
+                  <h2 className="text-sm font-bold text-slate-900">Recommended for You</h2>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPreferencesModal(true)}
+                className="flex items-center gap-1 rounded-lg border border-slate-200/90 bg-white px-2 py-1 text-[10px] font-bold text-slate-600 shadow-xs transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 active:scale-95"
+                title="Change Course or Topic Preferences"
+              >
+                <SlidersHorizontal className="h-3 w-3" />
+                <span>Preferences</span>
+              </button>
+            </div>
+
+            {/* Interactive Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide">
+              {recoFilterOptions.map((opt) => {
+                const IconComponent = opt.icon;
+                return (
+                  <button
+                    key={`d-reco-${opt.id}`}
+                    type="button"
+                    onClick={() => setRecoFilter(opt.id)}
+                    className={`inline-flex items-center gap-1.5 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                      recoFilter === opt.id
+                        ? "bg-blue-600 text-white shadow-sm ring-1 ring-blue-600"
+                        : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/90"
                     }`}
-                >
-                  {IconComponent && <IconComponent className="h-3 w-3 shrink-0" />}
-                  <span>{opt.label}</span>
-                </button>
-              );
-            })}
+                  >
+                    {IconComponent && <IconComponent className="h-3 w-3 shrink-0" />}
+                    <span>{opt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Horizontal Card List (1-Column Rows) with Horizontal Divider Lines */}
-          <div className="divide-y divide-slate-200/80">
+          <div className="divide-y divide-slate-200/80 pt-1 pb-6">
             {curatedBooks.map((book, idx) => {
               const isAvailable = getBookDisplayStatus(book) === "available";
               const recoReason = getRecommendationReason(book, idx);

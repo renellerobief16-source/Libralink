@@ -913,6 +913,193 @@ router.put('/:id/cancel', auth, requireRole(['Student']), async (req, res) => {
   }
 });
 
+// @route   PUT /api/borrow-requests/items/:itemId/cancel
+// @desc    Cancel an individual item/book in a borrow request set
+// @access  Private (Student, Librarian, Librarian Admin, Super Admin)
+router.put('/items/:itemId/cancel', auth, async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const { reason = '' } = req.body || {};
+
+    // 1. Fetch item with book details
+    const { data: item, error: itemError } = await supabase
+      .from('borrow_request_items')
+      .select(`
+        *,
+        book:book_id(book_id, title, author)
+      `)
+      .eq('item_id', itemId)
+      .single();
+
+    if (itemError || !item) {
+      return res.status(404).json({ success: false, message: 'Item not found' });
+    }
+
+    if (item.status === 'cancelled' || item.item_status === 'cancelled') {
+      return res.status(400).json({ success: false, message: 'Item is already cancelled' });
+    }
+
+    if (item.status === 'returned' || item.item_status === 'returned') {
+      return res.status(400).json({ success: false, message: 'Cannot cancel an item that has already been returned' });
+    }
+
+    // 2. Fetch parent request
+    const { data: parentRequest, error: reqError } = await supabase
+      .from('borrow_requests')
+      .select('*')
+      .eq('request_id', item.request_id)
+      .single();
+
+    if (reqError || !parentRequest) {
+      return res.status(404).json({ success: false, message: 'Parent request not found' });
+    }
+
+    // 3. Authorization check
+    const isStudent = String(req.user.role_name || req.user.role || '').toLowerCase() === 'student' || req.user.role_id === 4;
+    const isOwner = String(parentRequest.student_id) === String(req.user.user_id);
+
+    if (isStudent && !isOwner) {
+      return res.status(403).json({ success: false, message: 'Unauthorized - You do not own this request' });
+    }
+
+    if (isStudent && ['borrowed', 'active', 'overdue'].includes(parentRequest.status)) {
+      return res.status(400).json({ success: false, message: 'Books already released/borrowed cannot be cancelled online. Please return them at the circulation desk.' });
+    }
+
+    const cancelReasonClean = reason.trim() || (isStudent ? 'Cancelled by student' : 'Cancelled by library staff');
+    const bookTitle = item.book?.title || 'Academic Book';
+
+    // 4. Update the item to cancelled
+    const updateItemPayload = {
+      status: 'cancelled',
+      item_status: 'cancelled',
+      updated_at: new Date().toISOString()
+    };
+    const { error: updateErr } = await supabase
+      .from('borrow_request_items')
+      .update(updateItemPayload)
+      .eq('item_id', itemId);
+
+    if (updateErr) {
+      throw updateErr;
+    }
+
+    // 5. Release any reserved copy
+    const copyToRelease = item.assigned_copy_id || item.copy_id;
+    if (copyToRelease) {
+      await supabase
+        .from('book_copies')
+        .update({ status: 'available' })
+        .eq('copy_id', copyToRelease);
+    }
+
+    // 6. Check remaining items in parent request
+    const { data: allItems } = await supabase
+      .from('borrow_request_items')
+      .select('item_id, status, item_status')
+      .eq('request_id', item.request_id);
+
+    const nonCancelledItems = (allItems || []).filter(
+      i => i.status !== 'cancelled' && i.item_status !== 'cancelled'
+    );
+
+    const allCancelled = nonCancelledItems.length === 0;
+
+    // Build structured cancellation reason on parent
+    const existingReason = parentRequest.cancellation_reason ? `${parentRequest.cancellation_reason} | ` : '';
+    const updatedReason = `${existingReason}[${bookTitle}]: ${cancelReasonClean}`.slice(-500);
+
+    const parentUpdate = {
+      cancellation_reason: updatedReason,
+      updated_at: new Date().toISOString()
+    };
+    if (allCancelled) {
+      parentUpdate.status = 'cancelled';
+    }
+
+    await supabase
+      .from('borrow_requests')
+      .update(parentUpdate)
+      .eq('request_id', item.request_id);
+
+    // 7. Notifications
+    const nowIso = new Date().toISOString();
+    const { data: studentUser } = await supabase
+      .from('users')
+      .select('firstname, lastname, email')
+      .eq('user_id', parentRequest.student_id)
+      .maybeSingle();
+    const studentName = [studentUser?.firstname, studentUser?.lastname].filter(Boolean).join(' ') || 'Student';
+
+    if (isStudent) {
+      // Notify staff
+      const staffSchools = [...new Set([parentRequest.home_school_id, item.owner_school_id])].filter(Boolean);
+      const { data: staffList } = await supabase
+        .from('users')
+        .select('user_id, school_id')
+        .in('school_id', staffSchools)
+        .in('role_id', [2, 3])
+        .eq('status', 'active');
+
+      if (staffList && staffList.length > 0) {
+        const staffNotifs = staffList.map(member => ({
+          user_id: member.user_id,
+          school_id: member.school_id,
+          type: 'request_cancelled',
+          title: 'Book Cancellation in Set',
+          message: `${studentName} cancelled "${bookTitle}" from request ${item.request_id}.${allCancelled ? ' (All books in set cancelled)' : ''} Reason: ${cancelReasonClean}`,
+          related_id: item.request_id,
+          is_read: false,
+          is_admin_notification: false,
+          created_at: nowIso,
+        }));
+        await supabase.from('notifications').insert(staffNotifs);
+      }
+
+      // Notify student
+      await supabase.from('notifications').insert({
+        user_id: parentRequest.student_id,
+        school_id: parentRequest.home_school_id,
+        type: 'request_cancelled',
+        title: 'Book Cancelled Successfully',
+        message: `You cancelled "${bookTitle}" from request ${item.request_id}.${allCancelled ? ' The entire borrow set is now cancelled.' : ' Your remaining requested books are still active.'}`,
+        related_id: item.request_id,
+        is_read: false,
+        is_admin_notification: false,
+        created_at: nowIso,
+      });
+    } else {
+      // Librarian cancelled item -> notify student
+      const staffName = [req.user.firstname, req.user.lastname].filter(Boolean).join(' ') || 'Librarian';
+      await supabase.from('notifications').insert({
+        user_id: parentRequest.student_id,
+        school_id: parentRequest.home_school_id,
+        type: 'request_cancelled',
+        title: 'Item Cancelled by Librarian',
+        message: `${staffName} cancelled "${bookTitle}" from your request ${item.request_id}. Reason: ${cancelReasonClean}`,
+        related_id: item.request_id,
+        is_read: false,
+        is_admin_notification: false,
+        created_at: nowIso,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `"${bookTitle}" has been cancelled successfully.`,
+      data: {
+        item_id: itemId,
+        request_id: item.request_id,
+        all_cancelled: allCancelled,
+        book_title: bookTitle,
+      }
+    });
+  } catch (error) {
+    console.error('[BORROW REQUESTS] Error cancelling item:', error);
+    res.status(500).json({ success: false, message: error.message || 'Server error cancelling item' });
+  }
+});
+
 // @route   PUT /api/borrow-requests/:id/request-cancellation
 // @desc    Student requests cancellation of an approved borrowing request
 // @access  Private (Student)

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+    overflow: hidden;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #ffffff;
+  }
+  svg text {
+    font-family: 'Inter', sans-serif;
+  }
+  .node-box {
+    fill: #ffffff;
+    stroke: #0f172a;
+    stroke-width: 2;
+    rx: 6;
+  }
+  .node-header {
+    fill: #1e293b;
+    stroke: #0f172a;
+    stroke-width: 2;
+  }
+  .node-header-text {
+    fill: #ffffff;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .node-text {
+    fill: #0f172a;
+    font-size: 12px;
+  }
+  .node-subtext {
+    fill: #475569;
+    font-size: 11px;
+  }
+  .edge-line {
+    stroke: #0f172a;
+    stroke-width: 2;
+    fill: none;
+  }
+  .edge-arrow {
+    fill: #0f172a;
+  }
+  .edge-label-bg {
+    fill: #f1f5f9;
+    stroke: #cbd5e1;
+    stroke-width: 1;
+    rx: 4;
+  }
+  .edge-label-text {
+    fill: #0f172a;
+    font-size: 10.5px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+  }
+</style>
+</head>
+<body>
+<svg id="svg-fig-4-1" width="100%" height="100%" viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg">
+        <rect width="100%" height="100%" fill="#ffffff"/>
+        
+        <!-- TIER 1: PRESENTATION -->
+        <rect x="50" y="40" width="800" height="110" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+        <rect x="50" y="40" width="800" height="30" rx="8" fill="#1e293b"/>
+        <text x="70" y="60" fill="#ffffff" font-size="13" font-weight="700">1. PRESENTATION TIER (CLIENT-SIDE USER INTERFACES - REACT 19 & VITE)</text>
+        
+        <rect x="75" y="85" width="220" height="50" rx="6" fill="#ffffff" stroke="#0f172a" stroke-width="1.5"/>
+        <text x="185" y="106" text-anchor="middle" font-size="12" font-weight="700">Student Patron Web Portal</text>
+        <text x="185" y="122" text-anchor="middle" font-size="10.5" fill="#475569">Catalog Search & QR Pass</text>
+
+        <rect x="340" y="85" width="220" height="50" rx="6" fill="#ffffff" stroke="#0f172a" stroke-width="1.5"/>
+        <text x="450" y="106" text-anchor="middle" font-size="12" font-weight="700">Librarian Circulation Desk</text>
+        <text x="450" y="122" text-anchor="middle" font-size="10.5" fill="#475569">Verification & Approvals</text>
+
+        <rect x="605" y="85" width="220" height="50" rx="6" fill="#ffffff" stroke="#0f172a" stroke-width="1.5"/>
+        <text x="715" y="106" text-anchor="middle" font-size="12" font-weight="700">Administrator Console</text>
+        <text x="715" y="122" text-anchor="middle" font-size="10.5" fill="#475569">Inventory & Multi-Campus</text>
+
+        <!-- CONNECTION 1-2 -->
+        <line x1="450" y1="150" x2="450" y2="190" stroke="#0f172a" stroke-width="2"/>
+        <polygon points="445,185 450,195 455,185" fill="#0f172a"/>
+        <rect x="360" y="158" width="180" height="20" rx="4" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+        <text x="450" y="172" text-anchor="middle" font-size="10.5" font-family="'JetBrains Mono', monospace" font-weight="600">HTTPS / RESTful JSON Payloads</text>
+
+        <!-- TIER 2: APPLICATION & API LOGIC -->
+        <rect x="50" y="200" width="800" height="130" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+        <rect x="50" y="200" width="800" height="30" rx="8" fill="#1e293b"/>
+        <text x="70" y="220" fill="#ffffff" font-size="13" font-weight="700">2. APPLICATION SERVICE & BUSINESS LOGIC TIER (NODE.JS & EXPRESS.JS)</text>
+
+        <rect x="75" y="245" width="170" height="65" rx="6" fill="#ffffff" stroke="#0f172a" stroke-width="1.5"/>
+        <text x="160" y="268" text-anchor="middle" font-size="12" font-weight="700">Authentication Guard</text>
+        <text x="160" y="285" text-anchor="middle" font-size="10" fill="#475569">JWT & Role Verification</text>
+
+        <rect x="270" y="245" width="170" height="65" rx="6" fill="#ffffff" stroke="#0f172a" stroke-width="1.5"/>
+        <text x="355" y="268" text-anchor="middle" font-size="12" font-weight="700">Borrow State Engine</text>
+        <text x="355" y="285" text-anchor="middle" font-size="10" fill="#475569">Policy Evaluation Guard</text>
+
+        <rect x="465" y="245" width="170" height="65" rx="6" fill="#ffffff" stroke="#0f172a" stroke-width="1.5"/>
+        <text x="550" y="268" text-anchor="middle" font-size="12" font-weight="700">Token Crypto Generator</text>
+        <text x="550" y="285" text-anchor="middle" font-size="10" fill="#475569">72-Hour Hash Window</text>
+
+        <rect x="660" y="245" width="170" height="65" rx="6" fill="#ffffff" stroke="#0f172a" stroke-width="1.5"/>
+        <text x="745" y="268" text-anchor="middle" font-size="12" font-weight="700">Verification Hub</text>
+        <text x="745" y="285" text-anchor="middle" font-size="10" fill="#475569">Audit Trail Logger</text>
+
+        <!-- CONNECTION 2-3 -->
+        <line x1="300" y1="330" x2="300" y2="380" stroke="#0f172a" stroke-width="2"/>
+        <polygon points="295,375 300,385 305,375" fill="#0f172a"/>
+        <rect x="220" y="345" width="160" height="20" rx="4" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+        <text x="300" y="359" text-anchor="middle" font-size="10.5" font-family="'JetBrains Mono', monospace" font-weight="600">SQL Operations (SSL Pool)</text>
+
+        <line x1="600" y1="330" x2="600" y2="380" stroke="#0f172a" stroke-width="2"/>
+        <polygon points="595,375 600,385 605,375" fill="#0f172a"/>
+        <rect x="525" y="345" width="150" height="20" rx="4" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+        <text x="600" y="359" text-anchor="middle" font-size="10.5" font-family="'JetBrains Mono', monospace" font-weight="600">External Integrations</text>
+
+        <!-- TIER 3: DATA PERSISTENCE & EXTERNAL -->
+        <rect x="50" y="390" width="450" height="95" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+        <rect x="50" y="390" width="450" height="26" rx="8" fill="#1e293b"/>
+        <text x="70" y="408" fill="#ffffff" font-size="12" font-weight="700">3. DATA PERSISTENCE TIER (POSTGRESQL / SUPABASE CLOUD)</text>
+        <text x="75" y="435" font-size="11.5" font-weight="600">• Multi-Tenant School Schemas (GNC & SRC Separation)</text>
+        <text x="75" y="455" font-size="11.5" font-weight="600">• Row-Level Security (RLS) & Relational Integrity (ACID)</text>
+        <text x="75" y="475" font-size="11.5" font-weight="600">• Automated Daily Cloud Backups & Continuous Recovery</text>
+
+        <rect x="530" y="390" width="320" height="95" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+        <rect x="530" y="390" width="320" height="26" rx="8" fill="#1e293b"/>
+        <text x="550" y="408" fill="#ffffff" font-size="12" font-weight="700">4. CLOUD INFRASTRUCTURE & APIS</text>
+        <text x="550" y="435" font-size="11.5">• Vercel Global Edge CDN Network</text>
+        <text x="550" y="455" font-size="11.5">• HTML5-QRCode Scanner Library</text>
+        <text x="550" y="475" font-size="11.5">• Leaflet Campus Geospatial Mapping</text>
+      </svg>
+</body>
+</html>

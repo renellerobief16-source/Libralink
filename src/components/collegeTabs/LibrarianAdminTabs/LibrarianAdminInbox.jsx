@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
-import { 
-  getStudentNotifications, markNotificationAsRead, getAnnouncements, 
-  deleteAnnouncement, getBackendAssetUrl 
+import {
+  getStudentNotifications, markNotificationAsRead, getAnnouncements,
+  deleteAnnouncement, getBackendAssetUrl
 } from '../../../utils/api';
 import AnnouncementModal from "../../ui/AnnouncementModal";
-import { 
-  FiMail, FiSend, FiBell, FiTrash2, FiClock, FiCheck, FiUsers, 
-  FiAlertCircle, FiRefreshCw, FiVolume2, FiShield, FiUser 
+import {
+  FiMail, FiSend, FiBell, FiTrash2, FiClock, FiCheck, FiUsers,
+  FiAlertCircle, FiRefreshCw, FiVolume2, FiShield, FiUser
 } from "react-icons/fi";
 import { formatSmartTime, formatPhilippineFullTooltip } from "../../../utils/timeUtils";
 
@@ -151,28 +151,25 @@ function LibrarianAdminInbox({ darkMode }) {
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
         <button
           onClick={() => setActiveView('announcements')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeView === 'announcements'
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeView === 'announcements'
               ? 'bg-slate-900 text-white shadow-xs'
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
+            }`}
         >
           <FiVolume2 className="w-3.5 h-3.5" />
           <span>Campus Announcements</span>
-          <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-            activeView === 'announcements' ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600'
-          }`}>
+          <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeView === 'announcements' ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600'
+            }`}>
             {announcements.length}
           </span>
         </button>
 
         <button
           onClick={() => setActiveView('notifications')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeView === 'notifications'
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeView === 'notifications'
               ? 'bg-slate-900 text-white shadow-xs'
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
+            }`}
         >
           <FiBell className="w-3.5 h-3.5" />
           <span>Direct Notifications</span>
@@ -264,7 +261,7 @@ function LibrarianAdminInbox({ darkMode }) {
                               </span>
                             )}
                           </div>
-                          <p 
+                          <p
                             className="text-[11px] text-slate-400 font-medium cursor-help"
                             title={formatPhilippineFullTooltip(ann.created_at)}
                           >
@@ -293,13 +290,12 @@ function LibrarianAdminInbox({ darkMode }) {
                           Urgent Notice
                         </span>
                       )}
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        audience === 'students'
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${audience === 'students'
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           : audience === 'librarians'
-                          ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                          : 'bg-blue-50 text-blue-700 border border-blue-200'
-                      }`}>
+                            ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                            : 'bg-blue-50 text-blue-700 border border-blue-200'
+                        }`}>
                         <FiUsers className="w-3 h-3" />
                         {audience === 'students' ? 'Students Only' : audience === 'librarians' ? 'Librarians Only' : 'Everyone (All Campus)'}
                       </span>
@@ -359,9 +355,8 @@ function LibrarianAdminInbox({ darkMode }) {
                 <div
                   key={notification.id}
                   onClick={() => handleNotificationClick(notification)}
-                  className={`p-4 sm:p-5 hover:bg-slate-50 transition-colors cursor-pointer flex items-start gap-4 ${
-                    !notification.read ? 'bg-blue-50/30 font-medium' : 'bg-white opacity-80'
-                  }`}
+                  className={`p-4 sm:p-5 hover:bg-slate-50 transition-colors cursor-pointer flex items-start gap-4 ${!notification.read ? 'bg-blue-50/30 font-medium' : 'bg-white opacity-80'
+                    }`}
                 >
                   {/* Sender Avatar */}
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 border border-blue-100 flex items-center justify-center overflow-hidden shadow-2xs flex-shrink-0 relative text-white font-bold text-sm">
@@ -393,7 +388,7 @@ function LibrarianAdminInbox({ darkMode }) {
                           <span className="w-2 h-2 rounded-full bg-blue-600"></span>
                         )}
                       </div>
-                      <span 
+                      <span
                         className="text-[11px] text-slate-400 flex items-center gap-1 font-medium cursor-help"
                         title={formatPhilippineFullTooltip(notification.created_at)}
                       >
@@ -427,3 +422,4 @@ function LibrarianAdminInbox({ darkMode }) {
 }
 
 export default LibrarianAdminInbox;
+

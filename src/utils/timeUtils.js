@@ -152,9 +152,9 @@ export function formatSmartTime(dateInput, fallback = '—') {
   const now = new Date();
   const diffSeconds = Math.floor((now.getTime() - d.getTime()) / 1000);
 
-  // Very recent
-  if (diffSeconds < 45) return 'Just now';
-  if (diffSeconds < 3600) {
+  // Very recent (handle slight future skew up to 2 minutes gracefully)
+  if (diffSeconds < 45 && diffSeconds > -120) return 'Just now';
+  if (diffSeconds >= 45 && diffSeconds < 3600) {
     const mins = Math.max(1, Math.floor(diffSeconds / 60));
     return `${mins} min${mins > 1 ? 's' : ''} ago`;
   }

@@ -158,8 +158,17 @@ function getNotificationRequestId(notification = {}) {
 }
 
 function normalizeNotification(notification) {
+  let created = notification.created_at || notification.createdAt;
+  if (created && typeof created === 'string') {
+    let s = created.trim();
+    if (!s.endsWith('Z') && !/[+-]\d{2}(:?\d{2})?$/.test(s)) {
+      created = s.replace(' ', 'T') + 'Z';
+    }
+  }
   return {
     ...notification,
+    created_at: created,
+    createdAt: created,
     notification_id: notification.notification_id || notification.id,
     id: notification.notification_id || notification.id,
     read: Boolean(notification.is_read ?? notification.read),

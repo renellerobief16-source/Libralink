@@ -663,6 +663,15 @@ export async function cancelBorrowRequest(requestId, reason = '') {
   }
 }
 
+export async function cancelBorrowRequestItem(itemId, reason = '') {
+  try {
+    const response = await api.put(`/borrow-requests/items/${itemId}/cancel`, { reason });
+    return { data: response.data || response, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
 export async function requestBorrowCancellation(requestId, reason = '') {
   try {
     const response = await api.put(`/borrow-requests/${requestId}/request-cancellation`, { reason });
