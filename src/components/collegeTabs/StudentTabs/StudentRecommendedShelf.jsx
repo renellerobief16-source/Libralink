@@ -18,6 +18,7 @@ import {
   getRecommendedBooks,
   getTopicBookCover,
 } from "../../../utils/studentRecommendations";
+import { getBookCoverUrl } from "../../../utils/bookCoverUtils";
 import { StudentPreferencesModal } from "./StudentPreferencesModal";
 
 export function StudentRecommendedShelf({ books = [], onBookClick }) {
@@ -272,7 +273,7 @@ export function StudentRecommendedShelf({ books = [], onBookClick }) {
             style={{ scrollSnapType: isDragging ? "none" : "x proximity" }}
           >
             {filteredBooks.map((book) => {
-              const cover = getTopicBookCover(book);
+              const cover = getBookCoverUrl(book);
               const categoryName = book.categories?.category_name || book.category || "General";
               const isAvailable = book.is_available || book.available || book.real_time_status === "available";
 

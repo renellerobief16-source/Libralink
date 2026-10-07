@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api, { getBackendAssetUrl } from "../../../utils/api";
+import { getBookCoverUrl } from "../../../utils/bookCoverUtils";
 
 function StudentFavorite({ isDrawer = false, onClose }) {
   const navigate = useNavigate();
@@ -449,7 +450,7 @@ function StudentFavorite({ isDrawer = false, onClose }) {
           <div className="divide-y divide-slate-100">
             {displayedBooks.map((book) => {
               const isAvailable = book.real_time_status === "available";
-              const coverUrl = getBackendAssetUrl(book.cover_image);
+              const coverUrl = getBookCoverUrl(book);
 
               return (
                 <div

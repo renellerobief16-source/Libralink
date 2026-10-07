@@ -351,7 +351,7 @@ function LibrarianPortal() {
   const schoolCode = schoolInfo?.school_code || "";
 
   return (
-    <div className={`min-h-screen ${darkMode ? "bg-gray-900" : "bg-gray-50"}`}>
+    <div className={`min-h-screen ${darkMode ? "dark bg-gray-900" : "bg-gray-50"}`}>
       <div className="flex">
         <aside className={`fixed left-0 top-0 h-full w-64 z-50 hidden lg:block ${darkMode ? 'bg-gray-900 border-r border-gray-800' : 'bg-white border-r border-slate-200/70'}`}>
           <div className="flex flex-col h-full">

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Book, BookOpen } from "lucide-react";
 import { getBackendAssetUrl } from "../../../utils/api";
-import { getTopicBookCover } from "../../../utils/studentRecommendations";
+import { getBookCoverUrl } from "../../../utils/bookCoverUtils";
 
 /**
  * Returns a tasteful book cover gradient based on category or title
@@ -52,21 +52,7 @@ function getCoverTheme(book) {
 export default function CartBookCover({ book, className = "h-[60px] w-[44px] shrink-0" }) {
   const [imgError, setImgError] = useState(false);
 
-  const rawCover =
-    book?.cover_image ||
-    book?.image ||
-    book?.cover ||
-    book?.image_url ||
-    book?.cover_url ||
-    book?.coverPic;
-
-  let coverUrl = null;
-  if (rawCover && typeof rawCover === "string" && rawCover.trim() !== "") {
-    coverUrl = getBackendAssetUrl(rawCover);
-  } else {
-    // Check topic cover resolver
-    coverUrl = getTopicBookCover ? getTopicBookCover(book) : null;
-  }
+  const coverUrl = getBookCoverUrl(book);
 
   const theme = getCoverTheme(book);
   const showImage = Boolean(coverUrl) && !imgError;

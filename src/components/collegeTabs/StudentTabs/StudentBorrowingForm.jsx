@@ -97,7 +97,11 @@ function StudentBorrowingForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Live profile synchronization on mount
+  // Quota Telemetry States
+  const [quotaStatus, setQuotaStatus] = useState(null);
+  const [loadingQuota, setLoadingQuota] = useState(true);
+
+  // Live profile & quota synchronization on mount
   useEffect(() => {
     let isMounted = true;
     api
@@ -127,6 +131,21 @@ function StudentBorrowingForm({
         }
       })
       .catch(() => {});
+
+    // Fetch official borrowing quota telemetry from backend
+    api
+      .get("/borrow-requests/student-borrow-status")
+      .then((res) => {
+        if (!isMounted) return;
+        const data = res?.data || res;
+        setQuotaStatus(data);
+      })
+      .catch((err) => {
+        console.warn("[StudentBorrowingForm] Could not fetch quota telemetry:", err);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingQuota(false);
+      });
 
     return () => {
       isMounted = false;
@@ -212,6 +231,24 @@ function StudentBorrowingForm({
     if (hasInvalid) {
       setErrorMessage("One or more selected books have invalid ID data. Please refresh and try again.");
       return;
+    }
+
+    // Upfront Quota Validation: Ensure student is not already at or exceeding the limit
+    if (quotaStatus) {
+      const maxLimit = quotaStatus.max_limit || 5;
+      const currentCommitment = quotaStatus.total_commitment || 0;
+      if (currentCommitment >= maxLimit) {
+        setErrorMessage(
+          `Naka-limit na ang iyong borrowing account (${currentCommitment}/${maxLimit} books). Hindi na maaaring mag-request ng libro hangga't hindi naibabalik ang mga aktibong hiniram o nakansela ang pending requests.`
+        );
+        return;
+      }
+      if (currentCommitment + items.length > maxLimit) {
+        setErrorMessage(
+          `Lalampas sa pinapayagang limitasyon: Kasalukuyan kang may ${currentCommitment} aktibo/nakabinbin na libro, at humihiling ka ng ${items.length} pa. Ang limitasyon ng iyong paaralan ay ${maxLimit} libro lamang.`
+        );
+        return;
+      }
     }
 
     const hasInterSchoolItems = items.some(
@@ -389,6 +426,65 @@ function StudentBorrowingForm({
           </div>
         </div>,
         document.body
+      )}
+
+      {/* ─── Borrowing Quota Telemetry Strip & Warning ────────────────────────── */}
+      {quotaStatus && (
+        <div
+          className={`rounded-2xl p-4 border transition-all ${
+            quotaStatus.is_limit_reached || (quotaStatus.total_commitment + borrowingList.length > quotaStatus.max_limit)
+              ? "bg-rose-50/90 border-rose-200 text-rose-900"
+              : "bg-blue-50/70 border-blue-100 text-blue-900"
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <div
+              className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${
+                quotaStatus.is_limit_reached || (quotaStatus.total_commitment + borrowingList.length > quotaStatus.max_limit)
+                  ? "bg-rose-100 text-rose-600"
+                  : "bg-blue-100 text-blue-600"
+              }`}
+            >
+              <AlertCircle className="h-4 w-4 stroke-[2.2]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider">
+                  {quotaStatus.is_limit_reached
+                    ? "Maximum Borrowing Limit Reached"
+                    : quotaStatus.total_commitment + borrowingList.length > quotaStatus.max_limit
+                    ? "Requested Quantity Exceeds Limit"
+                    : "Borrowing Quota Status"}
+                </h4>
+                <span
+                  className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full ${
+                    quotaStatus.is_limit_reached || (quotaStatus.total_commitment + borrowingList.length > quotaStatus.max_limit)
+                      ? "bg-rose-200/80 text-rose-800"
+                      : "bg-blue-200/80 text-blue-800"
+                  }`}
+                >
+                  Commitment: {quotaStatus.total_commitment} / {quotaStatus.max_limit} Books
+                </span>
+              </div>
+
+              <p className="text-xs mt-1 leading-relaxed">
+                {quotaStatus.is_limit_reached ? (
+                  <>
+                    Naka-limit na ang iyong account (<strong>{quotaStatus.total_commitment}/{quotaStatus.max_limit}</strong> books). Hindi na maaaring mag-request ng bagong libro hangga't hindi naibabalik ang mga kasalukuyang hiniram o nakansela ang pending requests.
+                  </>
+                ) : quotaStatus.total_commitment + borrowingList.length > quotaStatus.max_limit ? (
+                  <>
+                    Mayroon ka nang <strong>{quotaStatus.total_commitment}</strong> aktibo/nakabinbing libro. Ang paghiling ng <strong>{borrowingList.length}</strong> pa ay lalampas sa limitasyon ng iyong paaralan na <strong>{quotaStatus.max_limit}</strong> libro.
+                  </>
+                ) : (
+                  <>
+                    Mayroon kang <strong>{quotaStatus.remaining_slots}</strong> natitirang slot para sa paghiram mula sa iyong paaralan o partner libraries ({quotaStatus.active_loans_count} active loans, {quotaStatus.pending_requests_count} pending requests).
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
       )}
 
       <form onSubmit={handleSubmitCheckout} className="space-y-4">
@@ -738,13 +834,31 @@ function StudentBorrowingForm({
 
               <button
                 type="submit"
-                disabled={isSubmitting || !agreedToTerms}
+                disabled={
+                  isSubmitting ||
+                  !agreedToTerms ||
+                  Boolean(
+                    quotaStatus &&
+                      (quotaStatus.is_limit_reached ||
+                        quotaStatus.total_commitment + borrowingList.length > quotaStatus.max_limit)
+                  )
+                }
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-600/25 hover:from-blue-700 hover:to-indigo-700 transition active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
                   <>
                     <Clock className="h-4 w-4 animate-spin" />
                     <span>Placing Request...</span>
+                  </>
+                ) : quotaStatus && quotaStatus.is_limit_reached ? (
+                  <>
+                    <AlertCircle className="h-4 w-4" />
+                    <span>Limit Reached ({quotaStatus.total_commitment}/{quotaStatus.max_limit})</span>
+                  </>
+                ) : quotaStatus && quotaStatus.total_commitment + borrowingList.length > quotaStatus.max_limit ? (
+                  <>
+                    <AlertCircle className="h-4 w-4" />
+                    <span>Exceeds Max Limit ({quotaStatus.max_limit})</span>
                   </>
                 ) : (
                   <>

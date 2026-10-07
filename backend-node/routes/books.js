@@ -1498,8 +1498,8 @@ router.post('/', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBook
 
 // @route   PUT /api/books/:id
 // @desc    Update book
-// @access  Private (Librarian Admin, Librarian)
-router.put('/:id', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBookCover.single('cover_image'), async (req, res) => {
+// @access  Private (Super Admin, Librarian Admin, Librarian)
+router.put('/:id', auth, requireRole(['Super Admin', 'Librarian Admin', 'Librarian']), uploadBookCover.single('cover_image'), async (req, res) => {
   try {
     const bookId = req.params.id;
     console.log('[UPDATE] User:', req.user);
@@ -1596,6 +1596,35 @@ router.put('/:id', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBo
     console.log('[UPDATE] Sanitized update data:', updateData);
     const result = await Book.update(bookId, updateData);
 
+    // Sync cover_image changes to all sibling books sharing title & author in this school/library
+    if (updateData.cover_image !== undefined) {
+      try {
+        const { data: targetBook } = await supabase
+          .from('books')
+          .select('title, author, school_id, library_id')
+          .eq('book_id', bookId)
+          .maybeSingle();
+
+        if (targetBook && targetBook.title) {
+          let siblingQuery = supabase
+            .from('books')
+            .update({ cover_image: updateData.cover_image })
+            .ilike('title', targetBook.title.trim());
+
+          if (targetBook.author && targetBook.author.trim()) {
+            siblingQuery = siblingQuery.ilike('author', targetBook.author.trim());
+          }
+          if (targetBook.school_id) {
+            siblingQuery = siblingQuery.eq('school_id', targetBook.school_id);
+          }
+          await siblingQuery;
+          console.log(`[UPDATE] Sibling books synced cover_image to: ${updateData.cover_image}`);
+        }
+      } catch (syncErr) {
+        console.warn('[UPDATE] Failed to sync sibling book covers:', syncErr.message);
+      }
+    }
+
     // If quantity was updated, ensure book_copies count matches accurately
     if (updateData.quantity !== undefined && updateData.quantity !== null) {
       const targetQty = Math.max(1, parseInt(updateData.quantity, 10));
@@ -1647,7 +1676,11 @@ router.put('/:id', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBo
     }
 
     if (result) {
-      res.json({ success: true, message: 'Book updated successfully' });
+      res.json({ 
+        success: true, 
+        message: 'Book updated successfully',
+        cover_image: updateData.cover_image 
+      });
     } else {
       res.status(400).json({ success: false, message: 'No changes made' });
     }

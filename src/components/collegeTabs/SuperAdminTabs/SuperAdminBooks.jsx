@@ -6,6 +6,7 @@ import {
   FiTruck, FiArrowRight, FiSend, FiChevronLeft, FiChevronRight, FiSliders
 } from 'react-icons/fi';
 import api, { getBackendAssetUrl } from '../../../utils/api';
+import { getBookCoverUrl } from '../../../utils/bookCoverUtils';
 import { LoadingOverlay } from '../../common';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
@@ -19,17 +20,8 @@ function BookCoverBadge({ book, className = "w-14 h-20", onClick }) {
 
   // Compute cover image URL
   const coverUrl = useMemo(() => {
-    if (book?.cover_image) {
-      return getBackendAssetUrl(book.cover_image);
-    }
-    if (book?.isbn) {
-      const cleanIsbn = String(book.isbn).replace(/[^0-9X]/gi, '').trim();
-      if (cleanIsbn.length >= 9) {
-        return `https://covers.openlibrary.org/b/isbn/${cleanIsbn}-M.jpg?default=false`;
-      }
-    }
-    return null;
-  }, [book?.cover_image, book?.isbn]);
+    return getBookCoverUrl(book);
+  }, [book]);
 
   if (coverUrl && !imgError) {
     return (

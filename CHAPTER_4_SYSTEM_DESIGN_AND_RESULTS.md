@@ -1,5 +1,36 @@
 # CHAPTER 4 – PRESENTATION, ANALYSIS, AND INTERPRETATION OF DATA
 
+This chapter presents, analyzes, and interprets the results of the development, architectural design, functional implementation, and empirical evaluation of **LibraLink: A Centralized Web-Based Library Management System for Book Resource Sharing across Selected Schools in Pampanga**. 
+
+The engineering and deployment of the software artifact followed the **Agile Software Development Methodology (Scrum Framework)**, spanning three structured iterative development sprints. It details the requirements analysis, architectural modeling, user experience design, database schemas, iterative testing, and quantitative user acceptance evaluation conducted across the participating educational institutions.
+
+The system is architected around a unified consortium connecting **Guagua National College (GNC)** and **Santa Rita College (SRC)**, governed by a multi-tenant Role-Based Access Control (RBAC) model encompassing four (4) official stakeholder tiers: **Students (Role 4: Borrower)**, **Librarians (Role 3: Circulation Counter Staff)**, **Admin-Librarians (Role 2: Campus Head Librarian / Admin)**, and **Super Administrators (Role 1: Multi-School System Administrator)**. 
+
+To provide comprehensive technical clarity, all architectural, functional, structural, and behavioral specifications within this chapter are formally modeled using **Unified Modeling Language (UML 2.5)** specifications, **Gane-Sarson Data Flow Diagrams (DFD)**, and **Crow's Foot Entity-Relationship Diagrams (ERD)** as summarized in the Diagram Roadmap below:
+
+### Table 4.0: Chapter 4 System Architecture & Technical Diagram Roadmap
+
+| Figure No. | Diagram Title | Technical Modeling Standard | Scope / Operational Coverage |
+| :---: | :--- | :---: | :--- |
+| **Figure 4.0** | User Authentication & RBAC Access Control Use Case Diagram | UML 2.5 Use Case | Multi-campus credential verification, registration, OTP email validation, and role-based portal routing across all 4 user types. |
+| **Figure 4.1** | Sprint 1: Cross-School Catalog Search & Holdings Indexing Use Case Diagram | UML 2.5 Use Case | Sprint 1 Deliverable: Federated OPAC discovery, real-time campus holding checks, and catalog inventory encoding. |
+| **Figure 4.2** | Sprint 2: Inter-Library Request Routing & Lending Approvals Use Case Diagram | UML 2.5 Use Case | Sprint 2 Deliverable: Two-tier inter-campus approval workflow, student eligibility checks, and 72-hour cryptographic token generation. |
+| **Figure 4.3** | Sprint 3: Physical Circulation, Overdue Control & System Health Use Case Diagram | UML 2.5 Use Case | Sprint 3 Deliverable: Physical circulation desk operations, optical QR token verification, automated overdue fines, and permission letter issuance. |
+| **Figure 4.4** | Public Landing Page and School Login Interface | System UI Screenshot | Responsive institutional portal selector for Guagua National College and Santa Rita College. |
+| **Figure 4.5** | Centralized Cross-School Catalog Search Interface | System UI Screenshot | Federated OPAC catalog discovery showing real-time multi-campus holding counts. |
+| **Figure 4.6** | Student Borrow Request and Access Token Pass Interface | System UI Screenshot | Interactive request submission modal and dynamic 72-hour QR access pass view. |
+| **Figure 4.7** | Librarian Administrative and Token Verification Dashboard | System UI Screenshot | Frontline counter camera scanner terminal, overdue tracking, and request management queue. |
+| **Figure 4.8** | Overall System Architecture Model of LibraLink | 3-Tier Layered Architecture | Client-Server Architecture: Presentation Tier (React/Vite SPA), Application Logic Tier (Node/Express API), and Data Persistence Tier (PostgreSQL/Supabase). |
+| **Figure 4.9** | LibraLink Operational System Flowchart | End-to-End Swimlane Flowchart | Full system lifecycle across 4 swimlanes: Student, Home Librarian, Partner Librarian, and Administrator (Sprint 1 to 3 workflows). |
+| **Figure 4.10** | Complete Detailed Actor-to-Use-Case Interaction Diagram | UML 2.5 Use Case (System-Wide) | Comprehensive master use case diagram integrating the 18 core system operational use cases directly mapped across all 4 official actors with centralized login authentication. |
+| **Figure 4.11** | Context Diagram Level 0 (DFD Level 0) | Gane-Sarson Data Flow Model | High-level system boundary, external entities (Students, Librarians, Admin-Librarians, Super Admin), and foundational data exchanges. |
+| **Figure 4.12** | Level 1 Data Flow Diagram (DFD Level 1 Exploded Processes) | Gane-Sarson Data Flow Model | Detailed operational processes (1.0 Auth, 2.0 Catalog, 3.0 Request, 4.0 Token, 5.0 Circulation, 6.0 Audit) and Data Stores (D1–D5). |
+| **Figure 4.13** | Entity-Relationship Diagram (ERD) of LibraLink | Crow's Foot Relational Schema | 8 Core Relational Tables (`users`, `schools`, `roles`, `books`, `book_copies`, `borrow_requests`, `borrow_transactions`, `fines`) with exact cardinalities. |
+| **Figure 4.14** | Relational Database Tables and Schema Attributes | Relational Schema Model | Detailed attribute catalog, data types, nullability, and primary/foreign key definitions. |
+| **Figure 4.15** | Librarian Scoped Navigation Structure of LibraLink | Hierarchical Site Map | Visual navigation hierarchy from Login, Multi-Campus Dashboard, Circulation Counter, Request Inbox, Catalog Inventory, to Session Logout. |
+
+Furthermore, this chapter presents the results of the comprehensive functional testing and empirical user acceptance evaluation conducted with sixty-four (64) respondents (58 Student Patrons and 6 Professional Library Staff) across both institutions. The evaluation measures system quality across the standard **ISO/IEC 25010 Software Product Quality Model** characteristics: **Functional Suitability, Usability, Reliability, and Performance Efficiency**. The findings demonstrate that LibraLink decisively eliminates catalog isolation, bridges textbook availability disparities, and provides an efficient, paperless inter-school library consortium.
+
 ---
 
 ## 1. SYSTEM OVERVIEW
@@ -9,40 +40,44 @@ The developed software artifact is entitled **"LibraLink: A Centralized Web-Base
 
 The primary purpose of the LibraLink platform is to bridge institutional resource disparities, eliminate catalog isolation, and automate the inter-library resource sharing process between participating academic institutions. In many private educational institutions in the Philippines, individual school libraries operate as disconnected silos with limited acquisition budgets. Consequently, students often encounter shortages of specialized textbooks, while partner institutions within the same geographic locale hold idle or underutilized copies of those exact titles. 
 
-LibraLink establishes a centralized, inter-institutional Online Public Access Catalog (OPAC) and a secure transaction brokering engine connecting **Guagua National College (GNC)** in Guagua, Pampanga, and **Santa Rita College (SRC)** in Santa Rita, Pampanga. The platform enables enrolled students to discover print collections across both campuses in real time, automatically routes inter-library borrowing requests to the student’s home librarian for academic clearance, and issues a cryptographically verified, time-bound **Digital Library Access Token (Pass)**. This token grants authorized students on-premise reading or controlled circulation access at the partner institution, establishing a collaborative, paperless, and sustainable resource-sharing consortium.
+To resolve this disparity, LibraLink establishes a centralized, inter-institutional Online Public Access Catalog (OPAC) coupled with a secure transaction brokering engine connecting **Guagua National College (GNC)** in Guagua, Pampanga, and **Santa Rita College (SRC)** in Santa Rita, Pampanga. Governed by a Role-Based Access Control (RBAC) architecture encompassing four stakeholder roles (**Students, Librarians, Admin-Librarians, and Super Administrators**), the platform enables enrolled students to discover cross-campus print holdings in real time. 
+
+Borrowing requests undergo an automated **two-tier inter-institutional validation workflow**—requiring student eligibility endorsement from the student’s home librarian and inventory availability confirmation from the partner campus—before issuing a cryptographically secured, 72-hour time-bound **Digital Library Access Token (QR Pass)**. This token grants authorized visiting students controlled on-premise reading or counter circulation access at the partner institution, establishing a collaborative, paperless, and sustainable resource-sharing consortium.
 
 ---
 
 ### b. Target Users
 The system is engineered to serve four (4) distinct stakeholder groups across Guagua National College and Santa Rita College:
 
-1. **Student Users (College, Senior High School, and Junior High School):**
-   The primary end-users who utilize the web portal to perform cross-institutional book searches, examine real-time campus holding statuses, receive partner school availability recommendations, submit paperless inter-library borrow requests, monitor application progress, and present digital access tokens via mobile smartphones or portable devices when visiting partner campuses.
-2. **Librarian / Staff Users:**
-   Frontline library personnel responsible for managing day-to-day circulation, reviewing incoming student borrow requests, verifying good academic standing and clearance, approving or rejecting applications with feedback notes, and operating the on-site verification terminal to authenticate visiting students presenting digital access passes.
-3. **Librarian Administrators (Head Librarians):**
-   Supervisory library managers who oversee institutional catalog inventories, configure campus-specific lending parameters (such as loan quotas and token validity windows), manage staff user accounts, and generate monthly inter-library circulation reports.
-4. **Super Administrators:**
-   System-level technical managers who configure institutional consortia settings, monitor multi-tenant database integrity, oversee security protocols, inspect comprehensive audit logs, and maintain cloud infrastructure uptime.
+1. **Student Users (Role 4: Borrower / Client Patron):**
+   Enrolled students (encompassing College, Senior High School, and Junior High School departments) who utilize the responsive web portal to search the cross-institutional catalog, view real-time holding statuses, submit paperless inter-library borrow requests, track application approvals, and present dynamic digital access token passes on their mobile smartphones when visiting the partner campus library.
+2. **Librarian / Counter Staff Users (Role 3: Circulation Counter Staff):**
+   Frontline library personnel responsible for managing day-to-day circulation desk operations, reviewing home-student borrow requests for borrower eligibility and good standing, operating the camera/scanner terminal to authenticate visiting student QR passes, logging physical book checkouts, inspecting returned items, and tracking overdue conditions.
+3. **Librarian Administrators / Head Librarians (Role 2: Campus Head Librarian / Admin):**
+   Supervisory library managers who oversee institutional catalog inventories, manage book acquisition records, configure campus-specific lending parameters (such as loan quotas and token validity windows), manage staff user accounts, review partner school borrow requests, and generate monthly inter-library circulation and fines reports.
+4. **Super Administrators (Role 1: Multi-School System Administrator):**
+   Consortium-level technical administrators who configure participating school institutional records (GNC and SRC), monitor cross-campus database synchronization, maintain API endpoints, oversee data security protocols, inspect immutable audit trails, and ensure cloud infrastructure uptime.
 
 ---
 
 ### c. Scope and Limitations
 
 #### Scope of the System:
-* **Geographic and Institutional Delimitation:** The system is exclusively configured, deployed, and tested for **Guagua National College (GNC)** and **Santa Rita College (SRC)** within the province of Pampanga.
+* **Geographic and Institutional Delimitation:** The system is exclusively configured, deployed, and tested for **Guagua National College (GNC)** in Guagua, Pampanga, and **Santa Rita College (SRC)** in Santa Rita, Pampanga.
 * **Unified Catalog Discovery:** Centralized search engine indexing book holdings from both institutions, filterable by institution, subject classification, call number, and real-time availability.
 * **Partner Holding Recommendation:** Intelligent notification system that automatically highlights partner campus availability when a searched volume has zero available copies at the user's home campus.
-* **Inter-Library Request Routing:** Automated request forwarding that directs borrow requests to the student's home institution librarian for pre-clearance and verification.
-* **Digital Access Token Generation:** Dynamic issuance of single-use, time-delimited (72-hour validity) alphanumeric and visual access tokens that serve as digital permits for on-site visits.
-* **Counter Verification Terminal:** Fast-lookup interface for host librarians to authenticate visiting student tokens and log physical book handovers.
-* **Catalog Inventory CRUD Management:** Complete administrative tools allowing authorized librarians to create, read, update, and archive book records categorized by academic level (College, SHS, JHS).
+* **Two-Tier Inter-Library Request Routing:** Automated request workflow that routes borrow applications first to the student's home institution librarian for borrower eligibility verification (1st layer), and subsequently to the partner institution librarian for inventory confirmation (2nd layer).
+* **Cryptographic Digital Access Token Generation:** Dynamic issuance of single-use, time-delimited (72-hour validity) visual QR code and alphanumeric access tokens that serve as digital permits for on-site visits.
+* **Counter Verification Terminal:** Fast-lookup optical scanner and manual code entry interface for host librarians to authenticate visiting student tokens and log physical book handovers.
+* **Catalog Inventory CRUD Management:** Complete administrative tools allowing authorized librarians to create, read, update, and archive book records categorized by academic department (College, SHS, JHS).
+* **Role-Based Access Control (RBAC):** Strict role separation across all four (4) defined user types: Students (Role 4), Counter Librarians (Role 3), Head Admin-Librarians (Role 2), and Super Administrators (Role 1).
 * **Cross-Platform Responsive Design:** Full accessibility across desktop computer monitors, circulation tablets, and mobile smartphones without functional degradation.
 
 #### Limitations of the System:
 * **No Inter-Campus Physical Courier Service:** LibraLink does not manage physical parcel transport or inter-school courier logistics. Students must physically travel to the partner institution holding the requested book to utilize their issued Digital Access Token.
-* **Exclusion of Financial Penalty Transactions:** The platform does not process monetary payments, digital wallets, or cash transactions for overdue fines or lost book fees; penalty enforcement is handled offline pursuant to the home institution's manual guidelines.
+* **Exclusion of Financial Penalty Transactions:** The platform calculates overdue fine amounts and duration automatically but does not process monetary payments, digital wallets (e.g., GCash, Maya), or cash transactions; penalty settlement is handled offline pursuant to each institution's cashiering guidelines.
 * **Mandatory Internet Connectivity:** As a centralized cloud-hosted web application, active internet access is required to synchronize catalog states, process approvals, and validate access tokens.
+* **Operational Scope Delimitation of Super Administrator:** While the Super Administrator portal was fully engineered, integrated, and verified within the system codebase, formal institutional deployment of a designated cross-institutional super administrator falls outside the operational testing scope of this research. During evaluation, this role was operated by the research proponents in a developer-testing capacity, while active evaluation focused on Student Patrons and Campus Librarians.
 
 ---
 
@@ -96,8 +131,8 @@ The functional scope of LibraLink was articulated through twelve (12) comprehens
 | :---: | :---: | :--- | :--- |
 | **US-01** | Student | As a student, I want to search for books by title, author, or subject across GNC and SRC so that I can discover academic materials quickly. | The catalog returns matching books from both campuses with call number, campus name, and available copies. |
 | **US-02** | Student | As a student, I want the system to suggest partner school holdings when a book is unavailable locally so that I know where to obtain it. | When local copies equal zero, an alert highlights partner holdings with a direct "Request Borrow" action. |
-| **US-03** | Student | As a student, I want to submit an inter-library borrow request through the web portal so that I do not need manual paper referral letters. | Form captures target book, submits request to home librarian queue, and logs status as `Pending_Home_Approval`. |
-| **US-04** | Student | As a student, I want to receive a Digital Access Token upon approval so that I can present proof of clearance at the partner library. | System renders a secure alphanumeric token and QR code displaying student ID, host campus, and a 72-hour countdown. |
+| **US-03** | Student | As a student, I want to submit an inter-library borrow request through the web portal so that I do not need manual paper permission letters. | Form captures target book, submits request to home librarian queue, and logs status as `Pending_Home_Approval`. |
+| **US-04** | Student | As a student, I want to receive a Digital Access Token upon approval so that I can present proof of borrow approval at the partner library. | System renders a secure alphanumeric token and QR code displaying student ID, host campus, and a 72-hour countdown. |
 | **US-05** | Librarian | As a home librarian, I want to review incoming borrow requests so that I can verify student standing before endorsing cross-campus visits. | Inbox displays student details, academic level, book title, and one-click `Approve` and `Reject` buttons. |
 | **US-06** | Librarian | As a host librarian, I want to verify a visiting student's access token at my desk so that I can confirm validity and release the book. | Host librarian enters token string or scans QR; system validates authenticity, displays student info, and marks token as `Redeemed`. |
 | **US-07** | Librarian | As a librarian, I want to add, update, and categorize book inventory records so that our online catalog remains accurate and up-to-date. | Full CRUD interface supporting title, author, ISBN, academic level (College/SHS/JHS), and shelf location. |
@@ -164,14 +199,13 @@ Each sprint spanned a duration of **two (2) calendar weeks (10 operational days)
 
 ###### b. Design
 * **i. Use Case Diagram (Sprint 1 Scope):**
-  The actor **Student** interacts with the system boundary to *Register Account*, *Authenticate / Log In*, *Search Catalog*, and *Filter by School*. The actor **Librarian** logs in to access campus-level data.
+  The actor **Student** interacts with the system boundary to *Register Account*, *Authenticate / Log In*, *Search Catalog*, and *Filter by School*. The actor **Librarian** logs in to inspect local holdings, catalog new books, and update inventory copies. The **Admin-Librarian** governs library settings and batch imports, while the **Super-Admin** manages school institutional profiles.
 
-**[DIAGRAM] Figure 4.1: Sprint 1 Actor-to-Use-Case Interaction Diagram**
+> 🖼️ **[INSERT FIGURE 4.1 HERE: Sprint 1: Cross-School Catalog Search & Holdings Indexing Use Case Diagram]**  
+> *Source / Quick Copy:* [sprint_use_case_diagrams.html](file:///c:/xampp/htdocs/libralinkk/docs/sprint_use_case_diagrams.html) *(Card 1: Click "📋 Copy Image" button)*
 
 * **ii. Data Flow Diagram (Sprint 1 Scope):**
-  *Context Level 0:* Student and Librarian entities pass login credentials and search terms to the LibraLink engine; the engine queries `users` and `books` stores and returns authenticated session tokens and catalog matching arrays.
-
-**[DIAGRAM] Figure 4.2: Sprint 1 Context Data Flow Diagram (Level 0)**
+  *Context Level 0:* Student and Librarian entities pass login credentials and search terms to the LibraLink engine; the engine queries `users` and `books` stores and returns authenticated session tokens and catalog matching arrays *(formally modeled in Section 3.e, Figure 4.11: Context Diagram Level 0)*.
 
 * **iii. Wireframes:**
   Low-fidelity wireframes established the layout for:
@@ -187,9 +221,11 @@ Each sprint spanned a duration of **two (2) calendar weeks (10 operational days)
 
 * **ii. Screenshots of the System:**
 
-**[SCREENSHOT] Figure 4.3: Public Landing Page and School Login Interface**
+> 🖼️ **[INSERT FIGURE 4.4 HERE: Public Landing Page and School Login Interface]**  
+> *Source / UI Component:* [LandingPage.jsx](file:///c:/xampp/htdocs/libralinkk/src/components/auth/LandingPage.jsx) *(Campus selection and institutional login interface)*
 
-**[SCREENSHOT] Figure 4.4: Centralized Cross-School Catalog Search Interface**
+> 🖼️ **[INSERT FIGURE 4.5 HERE: Centralized Cross-School Catalog Search Interface]**  
+> *Source / UI Component:* [StudentSearch.jsx](file:///c:/xampp/htdocs/libralinkk/src/components/collegeTabs/StudentTabs/StudentSearch.jsx) *(Federated OPAC search with campus holding badges)*
 
 ###### d. Testing
 * **i. Test Cases:**
@@ -216,12 +252,13 @@ Each sprint spanned a duration of **two (2) calendar weeks (10 operational days)
 
 ###### b. Design
 * **i. Use Case Diagram (Sprint 2 Scope):**
-  The actor **Student** triggers *Submit Borrow Request* for partner school books. The actor **Home Librarian** accesses *Review Request Queue* to execute *Approve Request* or *Reject Request*. The system internally triggers *Generate Access Token*.
+  The actor **Student** selects books, inspects availability, submits requests, and tracks real-time status. The actor **Librarian** reviews the incoming queue, evaluates *Check Student Status* (which includes *Check Eligibility*), and executes *Approve Request* or *Decline Request*. The **Admin-Librarian** checks shelf holdings, manages partner requests, and establishes borrowing policies, while the system coordinates dual-campus approval and generates the 72-hour QR pass.
 
-**[DIAGRAM] Figure 4.5: Sprint 2 Inter-Library Borrowing & Token Flow Lifecycle**
+> 🖼️ **[INSERT FIGURE 4.2 HERE: Sprint 2: Inter-Library Request Routing & Lending Approvals Use Case Diagram]**  
+> *Source / Quick Copy:* [sprint_use_case_diagrams.html](file:///c:/xampp/htdocs/libralinkk/docs/sprint_use_case_diagrams.html) *(Card 2: Click "📋 Copy Image" button)*
 
 * **ii. Data Flow Diagram (Sprint 2 Scope):**
-  Student submits request payload → stored in `borrow_requests` with status `Pending_Home_Approval` → Home Librarian queries pending requests → upon approval, transaction updates to `Approved` → triggers token generator → creates record in `access_tokens` store.
+  Student submits request payload → stored in `borrow_requests` with status `Pending_Home_Approval` → Home Librarian queries pending requests → upon approval, transaction updates to `Approved` → triggers token generator → creates record in `access_tokens` store *(modeled in Section 3.e Process 3.0 & 4.0)*.
 * **iii. Wireframes:**
   1. *Student Borrow Request Modal:* Book summary, pickup policy agreement, and submit button.
   2. *Librarian Approval Inbox:* Table displaying student name, academic department, book requested, and action triggers.
@@ -236,7 +273,8 @@ Each sprint spanned a duration of **two (2) calendar weeks (10 operational days)
 
 * **ii. Screenshots of the System:**
 
-**[SCREENSHOT] Figure 4.6: Student Borrow Request and Access Token Pass Interface**
+> 🖼️ **[INSERT FIGURE 4.6 HERE: Student Borrow Request and Access Token Pass Interface]**  
+> *Source / UI Component:* [StudentBorrowRequests.jsx](file:///c:/xampp/htdocs/libralinkk/src/components/collegeTabs/StudentTabs/StudentBorrowRequests.jsx) *(Request submission modal and 72-hour QR token pass)*
 
 ###### d. Testing
 * **i. Test Cases:**
@@ -265,9 +303,13 @@ Each sprint spanned a duration of **two (2) calendar weeks (10 operational days)
 
 ###### b. Design
 * **i. Use Case Diagram (Sprint 3 Scope):**
-  The actor **Host Librarian** performs *Verify Access Token*, *Mark as Redeemed*, *Mark as Returned*, and *Manage Catalog Books*. The actor **Super Admin** performs *View Audit Logs*.
+  The actor **Student** presents their QR pass at the host circulation desk, claims their loan, tracks overdue days, and views their borrow history. The **Librarian** scans the QR pass, releases the physical book, processes returns, manages overdues, and issues official *Permission Letters*. The **Admin-Librarian** oversees fines, lost book fees, and circulation reports, while the **Super-Admin** monitors audit trails and system database backups.
+
+> 🖼️ **[INSERT FIGURE 4.3 HERE: Sprint 3: Physical Circulation, Overdue Control & System Health Use Case Diagram]**  
+> *Source / Quick Copy:* [sprint_use_case_diagrams.html](file:///c:/xampp/htdocs/libralinkk/docs/sprint_use_case_diagrams.html) *(Card 3: Click "📋 Copy Image" button)*
+
 * **ii. Data Flow Diagram (Sprint 3 Scope):**
-  Visiting student presents token string → Host Librarian submits token to `/api/tokens/verify` → system queries `access_tokens` → verifies status is `valid` and `expires_at > NOW()` → updates status to `redeemed` → updates `borrow_requests` to `active` → audit service logs transaction in `audit_logs`.
+  Visiting student presents token string / QR pass → Host Librarian scans/submits token to `/api/tokens/verify` → system queries `access_tokens` → verifies status is `valid` and `expires_at > NOW()` → updates status to `redeemed` → updates `borrow_requests` to `active` → audit service logs transaction in `audit_logs` *(modeled in Section 3.e Process 5.0 & 6.0)*.
 * **iii. Wireframes:**
   1. *Host Librarian Verification Terminal:* Input field for token code, instant student verification card, and book release confirmation button.
   2. *Inventory Management Table:* Add/Edit book modal, academic level selector (College, SHS, JHS), and copy quantity adjusters.
@@ -282,7 +324,8 @@ Each sprint spanned a duration of **two (2) calendar weeks (10 operational days)
 
 * **ii. Screenshots of the System:**
 
-**[SCREENSHOT] Figure 4.7: Librarian Administrative and Token Verification Dashboard**
+> 🖼️ **[INSERT FIGURE 4.7 HERE: Librarian Administrative and Token Verification Dashboard]**  
+> *Source / UI Component:* [LibrarianQRScanner.jsx](file:///c:/xampp/htdocs/libralinkk/src/components/collegeTabs/LibrarianTabs/LibrarianQRScanner.jsx) *(Frontline optical scanner terminal and circulation counter)*
 
 ###### d. Testing
 * **i. Test Cases:**
@@ -343,12 +386,13 @@ This section presents the technical architecture, component interactions, databa
    └───────────────────────────────────┘
 ```
 
-**[DIAGRAM MODEL] Figure 4.8: Overall System Architecture Model of LibraLink**
+> 🖼️ **[INSERT FIGURE 4.8 HERE: Overall System Architecture Model of LibraLink]**  
+> *Source / Quick Copy:* [complete_manuscript_diagrams_suite.html](file:///c:/xampp/htdocs/libralinkk/docs/complete_manuscript_diagrams_suite.html) *(Card 4: Click "📋 Copy Image" button)*
 
 #### 2. Description of the Major System Components
 The architecture is structured across three (3) decoupled, high-cohesion tiers:
 * **The Presentation Tier (Client Frontend):** Renders dynamic interfaces, executes client-side state transitions, and accepts user inputs without exposing direct database connectors.
-* **The Application Service Tier (Middleware & Business Logic):** Enforces inter-school circulation rules, evaluates borrower clearance, generates cryptographic tokens, and handles transactional security.
+* **The Application Service Tier (Middleware & Business Logic):** Enforces inter-school circulation rules, evaluates borrower eligibility, generates cryptographic tokens, and handles transactional security.
 * **The Data Persistence Tier (Cloud Database):** Houses relational models, enforces institutional privacy rules, and maintains relational integrity.
 
 #### 3. Client-Side or Presentation Layer
@@ -413,24 +457,69 @@ The operational sequence governing student searches, inter-library requests, app
 
 Search → Availability Check → Partner School Holdings Scan → Partner Recommendation → Inter-Library Borrow Request Submission → Home Librarian Verification → Request Approval/Rejection → Digital Library Access Token Generation → Partner School Verification & Book Access
 
-**[DIAGRAM] Figure 4.9: LibraLink System Flow and Operational Lifecycle Diagram**
+> 🖼️ **[INSERT FIGURE 4.9 HERE: LibraLink Operational System Flowchart]**  
+> *Source / Quick Copy:* [complete_manuscript_diagrams_suite.html](file:///c:/xampp/htdocs/libralinkk/docs/complete_manuscript_diagrams_suite.html) *(Card 5: Click "📋 Copy Image" button)*
 
 ---
 
 ### d. Use Case Diagram
 
-The system encompasses three (3) primary human actors: **Student** (College, Senior High School, Junior High School), **Librarian / Staff**, and **Administrator (Super Admin)**.
+The system encompasses four (4) primary human actors and user tiers: **Students** (Role 4: College, Senior High School, Junior High School), **Librarian** (Role 3: Circulation Counter & Desk Staff), **Admin-Librarian** (Role 2: Campus Head Librarian & Catalog Administrator), and **Super Admin** (Role 1: Multi-School System Administrator).
 
-**[DIAGRAM] Figure 4.10: Complete LibraLink Actor-to-Use-Case Diagram**
+#### 1. User Authentication & Role-Based Access Control (RBAC) Use Case Diagram
 
-#### Major Use Case Descriptions:
+The authentication subsystem governs campus selection (GNC or Santa Rita College of Pampanga), student registration, OTP verification via email, encrypted credential validation, password recovery, session token generation, and automatic redirection to role-specific interfaces.
 
-| Use Case Name | Actor | Purpose | Preconditions | Main Flow | Postconditions |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **UC-01: Cross-School Search** | Student | Find books in home and partner libraries | User is logged in | 1. Enter keyword/title<br>2. Select filter (GNC/SRC)<br>3. View holding details | Displays book availability across campuses |
-| **UC-02: Submit Borrow Request** | Student | Request unavailable book from partner school | Book is available in partner school | 1. Click "Request Borrow"<br>2. Confirm institutional policies<br>3. Submit transaction | Request marked as "Pending" in Home Librarian queue |
-| **UC-03: Request Approval & Token** | Librarian | Verify student standing & grant token | Pending request exists | 1. View student profile<br>2. Click "Approve"<br>3. System issues Access Token | Digital Access Token generated with unique hash |
-| **UC-04: Token Verification** | Partner Librarian | Validate visiting student's access | Visiting student presents token | 1. Enter/Scan token ID<br>2. System validates authenticity<br>3. Confirm book release | Token marked as "Redeemed/Active" |
+> 🖼️ **[INSERT FIGURE 4.0 HERE: User Authentication & Role-Based Access Control (RBAC) Use Case Diagram]**  
+> *Source / Quick Copy:* [complete_manuscript_diagrams_suite.html](file:///c:/xampp/htdocs/libralinkk/docs/complete_manuscript_diagrams_suite.html) *(Card 1: Click "📋 Copy Image" button)*
+
+#### 2. Complete Actor-to-Use-Case Interaction Diagram
+
+> 🖼️ **[INSERT FIGURE 4.10 HERE: Complete Detailed Actor-to-Use-Case Interaction Diagram]**  
+> *Source / Quick Copy:* [complete_manuscript_diagrams_suite.html](file:///c:/xampp/htdocs/libralinkk/docs/complete_manuscript_diagrams_suite.html) *(Card 2: Click "📋 Copy Image" button)*
+
+#### Major Use Case Descriptions Across the Four (4) User Roles (Comprehensive System Operational Model):
+
+| Use Case ID | Use Case Name | Primary Actor(s) | Sprint Scope | Description & Main Operational Flow |
+| :---: | :--- | :---: | :---: | :--- |
+| **UC-CORE-01** | **Login** | All 4 Roles | System-Wide (Sprints 1–3) | Centralized secure authentication entry point. Validates credentials (email/ID and password) against PostgreSQL/Supabase, verifies Role-Based Access Control (RBAC), and directs Students, Librarians, Admin-Librarians, and Super-Admins to their respective authorized portals. |
+| **UC-STU-01** | **User Onboarding** | Student | Sprint 1 (Fig 4.1) | Student onboarding workflow allowing newly enrolled students to activate their account profile, verify academic department, and accept institutional lending regulations. |
+| **UC-STU-02** | **Search Books** | Student | Sprint 1 (Fig 4.1) | Centralized OPAC search engine discovering books across both GNC and SRC libraries by title, author, category, or ISBN with live holding counts. |
+| **UC-STU-03** | **Filter Books** | Student | Sprint 1 (Fig 4.1) | Filters search results dynamically by school campus (Guagua National College / Santa Rita College) and academic department (College / Senior High School). |
+| **UC-STU-04** | **Check Availability** | Student | Sprints 1 & 2 (Fig 4.1, 4.2) | Real-time holding inspection showing shelf copy availability, partner school recommendations, and circulation statuses. |
+| **UC-STU-05** | **Save Favorites** | Student | Sprint 1 (Fig 4.1) | Student wishlist/favorites page enabling bookmarking of essential academic titles and curriculum references. |
+| **UC-STU-06** | **Borrow Requests** | Student | Sprints 2 & 3 (Fig 4.2, 4.3) | End-to-end request lifecycle page where students initiate inter-library requests, track approval states, and receive their 72-hour QR token pass. |
+| **UC-STU-07** | **Borrow History** | Student | Sprint 3 (Fig 4.3) | Displays past returned transactions, active loaned books, return due dates, accumulated overdue days, and assessed fines. |
+| **UC-LIB-01** | **Browse Books** | Librarian | Sprint 1 (Fig 4.1) | Librarian books page to inspect local campus shelf holdings, shelf classifications, and copy accession numbers. |
+| **UC-LIB-02** | **Add Book** | Librarian | Sprint 1 (Fig 4.1) | Acquisition registration modal enabling desk staff to encode new titles, physical copies, and inventory records. |
+| **UC-LIB-03** | **Manage Copies** | Librarian | Sprint 1 (Fig 4.1) | Frontline tool to manage physical shelf copies, inventory quantities, and update condition states (Good, Damaged, Lost). |
+| **UC-LIB-04** | **Approve Request** | Librarian | Sprint 2 (Fig 4.2) | Circulation request queue interface to review student eligibility, check outstanding holds, and approve or decline requests. |
+| **UC-LIB-05** | **Release Book** | Librarian | Sprint 3 (Fig 4.3) | QR scanner counter terminal validating student passes, dispensing checked-out books, and logging physical item returns. |
+| **UC-LIB-06** | **Manage Overdues** | Librarian | Sprint 3 (Fig 4.3) | Overdue monitoring tab tracking overdue books, calculating automated daily fines, and reporting borrower holds. |
+| **UC-LIB-07** | **Permission Letter** | Librarian | Sprint 3 (Fig 4.3) | Generates institutional PDF endorsement letter supporting visiting students requiring physical visit endorsement. |
+| **UC-ADM-01** | **Import Books** | Admin-Librarian / Head Librarian | Sprint 1 (Fig 4.1) | Batch import utility for uploading catalog records in CSV or MARC formats to rapidly populate institutional holdings. |
+| **UC-ADM-02** | **Book Categories** | Admin-Librarian / Head Librarian | Sprint 1 (Fig 4.1) | Configures Dewey Decimal or Library of Congress (LC) subject classifications and campus catalog taxonomy. |
+| **UC-ADM-03** | **Borrowing Policies** | Admin-Librarian / Head Librarian | Sprints 2 & 3 (Fig 4.2, 4.3) | Head Librarian policy page configuring loan limits, borrowing durations (3–7 days), fine amounts, and token validity hours. |
+| **UC-ADM-04** | **Manage Fines** | Admin-Librarian / Head Librarian | Sprint 3 (Fig 4.3) | Supervisory oversight over delinquent loans, sanctions enforcement, and approval of fine waivers for excused absences. |
+| **UC-ADM-05** | **User Accounts** | Admin-Librarian / Head Librarian | Sprint 3 (Fig 4.3) | Administrative user management portal for creating, updating, and supervising campus library staff and student accounts. |
+| **UC-ADM-06** | **Library Settings** | Admin-Librarian / Head Librarian | Sprint 1 (Fig 4.1) | Campus configuration settings for departmental libraries (College vs. SHS), operating schedules, and library announcements. |
+| **UC-ADM-07** | **Circulation Reports** | Admin-Librarian / Head Librarian | Sprint 3 (Fig 4.3) | Generates monthly circulation summaries, inter-library lending metrics, and fine collection audit logs. |
+| **UC-SUP-01** | **Manage Schools** | Super-Admin | Sprint 1 (Fig 4.1) | Super admin institutional management page configuring participating consortium schools (GNC & SRC) and database tenants. |
+| **UC-SUP-02** | **School Profiles** | Super-Admin | Sprint 1 (Fig 4.1) | Manages institutional branding, official school seals/logos, library contacts, and system-wide portal themes. |
+| **UC-SUP-03** | **Lending Analytics** | Super-Admin | Sprints 2 & 3 (Fig 4.2, 4.3) | Consortium-wide analytics dashboard visualizing cross-campus transaction volumes, shared catalog metrics, and utilization trends. |
+| **UC-SUP-04** | **Audit Trails** | Super-Admin | Sprint 3 (Fig 4.3) | System-wide immutable audit trail inspector auditing all authentication events, state changes, and counter transactions. |
+| **UC-SUP-05** | **Database Backups** | Super-Admin | Sprint 3 (Fig 4.3) | System infrastructure console managing automated Supabase database backups, health monitoring, and server uptime. |
+
+#### Detailed Sub-Process Use Cases and Relationships (&lt;&lt;include&gt;&gt; &amp; &lt;&lt;extend&gt;&gt;):
+
+| Relationship Type | Source Base Use Case | Target Sub-Process | Primary Role(s) | Technical Description & System Trigger |
+| :---: | :--- | :--- | :---: | :--- |
+| **&lt;&lt;extend&gt;&gt;** | **Search Books** | **Partner Suggestion** | Student | Conditionally triggered when local campus holdings for a searched title equal zero; the OPAC dynamically extends search results with partner school holdings and a direct borrow action. |
+| **&lt;&lt;include&gt;&gt;** | **Borrow Requests** | **Generate QR Pass** | Student | Mandatory sub-process executed upon dual-campus approval; generates a non-forgeable alphanumeric hash and visual QR code valid for exactly 72 hours. |
+| **&lt;&lt;include&gt;&gt;** | **Check Student Status** | **Check Eligibility** | Librarian | Mandatory eligibility validation executed by the student's home librarian; verifies zero active delinquency holds, within borrowing limits, or overdue suspensions prior to endorsing requests. |
+| **&lt;&lt;include&gt;&gt;** | **Release Book** | **Verify QR Code** | Librarian | Counter validation sub-process using optical scanner/webcam terminal to authenticate the student's active token prior to releasing physical books or logging returns. |
+| **&lt;&lt;include&gt;&gt;** | **Manage Overdues** | **Compute Fines** | Librarian | Automated financial calculation computing accumulated late days and applying institutional daily penalty rates against delinquent student loans. |
+| **&lt;&lt;include&gt;&gt;** | **Import Books** | **Verify CSV File** | Admin-Librarian | Data integrity validation step during batch catalog upload; parses columns, validates ISBN formats, and verifies required bibliographic fields before ingestion. |
 
 ---
 
@@ -439,7 +528,8 @@ The system encompasses three (3) primary human actors: **Student** (College, Sen
 #### 1. Context Diagram (Level 0)
 The Context Diagram illustrates the single top-level LibraLink process and its boundaries with external entities (Students, Librarians, and Administrators):
 
-**[DIAGRAM] Figure 4.11: LibraLink Data Flow Context Diagram (Level 0)**
+> 🖼️ **[INSERT FIGURE 4.11 HERE: Context Diagram Level 0 (DFD Level 0)]**  
+> *Source / Quick Copy:* [complete_manuscript_diagrams_suite.html](file:///c:/xampp/htdocs/libralinkk/docs/complete_manuscript_diagrams_suite.html) *(Card 6: Click "📋 Copy Image" button)*
 
 #### 2. Data Flow Diagram Level 1
 * **Process 1.0 (Authentication):** Validates credentials against `users` data store.
@@ -447,15 +537,20 @@ The Context Diagram illustrates the single top-level LibraLink process and its b
 * **Process 3.0 (Borrow Processing):** Creates transaction records in `borrow_requests` data store.
 * **Process 4.0 (Token Management):** Generates and verifies cryptographic passes in `access_tokens` data store.
 
+> 🖼️ **[INSERT FIGURE 4.12 HERE: Level 1 Data Flow Diagram (DFD Level 1 Exploded Processes)]**  
+> *Source / Quick Copy:* [complete_manuscript_diagrams_suite.html](file:///c:/xampp/htdocs/libralinkk/docs/complete_manuscript_diagrams_suite.html) *(Card 7: Click "📋 Copy Image" button)*
+
 ---
 
 ### f. Database Design
 
 LibraLink utilizes a normalized PostgreSQL relational database schema deployed on Supabase.
 
-**[DIAGRAM] Figure 4.12: LibraLink Entity-Relationship Diagram (ERD)**
+> 🖼️ **[INSERT FIGURE 4.13 HERE: Entity-Relationship Diagram (ERD) of LibraLink]**  
+> *Source / Quick Copy:* [complete_manuscript_diagrams_suite.html](file:///c:/xampp/htdocs/libralinkk/docs/complete_manuscript_diagrams_suite.html) *(Card 3: Click "📋 Copy Image" button)*
 
-**[DIAGRAM] Figure 4.13: LibraLink Relational Database Tables and Schema Attributes**
+> 🖼️ **[INSERT FIGURE 4.14 HERE: Relational Database Tables and Schema Attributes]**  
+> *Source / Reference:* [Section 3.f Data Dictionary Tables below in Chapter 4](file:///c:/xampp/htdocs/libralinkk/CHAPTER_4_SYSTEM_DESIGN_AND_RESULTS.md)
 
 #### Key Data Entities & Attributes:
 * **`schools`:** `id` (PK), `name`, `code`, `is_active`, `created_at`.
@@ -474,6 +569,9 @@ LibraLink utilizes a normalized PostgreSQL relational database schema deployed o
 ---
 
 ### h. System Navigation Structure
+
+> 🖼️ **[INSERT FIGURE 4.15 HERE: Librarian Scoped Navigation Structure of LibraLink]**  
+> *Source / Reference:* [Hierarchical Site Map diagram below in Chapter 4](file:///c:/xampp/htdocs/libralinkk/CHAPTER_4_SYSTEM_DESIGN_AND_RESULTS.md)
 
 ```
 [Public Landing Page] ──► [Sign In / Register]
@@ -584,15 +682,18 @@ LibraLink utilizes a normalized PostgreSQL relational database schema deployed o
 
 Below are the actual implemented user interfaces of the LibraLink web-based system across its key user roles:
 
-**[SCREENSHOT] Figure 4.14: Public Landing Page and Institutional Sign-In Interface**
+> 🖼️ **[INSERT FIGURE 4.16 HERE: Public Landing Page and Institutional Sign-In Interface]**  
+> *Source / UI Component:* [LandingPage.jsx](file:///c:/xampp/htdocs/libralinkk/src/components/auth/LandingPage.jsx) *(Campus selection and institutional sign-in interface)*
 
 The landing page introduces students and library staff to the centralized inter-school platform, offering separate portal login access for Guagua National College and Santa Rita College.
 
-**[SCREENSHOT] Figure 4.15: Student Dashboard and Cross-School Catalog Search Interface**
+> 🖼️ **[INSERT FIGURE 4.17 HERE: Student Dashboard and Cross-School Catalog Search Interface]**  
+> *Source / UI Component:* [StudentSearch.jsx](file:///c:/xampp/htdocs/libralinkk/src/components/collegeTabs/StudentTabs/StudentSearch.jsx) *(Federated OPAC search and student exploration grid)*
 
 The student exploration screen allows users to search across both campus catalogs, filter by department or availability, and submit inter-library borrow requests.
 
-**[SCREENSHOT] Figure 4.16: Librarian Administrative and Approval Dashboard Interface**
+> 🖼️ **[INSERT FIGURE 4.18 HERE: Librarian Administrative and Approval Dashboard Interface]**  
+> *Source / UI Component:* [LibrarianPortal.jsx](file:///c:/xampp/htdocs/libralinkk/src/components/portals/admin/LibrarianPortal.jsx) *(Librarian multi-campus overview and administrative inbox)*
 
 The librarian portal provides a real-time counter of circulation statistics, an administrative inbox for pending borrow requests, token verification tools, and book inventory management.
 

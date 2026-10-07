@@ -34,6 +34,7 @@ import {
   Layers,
 } from "lucide-react";
 import api, { getBackendAssetUrl } from "../../../utils/api";
+import { getBookCoverUrl } from "../../../utils/bookCoverUtils";
 
 function HighlightMatch({ text = "", query = "" }) {
   if (!text) return null;
@@ -998,16 +999,19 @@ export function StudentHeaderSearch({ className = "" }) {
                           <div className={`relative flex shrink-0 items-center justify-center rounded-md bg-slate-100 overflow-hidden select-none shadow-2xs ${
                             isMobile ? "h-13 w-10" : "h-11 w-8"
                           }`}>
-                            {book.cover_image ? (
-                              <img
-                                src={getBackendAssetUrl(book.cover_image)}
-                                alt={book.title}
-                                className="absolute inset-0 h-full w-full object-cover z-[1]"
-                                onError={(e) => {
-                                  e.target.style.display = "none";
-                                }}
-                              />
-                            ) : null}
+                            {(() => {
+                              const cover = getBookCoverUrl(book);
+                              return cover ? (
+                                <img
+                                  src={cover}
+                                  alt={book.title}
+                                  className="absolute inset-0 h-full w-full object-cover z-[1]"
+                                  onError={(e) => {
+                                    e.target.style.display = "none";
+                                  }}
+                                />
+                              ) : null;
+                            })()}
                             <div className="absolute inset-0 flex items-center justify-center bg-slate-100 z-0">
                               <img src="/L.png" alt="Libralink" className="h-4 w-4 object-contain grayscale opacity-30" />
                             </div>

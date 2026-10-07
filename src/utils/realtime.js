@@ -98,6 +98,38 @@ export function subscribeToBookCopies(callback, schoolId = null) {
 }
 
 /**
+ * Subscribe to books table changes (cover updates, titles, deletions)
+ * @param {Function} callback - Function to call when books table changes occur
+ * @param {string|number} schoolId - Optional school ID filter
+ * @returns {Function} Unsubscribe function
+ */
+export function subscribeToBooks(callback, schoolId = null) {
+  const channelName = `books_changes_${schoolId || 'all'}_${Math.random().toString(36).substring(7)}`;
+  let query = supabaseRealtime
+    .channel(channelName)
+    .on(
+      'postgres_changes',
+      {
+        event: '*', // INSERT, UPDATE, DELETE
+        schema: 'public',
+        table: 'books',
+        ...(schoolId ? { filter: `school_id=eq.${schoolId}` } : {})
+      },
+      (payload) => {
+        console.log('[REALTIME] Books change:', payload);
+        callback(payload);
+      }
+    )
+    .subscribe((status) => {
+      console.log('[REALTIME] Books subscription status:', status);
+    });
+
+  return () => {
+    supabaseRealtime.removeChannel(query);
+  };
+}
+
+/**
  * Subscribe to notifications for a specific user
  * @param {string} userId - User ID to filter notifications
  * @param {Function} callback - Function to call when changes occur

@@ -1492,6 +1492,7 @@ export function StudentLayout({
     location.pathname.startsWith(path)
   )?.[1] || { label: "LibraLink", icon: Book };
   const [activePanel, setActivePanel] = useState(null);
+  const [panelPayload, setPanelPayload] = useState(null);
   const panelMeta = {
     favorites: { title: "Favorites", icon: Heart, iconClass: "text-rose-500 bg-rose-50" },
     inbox: { title: "Notifications", icon: Bell, iconClass: "text-amber-500 bg-amber-50" },
@@ -2020,13 +2021,26 @@ export function StudentLayout({
               <StudentInbox isDrawer onClose={() => setActivePanel(null)} />
             )}
             {activePanel === "history" && (
-              <StudentHistory isDrawer onClose={() => setActivePanel(null)} />
+              <StudentHistory
+                isDrawer
+                onClose={() => {
+                  setActivePanel(null);
+                  setPanelPayload(null);
+                }}
+                initialState={panelPayload}
+              />
             )}
             {activePanel === "profile" && (
               <StudentProfile
                 isDrawer
-                onClose={() => setActivePanel(null)}
-                onSwitchTab={(tab) => setActivePanel(tab)}
+                onClose={() => {
+                  setActivePanel(null);
+                  setPanelPayload(null);
+                }}
+                onSwitchTab={(tab, payload = null) => {
+                  setPanelPayload(payload);
+                  setActivePanel(tab);
+                }}
               />
             )}
             {activePanel === "settings" && (

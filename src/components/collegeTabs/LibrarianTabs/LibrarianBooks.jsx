@@ -8,6 +8,7 @@ import {
   FiChevronsLeft, FiChevronsRight, FiEye, FiDownload, FiChevronDown
 } from "react-icons/fi";
 import api, { getBackendAssetUrl } from "../../../utils/api";
+import { PRESET_BOOK_COVERS, getBookCoverUrl } from "../../../utils/bookCoverUtils";
 import { exportBooksToExcel, exportBooksToCsv } from "../../../utils/exportUtils";
 import Card from "../../ui/Card";
 import SearchBar from "../../ui/SearchBar";
@@ -18,6 +19,7 @@ import ActionMenu from "../../common/ActionMenu";
 import UndoToast from "../../common/UndoToast";
 import BookBorrowersDrawer from "./BookBorrowersDrawer";
 import BookDetailsModal from "../../common/BookDetailsModal";
+import { subscribeToBooks } from "../../../utils/realtime";
 
 const CATEGORY_PRESETS = [
   'General Collection',
@@ -349,9 +351,17 @@ function AdminBooks({ darkMode = false, selectedLibraryId = null, onNavigateTab 
     };
     window.addEventListener('circulationUpdated', handleCirculationUpdate);
     window.addEventListener('libralink-circulation-updated', handleCirculationUpdate);
+
+    // Subscribe to realtime books table changes (covers, metadata, deletions)
+    const unsubscribeBooksRealtime = subscribeToBooks((payload) => {
+      console.log('[LibrarianBooks] Realtime book event:', payload);
+      void loadBooks();
+    });
+
     return () => {
       window.removeEventListener('circulationUpdated', handleCirculationUpdate);
       window.removeEventListener('libralink-circulation-updated', handleCirculationUpdate);
+      if (unsubscribeBooksRealtime) unsubscribeBooksRealtime();
     };
   }, []);
 
@@ -491,6 +501,7 @@ function AdminBooks({ darkMode = false, selectedLibraryId = null, onNavigateTab 
     
     setEditLoading(true);
     try {
+      let finalCover;
       if (editCoverImageFile) {
         const formData = new FormData();
         formData.append('title', (editFormData.title || '').trim());
@@ -507,7 +518,8 @@ function AdminBooks({ darkMode = false, selectedLibraryId = null, onNavigateTab 
         if (editFormData.remarks) formData.append('general_note', editFormData.remarks.trim());
         if (editFormData.quantity) formData.append('quantity', parseInt(editFormData.quantity, 10));
         formData.append('cover_image', editCoverImageFile);
-        await api.put(`/books/${editingBook.id}`, formData);
+        const res = await api.put(`/books/${editingBook.id}`, formData);
+        finalCover = res?.data?.cover_image || editCoverImagePreview;
       } else {
         const updateData = {
           title: (editFormData.title || '').trim(),
@@ -523,15 +535,17 @@ function AdminBooks({ darkMode = false, selectedLibraryId = null, onNavigateTab 
           series_title: editFormData.series ? editFormData.series.trim() : null,
           general_note: editFormData.remarks ? editFormData.remarks.trim() : null,
           quantity: editFormData.quantity ? parseInt(editFormData.quantity, 10) : 1,
-          cover_image: editCoverImagePreview ? editFormData.cover_image : null
+          cover_image: (editCoverImagePreview ? editFormData.cover_image : null) ?? null
         };
 
-        await api.put(`/books/${editingBook.id}`, updateData);
+        const res = await api.put(`/books/${editingBook.id}`, updateData);
+        finalCover = res?.data?.cover_image !== undefined ? res.data.cover_image : updateData.cover_image;
       }
       
       const newQty = editFormData.quantity ? parseInt(editFormData.quantity, 10) : 1;
       setBooks(prevBooks => prevBooks.map(b => {
-        if (b.id === editingBook.id) {
+        const isTarget = b.id === editingBook.id || (editingBook.grouped_ids && editingBook.grouped_ids.includes(b.id));
+        if (isTarget) {
           const prevTotal = b.total_copies || 1;
           const prevAvail = b.available_copies ?? prevTotal;
           const borrowed = Math.max(0, prevTotal - prevAvail);
@@ -553,7 +567,7 @@ function AdminBooks({ darkMode = false, selectedLibraryId = null, onNavigateTab 
             category: editFormData.category || b.category,
             total_copies: newQty,
             available_copies: newAvail,
-            cover_image: editCoverImagePreview || b.cover_image
+            cover_image: finalCover !== undefined ? finalCover : (editCoverImagePreview ? editFormData.cover_image : null)
           };
         }
         return b;
@@ -1042,35 +1056,37 @@ function AdminBooks({ darkMode = false, selectedLibraryId = null, onNavigateTab 
                       <div className="flex items-start gap-4 mb-4">
                         {/* 3D Styled Book Cover Artwork */}
                         <div className="relative w-20 sm:w-22 h-28 sm:h-32 flex-shrink-0 rounded-xl overflow-hidden shadow-md shadow-slate-900/10 border border-slate-200/90 bg-slate-900 group-hover:shadow-lg transition-all duration-300">
-                          {book.cover_image ? (
-                            <>
-                              <img
-                                src={getBackendAssetUrl(book.cover_image)}
-                                alt={book.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                onError={(e) => {
-                                  e.target.style.display = 'none';
-                                  const fallback = e.target.parentElement?.querySelector('.card-fallback');
-                                  if (fallback) fallback.style.display = 'flex';
-                                }}
-                              />
-                              {/* 3D Realistic Book Spine Reflection */}
-                              <div className="absolute inset-y-0 left-0 w-2 bg-gradient-to-r from-black/40 via-white/15 to-transparent pointer-events-none" />
-                              <div className="hidden card-fallback absolute inset-0 bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-900 items-center justify-center p-2 text-center text-white flex-col gap-1">
-                                <FiBook className="w-7 h-7 text-blue-200" />
-                                <span className="text-[9px] font-black uppercase tracking-wider text-blue-100 line-clamp-2">{book.title}</span>
+                          {(() => {
+                            const cover = getBookCoverUrl(book);
+                            return cover ? (
+                              <>
+                                <img
+                                  src={cover}
+                                  alt={book.title}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    const fallback = e.target.parentElement?.querySelector('.card-fallback');
+                                    if (fallback) fallback.style.display = 'flex';
+                                  }}
+                                />
+                                {/* 3D Realistic Book Spine Reflection */}
+                                <div className="absolute inset-y-0 left-0 w-2 bg-gradient-to-r from-black/40 via-white/15 to-transparent pointer-events-none" />
+                                <div className="hidden card-fallback absolute inset-0 bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-900 items-center justify-center p-2 text-center text-white flex-col gap-1">
+                                  <FiBook className="w-7 h-7 text-blue-200" />
+                                  <span className="text-[9px] font-black uppercase tracking-wider text-blue-100 line-clamp-2">{book.title}</span>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="relative w-full h-full bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-900 flex flex-col items-center justify-center p-2 text-center text-white">
+                                <div className="absolute inset-y-0 left-0 w-2 bg-gradient-to-r from-black/40 via-white/20 to-transparent" />
+                                <FiBook className="w-8 h-8 text-blue-200 mb-1" />
+                                <span className="text-[9px] font-black uppercase tracking-wider text-blue-100 line-clamp-2 leading-tight">
+                                  {book.title}
+                                </span>
                               </div>
-                            </>
-                          ) : (
-                            <div className="relative w-full h-full bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-900 flex flex-col items-center justify-center p-2 text-center text-white">
-                              {/* 3D Spine Overlay */}
-                              <div className="absolute inset-y-0 left-0 w-2 bg-gradient-to-r from-black/40 via-white/20 to-transparent" />
-                              <FiBook className="w-8 h-8 text-blue-200 mb-1" />
-                              <span className="text-[9px] font-black uppercase tracking-wider text-blue-100 line-clamp-2 leading-tight">
-                                {book.title}
-                              </span>
-                            </div>
-                          )}
+                            );
+                          })()}
                         </div>
 
                         <div className="flex-1 min-w-0">
@@ -1236,27 +1252,30 @@ function AdminBooks({ darkMode = false, selectedLibraryId = null, onNavigateTab 
                           <td className="py-2.5 px-3.5">
                             <div className="flex items-center gap-3">
                               <div className="relative w-9 h-12 rounded-lg overflow-hidden flex-shrink-0 shadow-2xs border border-slate-200 bg-slate-900">
-                                {book.cover_image ? (
-                                  <>
-                                    <img
-                                      src={getBackendAssetUrl(book.cover_image)}
-                                      alt={book.title}
-                                      className="w-full h-full object-cover"
-                                      onError={(e) => {
-                                        e.target.style.display = 'none';
-                                        const fb = e.target.parentElement?.querySelector('.tbl-fallback');
-                                        if (fb) fb.style.display = 'flex';
-                                      }}
-                                    />
-                                    <div className="hidden tbl-fallback absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-800 items-center justify-center text-white">
+                                {(() => {
+                                  const cover = getBookCoverUrl(book);
+                                  return cover ? (
+                                    <>
+                                      <img
+                                        src={cover}
+                                        alt={book.title}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                          e.target.style.display = 'none';
+                                          const fb = e.target.parentElement?.querySelector('.tbl-fallback');
+                                          if (fb) fb.style.display = 'flex';
+                                        }}
+                                      />
+                                      <div className="hidden tbl-fallback absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-800 items-center justify-center text-white">
+                                        <FiBook className="w-4 h-4 text-white" />
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="w-full h-full bg-gradient-to-br from-blue-600 to-indigo-800 flex items-center justify-center text-white">
                                       <FiBook className="w-4 h-4 text-white" />
                                     </div>
-                                  </>
-                                ) : (
-                                  <div className="w-full h-full bg-gradient-to-br from-blue-600 to-indigo-800 flex items-center justify-center text-white">
-                                    <FiBook className="w-4 h-4 text-white" />
-                                  </div>
-                                )}
+                                  );
+                                })()}
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate text-xs" title={book.title}>
@@ -1691,11 +1710,45 @@ function AdminBooks({ darkMode = false, selectedLibraryId = null, onNavigateTab 
                             or <span className="text-sky-600 font-medium underline">browse image files</span>
                           </p>
                         </div>
-                        <span className="text-[11px] text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200 shadow-2xs font-medium">
-                          Click to select image file
-                        </span>
                       </div>
                     )}
+
+                    {/* Quick Preset Covers Gallery for Add Modal */}
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                      <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5 flex items-center justify-between">
+                        <span>Or Select Preset Topic Cover</span>
+                        <span className="text-[10px] text-sky-600 font-medium font-mono">1-Click Apply</span>
+                      </span>
+                      <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 max-h-36 overflow-y-auto p-1 bg-white/70 rounded-xl border border-slate-200">
+                        {PRESET_BOOK_COVERS.map((preset) => {
+                          const isSelected = addFormData.cover_image === preset.path || coverImagePreview === preset.path;
+                          return (
+                            <button
+                              key={`add-preset-${preset.id}`}
+                              type="button"
+                              onClick={() => {
+                                setCoverImagePreview(preset.path);
+                                setAddFormData(prev => ({ ...prev, cover_image: preset.path }));
+                              }}
+                              className={`relative group aspect-[3/4] rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
+                                isSelected ? 'border-sky-600 ring-2 ring-sky-300 scale-95 shadow-sm' : 'border-slate-200 hover:border-sky-400'
+                              }`}
+                              title={preset.label}
+                            >
+                              <img src={preset.path} alt={preset.label} className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-0.5 text-center">
+                                <span className="text-[8px] font-bold text-white leading-none line-clamp-2">{preset.label}</span>
+                              </div>
+                              {isSelected && (
+                                <div className="absolute top-1 right-1 bg-sky-600 text-white rounded-full p-0.5 shadow-xs">
+                                  <FiCheck className="w-2.5 h-2.5" />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Quick Shelf Location Presets */}
@@ -2127,6 +2180,44 @@ function AdminBooks({ darkMode = false, selectedLibraryId = null, onNavigateTab 
                         </span>
                       </div>
                     )}
+
+                    {/* Quick Preset Covers Gallery */}
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                      <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5 flex items-center justify-between">
+                        <span>Or Select Preset Topic Cover</span>
+                        <span className="text-[10px] text-blue-600 font-medium font-mono">1-Click Apply</span>
+                      </span>
+                      <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 max-h-36 overflow-y-auto p-1 bg-white/70 rounded-xl border border-slate-200">
+                        {PRESET_BOOK_COVERS.map((preset) => {
+                          const isSelected = editFormData.cover_image === preset.path || editCoverImagePreview === preset.path;
+                          return (
+                            <button
+                              key={`edit-preset-${preset.id}`}
+                              type="button"
+                              onClick={() => {
+                                setEditCoverImagePreview(preset.path);
+                                setEditCoverImageFile(null);
+                                setEditFormData(prev => ({ ...prev, cover_image: preset.path }));
+                              }}
+                              className={`relative group aspect-[3/4] rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
+                                isSelected ? 'border-blue-600 ring-2 ring-blue-300 scale-95 shadow-sm' : 'border-slate-200 hover:border-blue-400'
+                              }`}
+                              title={preset.label}
+                            >
+                              <img src={preset.path} alt={preset.label} className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-0.5 text-center">
+                                <span className="text-[8px] font-bold text-white leading-none line-clamp-2">{preset.label}</span>
+                              </div>
+                              {isSelected && (
+                                <div className="absolute top-1 right-1 bg-blue-600 text-white rounded-full p-0.5 shadow-xs">
+                                  <FiCheck className="w-2.5 h-2.5" />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Quick Shelf Location Presets */}

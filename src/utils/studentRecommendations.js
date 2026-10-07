@@ -210,7 +210,63 @@ export function getTopicBookCover(book) {
     return getBackendAssetUrl(rawCover);
   }
 
-  return null;
+  // Smart fallback cover based on category, subject, or title
+  const text = `${book?.category_name || book?.category?.category_name || book?.category || ''} ${book?.subject || ''} ${book?.title || ''} ${book?.course || ''}`.toLowerCase();
+
+  if (text.includes('agri') || text.includes('farm') || text.includes('crop') || text.includes('soil')) {
+    return '/books/agriculture.jpg';
+  }
+  if (text.includes('american literature') || (text.includes('american') && text.includes('lit'))) {
+    return '/books/american_literature.jpg';
+  }
+  if (text.includes('literature') || text.includes('novel') || text.includes('poem') || text.includes('poetry') || text.includes('fiction')) {
+    return '/topics/literature_fiction.jpg';
+  }
+  if (text.includes('medic') || text.includes('nurs') || text.includes('health') || text.includes('clinical') || text.includes('hospital') || text.includes('anatomy')) {
+    return text.includes('nurs') ? '/books/nursing.jpg' : '/topics/science_health.jpg';
+  }
+  if (text.includes('algo') || text.includes('program') || text.includes('code') || text.includes('tech') || text.includes('comput') || text.includes('software')) {
+    return '/books/algorithms.jpg';
+  }
+  if (text.includes('econom') || text.includes('business') || text.includes('finance') || text.includes('market') || text.includes('accounting')) {
+    return '/books/economics.jpg';
+  }
+  if (text.includes('history') || text.includes('society') || text.includes('philippine') || text.includes('heritage')) {
+    return '/books/history.jpg';
+  }
+  if (text.includes('psycholog') || text.includes('mental') || text.includes('behavior') || text.includes('counsel')) {
+    return '/books/psychology.jpg';
+  }
+  if (text.includes('engineer') || text.includes('math') || text.includes('calculus') || text.includes('physics')) {
+    return '/books/engineering.jpg';
+  }
+  if (text.includes('law') || text.includes('criminol') || text.includes('justice')) {
+    return '/topics/law_criminology.jpg';
+  }
+  if (text.includes('art') || text.includes('design') || text.includes('media')) {
+    return '/topics/arts_design.jpg';
+  }
+  if (text.includes('educ') || text.includes('teach') || text.includes('pedagog')) {
+    return '/topics/education_pedagogy.jpg';
+  }
+  if (text.includes('touris') || text.includes('hotel') || text.includes('hospitality')) {
+    return '/topics/hospitality_tourism.jpg';
+  }
+
+  // Deterministic fallback among curated library covers
+  const fallbackCovers = [
+    '/books/agriculture.jpg',
+    '/books/american_literature.jpg',
+    '/books/nursing.jpg',
+    '/books/algorithms.jpg',
+    '/books/economics.jpg',
+    '/books/history.jpg',
+    '/books/psychology.jpg',
+    '/books/shakespeare.jpg',
+    '/books/engineering.jpg',
+  ];
+  const seed = (Number(book?.id) || 0) + (book?.title?.length || 0);
+  return fallbackCovers[Math.abs(seed) % fallbackCovers.length];
 }
 
 /**

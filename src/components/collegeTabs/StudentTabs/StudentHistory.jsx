@@ -28,6 +28,7 @@ import api, {
   requestBorrowCancellation,
   requestBookRenewal,
 } from "../../../utils/api";
+import { getBookCoverUrl } from "../../../utils/bookCoverUtils";
 import QRCodeDisplay from "./QRCodeDisplay";
 import {
   getDueStatusDetails,
@@ -36,26 +37,36 @@ import {
   formatPhilippineFullTooltip,
 } from "../../../utils/timeUtils";
 
-function StudentHistory({ isDrawer = false, onClose }) {
+function StudentHistory({ isDrawer = false, onClose, initialState = null }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const effectiveState = initialState || location.state;
+
   const [historySets, setHistorySets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState(() => {
-    return location.state?.tab || new URLSearchParams(location.search).get("tab") || "all";
+    return effectiveState?.tab || new URLSearchParams(location.search).get("tab") || "all";
   }); // 'all' | 'active' | 'returned' | 'requests'
 
   useEffect(() => {
-    if (location.state?.tab) {
-      setActiveTab(location.state.tab);
+    const stateObj = initialState || location.state;
+    if (stateObj?.tab) {
+      setActiveTab(stateObj.tab);
     }
-    if (location.state?.filter) {
-      setActiveFilter(location.state.filter);
+    if (stateObj?.filter) {
+      setActiveFilter(stateObj.filter);
     }
-  }, [location.state]);
-  const [activeFilter, setActiveFilter] = useState(() => location.state?.filter || null); // null | 'overdue' | 'dueSoon'
+    if (stateObj?.highlightRequestId) {
+      setHighlightedRequestId(stateObj.highlightRequestId);
+      setExpandedSetIds((prev) => new Set([...prev, stateObj.highlightRequestId]));
+    }
+  }, [location.state, initialState]);
+  const [activeFilter, setActiveFilter] = useState(() => effectiveState?.filter || null); // null | 'overdue' | 'dueSoon'
   const [selectedRequestForQR, setSelectedRequestForQR] = useState(null);
+  const [highlightedRequestId, setHighlightedRequestId] = useState(() => {
+    return effectiveState?.highlightRequestId || new URLSearchParams(location.search).get("requestId") || null;
+  });
 
   // Set Accordion expansion tracking
   const [expandedSetIds, setExpandedSetIds] = useState(new Set());
@@ -219,8 +230,10 @@ function StudentHistory({ isDrawer = false, onClose }) {
 
       setHistorySets(sets);
 
-      // Auto-expand the newest set if only 1 exists
-      if (sets.length === 1) {
+      // Auto-expand the highlighted target request or newest set if only 1 exists
+      if (highlightedRequestId) {
+        setExpandedSetIds((prev) => new Set([...prev, highlightedRequestId]));
+      } else if (sets.length === 1) {
         setExpandedSetIds(new Set([sets[0].requestId]));
       }
     } catch (err) {
@@ -231,6 +244,18 @@ function StudentHistory({ isDrawer = false, onClose }) {
       setLoading(false);
     }
   };
+
+  // Scroll to highlighted request once history sets are rendered
+  useEffect(() => {
+    if (!highlightedRequestId || loading) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`request-set-${highlightedRequestId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [highlightedRequestId, loading, historySets]);
 
   useEffect(() => {
     fetchHistory();
@@ -553,11 +578,17 @@ function StudentHistory({ isDrawer = false, onClose }) {
               set.qrToken && (set.status === "approved" || set.status === "released" || set.status === "borrowed")
             );
             const nonCancelledCount = set.items.filter((i) => i.status !== "cancelled").length;
+            const isHighlighted = String(set.requestId) === String(highlightedRequestId);
 
             return (
               <div
                 key={`set-card-${set.requestId}`}
-                className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs transition-all hover:border-slate-300"
+                id={`request-set-${set.requestId}`}
+                className={`overflow-hidden rounded-2xl border bg-white shadow-xs transition-all duration-300 ${
+                  isHighlighted
+                    ? "border-blue-500 ring-4 ring-blue-500/25 animate-request-highlight"
+                    : "border-slate-200/90 hover:border-slate-300"
+                }`}
               >
                 {/* ─── SET HEADER / SUMMARY CARD ─── */}
                 <div
@@ -639,7 +670,7 @@ function StudentHistory({ isDrawer = false, onClose }) {
                     {/* Thumbnail Stack Preview */}
                     <div className="flex items-center -space-x-3 shrink-0 pt-0.5">
                       {set.items.slice(0, 3).map((it, idx) => {
-                        const coverUrl = getBackendAssetUrl(it.coverImage);
+                        const coverUrl = getBookCoverUrl({ cover_image: it.coverImage, title: it.title, id: it.bookId });
                         return (
                           <div
                             key={`preview-thumb-${idx}`}
@@ -715,7 +746,7 @@ function StudentHistory({ isDrawer = false, onClose }) {
 
                     <div className="divide-y divide-slate-200/80 rounded-xl border border-slate-200/90 bg-white overflow-hidden shadow-2xs">
                       {set.items.map((item, idx) => {
-                        const coverUrl = getBackendAssetUrl(item.coverImage);
+                        const coverUrl = getBookCoverUrl({ cover_image: item.coverImage, title: item.title, id: item.bookId });
                         const itemStatusCfg = getStatusBadge(item.status);
                         const isCancelled = item.status === "cancelled";
                         const isReturned = item.status === "returned";

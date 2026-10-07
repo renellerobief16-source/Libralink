@@ -56,12 +56,13 @@ import {
 } from "lucide-react";
 
 import api, { getLibraryPolicy, getBackendAssetUrl, consolidateBookInventory, API_ORIGIN } from "../../../utils/api";
-import { subscribeToBookCopies } from "../../../utils/realtime";
+import { subscribeToBookCopies, subscribeToBooks } from "../../../utils/realtime";
 import {
   getStudentPreferences,
   getRecommendedBooks,
   getTopicBookCover
 } from "../../../utils/studentRecommendations";
+import { getBookCoverUrl } from "../../../utils/bookCoverUtils";
 import { useDraggableScroll } from "../../../hooks/useDraggableScroll";
 import StudentPreferencesModal from "./StudentPreferencesModal";
 import { AnimatedCounter } from "../../common";
@@ -307,11 +308,7 @@ function CategoryShelfRow({
             const displayStatus = getBookDisplayStatus(book);
             const personalReview = readingReviews[book.id];
             const isAvailable = displayStatus === "available";
-            const cover = book.cover_image
-              ? book.cover_image.startsWith("http")
-                ? book.cover_image
-                : `http://localhost:5000${book.cover_image.startsWith("/") ? "" : "/"}${book.cover_image}`
-              : null;
+            const cover = getBookCoverUrl(book);
 
             return (
               <div
@@ -445,11 +442,7 @@ function CategoryShelfRow({
                 const displayStatus = getBookDisplayStatus(book);
                 const personalReview = readingReviews[book.id];
                 const isAvailable = displayStatus === "available";
-                const cover = book.cover_image
-                  ? book.cover_image.startsWith("http")
-                    ? book.cover_image
-                    : `http://localhost:5000${book.cover_image.startsWith("/") ? "" : "/"}${book.cover_image}`
-                  : null;
+                const cover = getBookCoverUrl(book);
 
                 return (
                   <div
@@ -1095,11 +1088,12 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
   const [selectedBookPolicy, setSelectedBookPolicy] = useState(null);
   const [studentActiveLoanCount, setStudentActiveLoanCount] = useState(0);
   const [studentHomeActiveLoanCount, setStudentHomeActiveLoanCount] = useState(0);
+  const [studentBorrowStatus, setStudentBorrowStatus] = useState(null);
   const [hasHomeOverdue, setHasHomeOverdue] = useState(false);
   const [homeOverdueMessage, setHomeOverdueMessage] = useState('');
 
   useEffect(() => {
-    // Check if student has overdue books at their home library
+    // Check if student has overdue books at their home library & fetch overall borrow quota status
     api.get('/borrow-requests/student-overdue-status')
       .then(res => {
         if (res.data?.has_home_overdue) {
@@ -1113,6 +1107,14 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
       .catch(() => {
         setHasHomeOverdue(false);
       });
+
+    api.get('/borrow-requests/student-borrow-status')
+      .then(res => {
+        if (res.data) {
+          setStudentBorrowStatus(res.data);
+        }
+      })
+      .catch(() => {});
   }, [selectedBook]);
 
   useEffect(() => {
@@ -1133,7 +1135,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
         const u = JSON.parse(rawUser);
         const homeSchoolId = parseInt(localStorage.getItem('schoolId'));
         if (u?.user_id) {
-          api.get(`/borrow/active/student/${u.user_id}`).then(res => {
+          api.get(`/borrow/student/${u.user_id}/active`).then(res => {
             const list = Array.isArray(res.data?.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
             setStudentActiveLoanCount(list.length);
             const homeLoans = list.filter(item => {
@@ -1626,6 +1628,12 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
       loadBooks();
     });
 
+    // Subscribe to realtime books table changes (cover images, title updates, additions)
+    const unsubscribeBooksRealtime = subscribeToBooks((payload) => {
+      console.log('[StudentSearch] Book record changed in realtime:', payload);
+      loadBooks();
+    }, schoolId);
+
     // Auto-refresh every 30 seconds if enabled
     let interval;
     if (autoRefresh) {
@@ -1636,6 +1644,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
 
     return () => {
       if (unsubscribeRealtime) unsubscribeRealtime();
+      if (unsubscribeBooksRealtime) unsubscribeBooksRealtime();
       if (interval) clearInterval(interval);
     };
   }, [autoRefresh]);
@@ -3918,11 +3927,18 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                         const coverPic = getTopicBookCover(book);
 
                         return (
-                          <button
+                          <div
                             key={`mobile-card-${book.id}`}
-                            type="button"
+                            role="button"
+                            tabIndex={0}
                             onClick={() => handleBookClick(book)}
-                            className="group relative flex w-[142px] flex-shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200/80 bg-white text-left shadow-md transition-transform active:scale-95 snap-start"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                handleBookClick(book);
+                              }
+                            }}
+                            className="group relative flex w-[142px] flex-shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200/80 bg-white text-left shadow-md transition-transform active:scale-95 snap-start cursor-pointer select-none"
                           >
                             <div className="relative aspect-[3/4.2] w-full overflow-hidden bg-slate-100 border-b border-slate-200/60 pointer-events-none">
                               {coverPic ? (
@@ -4002,7 +4018,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                                 </div>
                               </div>
                             </div>
-                          </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -4332,16 +4348,19 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                     >
                       <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
                         <div className="relative w-full sm:w-32 h-48 sm:h-44 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100 border border-slate-200/80 shadow-2xs group-hover:shadow-md transition-all">
-                          {book.cover_image ? (
-                            <img
-                              src={book.cover_image.startsWith("http") ? book.cover_image : `http://localhost:5000${book.cover_image.startsWith("/") ? "" : "/"}${book.cover_image}`}
-                              alt={book.title}
-                              className="absolute inset-0 w-full h-full object-cover z-[1]"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                              }}
-                            />
-                          ) : null}
+                          {(() => {
+                            const cover = getBookCoverUrl(book);
+                            return cover ? (
+                              <img
+                                src={cover}
+                                alt={book.title}
+                                className="absolute inset-0 w-full h-full object-cover z-[1]"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                }}
+                              />
+                            ) : null;
+                          })()}
                           <div className="absolute inset-0 flex flex-col items-center justify-center p-3 bg-slate-100 z-0 select-none">
                             <img src="/L.png" alt="Libralink" className="h-10 w-10 object-contain grayscale opacity-35 mb-2" />
                             <p className="text-slate-400 text-xs font-semibold text-center line-clamp-2">
@@ -4834,16 +4853,19 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                         <div className="flex flex-col items-center pt-1 pb-3 text-center">
                           <div className="relative mb-3 flex h-48 w-36 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 border border-slate-200/80 shadow-[0_12px_28px_rgba(15,23,42,0.12)] ring-1 ring-black/5 sm:h-52 sm:w-40">
                             {/* Actual Book Cover Image */}
-                            {selectedBook.cover_image ? (
-                              <img
-                                src={selectedBook.cover_image.startsWith("http") ? selectedBook.cover_image : `http://localhost:5000${selectedBook.cover_image.startsWith("/") ? "" : "/"}${selectedBook.cover_image}`}
-                                alt={selectedBook.title}
-                                className="absolute inset-0 h-full w-full object-cover z-[1]"
-                                onError={(e) => {
-                                  e.target.style.display = 'none';
-                                }}
-                              />
-                            ) : null}
+                            {(() => {
+                              const cover = getBookCoverUrl(selectedBook);
+                              return cover ? (
+                                <img
+                                  src={cover}
+                                  alt={selectedBook.title}
+                                  className="absolute inset-0 h-full w-full object-cover z-[1]"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                  }}
+                                />
+                              ) : null;
+                            })()}
 
                             {/* Fallback: Grey L.png Libralink */}
                             <div

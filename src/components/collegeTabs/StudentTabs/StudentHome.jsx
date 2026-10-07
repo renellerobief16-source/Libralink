@@ -39,6 +39,8 @@ import {
   scoreBookForStudent,
   getTopicBookCover,
 } from "../../../utils/studentRecommendations";
+import { getBookCoverUrl } from "../../../utils/bookCoverUtils";
+import { subscribeToBooks } from "../../../utils/realtime";
 
 function SchoolAvatar({ schoolName, logo }) {
   const [imageFailed, setImageFailed] = useState(false);
@@ -77,7 +79,7 @@ function SchoolAvatar({ schoolName, logo }) {
  */
 function ShuffledBookCard({ book, onBookClick }) {
   const [imageError, setImageError] = useState(false);
-  const coverUrl = getTopicBookCover(book);
+  const coverUrl = getBookCoverUrl(book);
   const ownerSchool =
     book.schools?.school_name || book.school_name || "Partner Library";
   const schoolCode =
@@ -478,6 +480,24 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
     };
 
     fetchData();
+
+    // Subscribe to realtime books changes
+    const unsubscribeBooks = subscribeToBooks((payload) => {
+      console.log('[StudentHome] Realtime book event:', payload);
+      api.get("/books?limit=1000")
+        .then(booksRes => {
+          const rawBooks = booksRes.data?.data || booksRes.data || [];
+          const safeBooks = Array.isArray(rawBooks) ? rawBooks : [];
+          setAllCatalogBooks(safeBooks);
+          const currentPrefs = getStudentPreferences();
+          setShuffledBooks(shuffleCatalog(safeBooks, currentPrefs));
+        })
+        .catch(err => console.warn('[StudentHome] Failed to refresh books on realtime event:', err));
+    });
+
+    return () => {
+      if (unsubscribeBooks) unsubscribeBooks();
+    };
   }, []);
 
   // Listen for preference updates to re-align recommendations
@@ -1096,7 +1116,7 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
                 <div className="flex flex-col sm:flex-row items-center gap-4 rounded-2xl border-2 border-dashed border-blue-400 bg-blue-50/40 p-4 transition-all animate-pulse">
                   <div className="relative aspect-[4/5] w-24 sm:w-28 shrink-0 overflow-hidden rounded-xl bg-slate-100 border border-slate-200">
                     <img
-                      src={getTopicBookCover(currentRaffleCandidate) || "/L.png"}
+                      src={getBookCoverUrl(currentRaffleCandidate) || "/L.png"}
                       alt="Spinning Candidate"
                       className="h-full w-full object-cover"
                       onError={(e) => {
@@ -1124,7 +1144,7 @@ function StudentHome({ bookCount = 0, schoolInfo }) {
                   {/* Book Cover */}
                   <div className="relative aspect-[4/5] w-28 sm:w-32 shrink-0 overflow-hidden rounded-xl bg-white border border-emerald-200 shadow-sm">
                     <img
-                      src={getTopicBookCover(wonRaffleBook) || "/L.png"}
+                      src={getBookCoverUrl(wonRaffleBook) || "/L.png"}
                       alt={wonRaffleBook.title}
                       className="h-full w-full object-cover"
                       onError={(e) => {

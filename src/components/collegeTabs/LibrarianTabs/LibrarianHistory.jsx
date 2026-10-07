@@ -25,48 +25,60 @@ const getStatusMeta = (item) => {
   if (isOverdue(item.due_date, s)) {
     return { 
       label: 'Overdue',
-      color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900',
-      dot: 'bg-rose-500', 
-      bar: 'bg-rose-400' 
+      color: 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/80 dark:text-rose-200 dark:border-rose-800',
+      dot: 'bg-rose-600', 
+      bar: 'bg-rose-500',
+      bannerBg: 'bg-gradient-to-r from-rose-600 to-rose-700 text-white border-rose-700 shadow-md',
+      bannerDot: 'bg-white ring-rose-300'
     };
   }
   if (s === 'returned') {
     return { 
       label: 'Returned',
-      color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900',
-      dot: 'bg-emerald-500', 
-      bar: 'bg-emerald-400' 
+      color: 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-200 dark:border-emerald-800',
+      dot: 'bg-emerald-600', 
+      bar: 'bg-emerald-500',
+      bannerBg: 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white border-emerald-700 shadow-md',
+      bannerDot: 'bg-white ring-emerald-300'
     };
   }
   if (s === 'released' || s === 'borrowed') {
     return { 
       label: 'Active Loan',
-      color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900',
-      dot: 'bg-blue-500', 
-      bar: 'bg-blue-400' 
+      color: 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/80 dark:text-blue-200 dark:border-blue-800',
+      dot: 'bg-blue-600', 
+      bar: 'bg-blue-500',
+      bannerBg: 'bg-gradient-to-r from-blue-600 to-indigo-700 text-white border-blue-700 shadow-md',
+      bannerDot: 'bg-white ring-blue-300'
     };
   }
   if (s === 'approved') {
     return { 
       label: 'Pending Pickup',
-      color: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-900',
-      dot: 'bg-indigo-500', 
-      bar: 'bg-indigo-400' 
+      color: 'bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-950/80 dark:text-indigo-200 dark:border-indigo-800',
+      dot: 'bg-indigo-600', 
+      bar: 'bg-indigo-500',
+      bannerBg: 'bg-gradient-to-r from-indigo-600 to-blue-700 text-white border-indigo-700 shadow-md',
+      bannerDot: 'bg-white ring-indigo-300'
     };
   }
   if (s === 'cancelled' || s === 'rejected') {
     return { 
       label: 'Cancelled',
-      color: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700',
-      dot: 'bg-slate-400', 
-      bar: 'bg-slate-500' 
+      color: 'bg-slate-200 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700',
+      dot: 'bg-slate-500', 
+      bar: 'bg-slate-500',
+      bannerBg: 'bg-gradient-to-r from-slate-700 to-slate-800 text-white border-slate-700 shadow-md',
+      bannerDot: 'bg-white ring-slate-400'
     };
   }
   return { 
     label: s ? (s.charAt(0).toUpperCase() + s.slice(1)) : 'Pending',
-    color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900',
-    dot: 'bg-amber-400', 
-    bar: 'bg-amber-400' 
+    color: 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/80 dark:text-amber-200 dark:border-amber-800',
+    dot: 'bg-amber-600', 
+    bar: 'bg-amber-500',
+    bannerBg: 'bg-gradient-to-r from-amber-500 to-amber-600 text-white border-amber-600 shadow-md',
+    bannerDot: 'bg-white ring-amber-200'
   };
 };
 
@@ -343,15 +355,15 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
 
         {/* Stat pills */}
         <div className="flex items-center gap-2 flex-wrap">
-          <StatPill label="Total"    value={stats.total}    color="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" />
-          <StatPill label="Active"   value={stats.active}   color="bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300" />
-          <StatPill label="Returned" value={stats.returned} color="bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300" />
-          {stats.overdue > 0 && <StatPill label="Overdue" value={stats.overdue} color="bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300" />}
+          <StatPill label="Total"    value={stats.total}    color="bg-slate-900 text-white border-slate-700 shadow-xs" />
+          <StatPill label="Active"   value={stats.active}   color="bg-blue-600 text-white border-blue-500 shadow-xs" />
+          <StatPill label="Returned" value={stats.returned} color="bg-emerald-600 text-white border-emerald-500 shadow-xs" />
+          {stats.overdue > 0 && <StatPill label="Overdue" value={stats.overdue} color="bg-rose-600 text-white border-rose-500 shadow-xs animate-pulse" />}
 
           <button
             onClick={exportToCSV}
             disabled={filteredHistory.length === 0}
-            className="ml-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-blue-600 text-white text-xs font-semibold hover:bg-slate-700 dark:hover:bg-blue-500 disabled:opacity-40 transition-colors shadow-xs"
+            className="ml-1 flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold disabled:opacity-40 transition-colors shadow-sm"
           >
             <FiDownload className="w-3.5 h-3.5" />
             Export CSV
@@ -359,7 +371,7 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
           <button
             onClick={fetchHistory}
             disabled={loading}
-            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-2xs"
             title="Refresh"
           >
             <FiRefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -373,7 +385,7 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
       }`}>
         {/* Search */}
         <div className="relative flex-1">
-          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
             placeholder="Search student, book title, student ID, request ID…"
@@ -381,13 +393,13 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
             onChange={e => setSearchTerm(e.target.value)}
             className={`w-full pl-9 pr-8 py-2 text-xs rounded-lg transition-all placeholder-slate-400 ${
               darkMode 
-                ? 'bg-slate-900 border border-slate-700 text-slate-100 focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500' 
+                ? 'bg-slate-900 border border-slate-700 text-white focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500' 
                 : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500'
             }`}
           />
           {searchTerm && (
             <button onClick={() => setSearchTerm('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-              <FiX className="w-3.5 h-3.5" />
+              <FiX className="w-4 h-4" />
             </button>
           )}
         </div>
@@ -398,18 +410,18 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
             <button
               key={tab.id}
               onClick={() => setFilter(tab.id)}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap flex items-center gap-1 ${
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 ${
                 filter === tab.id 
-                  ? (darkMode ? 'bg-slate-800 text-white shadow-xs' : 'bg-white text-slate-900 shadow-xs') 
-                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  ? (darkMode ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-blue-700 font-bold shadow-xs') 
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
               }`}
             >
               {tab.label}
               {tab.count != null && tab.count > 0 && (
                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
                   filter === tab.id 
-                    ? (darkMode ? 'bg-slate-700 text-slate-200' : 'bg-slate-100 text-slate-600') 
-                    : 'bg-slate-200/60 dark:bg-slate-800 text-slate-500'
+                    ? (darkMode ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800') 
+                    : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                 }`}>
                   {tab.count}
                 </span>
@@ -426,8 +438,8 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
               onClick={() => setTypeFilter(t.id)}
               className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all ${
                 typeFilter === t.id 
-                  ? (darkMode ? 'bg-slate-800 text-white shadow-xs' : 'bg-white text-slate-900 shadow-xs') 
-                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  ? (darkMode ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-blue-700 font-bold shadow-xs') 
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
               }`}
             >
               {t.label}
@@ -444,60 +456,60 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
         <div className={`px-4 py-3 border-b flex items-center justify-between ${
           darkMode ? 'border-slate-800 bg-slate-900/60' : 'border-slate-100 bg-slate-50/50'
         }`}>
-          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+          <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
             {loading ? 'Loading records…' : `${filteredHistory.length} of ${history.length} records`}
           </span>
-          <span className="text-[11px] text-slate-400 flex items-center gap-1">
-            <FiClock className="w-3 h-3" /> Timestamps in Philippine Standard Time (PST UTC+8)
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 font-medium">
+            <FiClock className="w-3.5 h-3.5 text-blue-500" /> Timestamps in Philippine Standard Time (PST UTC+8)
           </span>
         </div>
 
         {loading ? (
           <div className="py-20 text-center">
             <div className="animate-spin rounded-full h-7 w-7 border-2 border-blue-600 border-t-transparent mx-auto mb-3" />
-            <p className="text-xs text-slate-400">Loading circulation records…</p>
+            <p className="text-xs font-semibold text-slate-500">Loading circulation records…</p>
           </div>
         ) : filteredHistory.length === 0 ? (
           <div className="py-20 text-center">
             <FiFileText className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No records found</p>
-            <p className="text-xs text-slate-400 mt-1">Try adjusting your search or filters.</p>
+            <p className="text-sm font-bold text-slate-800 dark:text-slate-200">No records found</p>
+            <p className="text-xs text-slate-500 mt-1">Try adjusting your search or filters.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className={`text-[11px] font-bold uppercase tracking-wider border-b ${
-                  darkMode ? 'bg-slate-900/80 border-slate-800 text-slate-400' : 'bg-slate-50/80 border-slate-200 text-slate-500'
+                  darkMode ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-black'
                 }`}>
-                  <th className="py-3 px-4">Request</th>
-                  <th className="py-3 px-4">Borrower</th>
-                  <th className="py-3 px-4">Book</th>
-                  <th className="py-3 px-4">Timeline</th>
-                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 font-black">Request</th>
+                  <th className="py-3 px-4 font-black">Borrower</th>
+                  <th className="py-3 px-4 font-black">Book</th>
+                  <th className="py-3 px-4 font-black">Timeline</th>
+                  <th className="py-3 px-4 font-black">Status</th>
                   <th className="py-3 px-4 text-right"></th>
                 </tr>
               </thead>
-              <tbody className={`divide-y text-xs ${darkMode ? 'divide-slate-800' : 'divide-slate-100'}`}>
+              <tbody className={`divide-y text-xs ${darkMode ? 'divide-slate-800' : 'divide-slate-200'}`}>
                 {filteredHistory.map(item => {
                   const meta = getStatusMeta(item);
                   return (
                     <tr
                       key={item.item_id}
                       className={`transition-colors group cursor-pointer ${
-                        darkMode ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50'
+                        darkMode ? 'hover:bg-slate-800/60' : 'hover:bg-blue-50/40'
                       }`}
                       onClick={() => setSelectedRecord(item)}
                     >
                       {/* Request ID + type */}
                       <td className="py-3 px-4">
-                        <p className="font-mono font-bold text-[11px] leading-tight text-slate-900 dark:text-white">
+                        <p className="font-mono font-bold text-[11px] leading-tight text-black dark:text-white">
                           {item.request_id}
                         </p>
-                        <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${
+                        <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wide border ${
                           item.request_type === 'inter_school'
-                            ? 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
-                            : 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                            ? 'bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950/80 dark:text-purple-200 dark:border-purple-800'
+                            : 'bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950/80 dark:text-blue-200 dark:border-blue-800'
                         }`}>
                           {item.request_type === 'inter_school' ? 'Inter-School' : 'Home Campus'}
                         </span>
@@ -508,10 +520,10 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
                         <div className="flex items-center gap-2.5">
                           <Avatar student={item.student} size="sm" />
                           <div className="min-w-0">
-                            <p className="font-semibold text-slate-900 dark:text-slate-100 leading-tight truncate max-w-[150px]">
+                            <p className="font-bold text-black dark:text-slate-100 leading-tight truncate max-w-[150px]">
                               {item.student?.firstname} {item.student?.lastname}
                             </p>
-                            <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                            <p className="text-[11px] text-slate-800 dark:text-slate-300 font-mono font-semibold mt-0.5">
                               {item.student?.student_number || 'No ID'}
                             </p>
                           </div>
@@ -520,11 +532,11 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
 
                       {/* Book */}
                       <td className="py-3 px-4 max-w-[220px]">
-                        <p className="font-semibold text-slate-900 dark:text-slate-100 line-clamp-1">
+                        <p className="font-bold text-black dark:text-slate-100 line-clamp-1">
                           {item.book?.title}
                         </p>
                         {item.book?.author && (
-                          <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">
+                          <p className="text-[11px] text-slate-800 dark:text-slate-300 mt-0.5 line-clamp-1 font-semibold">
                             by {item.book.author}
                           </p>
                         )}
@@ -533,18 +545,18 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
                       {/* Timeline */}
                       <td className="py-3 px-4 whitespace-nowrap">
                         <div className="space-y-0.5 text-[11px]">
-                          <div className="text-slate-500 dark:text-slate-400">
-                            <span className="opacity-70">Borrowed: </span>
-                            <span>{item.borrow_date ? formatPhilippineDate(item.borrow_date) : '—'}</span>
+                          <div className="text-black dark:text-slate-200">
+                            <span className="font-bold text-slate-800 dark:text-slate-300">Borrowed: </span>
+                            <span className="font-semibold text-black dark:text-white">{item.borrow_date ? formatPhilippineDate(item.borrow_date) : '—'}</span>
                           </div>
-                          <div className={isOverdue(item.due_date, item.status) ? 'text-rose-600 dark:text-rose-400 font-semibold' : 'text-slate-500 dark:text-slate-400'}>
-                            <span className="opacity-70">Due: </span>
-                            <span>{item.due_date ? formatPhilippineDate(item.due_date) : 'N/A'}</span>
+                          <div className={isOverdue(item.due_date, item.status) ? 'text-rose-700 dark:text-rose-400 font-bold' : 'text-black dark:text-slate-200'}>
+                            <span className="font-bold text-slate-800 dark:text-slate-300">Due: </span>
+                            <span className="font-semibold">{item.due_date ? formatPhilippineDate(item.due_date) : 'N/A'}</span>
                           </div>
                           {item.return_date && (
-                            <div className="text-emerald-600 dark:text-emerald-400 font-medium">
-                              <span className="opacity-70">Returned: </span>
-                              <span>{formatPhilippineDate(item.return_date)}</span>
+                            <div className="text-emerald-700 dark:text-emerald-400 font-bold">
+                              <span className="font-bold text-emerald-800 dark:text-emerald-300">Returned: </span>
+                              <span className="font-extrabold">{formatPhilippineDate(item.return_date)}</span>
                             </div>
                           )}
                         </div>
@@ -552,7 +564,7 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
 
                       {/* Status */}
                       <td className="py-3 px-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${meta.color}`}>
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border shadow-2xs ${meta.color}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
                           {meta.label}
                         </span>
@@ -562,7 +574,7 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
                       <td className="py-3 px-4 text-right">
                         <button
                           onClick={e => { e.stopPropagation(); setSelectedRecord(item); }}
-                          className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-900 hover:text-white dark:hover:bg-blue-600 dark:hover:text-white text-slate-600 dark:text-slate-300 text-[11px] font-semibold transition-all opacity-0 group-hover:opacity-100 flex items-center gap-1 ml-auto"
+                          className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-black hover:text-white dark:hover:bg-blue-600 dark:hover:text-white text-black dark:text-slate-200 text-[11px] font-bold transition-all opacity-0 group-hover:opacity-100 flex items-center gap-1 ml-auto"
                         >
                           Details
                           <FiArrowRight className="w-3 h-3" />
@@ -598,32 +610,32 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
           >
             {/* Drawer Header */}
             <div className={`px-6 py-4.5 border-b flex items-start justify-between gap-4 shrink-0 ${
-              darkMode ? 'border-slate-800 bg-slate-900/90' : 'border-slate-100 bg-slate-50/70'
+              darkMode ? 'border-slate-800 bg-slate-900/90' : 'border-slate-200 bg-slate-50'
             }`}>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-900">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-950 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
                     Transaction Record
                   </span>
-                  <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md border ${
+                  <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${
                     selectedRecord.request_type === 'inter_school'
-                      ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800'
-                      : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800'
+                      ? 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950/80 dark:text-purple-200 dark:border-purple-800'
+                      : 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/80 dark:text-blue-200 dark:border-blue-800'
                   }`}>
                     {selectedRecord.request_type === 'inter_school' ? 'Inter-School Loan' : 'Home Campus Loan'}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2 mt-1.5">
-                  <h2 className="text-xl font-black font-mono tracking-tight text-slate-900 dark:text-white">
+                  <h2 className="text-xl font-black font-mono tracking-tight text-black dark:text-white">
                     {selectedRecord.request_id}
                   </h2>
                   <button
                     onClick={() => handleCopyId(selectedRecord.request_id)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors"
+                    className="p-1.5 rounded-lg text-slate-700 hover:text-black dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
                     title="Copy Transaction ID"
                   >
-                    {copiedId ? <FiCheck className="w-4 h-4 text-emerald-500" /> : <FiCopy className="w-4 h-4" />}
+                    {copiedId ? <FiCheck className="w-4 h-4 text-emerald-600" /> : <FiCopy className="w-4 h-4" />}
                   </button>
                   {copiedId && (
                     <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">Copied!</span>
@@ -634,7 +646,7 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
               {/* Close Button */}
               <button
                 onClick={() => setSelectedRecord(null)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors shrink-0"
+                className="p-2 rounded-xl text-slate-700 hover:text-black dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors shrink-0"
                 aria-label="Close drawer"
               >
                 <FiX className="w-5 h-5" />
@@ -648,35 +660,27 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
                 const meta = getStatusMeta(selectedRecord);
                 const overdue = isOverdue(selectedRecord.due_date, selectedRecord.status);
                 return (
-                  <div className={`p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-xs ${
-                    darkMode
-                      ? overdue
-                        ? 'bg-rose-950/30 border-rose-900/60 text-rose-300'
-                        : meta.label === 'Returned'
-                        ? 'bg-emerald-950/30 border-emerald-900/60 text-emerald-300'
-                        : 'bg-slate-800/80 border-slate-700 text-slate-200'
-                      : meta.color
-                  }`}>
+                  <div className={`p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-sm ${meta.bannerBg}`}>
                     <div className="flex items-center gap-3">
-                      <span className={`w-3.5 h-3.5 rounded-full ${meta.dot} ring-4 ${
+                      <span className={`w-3.5 h-3.5 rounded-full ${meta.bannerDot} ring-4 ${
                         overdue 
-                          ? 'ring-rose-200 dark:ring-rose-900/40 animate-pulse' 
-                          : 'ring-blue-100 dark:ring-blue-900/40'
+                          ? 'ring-rose-200/50 animate-pulse' 
+                          : 'ring-white/30'
                       }`} />
                       <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider block opacity-75">
+                        <span className="text-[10px] font-bold uppercase tracking-wider block text-white/90">
                           Circulation Status
                         </span>
-                        <span className="text-base font-black tracking-tight">
+                        <span className="text-lg font-black tracking-tight text-white drop-shadow-xs">
                           {meta.label}
                         </span>
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="text-[10px] font-semibold opacity-75 block">
+                      <span className="text-[10px] font-bold uppercase tracking-wider block text-white/90">
                         Lifecycle State
                       </span>
-                      <span className="text-xs font-bold uppercase tracking-wide">
+                      <span className="text-xs font-black uppercase tracking-wider px-2 py-0.5 rounded bg-black/20 text-white backdrop-blur-xs">
                         {overdue ? 'Action Required' : (selectedRecord.status || 'Active')}
                       </span>
                     </div>
@@ -688,19 +692,19 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
               <div className={`p-4 rounded-2xl border ${
                 darkMode ? 'border-slate-800 bg-slate-800/40' : 'border-slate-200/80 bg-slate-50/60'
               }`}>
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200/60 dark:border-slate-700/60">
                   <div className="flex items-center gap-2">
                     <FiClock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-black dark:text-slate-200">
                       Circulation Audit Timeline
                     </h3>
                   </div>
-                  <span className="text-[10px] font-medium text-slate-400 font-mono">
+                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-400 font-mono">
                     PST (UTC+8)
                   </span>
                 </div>
 
-                <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-700">
+                <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-300 dark:before:bg-slate-600">
                   {/* Step 1: Requested / Issued */}
                   <TimelineNode
                     icon={FiCalendar}
@@ -751,9 +755,9 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
               <div className={`p-4 rounded-2xl border ${
                 darkMode ? 'border-slate-800 bg-slate-800/40' : 'border-slate-200/80 bg-white'
               }`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <FiUser className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <FiUser className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <h3 className="text-xs font-black uppercase tracking-wider text-black dark:text-slate-200">
                     Borrower Profile
                   </h3>
                 </div>
@@ -761,15 +765,15 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
                 <div className="flex items-center gap-3.5 pb-3.5 border-b border-slate-100 dark:border-slate-800">
                   <Avatar student={selectedRecord.student} size="lg" />
                   <div className="min-w-0 flex-1">
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
+                    <h4 className="text-sm font-bold text-black dark:text-white leading-snug">
                       {selectedRecord.student?.firstname} {selectedRecord.student?.lastname}
                     </h4>
-                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className="font-mono text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-300">
                         {selectedRecord.student?.student_number || 'No Student ID'}
                       </span>
                       {selectedRecord.student?.school_name && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium">
+                        <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-slate-100 dark:bg-slate-800 text-black dark:text-slate-200 border border-slate-200 dark:border-slate-700">
                           {selectedRecord.student.school_name}
                         </span>
                       )}
@@ -779,15 +783,15 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
 
                 <div className="pt-3 space-y-2 text-xs">
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Email Address:</span>
-                    <span className="font-medium text-slate-700 dark:text-slate-200 select-all font-mono">
+                    <span className="font-bold text-black dark:text-slate-400">Email Address:</span>
+                    <span className="font-bold text-black dark:text-slate-100 select-all font-mono">
                       {selectedRecord.student?.email || '—'}
                     </span>
                   </div>
                   {selectedRecord.partner_school && (
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-400">Partner School:</span>
-                      <span className="font-medium text-purple-600 dark:text-purple-400">
+                      <span className="font-bold text-black dark:text-slate-400">Partner School:</span>
+                      <span className="font-bold text-purple-700 dark:text-purple-300">
                         {selectedRecord.partner_school}
                       </span>
                     </div>
@@ -800,8 +804,8 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
                 darkMode ? 'border-slate-800 bg-slate-800/40' : 'border-slate-200/80 bg-white'
               }`}>
                 <div className="flex items-center gap-2 mb-3">
-                  <FiBook className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  <FiBook className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <h3 className="text-xs font-black uppercase tracking-wider text-black dark:text-slate-200">
                     Book & Copy Information
                   </h3>
                 </div>
@@ -827,18 +831,18 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                       {selectedRecord.book?.category && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 dark:bg-blue-950/80 text-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
                           {selectedRecord.book.category}
                         </span>
                       )}
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-black dark:text-slate-200">
                         {selectedRecord.request_type === 'inter_school' ? 'Inter-School' : 'Home Campus'}
                       </span>
                     </div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-snug line-clamp-2">
+                    <h4 className="text-sm font-bold text-black dark:text-white leading-snug line-clamp-2">
                       {selectedRecord.book?.title}
                     </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    <p className="text-xs text-slate-800 dark:text-slate-300 font-semibold mt-0.5">
                       by {selectedRecord.book?.author || 'Unknown Author'}
                     </p>
                   </div>
@@ -846,23 +850,23 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
 
                 <div className="pt-3 space-y-2 text-xs">
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400">ISBN:</span>
-                    <span className="font-mono text-slate-700 dark:text-slate-200">
+                    <span className="font-bold text-black dark:text-slate-400">ISBN:</span>
+                    <span className="font-mono font-bold text-black dark:text-slate-100">
                       {selectedRecord.book?.isbn || '—'}
                     </span>
                   </div>
                   {selectedRecord.book_copies?.accession_number && (
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-400">Accession Number:</span>
-                      <span className="font-mono font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded">
+                      <span className="font-bold text-black dark:text-slate-400">Accession Number:</span>
+                      <span className="font-mono font-black text-blue-900 dark:text-blue-200 bg-blue-100 dark:bg-blue-950/80 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
                         {selectedRecord.book_copies.accession_number}
                       </span>
                     </div>
                   )}
                   {selectedRecord.book_copies?.shelf_location && (
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-400">Shelf Location:</span>
-                      <span className="text-slate-700 dark:text-slate-200 font-medium">
+                      <span className="font-bold text-black dark:text-slate-400">Shelf Location:</span>
+                      <span className="text-black dark:text-slate-100 font-bold">
                         {selectedRecord.book_copies.shelf_location}
                       </span>
                     </div>
@@ -872,11 +876,11 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
 
               {/* Cancellation Reason alert if present */}
               {selectedRecord.cancellation_reason && (
-                <div className="p-3.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-300">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 mb-0.5">
+                <div className="p-3.5 rounded-xl border border-rose-300 dark:border-rose-900/60 bg-rose-100 dark:bg-rose-950/50 text-rose-900 dark:text-rose-200">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300 mb-0.5">
                     Cancellation / Rejection Reason
                   </p>
-                  <p className="text-xs font-medium">
+                  <p className="text-xs font-semibold">
                     {selectedRecord.cancellation_reason}
                   </p>
                 </div>
@@ -885,18 +889,18 @@ function LibrarianHistory({ darkMode, selectedLibraryId }) {
 
             {/* Drawer Footer Actions */}
             <div className={`px-6 py-4 border-t flex items-center gap-3 shrink-0 ${
-              darkMode ? 'border-slate-800 bg-slate-900/90' : 'border-slate-100 bg-slate-50/70'
+              darkMode ? 'border-slate-800 bg-slate-900/90' : 'border-slate-200 bg-slate-50'
             }`}>
               <button
                 onClick={handlePrintSlip}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold transition-colors shadow-2xs"
               >
                 <FiPrinter className="w-4 h-4" />
                 Print Slip
               </button>
               <button
                 onClick={() => setSelectedRecord(null)}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500 text-white text-xs font-bold transition-colors shadow-sm"
+                className="flex-1 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-md"
               >
                 Close
               </button>

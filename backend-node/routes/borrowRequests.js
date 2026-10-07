@@ -58,20 +58,15 @@ async function checkStudentHomeOverdue(studentId, homeSchoolId) {
         borrow_id,
         due_date,
         status,
-        school_id,
-        book_copies(copy_id, book_id, books(book_id, school_id))
+        library_id
       `)
       .eq('student_id', studentId)
       .in('status', ['active', 'overdue']);
 
     if (activeTx && activeTx.length > 0) {
       for (const tx of activeTx) {
-        const bookSchoolId = tx.book_copies?.books?.school_id || tx.school_id;
-        const isHomeBook = !bookSchoolId || Number(bookSchoolId) === Number(homeSchoolId);
-        if (isHomeBook) {
-          if (tx.status === 'overdue') return true;
-          if (tx.due_date && new Date(tx.due_date) < now) return true;
-        }
+        if (tx.status === 'overdue') return true;
+        if (tx.due_date && new Date(tx.due_date) < now) return true;
       }
     }
 
@@ -108,6 +103,79 @@ async function checkStudentHomeOverdue(studentId, homeSchoolId) {
     return false;
   }
 }
+
+// Helper function to calculate student's current active + pending/approved commitments across the entire system
+async function calculateStudentCommitment(studentId) {
+  // 1. Count active physically borrowed books (from borrow_transactions)
+  const { data: activeLoans, error: countErr } = await supabase
+    .from('borrow_transactions')
+    .select('borrow_id')
+    .eq('student_id', studentId)
+    .eq('status', 'active');
+
+  const activeLoansCount = (activeLoans || []).length;
+
+  // 2. Count active pending or approved unreleased requests (from borrow_requests & borrow_request_items)
+  const { data: activeRequests } = await supabase
+    .from('borrow_requests')
+    .select(`
+      request_id,
+      status,
+      items:borrow_request_items(item_id, item_status, status)
+    `)
+    .eq('student_id', studentId)
+    .in('status', ['pending', 'approved', 'ready_for_pickup', 'permission_ready']);
+
+  let pendingItemsCount = 0;
+  if (activeRequests) {
+    for (const reqObj of activeRequests) {
+      const unreleasedItems = (reqObj.items || []).filter(item => {
+        const itemStat = (item.item_status || item.status || reqObj.status || '').toLowerCase();
+        return itemStat === 'pending' || itemStat === 'approved';
+      });
+      pendingItemsCount += unreleasedItems.length;
+    }
+  }
+
+  return {
+    activeLoansCount,
+    pendingItemsCount,
+    totalCommitment: activeLoansCount + pendingItemsCount
+  };
+}
+
+// @route   GET /api/borrow-requests/student-borrow-status
+// @desc    Get current student borrowing quota telemetry (limit, active, pending, can_borrow)
+// @access  Private (Student)
+router.get('/student-borrow-status', auth, requireRole(['Student']), async (req, res) => {
+  try {
+    const studentId = req.user.user_id;
+    const homeSchoolId = Number(req.user.school_id);
+    const maxLimit = await LibrarySettings.getMaxBorrowLimit(homeSchoolId);
+    const commitment = await calculateStudentCommitment(studentId);
+    const hasHomeOverdue = await checkStudentHomeOverdue(studentId, homeSchoolId);
+
+    const remainingSlots = Math.max(0, maxLimit - commitment.totalCommitment);
+    const isLimitReached = commitment.totalCommitment >= maxLimit;
+
+    res.json({
+      success: true,
+      max_limit: maxLimit,
+      active_loans_count: commitment.activeLoansCount,
+      pending_requests_count: commitment.pendingItemsCount,
+      total_commitment: commitment.totalCommitment,
+      remaining_slots: remainingSlots,
+      is_limit_reached: isLimitReached,
+      has_home_overdue: hasHomeOverdue,
+      message: isLimitReached
+        ? `Naka-limit na ang iyong account: ${commitment.totalCommitment}/${maxLimit} book(s) (Active Loans + Pending Requests). Hindi na maaaring mag-request ng libro hangga't hindi naibabalik ang mga hiniram o nakansela ang pending requests.`
+        : null
+    });
+  } catch (error) {
+    console.error('[BORROW REQUESTS] Error getting student borrow status:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
 
 // @route   GET /api/borrow-requests/student-overdue-status
 // @desc    Check if current student has an overdue book at their home library
@@ -156,69 +224,22 @@ router.post('/', auth, requireRole(['Student']), async (req, res) => {
       }
     }
 
-    // 1. Quota check for Home Library books
-    // The home library limit ONLY applies when borrowing home library books.
-    // If the student is requesting partner school books, home library quota does not block them!
+    // 1. Overall Borrowing Quota Enforcement (Home + Partner Schools)
+    // Counts Active Loans + Pending/Approved Requests against the school's max_borrow_limit
     const homeSchoolId = Number(req.user.school_id);
-    const requestedHomeItems = items.filter(item => {
-      const ownerSchool = Number(item.owner_school_id);
-      const borrowType = (item.borrow_type || '').toUpperCase();
-      return (!ownerSchool || ownerSchool === homeSchoolId) && borrowType !== 'INTER_SCHOOL_LIBRARY_USE';
-    });
+    const maxBorrowLimit = await LibrarySettings.getMaxBorrowLimit(homeSchoolId);
+    const commitment = await calculateStudentCommitment(req.user.user_id);
+    const requestedCount = items.length;
 
-    if (requestedHomeItems.length > 0) {
-      const maxHomeBorrowLimit = await LibrarySettings.getMaxBorrowLimit(homeSchoolId);
-
-      // Count active physically borrowed books from home library
-      const { data: activeLoans, error: countErr } = await supabase
-        .from('borrow_transactions')
-        .select(`
-          borrow_id,
-          school_id,
-          book_copies(copy_id, book_id, books(book_id, school_id))
-        `)
-        .eq('student_id', req.user.user_id)
-        .eq('status', 'active');
-
-      const activeHomeLoansCount = (activeLoans || []).filter(tx => {
-        const bSchool = tx.book_copies?.books?.school_id || tx.school_id;
-        return !bSchool || Number(bSchool) === homeSchoolId;
-      }).length;
-
-      // Count pending or approved unreleased requests from home library
-      const { data: activeRequests } = await supabase
-        .from('borrow_requests')
-        .select(`
-          request_id,
-          status,
-          home_school_id,
-          items:borrow_request_items(item_id, item_status, owner_school_id, borrow_type)
-        `)
-        .eq('student_id', req.user.user_id)
-        .in('status', ['pending', 'approved', 'ready_for_pickup', 'permission_ready']);
-
-      let pendingHomeItemsCount = 0;
-      if (activeRequests) {
-        for (const reqObj of activeRequests) {
-          const unreleasedHome = (reqObj.items || []).filter(item => {
-            const isUnreleased = item.item_status === 'pending' || item.item_status === 'approved';
-            const ownerSchool = Number(item.owner_school_id);
-            const isHome = (!ownerSchool || ownerSchool === homeSchoolId) && item.borrow_type !== 'INTER_SCHOOL_LIBRARY_USE';
-            return isUnreleased && isHome;
-          });
-          pendingHomeItemsCount += unreleasedHome.length;
-        }
-      }
-
-      const currentHomeCommitment = activeHomeLoansCount + pendingHomeItemsCount;
-      if (currentHomeCommitment + requestedHomeItems.length > maxHomeBorrowLimit) {
-        console.warn(`[BORROW REQUESTS] Home limit reached: Student has ${currentHomeCommitment}, requesting ${requestedHomeItems.length}, limit is ${maxHomeBorrowLimit}`);
-        return res.status(400).json({
-          success: false,
-          is_home_limit_reached: true,
-          message: `Home library borrowing limit reached. You currently have ${currentHomeCommitment} active home loan(s)/pending request(s). Your home campus allows a maximum of ${maxHomeBorrowLimit} book(s) simultaneously. (You can still borrow books from partner schools in the consortium).`
-        });
-      }
+    if (commitment.totalCommitment + requestedCount > maxBorrowLimit) {
+      console.warn(`[BORROW REQUESTS] Borrow limit reached: Student has ${commitment.totalCommitment} (active: ${commitment.activeLoansCount}, pending: ${commitment.pendingItemsCount}), requesting ${requestedCount}, limit is ${maxBorrowLimit}`);
+      return res.status(400).json({
+        success: false,
+        is_limit_reached: true,
+        max_limit: maxBorrowLimit,
+        current_commitment: commitment.totalCommitment,
+        message: `Hindi na makakapag-request: Naka-limit na ang iyong account (${commitment.totalCommitment}/${maxBorrowLimit} books). Ang patakaran ng iyong paaralan ay nagpapahintulot ng maximum na ${maxBorrowLimit} librong hiniram/nakabinbin nang sabay-sabay. Pakibalik muna ang aktibong hiniram o kanselahin ang pending request.`
+      });
     }
 
     const requestData = {

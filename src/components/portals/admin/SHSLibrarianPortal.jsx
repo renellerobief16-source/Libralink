@@ -290,7 +290,7 @@ function SHSLibrarianPortal() {
   const effectiveLibraryId = shsLibrary?.library_id || shsLibrary?.id || localStorage.getItem('currentLibraryId') || 'all';
 
   return (
-    <div className={`min-h-screen ${darkMode ? 'bg-gray-950 text-white' : 'bg-slate-50/70 text-slate-900'} antialiased`}>
+    <div className={`min-h-screen ${darkMode ? 'dark bg-gray-950 text-white' : 'bg-slate-50/70 text-slate-900'} antialiased`}>
       <div className="flex">
         {/* SHS Librarian Sidebar */}
         <aside className={`fixed left-0 top-0 h-full w-64 z-50 hidden lg:block ${darkMode ? 'bg-gray-900 border-r border-gray-800' : 'bg-white border-r border-slate-200/70'}`}>

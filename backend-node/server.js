@@ -57,6 +57,9 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Serve static files for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve public assets (preset book covers and topic covers) from root public folder
+app.use('/books', express.static(path.join(__dirname, '../public/books')));
+app.use('/topics', express.static(path.join(__dirname, '../public/topics')));
 
 // Fallback for uploads
 app.use('/uploads/borrowing-ids', (req, res) => {

@@ -71,6 +71,8 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
     pendingRequests: 0,
     fines: '₱0.00',
   });
+  const [showRequestsModal, setShowRequestsModal] = useState(false);
+  const [rawPendingRequests, setRawPendingRequests] = useState([]);
 
   const idCardFileInputRef = useRef(null);
   const [isZoomIdOpen, setIsZoomIdOpen] = useState(false);
@@ -294,7 +296,15 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
           console.error("Failed to fetch library policy limits", e);
         }
 
+        const pendingReqList = requests.filter((req) => {
+          const reqStatus = (req.status || '').toLowerCase();
+          const items = Array.isArray(req.items) && req.items.length > 0 ? req.items : [{}];
+          return ['pending', 'requested', 'approved', 'ready_for_pickup'].includes(reqStatus) ||
+            items.some((item) => ['pending', 'requested', 'approved'].includes((item.status || item.item_status || '').toLowerCase()));
+        });
+
         if (isMounted) {
+          setRawPendingRequests(pendingReqList);
           setLibraryStats({
             activeLoans: active,
             maxLoans,
@@ -480,11 +490,11 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
     }
   };
 
-  const handleNavigateTo = (panelOrRoute) => {
+  const handleNavigateTo = (panelOrRoute, state = null) => {
     if (onSwitchTab) {
-      onSwitchTab(panelOrRoute);
+      onSwitchTab(panelOrRoute, state);
     } else {
-      navigate(`/studentpage/${panelOrRoute}`);
+      navigate(`/studentpage/${panelOrRoute}`, state ? { state } : undefined);
     }
   };
 
@@ -712,9 +722,9 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
         {/* Pending Requests */}
         <button
           type="button"
-          onClick={() => handleNavigateTo('history')}
-          className="p-3 sm:p-4 text-center transition-colors hover:bg-slate-50/80 flex flex-col items-center justify-center group"
-          title="View pending book requests"
+          onClick={() => setShowRequestsModal(true)}
+          className="p-3 sm:p-4 text-center transition-colors hover:bg-slate-50/80 flex flex-col items-center justify-center group cursor-pointer"
+          title="Tingnan kung saang school nag-borrow request"
         >
           <p className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
             <Clock className="h-3 w-3 text-amber-500" />
@@ -822,10 +832,7 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
                   alt="Student ID Card"
                   className="w-full h-full object-contain p-1 rounded-lg transition-transform duration-300 group-hover:scale-[1.02]"
                   onError={(e) => {
-                    const src = e.currentTarget.src || '';
-                    if (!src.includes('libralink-50ig.onrender.com') && src.startsWith('http://localhost:5000')) {
-                      e.currentTarget.src = src.replace('http://localhost:5000', 'https://libralink-50ig.onrender.com');
-                    }
+                    e.currentTarget.style.display = 'none';
                   }}
                 />
                 <div className="absolute inset-0 bg-slate-900/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center backdrop-blur-[2px]">
@@ -1340,6 +1347,163 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
             </button>
           </div>
         </div>
+      )}
+
+      {/* ─── MODAL: Pending Requests & School Locations (Full-Screen Viewport Portal) ─── */}
+      {typeof document !== 'undefined' && showRequestsModal && createPortal(
+        <div
+          className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/65 p-4 sm:p-6 backdrop-blur-md animate-fade-in"
+          onClick={() => setShowRequestsModal(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-xl rounded-3xl bg-white p-6 sm:p-7 border border-slate-100 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[88vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-3.5">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 border border-amber-200/70 shadow-2xs">
+                  <Clock className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                    Active Borrow Requests by Campus
+                  </h4>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Click any request to view its complete record in your circulation history
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRequestsModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* List / Empty State */}
+            <div className="mt-4 space-y-3.5 overflow-y-auto pr-1 flex-1">
+              {rawPendingRequests.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center">
+                  <Clock className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+                  <p className="text-sm font-bold text-slate-700">No Pending Requests</p>
+                  <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+                    You currently have no pending or unreleased book requests across all participating libraries.
+                  </p>
+                </div>
+              ) : (
+                rawPendingRequests.map((req) => {
+                  const reqItems = Array.isArray(req.items) && req.items.length > 0 ? req.items : [{}];
+                  const homeSchoolName = req.home_school?.school_name || schoolName || 'Home Campus';
+                  
+                  return (
+                    <div
+                      key={req.request_id}
+                      onClick={() => {
+                        setShowRequestsModal(false);
+                        handleNavigateTo('history', {
+                          tab: 'requests',
+                          highlightRequestId: req.request_id,
+                        });
+                      }}
+                      className="group cursor-pointer rounded-2xl border border-slate-200/90 bg-white p-4 space-y-3 shadow-2xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-blue-300 active:scale-[0.99] active:translate-y-0"
+                      title="Click to view this request in Borrow History"
+                    >
+                      {/* Top Bar: ID and Status */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[11px] font-mono font-bold text-slate-800 bg-slate-50 border border-slate-200 px-2.5 py-0.5 rounded-lg shadow-2xs group-hover:border-blue-300 group-hover:text-blue-700 transition-colors">
+                            #{req.request_id}
+                          </span>
+                          <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                            req.status === 'approved'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200/80'
+                              : 'bg-amber-50 text-amber-700 border-amber-200/80'
+                          }`}>
+                            {req.status === 'approved' ? 'Approved · Ready for Pickup' : 'Awaiting Approval'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-semibold text-slate-500 shrink-0 bg-slate-100 px-2 py-0.5 rounded-md">
+                            {req.request_type === 'INTER_SCHOOL' ? 'Inter-School' : 'Home Campus'}
+                          </span>
+                          <span className="text-[11px] font-bold text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                            View <ArrowRight className="h-3 w-3" />
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Items & Schools */}
+                      <div className="space-y-2 pt-1 border-t border-slate-100">
+                        {reqItems.map((item, idx) => {
+                          const targetSchool = item.owner_school?.school_name || 
+                                              item.owner_school_name || 
+                                              (item.owner_school_id ? `School #${item.owner_school_id}` : homeSchoolName);
+                          const bookTitle = item.book?.title || item.title || item.book_title || 'Academic Resource';
+
+                          return (
+                            <div
+                              key={item.item_id || `${req.request_id}_${idx}`}
+                              className="bg-slate-50/70 group-hover:bg-blue-50/30 rounded-xl p-3 border border-slate-200/70 group-hover:border-blue-200/80 shadow-2xs space-y-2 transition-colors"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs sm:text-sm font-bold text-slate-900 line-clamp-1 group-hover:text-blue-900 transition-colors">
+                                    {bookTitle}
+                                  </p>
+                                  {item.book?.author && (
+                                    <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">
+                                      {item.book.author}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Lending School Highlight Pill */}
+                              <div className="flex items-center gap-2 bg-white border border-slate-200/90 rounded-xl px-2.5 py-1.5 text-xs text-slate-700 font-semibold shadow-2xs">
+                                <Building2 className="h-4 w-4 text-blue-600 shrink-0" />
+                                <span className="text-slate-400 font-normal">Lending Campus:</span>
+                                <span className="font-bold text-slate-800 truncate">{targetSchool}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRequestsModal(false);
+                  handleNavigateTo('history', { tab: 'requests' });
+                }}
+                className="flex-1 rounded-xl bg-blue-600 py-2.5 px-4 text-xs sm:text-sm font-bold text-white hover:bg-blue-700 transition shadow-xs flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              >
+                <span>Go to Borrow History</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowRequestsModal(false)}
+                className="px-5 rounded-xl border border-slate-200 py-2.5 text-xs sm:text-sm font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer active:scale-95"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
       {/* ─── MODAL: Full ID Photo Zoom Modal ─────────────────────────────── */}
       {typeof document !== 'undefined' && isZoomIdOpen && idCardPicture && createPortal(

@@ -19,6 +19,7 @@ import {
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { getBookCoverUrl } from '../../../utils/bookCoverUtils';
 
 // Fix default icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -439,14 +440,9 @@ export default function MapboxCampusMap({
   const tile = TILES[tileKey] || TILES.map;
 
   /* ── Book Cover Image URL ── */
-  const bookCoverRaw = book?.cover_image || book?.cover || book?.image_url;
   const bookCoverUrl = useMemo(() => {
-    if (!bookCoverRaw) return null;
-    if (bookCoverRaw.startsWith('http') || bookCoverRaw.startsWith('blob:') || bookCoverRaw.startsWith('data:')) {
-      return bookCoverRaw;
-    }
-    return `http://localhost:5000${bookCoverRaw.startsWith('/') ? '' : '/'}${bookCoverRaw}`;
-  }, [bookCoverRaw]);
+    return getBookCoverUrl(book);
+  }, [book]);
 
   /* ── Auto-open Marker Popup on Mount / Book Ready ── */
   useEffect(() => {
