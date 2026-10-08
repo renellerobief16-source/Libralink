@@ -823,7 +823,7 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
           type="button"
           onClick={() => setShowRequestsModal(true)}
           className="p-3 sm:p-4 text-center transition-colors hover:bg-slate-50/80 flex flex-col items-center justify-center group cursor-pointer"
-          title="Tingnan kung saang school nag-borrow request"
+          title="View campus borrowing requests"
         >
           <p className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
             <Clock className="h-3 w-3 text-amber-500" />
@@ -846,7 +846,7 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
               ? 'bg-rose-50/40 hover:bg-rose-100/50'
               : 'hover:bg-slate-50/80'
           }`}
-          title={libraryStats.hasFines ? "Mayroon kang overdue fines. I-click para sa breakdown." : "Walang overdue fines (Cleared)"}
+          title={libraryStats.hasFines ? "You have overdue fines. Click to view breakdown." : "No overdue fines (Cleared)"}
         >
           <p className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
             {libraryStats.hasFines ? (
@@ -1453,7 +1453,7 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-                  Mayroon kang naipong multa dahil sa hiniram na librong lumagpas sa itinakdang return deadline:
+                  You have accumulated fines for borrowed items that have passed their scheduled return deadline:
                 </p>
 
                 {/* Overdue Books Breakdown List */}
@@ -1492,14 +1492,14 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
 
                 <div className="mt-3.5 rounded-xl bg-slate-50 p-3 text-xs text-slate-600 space-y-1.5 border border-slate-100">
                   <div className="flex items-center justify-between font-bold text-slate-800 pb-1.5 border-b border-slate-200">
-                    <span>Kabuuang Multa (Total Fines):</span>
+                    <span>Total Overdue Fines:</span>
                     <span className="text-sm font-black text-rose-600">{libraryStats.fines}</span>
                   </div>
                   <p className="text-[11px] pt-1 leading-relaxed text-slate-500">
-                    • <strong>Pagsasauli:</strong> Pakisauli agad ang libro sa Library Circulation Counter.
+                    • <strong>Book Returns:</strong> Please return overdue books immediately to the Library Circulation Counter.
                   </p>
                   <p className="text-[11px] leading-relaxed text-slate-500">
-                    • <strong>Settlement:</strong> Maaaring bayaran ang multa sa circulation counter upang maibalik ang normal borrowing privileges.
+                    • <strong>Settlement:</strong> Fines must be settled at the circulation counter to restore active borrowing privileges.
                   </p>
                 </div>
 
@@ -1508,7 +1508,7 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
                   onClick={() => setShowFinesInfo(false)}
                   className="mt-4 w-full rounded-xl bg-slate-900 py-2.5 text-xs font-bold text-white hover:bg-slate-800 transition-colors shadow-xs"
                 >
-                  Naintindihan
+                  Understood
                 </button>
               </>
             ) : (
@@ -1518,19 +1518,19 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
                 </div>
                 <h4 className="text-sm font-bold text-slate-900">Library Fines Policy</h4>
                 <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-                  Ang iyong account ay kasalukuyang <strong>Cleared (₱0.00)</strong> at walang anumang pananagutan.
+                  Your library account is currently <strong>Cleared (₱0.00)</strong> with no outstanding liabilities or overdue penalties.
                 </p>
                 <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-600 space-y-1.5 border border-slate-100">
-                  <p>• <strong>Overdue Penalty:</strong> ₱5.00 bawat araw kada librong lumagpas sa return deadline.</p>
-                  <p>• <strong>Pagsasauli:</strong> Isauli ang libro sa o bago ang Due Date para maiwasan ang multa.</p>
-                  <p>• <strong>Settlement:</strong> Maaaring bayaran ang overdue fine sa mismong Library Circulation Counter.</p>
+                  <p>• <strong>Overdue Penalty:</strong> ₱5.00 per calendar day for each book past its return deadline.</p>
+                  <p>• <strong>Returns:</strong> Return borrowed materials on or before the indicated Due Date to prevent penalty accumulation.</p>
+                  <p>• <strong>Settlement:</strong> Outstanding library fines can be settled directly at the Circulation Counter.</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowFinesInfo(false)}
                   className="mt-4 w-full rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white hover:bg-blue-700 transition-colors shadow-xs"
                 >
-                  Naintindihan
+                  Understood
                 </button>
               </>
             )}
