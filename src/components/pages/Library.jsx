@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import Navigation from "./Navigation";
 import axios from "axios";
 import { API_BASE_URL, getBackendAssetUrl } from "../../utils/api";
+import { getBookCoverUrl } from "../../utils/bookCoverUtils";
 
 function Library() {
   const navigate = useNavigate();
@@ -307,7 +308,7 @@ function Library() {
               {/* Books Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
                 {filteredBooks.map((book) => {
-                  const coverUrl = book.cover_image ? getBackendAssetUrl(book.cover_image) : null;
+                  const coverUrl = getBookCoverUrl(book);
                   const isAvailable = book.status === "Available";
 
                   return (

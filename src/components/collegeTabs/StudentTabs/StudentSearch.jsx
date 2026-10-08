@@ -3648,7 +3648,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                                   <div className="relative w-12 h-16 rounded overflow-hidden flex-shrink-0 bg-slate-100 border border-slate-200/80 shadow-2xs">
                                     {book.cover_image ? (
                                       <img
-                                        src={book.cover_image.startsWith("http") ? book.cover_image : `http://localhost:5000${book.cover_image.startsWith("/") ? "" : "/"}${book.cover_image}`}
+                                        src={getBookCoverUrl(book)}
                                         alt={book.title}
                                         className="absolute inset-0 w-full h-full object-cover z-[1]"
                                         onError={(e) => {
@@ -4193,7 +4193,7 @@ function StudentSearch({ onBookClick, onBorrowClick, userInfo, onLogout }) {
                   <div className="flex gap-4">
                     {bookForOtherSchoolSearch.cover_image ? (
                       <img
-                        src={`http://localhost:5000${bookForOtherSchoolSearch.cover_image}`}
+                        src={getBookCoverUrl(bookForOtherSchoolSearch)}
                         alt={bookForOtherSchoolSearch.title}
                         className="w-24 h-32 object-cover rounded-lg flex-shrink-0 shadow-sm"
                         onError={(e) => {

@@ -39,6 +39,13 @@ export const getBackendAssetUrl = (assetPath) => {
   ) {
     return assetPath;
   }
+  // If it's an uploaded book cover, resolve to permanent Supabase Storage public CDN
+  if (assetPath.includes('book-covers/') || assetPath.includes('book-cover-')) {
+    const filename = assetPath.split('/').pop().split('?')[0];
+    if (filename) {
+      return `https://yacrlfcbeltxtiztvwgo.supabase.co/storage/v1/object/public/book-covers/${filename}`;
+    }
+  }
   const origin = getApiOrigin();
   if (assetPath.startsWith('/')) return `${origin}${assetPath}`;
   return `${origin}/${assetPath}`;

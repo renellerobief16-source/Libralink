@@ -1,10 +1,48 @@
 const express = require('express');
 const router = express.Router();
+const fs = require('fs');
+const path = require('path');
 const Book = require('../models/Book');
 const { auth, requireRole } = require('../middleware/auth');
 const { bulkImportBooks, bulkRollbackBooks } = require('../controllers/bookImportController');
 const { uploadBookCover } = require('../middleware/upload');
 const supabase = require('../config/database');
+
+/**
+ * Uploads a local/multer file directly to the public Supabase Storage bucket 'book-covers'.
+ * Returns the permanent public CDN HTTPS URL so images work seamlessly on localhost, Render, and Vercel.
+ */
+async function uploadCoverToSupabaseStorage(file) {
+  if (!file) return null;
+  try {
+    const fileBuffer = fs.readFileSync(file.path);
+    const ext = path.extname(file.originalname || file.filename || '.jpg') || '.jpg';
+    const uniqueFilename = file.filename || `book-cover-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    const contentType = file.mimetype || 'image/jpeg';
+
+    const { error: uploadError } = await supabase.storage
+      .from('book-covers')
+      .upload(uniqueFilename, fileBuffer, {
+        contentType,
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.error('[SUPABASE STORAGE] Upload error:', uploadError.message);
+      return `/uploads/book-covers/${uniqueFilename}`;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('book-covers')
+      .getPublicUrl(uniqueFilename);
+
+    console.log('[SUPABASE STORAGE] Successfully uploaded book cover:', publicUrl);
+    return publicUrl || `/uploads/book-covers/${uniqueFilename}`;
+  } catch (err) {
+    console.error('[SUPABASE STORAGE] Upload exception:', err.message);
+    return file.filename ? `/uploads/book-covers/${file.filename}` : null;
+  }
+}
 
 // @route   GET /api/books/count
 // @desc    Get total books count
@@ -1434,7 +1472,7 @@ router.post('/', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBook
       series_title: req.body.series_title ? String(req.body.series_title).trim() : (req.body.series ? String(req.body.series).trim() : null),
       general_note: req.body.general_note ? String(req.body.general_note).trim() : (req.body.remarks ? String(req.body.remarks).trim() : null),
       shelf_location: req.body.shelf_location ? String(req.body.shelf_location).trim() : 'Main Stacks',
-      cover_image: req.file ? `/uploads/book-covers/${req.file.filename}` : (typeof req.body.cover_image === 'string' && req.body.cover_image.trim() ? req.body.cover_image.trim() : null)
+      cover_image: req.file ? await uploadCoverToSupabaseStorage(req.file) : (typeof req.body.cover_image === 'string' && req.body.cover_image.trim() ? req.body.cover_image.trim() : null)
     };
 
     if (req.body.category && typeof req.body.category === 'string' && req.body.category.trim()) {
@@ -1489,7 +1527,7 @@ router.post('/', auth, requireRole(['Librarian Admin', 'Librarian']), uploadBook
       }
     }
 
-    res.status(201).json({ success: true, message: 'Book created successfully', book_id });
+    res.status(201).json({ success: true, message: 'Book created successfully', book_id, cover_image: bookData.cover_image });
   } catch (error) {
     console.error('Error creating book:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -1510,7 +1548,7 @@ router.put('/:id', auth, requireRole(['Super Admin', 'Librarian Admin', 'Librari
     let updateData = {};
 
     if (req.file) {
-      updateData.cover_image = `/uploads/book-covers/${req.file.filename}`;
+      updateData.cover_image = await uploadCoverToSupabaseStorage(req.file);
     } else if (req.body.cover_image !== undefined) {
       updateData.cover_image = req.body.cover_image ? String(req.body.cover_image).trim() : null;
     }

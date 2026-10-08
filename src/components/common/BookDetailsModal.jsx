@@ -15,6 +15,7 @@ import {
   FiInfo
 } from 'react-icons/fi';
 import { getBackendAssetUrl } from '../../utils/api';
+import { getBookCoverUrl } from '../../utils/bookCoverUtils';
 
 export default function BookDetailsModal({ 
   book, 
@@ -111,36 +112,39 @@ export default function BookDetailsModal({
           <div className="flex flex-col sm:flex-row gap-5 items-start">
             {/* 3D Book Cover Presentation */}
             <div className="relative w-32 sm:w-36 h-44 sm:h-52 flex-shrink-0 rounded-2xl overflow-hidden shadow-lg shadow-slate-900/15 border border-slate-200 bg-slate-900 mx-auto sm:mx-0">
-              {book.cover_image ? (
-                <>
-                  <img
-                    src={getBackendAssetUrl(book.cover_image)}
-                    alt={title}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                      const fallback = e.target.parentElement.querySelector('.detail-cover-fallback');
-                      if (fallback) fallback.style.display = 'flex';
-                    }}
-                  />
-                  {/* 3D Spine Overlay */}
-                  <div className="absolute inset-y-0 left-0 w-2.5 bg-gradient-to-r from-black/40 via-white/15 to-transparent pointer-events-none" />
-                  <div className="hidden detail-cover-fallback absolute inset-0 bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-900 items-center justify-center p-3 text-center text-white flex-col gap-2">
-                    <FiBook className="w-10 h-10 text-blue-200" />
-                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-100 line-clamp-3">
+              {(() => {
+                const cover = getBookCoverUrl(book);
+                return cover ? (
+                  <>
+                    <img
+                      src={cover}
+                      alt={title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        const fallback = e.target.parentElement?.querySelector('.detail-cover-fallback');
+                        if (fallback) fallback.style.display = 'flex';
+                      }}
+                    />
+                    {/* 3D Spine Overlay */}
+                    <div className="absolute inset-y-0 left-0 w-2.5 bg-gradient-to-r from-black/40 via-white/15 to-transparent pointer-events-none" />
+                    <div className="hidden detail-cover-fallback absolute inset-0 bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-900 items-center justify-center p-3 text-center text-white flex-col gap-2">
+                      <FiBook className="w-10 h-10 text-blue-200" />
+                      <span className="text-[10px] font-black uppercase tracking-wider text-blue-100 line-clamp-3">
+                        {title}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="relative w-full h-full bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-900 flex flex-col items-center justify-center p-3 text-center text-white">
+                    <div className="absolute inset-y-0 left-0 w-2.5 bg-gradient-to-r from-black/40 via-white/20 to-transparent pointer-events-none" />
+                    <FiBook className="w-10 h-10 text-blue-200 mb-2" />
+                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-100 line-clamp-3 leading-tight">
                       {title}
                     </span>
                   </div>
-                </>
-              ) : (
-                <div className="relative w-full h-full bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-900 flex flex-col items-center justify-center p-3 text-center text-white">
-                  <div className="absolute inset-y-0 left-0 w-2.5 bg-gradient-to-r from-black/40 via-white/20 to-transparent pointer-events-none" />
-                  <FiBook className="w-10 h-10 text-blue-200 mb-2" />
-                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-100 line-clamp-3 leading-tight">
-                    {title}
-                  </span>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Core Info & Badges */}

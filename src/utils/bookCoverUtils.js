@@ -34,7 +34,90 @@ export const PRESET_BOOK_COVERS = [
 export function getAutomaticCoverByTitle(book) {
   const text = `${book?.title || ''} ${book?.category_name || book?.category?.category_name || book?.category || ''} ${book?.subject || ''} ${book?.course || ''}`.toLowerCase();
 
-  // Keyword rules
+  // Reference, Encyclopedia, Dictionary, Almanac, Knowledge, General Collection
+  if (
+    text.includes('encycloped') ||
+    text.includes('lexicon') ||
+    text.includes('dictionary') ||
+    text.includes('almanac') ||
+    text.includes('quotation') ||
+    text.includes('handbook') ||
+    text.includes('knowledge') ||
+    text.includes('general collection') ||
+    text.includes('reference')
+  ) {
+    return '/topics/education_pedagogy.jpg';
+  }
+
+  // Religion, Bible, Roman, Theology, Spiritual
+  if (
+    text.includes('bible') ||
+    text.includes('roman') ||
+    text.includes('relig') ||
+    text.includes('spirit') ||
+    text.includes('theolog') ||
+    text.includes('church') ||
+    text.includes('faith') ||
+    text.includes('scripture')
+  ) {
+    return '/books/history.jpg';
+  }
+
+  // Language, Linguistics, Grammar, Communication
+  if (
+    text.includes('linguist') ||
+    text.includes('grammar') ||
+    text.includes('language') ||
+    text.includes('speech') ||
+    text.includes('communication')
+  ) {
+    return '/books/american_literature.jpg';
+  }
+
+  // Leadership, Administration, Management, Competence, Employees, HR
+  if (
+    text.includes('leadership') ||
+    text.includes('administration') ||
+    text.includes('human resource') ||
+    text.includes('competenc') ||
+    text.includes('management') ||
+    text.includes('employee') ||
+    text.includes('organization')
+  ) {
+    return '/topics/business_finance.jpg';
+  }
+
+  // Security, Crime, Criminology, Law, Abuses
+  if (
+    text.includes('securit') ||
+    text.includes('crime') ||
+    text.includes('crimin') ||
+    text.includes('abuse') ||
+    text.includes('law') ||
+    text.includes('justice') ||
+    text.includes('penal') ||
+    text.includes('court') ||
+    text.includes('forensic')
+  ) {
+    return '/topics/law_criminology.jpg';
+  }
+
+  // Education, Teaching, Elementary, Teachers, School, Pedagogy
+  if (
+    text.includes('educ') ||
+    text.includes('teach') ||
+    text.includes('school') ||
+    text.includes('pedagog') ||
+    text.includes('student') ||
+    text.includes('curriculum') ||
+    text.includes('classroom') ||
+    text.includes('instruction') ||
+    text.includes('academic')
+  ) {
+    return '/topics/education_pedagogy.jpg';
+  }
+
+  // Agriculture & Biosciences
   if (text.includes('agri') || text.includes('farm') || text.includes('crop') || text.includes('soil')) {
     return '/books/agriculture.jpg';
   }
@@ -62,7 +145,7 @@ export function getAutomaticCoverByTitle(book) {
   if (text.includes('econom') || text.includes('microeconom') || text.includes('macroeconom')) {
     return '/books/economics.jpg';
   }
-  if (text.includes('business') || text.includes('finance') || text.includes('market') || text.includes('accounting') || text.includes('management') || text.includes('bank') || text.includes('entrepreneur')) {
+  if (text.includes('business') || text.includes('finance') || text.includes('market') || text.includes('accounting') || text.includes('bank') || text.includes('entrepreneur')) {
     return '/topics/business_finance.jpg';
   }
   if (text.includes('history') || text.includes('philippine') || text.includes('heritage') || text.includes('revolution') || text.includes('civilization') || text.includes('historical')) {
@@ -77,7 +160,7 @@ export function getAutomaticCoverByTitle(book) {
   if (text.includes('psycholog') || text.includes('mental') || text.includes('behavior') || text.includes('mind') || text.includes('counsel') || text.includes('therapy')) {
     return '/books/psychology.jpg';
   }
-  if (text.includes('self-help') || text.includes('growth') || text.includes('habit') || text.includes('leadership')) {
+  if (text.includes('self-help') || text.includes('growth') || text.includes('habit')) {
     return '/topics/psychology_selfhelp.jpg';
   }
   if (text.includes('einstein') || text.includes('physics') || text.includes('relativity') || text.includes('quantum') || text.includes('astronomy')) {
@@ -89,14 +172,8 @@ export function getAutomaticCoverByTitle(book) {
   if (text.includes('math') || text.includes('calculus') || text.includes('algebra') || text.includes('statistic') || text.includes('geometry')) {
     return '/topics/engineering_math.jpg';
   }
-  if (text.includes('law') || text.includes('criminol') || text.includes('justice') || text.includes('penal') || text.includes('court') || text.includes('forensic')) {
-    return '/topics/law_criminology.jpg';
-  }
   if (text.includes('art') || text.includes('design') || text.includes('draw') || text.includes('paint') || text.includes('architect') || text.includes('media') || text.includes('visual')) {
     return '/topics/arts_design.jpg';
-  }
-  if (text.includes('educ') || text.includes('teach') || text.includes('pedagog') || text.includes('curriculum') || text.includes('classroom')) {
-    return '/topics/education_pedagogy.jpg';
   }
   if (text.includes('touris') || text.includes('hotel') || text.includes('hospitality') || text.includes('culinary') || text.includes('travel')) {
     return '/topics/hospitality_tourism.jpg';
@@ -137,22 +214,43 @@ export function getOpenLibraryCoverUrl(isbn) {
  * Universal Master Book Cover Resolver
  * Checks:
  * 1. Uploaded/saved database cover (cover_image / cover / image_url)
- * 2. Automatic title & category keyword matching
+ *    - Maps any uploads to permanent Supabase Storage public CDN
+ * 2. Frontend public asset presets (/books/... and /topics/...)
+ * 3. Automatic title & category keyword matching
  */
 export function getBookCoverUrl(book) {
   const rawCover = book?.cover_image || book?.cover || book?.image_url;
 
-  // Filter out any broken test artifacts
-  const isDummyCover = typeof rawCover === 'string' && (rawCover.includes('book-cover-17888') || rawCover.trim() === '');
+  if (rawCover && typeof rawCover === 'string' && rawCover.trim() !== '') {
+    const trimmed = rawCover.trim();
 
-  if (rawCover && !isDummyCover) {
-    const trimmed = String(rawCover).trim();
-    // If the path starts with /books/ or /topics/, it's a frontend public asset preset
+    // 1. If it's an uploaded book cover (from /uploads/book-covers or book-cover-...)
+    if (trimmed.includes('book-covers/') || trimmed.includes('book-cover-')) {
+      // If already a full public Supabase or external URL, return it directly
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        return trimmed;
+      }
+      // Extract filename and route directly to permanent Supabase Storage public CDN
+      const filename = trimmed.split('/').pop().split('?')[0];
+      if (filename) {
+        return `https://yacrlfcbeltxtiztvwgo.supabase.co/storage/v1/object/public/book-covers/${filename}`;
+      }
+    }
+
+    // 2. If the path starts with /books/ or /topics/, it's a frontend public asset preset
     if (trimmed.startsWith('/books/') || trimmed.startsWith('/topics/')) {
       return trimmed;
     }
+
+    // 3. Full external URL or data URI
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+      return trimmed;
+    }
+
+    // 4. Any other backend relative asset
     return getBackendAssetUrl(trimmed);
   }
 
+  // 5. Automatic title & category keyword matching
   return getAutomaticCoverByTitle(book);
 }

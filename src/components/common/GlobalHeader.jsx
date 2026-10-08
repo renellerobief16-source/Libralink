@@ -6,6 +6,7 @@ import {
   FiUserCheck, FiFileText, FiSun, FiMoon, FiShield, FiExternalLink, FiSliders
 } from 'react-icons/fi';
 import { getBackendAssetUrl, markAllNotificationsAsRead } from '../../utils/api';
+import { getBookCoverUrl } from '../../utils/bookCoverUtils';
 import { formatSmartTime, formatPhilippineFullTooltip } from '../../utils/timeUtils';
 
 const DESK_SHORTCUTS = [
@@ -477,11 +478,14 @@ function GlobalHeader({
                             }`}
                           >
                             <div className="w-8 h-10 rounded bg-slate-100 dark:bg-gray-700 overflow-hidden shrink-0 flex items-center justify-center border border-slate-200 dark:border-gray-600">
-                              {book.cover_image ? (
-                                <img src={getBackendAssetUrl(book.cover_image)} alt={book.title} className="w-full h-full object-cover" />
-                              ) : (
-                                <FiBook className="w-4 h-4 text-slate-400" />
-                              )}
+                              {(() => {
+                                const cover = getBookCoverUrl(book);
+                                return cover ? (
+                                  <img src={cover} alt={book.title} className="w-full h-full object-cover" />
+                                ) : (
+                                  <FiBook className="w-4 h-4 text-slate-400" />
+                                );
+                              })()}
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="text-xs font-bold truncate">{book.title}</p>
