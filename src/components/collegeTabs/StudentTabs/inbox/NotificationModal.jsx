@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   X,
   Book,
@@ -16,6 +16,7 @@ import {
   Shield,
   Sparkles,
   Package,
+  Download,
 } from "lucide-react";
 import QRCode from "qrcode";
 import QRCodeDisplay from "../QRCodeDisplay";
@@ -40,26 +41,90 @@ function NotificationModal({ notification, requestDetails, loading, onClose, onV
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  // Generate QR image for return_qr_ready notifications
-  useEffect(() => {
-    const type = String(notification?.type || "").toLowerCase();
-    if (type === "return_qr_ready") {
-      // Extract QR token from message (last word / token pattern)
-      const msg = notification?.message || "";
-      const match = msg.match(/LL-[\w-]+/) || msg.match(/([^\s]+)$/);
-      const token = requestDetails?.qr_token || (match ? match[0] : null);
-      if (token) {
-        QRCode.toDataURL(token, {
-          width: 220,
-          margin: 1,
-          color: { dark: "#0f172a", light: "#ffffff" },
-          errorCorrectionLevel: "H",
-        })
-          .then(setReturnQrDataUrl)
-          .catch(() => setReturnQrDataUrl(null));
-      }
+  const notifType = String(notification?.type || "").toLowerCase();
+  const notifTitle = String(notification?.title || "").toLowerCase();
+  const notifMsg = String(notification?.message || "").toLowerCase();
+
+  const isDueOrOverdue =
+    notifType.includes("due") ||
+    notifType.includes("overdue") ||
+    notifTitle.includes("due") ||
+    notifTitle.includes("overdue");
+
+  // A notification is a Return QR pass if it represents a borrowed / released book or explicit return alert
+  const isReturnQr =
+    notifType === "return_qr_ready" ||
+    notifType === "book_borrowed" ||
+    notifType === "book_released" ||
+    notifType === "borrowed" ||
+    requestDetails?.status === "borrowed" ||
+    notifTitle.includes("borrowed") ||
+    notifMsg.includes("released at the counter") ||
+    notifMsg.includes("return due date");
+
+  const isApproved =
+    !isReturnQr &&
+    (requestDetails?.status === "approved" ||
+      notifTitle.includes("approved") ||
+      notifType.includes("approved"));
+
+  // Resolve QR token for return pass
+  const returnToken = useMemo(() => {
+    return (
+      requestDetails?.qr_token ||
+      requestDetails?.items?.find((it) => it.qr_token)?.qr_token ||
+      (notification?.message?.match(/LL-[\w-]+/) || [])[0] ||
+      requestDetails?.request_id ||
+      (notification?.related_id ? `LL-${notification.related_id}` : null)
+    );
+  }, [requestDetails, notification]);
+
+  // Resolve Due Date Display
+  const dueDateDisplay = useMemo(() => {
+    if (requestDetails?.due_date) {
+      return formatPhilippineDate(requestDetails.due_date);
     }
-  }, [notification, requestDetails]);
+    const itemDue = requestDetails?.items?.find((it) => it.due_date)?.due_date;
+    if (itemDue) {
+      return formatPhilippineDate(itemDue);
+    }
+    const match = notification?.message?.match(/Return Due Date:\s*([^.\n]+)/i);
+    if (match) {
+      return match[1].trim();
+    }
+    return null;
+  }, [requestDetails, notification]);
+
+  // Resolve Book Title Display
+  const bookTitleDisplay = useMemo(() => {
+    if (requestDetails?.items?.length) {
+      const titles = requestDetails.items
+        .map((it) => it.book?.title || it.book_title || it.title)
+        .filter(Boolean);
+      if (titles.length > 0) return [...new Set(titles)].join(", ");
+    }
+    const match = notification?.message?.match(/"([^"]+)"/);
+    if (match) {
+      return match[1];
+    }
+    return null;
+  }, [requestDetails, notification]);
+
+  // Generate QR image for Return Pass
+  useEffect(() => {
+    if (!isReturnQr) return;
+    const token = returnToken;
+    if (token) {
+      QRCode.toDataURL(token, {
+        width: 260,
+        margin: 2,
+        color: { dark: "#0f172a", light: "#ffffff" },
+        errorCorrectionLevel: "H",
+      })
+        .then(setReturnQrDataUrl)
+        .catch(() => setReturnQrDataUrl(null));
+    }
+  }, [isReturnQr, returnToken]);
 
   const handleCopyQRToken = (token) => {
     if (!token) return;
@@ -68,15 +133,15 @@ function NotificationModal({ notification, requestDetails, loading, onClose, onV
     setTimeout(() => setCopiedToken(false), 2000);
   };
 
-  const notifType = String(notification?.type || "").toLowerCase();
-  const isDueOrOverdue =
-    notifType.includes("due") || notifType.includes("overdue");
-  const isReturnQr = notifType === "return_qr_ready";
-
-  const isApproved =
-    !isReturnQr &&
-    (requestDetails?.status === "approved" ||
-      String(notification?.title || "").toLowerCase().includes("approved"));
+  const handleDownloadQR = () => {
+    if (!returnQrDataUrl) return;
+    const link = document.createElement("a");
+    link.href = returnQrDataUrl;
+    link.download = `Return_Pass_${returnToken || "Book"}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="flex flex-col w-full h-[100dvh] bg-white overflow-hidden select-text">
@@ -97,6 +162,13 @@ function NotificationModal({ notification, requestDetails, loading, onClose, onV
             <span className="hidden xs:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
               <CheckCircle className="w-3 h-3 text-emerald-600" />
               <span>Approved Pass</span>
+            </span>
+          )}
+
+          {isReturnQr && (
+            <span className="hidden xs:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
+              <QrCode className="w-3 h-3 text-blue-600" />
+              <span>Return Pass</span>
             </span>
           )}
         </div>
@@ -248,59 +320,169 @@ function NotificationModal({ notification, requestDetails, loading, onClose, onV
           )}
 
           {/* ═══════════════════════════════════════════════════════════════ */}
-          {/* RETURN QR CODE LAYOUT (shown when due date arrives)           */}
+          {/* RETURN QR CODE LAYOUT (Official Book Return Pass)             */}
           {/* ═══════════════════════════════════════════════════════════════ */}
           {isReturnQr && (
             <>
-              {/* Hero Card */}
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-xs space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                    <Package className="w-3.5 h-3.5 text-amber-600" />
-                    Book Return Due Today
+              {/* Notification Message Card (matches inbox notification details) */}
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <span>
+                      {new Date(notification.createdAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </span>
+                    <span>•</span>
+                    <span>
+                      {new Date(notification.createdAt).toLocaleTimeString("en-US", {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+
+                  <span className="rounded-md bg-blue-50 border border-blue-200/80 px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider text-blue-700">
+                    {notification.type?.replace(/_/g, " ") || "BOOK BORROWED"}
                   </span>
                 </div>
-                <p className="text-xs text-amber-900 leading-relaxed">
-                  {notification?.message?.split("Show this QR")[0] || notification?.message}
+
+                <p className="text-sm sm:text-base leading-relaxed text-slate-800 font-medium break-words">
+                  {notification.message}
                 </p>
               </div>
 
-              {/* QR Code Card */}
-              <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs flex flex-col items-center gap-3">
-                <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Show This QR When Returning</p>
-                {returnQrDataUrl ? (
-                  <img
-                    src={returnQrDataUrl}
-                    alt="Return QR Code"
-                    className="w-48 h-48 rounded-xl border-2 border-slate-800 bg-white p-2"
-                  />
-                ) : (
-                  <div className="w-48 h-48 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center bg-slate-50">
-                    <p className="text-xs text-slate-400 text-center px-4">Generating QR…</p>
+              {/* Official Book Return QR Pass Card */}
+              <div className="rounded-2xl border border-blue-200/90 bg-white p-4 sm:p-5 shadow-2xs flex flex-col items-center gap-4">
+                {/* Header Row */}
+                <div className="w-full flex items-center justify-between border-b border-slate-100 pb-3 gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="p-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 shrink-0">
+                      <QrCode className="w-4 h-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <h4 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-900 truncate">
+                        Official Book Return Pass
+                      </h4>
+                      <p className="text-[11px] text-slate-500 truncate">
+                        Scan at circulation counter when returning
+                      </p>
+                    </div>
                   </div>
-                )}
-                {requestDetails?.qr_token && (
-                  <button
-                    type="button"
-                    onClick={() => handleCopyQRToken(requestDetails.qr_token)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 active:scale-95 transition"
-                  >
-                    {copiedToken ? <><Check className="w-3.5 h-3.5 text-emerald-600" /><span className="text-emerald-700">Copied</span></> : <><Copy className="w-3.5 h-3.5" /><span>Copy Token</span></>}
-                  </button>
+
+                  {dueDateDisplay && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg shrink-0">
+                      <Clock className="w-3 h-3 text-amber-600" />
+                      <span>Due: {dueDateDisplay}</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* QR Code Container */}
+                <div className="flex flex-col items-center justify-center p-3 sm:p-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 shadow-2xs w-full max-w-xs">
+                  {returnQrDataUrl ? (
+                    <img
+                      src={returnQrDataUrl}
+                      alt="Official Book Return QR Code"
+                      className="w-48 h-48 sm:w-56 sm:h-56 rounded-xl border border-slate-200 bg-white p-2 shadow-2xs object-contain"
+                    />
+                  ) : (
+                    <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center bg-white p-4">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                      <p className="text-xs text-slate-400 font-medium text-center">Generating Return QR…</p>
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-slate-400 mt-2 font-medium text-center">
+                    Present this scannable QR pass to the librarian
+                  </p>
+                </div>
+
+                {/* Return Token Row */}
+                {returnToken && (
+                  <div className="w-full flex items-center justify-between gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200/80">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">
+                        Return Token / Pass ID
+                      </span>
+                      <span className="font-mono font-bold text-xs sm:text-sm text-slate-900 tracking-wide select-all truncate block">
+                        {returnToken}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleCopyQRToken(returnToken)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 active:scale-95 transition shadow-2xs cursor-pointer"
+                        title="Copy Return Token"
+                      >
+                        {copiedToken ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="text-emerald-700">Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+
+                      {returnQrDataUrl && (
+                        <button
+                          type="button"
+                          onClick={handleDownloadQR}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 active:scale-95 transition shadow-2xs cursor-pointer"
+                          title="Download QR Image"
+                        >
+                          <Download className="w-3.5 h-3.5 text-slate-500" />
+                          <span className="hidden xs:inline">Save</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
 
-              {/* Return Instructions */}
-              <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-xs text-slate-700 space-y-1.5">
+              {/* Borrowed Book Summary Card */}
+              {bookTitleDisplay && (
+                <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs space-y-2.5">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-slate-600 flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                    <BookOpen className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Borrowed Book</span>
+                  </h4>
+                  <div className="flex items-start gap-2.5 p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                    <Book className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-900 leading-snug break-words">
+                        {bookTitleDisplay}
+                      </p>
+                      {requestDetails?.request_id && (
+                        <p className="text-[11px] text-slate-500 mt-0.5 font-mono">
+                          Request ID: {requestDetails.request_id}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Library Return Guidelines */}
+              <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3.5 text-xs text-slate-700 space-y-2">
                 <div className="flex items-center gap-1.5 font-bold text-blue-950 text-xs">
                   <Shield className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                  <span>Return Instructions</span>
+                  <span>Library Return Guidelines</span>
                 </div>
-                <ul className="text-[11px] text-slate-600 space-y-1 list-disc list-inside">
-                  <li>Visit the library circulation desk today to return your book.</li>
-                  <li>Show this QR code to the librarian for verification.</li>
-                  <li>Bring your <strong>physical Student ID</strong> as well.</li>
-                  <li>Ensure the book is in good condition with intact tags.</li>
+                <ul className="text-[11px] text-slate-600 space-y-1.5 list-disc list-inside">
+                  <li>Visit the library circulation desk counter on or before the due date.</li>
+                  <li>Show this <strong>Return QR Code</strong> to the librarian for instant check-in.</li>
+                  <li>Please bring your physical Student ID for verification.</li>
+                  <li>Ensure the book is in good physical condition with intact spine and accession tags.</li>
                 </ul>
               </div>
             </>
@@ -384,7 +566,7 @@ function NotificationModal({ notification, requestDetails, loading, onClose, onV
           Close
         </button>
 
-        {requestDetails?.request_id && (
+        {(requestDetails?.request_id || returnToken) && (
           <button
             type="button"
             onClick={onViewHistory}

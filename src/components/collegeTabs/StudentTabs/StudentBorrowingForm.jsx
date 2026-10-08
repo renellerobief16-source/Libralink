@@ -67,13 +67,21 @@ function StudentBorrowingForm({
     }
   });
 
-  // 2. Resolve scanned ID card picture
+  // 2. Resolve scanned ID card picture (NEVER personal profile avatar)
   const [idCardUrl, setIdCardUrl] = useState(() => {
     const uId = profile?.user_id || profile?.id || localStorage.getItem("currentUserId");
     const cachedIdCard = uId ? localStorage.getItem(`libralink_id_card_${uId}`) : null;
-    const raw = profile?.id_card_picture || cachedIdCard || "";
+    let raw = profile?.id_card_picture || cachedIdCard || "";
+    // If raw points to profile_image avatar, do NOT treat it as student ID
+    if (raw && profile?.profile_image && raw === profile.profile_image) {
+      raw = "";
+    }
     return raw ? getSafeImageUrl(raw) : "";
   });
+
+  const [imageLoadError, setImageLoadError] = useState(false);
+  const [fallbackFile, setFallbackFile] = useState(null);
+  const [fallbackPreview, setFallbackPreview] = useState(null);
 
   const [zoomIdModal, setZoomIdModal] = useState(false);
   const [selectedBookForDetails, setSelectedBookForDetails] = useState(null);
@@ -90,10 +98,6 @@ function StudentBorrowingForm({
   const [customPurposeNote, setCustomPurposeNote] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(true);
 
-  // Fallback manual upload if no ID card is on file
-  const [fallbackFile, setFallbackFile] = useState(null);
-  const [fallbackPreview, setFallbackPreview] = useState(null);
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -101,14 +105,22 @@ function StudentBorrowingForm({
   const [quotaStatus, setQuotaStatus] = useState(null);
   const [loadingQuota, setLoadingQuota] = useState(true);
 
+  // Effective ID card image to show: ONLY physical student ID card picture, NEVER the profile avatar
+  const effectiveIdUrl = fallbackPreview || (!imageLoadError && idCardUrl ? idCardUrl : null);
+
+  const handleIdImageError = () => {
+    // If physical ID image failed to load, show the verified institutional ID card placeholder
+    setImageLoadError(true);
+  };
+
   // Live profile & quota synchronization on mount
   useEffect(() => {
     let isMounted = true;
     api
       .get("/auth/me")
       .then((res) => {
-        if (!isMounted || !res?.data?.user) return;
-        const liveUser = res.data.user;
+        const liveUser = res?.data?.user || res?.data?.data || res?.data;
+        if (!isMounted || !liveUser || typeof liveUser !== 'object') return;
         setProfile((prev) => ({ ...prev, ...liveUser }));
 
         if (liveUser.contact_number && !contactNumber) {
@@ -119,15 +131,18 @@ function StudentBorrowingForm({
         }
 
         const liveCard = liveUser.id_card_picture;
-        if (liveCard) {
+        if (liveCard && (!liveUser.profile_image || liveCard !== liveUser.profile_image)) {
           const formatted = getSafeImageUrl(liveCard);
           setIdCardUrl(formatted);
+          setImageLoadError(false);
           const uId = liveUser.user_id || liveUser.id;
           if (uId) {
             try {
               localStorage.setItem(`libralink_id_card_${uId}`, formatted);
             } catch (_) {}
           }
+        } else if (liveCard && liveUser.profile_image && liveCard === liveUser.profile_image) {
+          setIdCardUrl("");
         }
       })
       .catch(() => {});
@@ -196,6 +211,7 @@ function StudentBorrowingForm({
       }
       setFallbackFile(file);
       setFallbackPreview(URL.createObjectURL(file));
+      setImageLoadError(false);
       setErrorMessage("");
     }
   };
@@ -239,13 +255,13 @@ function StudentBorrowingForm({
       const currentCommitment = quotaStatus.total_commitment || 0;
       if (currentCommitment >= maxLimit) {
         setErrorMessage(
-          `Naka-limit na ang iyong borrowing account (${currentCommitment}/${maxLimit} books). Hindi na maaaring mag-request ng libro hangga't hindi naibabalik ang mga aktibong hiniram o nakansela ang pending requests.`
+          `Your borrowing account has reached its limit (${currentCommitment}/${maxLimit} books). You cannot place new borrow requests until active loans are returned or pending requests are cancelled.`
         );
         return;
       }
       if (currentCommitment + items.length > maxLimit) {
         setErrorMessage(
-          `Lalampas sa pinapayagang limitasyon: Kasalukuyan kang may ${currentCommitment} aktibo/nakabinbin na libro, at humihiling ka ng ${items.length} pa. Ang limitasyon ng iyong paaralan ay ${maxLimit} libro lamang.`
+          `Exceeds allowed borrowing limit: You currently have ${currentCommitment} active/pending book(s), and you are requesting ${items.length} more. Your institution's limit is ${maxLimit} books.`
         );
         return;
       }
@@ -259,7 +275,11 @@ function StudentBorrowingForm({
     setIsSubmitting(true);
 
     try {
-      let resolvedIdPicUrl = profile?.id_card_picture || "";
+      let resolvedIdPicUrl = fallbackPreview
+        ? ""
+        : (!imageLoadError && (idCardUrl || profile?.id_card_picture)
+            ? (idCardUrl || profile?.id_card_picture)
+            : "");
 
       // If user uploaded a new manual file fallback
       if (fallbackFile instanceof File) {
@@ -470,15 +490,15 @@ function StudentBorrowingForm({
               <p className="text-xs mt-1 leading-relaxed">
                 {quotaStatus.is_limit_reached ? (
                   <>
-                    Naka-limit na ang iyong account (<strong>{quotaStatus.total_commitment}/{quotaStatus.max_limit}</strong> books). Hindi na maaaring mag-request ng bagong libro hangga't hindi naibabalik ang mga kasalukuyang hiniram o nakansela ang pending requests.
+                    Your account has reached its maximum limit (<strong>{quotaStatus.total_commitment}/{quotaStatus.max_limit}</strong> books). You cannot place new borrow requests until current books are returned or pending requests are cancelled.
                   </>
                 ) : quotaStatus.total_commitment + borrowingList.length > quotaStatus.max_limit ? (
                   <>
-                    Mayroon ka nang <strong>{quotaStatus.total_commitment}</strong> aktibo/nakabinbing libro. Ang paghiling ng <strong>{borrowingList.length}</strong> pa ay lalampas sa limitasyon ng iyong paaralan na <strong>{quotaStatus.max_limit}</strong> libro.
+                    You currently have <strong>{quotaStatus.total_commitment}</strong> active/pending book(s). Requesting <strong>{borrowingList.length}</strong> more exceeds your institution's limit of <strong>{quotaStatus.max_limit}</strong> books.
                   </>
                 ) : (
                   <>
-                    Mayroon kang <strong>{quotaStatus.remaining_slots}</strong> natitirang slot para sa paghiram mula sa iyong paaralan o partner libraries ({quotaStatus.active_loans_count} active loans, {quotaStatus.pending_requests_count} pending requests).
+                    You have <strong>{quotaStatus.remaining_slots}</strong> remaining borrow slot{quotaStatus.remaining_slots === 1 ? "" : "s"} available from your institution or partner libraries ({quotaStatus.active_loans_count} active loan{quotaStatus.active_loans_count === 1 ? "" : "s"}, {quotaStatus.pending_requests_count} pending request{quotaStatus.pending_requests_count === 1 ? "" : "s"}).
                   </>
                 )}
               </p>
@@ -697,7 +717,7 @@ function StudentBorrowingForm({
             </span>
           </div>
 
-          {idCardUrl || fallbackPreview ? (
+          {effectiveIdUrl ? (
             <div className="flex flex-col sm:flex-row items-center gap-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 p-3">
               <div
                 onClick={() => setZoomIdModal(true)}
@@ -705,9 +725,10 @@ function StudentBorrowingForm({
                 title="Click to zoom ID card picture"
               >
                 <img
-                  src={fallbackPreview || idCardUrl}
+                  src={effectiveIdUrl}
                   alt="Scanned Institutional Student ID"
                   className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-200"
+                  onError={handleIdImageError}
                 />
                 <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold gap-1">
                   <Maximize2 className="h-3.5 w-3.5" />
@@ -723,35 +744,72 @@ function StudentBorrowingForm({
                 <p className="text-[11px] text-slate-600 leading-relaxed">
                   This physical ID was scanned during library registration. Librarians will match this photo at the circulation counter when approving and releasing your book.
                 </p>
-                <p className="text-[10px] text-slate-400 font-mono">
-                  Linked to Student ID: {studentNumber}
-                </p>
+                <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                  <span>Linked to Student ID: {studentNumber}</span>
+                  <label className="text-[10px] text-blue-600 hover:text-blue-800 font-sans font-semibold cursor-pointer underline">
+                    Update photo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleManualImageChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-3.5 space-y-3">
-              <div className="flex items-start gap-2.5">
-                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                <div className="text-xs text-amber-900">
-                  <p className="font-bold">No Librarian-Scanned ID Card on Record Yet</p>
-                  <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
-                    You can still submit your borrow request! The librarian will verify your student ID card physically at the counter upon book release. You may also attach a clear photo of your school ID below:
-                  </p>
+            <div className="flex flex-col sm:flex-row items-center gap-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 p-3.5">
+              {/* Virtual Institutional ID Badge Card Placeholder */}
+              <div
+                onClick={() => setZoomIdModal(true)}
+                className="relative h-28 w-44 shrink-0 rounded-xl overflow-hidden border border-slate-700/60 bg-linear-to-br from-slate-800 via-slate-900 to-indigo-950 text-white p-2.5 flex flex-col justify-between shadow-xs cursor-pointer group select-none"
+                title="Institutional Patron ID Card"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                    <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-200">Libralink ID</span>
+                  </div>
+                  <span className="text-[8px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-mono font-semibold">VERIFIED</span>
+                </div>
+                <div className="my-auto">
+                  <p className="text-[11px] font-bold text-white truncate leading-tight">{studentFullName || "Student Patron"}</p>
+                  <p className="text-[9px] font-mono text-emerald-300 truncate mt-0.5">ID: {studentNumber || "—"}</p>
+                </div>
+                <div className="flex items-center justify-between text-[8px] text-slate-400 border-t border-slate-700/60 pt-1">
+                  <span className="truncate">{studentCourse || "Patron"}</span>
+                  <span className="font-mono text-slate-400">Official Record</span>
+                </div>
+                <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold gap-1">
+                  <Maximize2 className="h-3.5 w-3.5" />
+                  <span>Click to view ID</span>
                 </div>
               </div>
 
-              <div className="relative rounded-xl border-2 border-dashed border-amber-300 bg-white/80 p-3 text-center hover:border-amber-400 transition cursor-pointer">
-                <UploadCloud className="h-6 w-6 text-amber-600 mx-auto mb-1" />
-                <p className="text-xs font-semibold text-slate-700">
-                  {fallbackFile ? fallbackFile.name : "Optional: Click or drag student ID photo here"}
+              <div className="space-y-1.5 text-xs min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-emerald-700 font-bold">
+                  <BadgeCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>Institutional Student Record Linked</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Your official student profile is verified and linked. Librarians will match your institutional card at the circulation counter when releasing your book.
                 </p>
-                <p className="text-[10px] text-slate-400">PNG, JPG up to 5MB</p>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleManualImageChange}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                />
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    Linked to Student ID: {studentNumber}
+                  </span>
+                  <label className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold cursor-pointer underline flex items-center gap-1">
+                    <UploadCloud className="h-3 w-3" />
+                    Attach photo copy
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleManualImageChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
               </div>
             </div>
           )}
@@ -906,11 +964,33 @@ function StudentBorrowingForm({
 
             {/* ID Card Image Container */}
             <div className="overflow-hidden rounded-xl border border-slate-200/90 bg-slate-50 flex items-center justify-center aspect-[16/10] p-1 shadow-2xs">
-              <img
-                src={fallbackPreview || idCardUrl}
-                alt="Institutional ID Zoom"
-                className="w-full h-full object-contain rounded-lg"
-              />
+              {effectiveIdUrl ? (
+                <img
+                  src={effectiveIdUrl}
+                  alt="Institutional ID Zoom"
+                  className="w-full h-full object-contain rounded-lg"
+                  onError={handleIdImageError}
+                />
+              ) : (
+                <div className="w-full h-full rounded-lg bg-linear-to-br from-slate-800 via-slate-900 to-indigo-950 text-white p-4 flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-slate-200">Libralink Institutional ID</span>
+                    </div>
+                    <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-mono font-bold">VERIFIED</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-white">{studentFullName}</p>
+                    <p className="text-xs font-mono text-emerald-300 mt-0.5">ID: {studentNumber}</p>
+                    <p className="text-[11px] text-slate-300 mt-0.5">{studentCourse}</p>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 border-t border-slate-700/60 pt-1.5">
+                    <span>{studentCampus || "Library Patron"}</span>
+                    <span>Official ID Record</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Verification Caption */}

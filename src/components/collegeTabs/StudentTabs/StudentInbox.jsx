@@ -250,25 +250,57 @@ function StudentInbox({ isDrawer = false, onClose }) {
     setShowNotificationModal(true);
     markAsRead(notification.id);
 
-    if (notification.related_request_id) {
+    const lookupId =
+      notification.related_request_id ||
+      notification.related_id ||
+      (notification.message?.match(/LL-[\w-]+/) || [])[0];
+
+    if (lookupId) {
       setLoadingRequest(true);
       try {
         const response = await api.get(
-          `/borrow-requests/${notification.related_request_id}`
+          `/borrow-requests/${lookupId}`
         );
         const req = response.data?.data || response.data;
-        setRequestDetails(req);
-        setSelectedRequestForQR(req);
+        if (req && (req.request_id || req.qr_token || req.items)) {
+          setRequestDetails(req);
+          setSelectedRequestForQR(req);
+          return;
+        }
       } catch (error) {
-        setRequestDetails(null);
-        setSelectedRequestForQR(null);
+        console.warn("Could not fetch borrow request via API:", error);
       } finally {
         setLoadingRequest(false);
       }
-    } else {
-      setRequestDetails(null);
-      setSelectedRequestForQR(null);
     }
+
+    // Local state fallback matching
+    const localMatch =
+      borrowRequests.find(
+        (b) =>
+          (lookupId && (b.request_id === lookupId || String(b.id) === String(lookupId))) ||
+          b.items?.some(
+            (it) =>
+              (lookupId && (String(it.item_id) === String(lookupId) || it.qr_token === lookupId)) ||
+              (notification.message &&
+                it.book?.title &&
+                notification.message.includes(it.book.title))
+          )
+      ) ||
+      activeBorrows.find(
+        (b) =>
+          (lookupId &&
+            (b.request_id === lookupId ||
+              String(b.borrow_id) === String(lookupId) ||
+              String(b.item_id) === String(lookupId) ||
+              b.qr_token === lookupId)) ||
+          (notification.message &&
+            ((b.book_title && notification.message.includes(b.book_title)) ||
+              (b.title && notification.message.includes(b.title))))
+      );
+
+    setRequestDetails(localMatch || null);
+    setSelectedRequestForQR(localMatch || null);
   };
 
   // Filtered Notifications list

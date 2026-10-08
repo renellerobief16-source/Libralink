@@ -43,6 +43,68 @@ async function uploadProfileToSupabaseStorage(file) {
   }
 }
 
+/**
+ * Uploads student ID card image (either file from multer or base64 data URI) directly to Supabase Storage.
+ * Stores in 'profiles' bucket with permanent public CDN URL.
+ */
+async function uploadIdCardToSupabaseStorage({ file, base64String }) {
+  try {
+    let fileBuffer = null;
+    let ext = '.jpg';
+    let contentType = 'image/jpeg';
+    let uniqueFilename = '';
+
+    if (file) {
+      fileBuffer = fs.readFileSync(file.path);
+      ext = path.extname(file.originalname || file.filename || '.jpg') || '.jpg';
+      uniqueFilename = `idcard-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+      contentType = file.mimetype || 'image/jpeg';
+    } else if (base64String && typeof base64String === 'string' && base64String.startsWith('data:')) {
+      const match = base64String.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+      if (match) {
+        const rawExt = match[1].toLowerCase();
+        ext = rawExt === 'jpeg' ? '.jpg' : `.${rawExt}`;
+        contentType = `image/${rawExt === 'jpg' ? 'jpeg' : rawExt}`;
+        fileBuffer = Buffer.from(match[2], 'base64');
+        uniqueFilename = `idcard-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+      }
+    }
+
+    if (!fileBuffer || !uniqueFilename) return null;
+
+    // Backup to local disk if running locally
+    try {
+      const localDir = path.join(__dirname, '../uploads/profiles');
+      if (!fs.existsSync(localDir)) {
+        fs.mkdirSync(localDir, { recursive: true });
+      }
+      fs.writeFileSync(path.join(localDir, uniqueFilename), fileBuffer);
+    } catch (_) {}
+
+    const { error: uploadError } = await supabase.storage
+      .from('profiles')
+      .upload(uniqueFilename, fileBuffer, {
+        contentType,
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.error('[SUPABASE STORAGE] Error uploading ID card:', uploadError.message);
+      return `/uploads/profiles/${uniqueFilename}`;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('profiles')
+      .getPublicUrl(uniqueFilename);
+
+    console.log('[SUPABASE STORAGE] Successfully uploaded student ID card to CDN:', publicUrl);
+    return publicUrl || `/uploads/profiles/${uniqueFilename}`;
+  } catch (err) {
+    console.error('[SUPABASE STORAGE] ID card upload error:', err.message);
+    return null;
+  }
+}
+
 // @route   GET /api/users
 // @desc    Get all users
 // @access  Private (Super Admin, Librarian Admin, Librarian)
@@ -190,20 +252,10 @@ router.post('/:id/id-card', auth, requireRole(['Super Admin', 'Librarian Admin',
       return res.status(403).json({ success: false, message: 'Access denied: user belongs to a different school' });
     }
 
-    let idCardUrl = null;
-    if (req.file) {
-      idCardUrl = `/uploads/profiles/${req.file.filename}`;
-    } else if (req.body?.id_card_picture && typeof req.body.id_card_picture === 'string' && req.body.id_card_picture.startsWith('data:')) {
-      const match = req.body.id_card_picture.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
-      if (match) {
-        const rawExt = match[1].toLowerCase();
-        const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
-        const filename = `profile-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
-        const savePath = path.join(__dirname, '../uploads/profiles', filename);
-        fs.writeFileSync(savePath, Buffer.from(match[2], 'base64'));
-        idCardUrl = `/uploads/profiles/${filename}`;
-      }
-    }
+    let idCardUrl = await uploadIdCardToSupabaseStorage({
+      file: req.file,
+      base64String: req.body?.id_card_picture,
+    });
 
     if (!idCardUrl) {
       return res.status(400).json({ success: false, message: 'No file or valid ID card image uploaded' });

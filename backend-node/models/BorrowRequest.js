@@ -20,12 +20,12 @@ class BorrowRequest {
         try {
           const { data: userRec } = await supabase
             .from('users')
-            .select('id_card_picture, contact_number, address')
+            .select('id_card_picture, profile_image, contact_number, address')
             .eq('user_id', data.student_id)
             .maybeSingle();
 
           if (userRec) {
-            if (!resolvedIdPic && userRec.id_card_picture) {
+            if (!resolvedIdPic && userRec.id_card_picture && (!userRec.profile_image || userRec.id_card_picture !== userRec.profile_image)) {
               resolvedIdPic = userRec.id_card_picture;
             }
             if (!contactNumber && userRec.contact_number) {
@@ -263,6 +263,23 @@ class BorrowRequest {
 
   static async getById(request_id) {
     try {
+      let resolvedRequestId = request_id;
+
+      // If passed numeric item_id (e.g. related_id from notifications), resolve parent request_id
+      if (typeof resolvedRequestId === 'number' || (/^\d+$/.test(String(resolvedRequestId)) && !String(resolvedRequestId).startsWith('LL-'))) {
+        try {
+          const { data: itemRec } = await supabase
+            .from('borrow_request_items')
+            .select('request_id')
+            .eq('item_id', Number(resolvedRequestId))
+            .maybeSingle();
+
+          if (itemRec?.request_id) {
+            resolvedRequestId = itemRec.request_id;
+          }
+        } catch (_) {}
+      }
+
       const { data, error } = await supabase
         .from('borrow_requests')
         .select(`
@@ -271,15 +288,29 @@ class BorrowRequest {
           home_school:home_school_id(school_name, school_code),
           items:borrow_request_items(
             *,
-            book:book_id(title, author),
+            book:book_id(title, author, cover_image),
             owner_school:owner_school_id(school_name, school_code),
             partner_school:partner_school_id(school_name, school_code)
           )
         `)
-        .eq('request_id', request_id)
+        .eq('request_id', resolvedRequestId)
         .single();
 
       if (error) throw error;
+      if (data) {
+        if (!data.qr_token) {
+          const itemWithToken = data.items?.find((it) => it.qr_token);
+          if (itemWithToken?.qr_token) {
+            data.qr_token = itemWithToken.qr_token;
+          }
+        }
+        if (!data.due_date) {
+          const itemWithDue = data.items?.find((it) => it.due_date);
+          if (itemWithDue?.due_date) {
+            data.due_date = itemWithDue.due_date;
+          }
+        }
+      }
       return data;
     } catch (error) {
       console.error('[BORROW REQUEST] Error getting request:', error);

@@ -136,6 +136,11 @@ function GlobalHeader({
         return false;
       }
 
+      // If notification has no explicit sender role (system alert, borrow request, release notice, due reminder, etc.), display it
+      if (!senderRoleLower) {
+        return true;
+      }
+
       // Libraries shouldn't see each-other's cross-school sender rows at all.
       // Librarian: can see from Super Admin, Admin Librarian, and Student
       if (roleLower === 'librarian') {

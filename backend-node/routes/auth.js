@@ -108,7 +108,8 @@ router.get('/me', auth, async (req, res) => {
 
     res.json({
       success: true,
-      data: user
+      data: user,
+      user: user
     });
   } catch (error) {
     console.error('[AUTH/ME] Error getting current user:', error);
