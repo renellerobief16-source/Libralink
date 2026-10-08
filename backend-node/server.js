@@ -80,6 +80,16 @@ app.use('/uploads/book-covers', (req, res) => {
   return res.redirect(`https://yacrlfcbeltxtiztvwgo.supabase.co/storage/v1/object/public/book-covers/${filename}`);
 });
 
+// Profiles fallback to Supabase Storage if not on disk (e.g. Render ephemeral dyno)
+app.use('/uploads/profiles', (req, res) => {
+  const filename = req.path.replace(/^\//, '');
+  const localFile = path.join(__dirname, 'uploads/profiles', filename);
+  if (require('fs').existsSync(localFile)) {
+    return res.sendFile(localFile);
+  }
+  return res.redirect(`https://yacrlfcbeltxtiztvwgo.supabase.co/storage/v1/object/public/profiles/${filename}`);
+});
+
 // Fallback to remote production server if another uploaded file is not stored locally
 app.use('/uploads', (req, res) => {
   const remoteUrl = `https://libralink-50ig.onrender.com/uploads${req.path}`;

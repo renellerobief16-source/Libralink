@@ -46,6 +46,13 @@ export const getBackendAssetUrl = (assetPath) => {
       return `https://yacrlfcbeltxtiztvwgo.supabase.co/storage/v1/object/public/book-covers/${filename}`;
     }
   }
+  // If it's an uploaded profile image, resolve to permanent Supabase Storage public CDN
+  if (assetPath.includes('profiles/') || assetPath.includes('profile-')) {
+    const filename = assetPath.split('/').pop().split('?')[0];
+    if (filename) {
+      return `https://yacrlfcbeltxtiztvwgo.supabase.co/storage/v1/object/public/profiles/${filename}`;
+    }
+  }
   const origin = getApiOrigin();
   if (assetPath.startsWith('/')) return `${origin}${assetPath}`;
   return `${origin}/${assetPath}`;

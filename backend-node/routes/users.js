@@ -5,6 +5,43 @@ const fs = require('fs');
 const User = require('../models/User');
 const { auth, requireRole } = require('../middleware/auth');
 const { uploadProfile, uploadBorrowingId } = require('../middleware/upload');
+const supabase = require('../config/database');
+
+/**
+ * Uploads a local/multer profile file directly to the public Supabase Storage bucket 'profiles'.
+ * Returns the permanent public CDN HTTPS URL so images work seamlessly on localhost, Render, and Vercel.
+ */
+async function uploadProfileToSupabaseStorage(file) {
+  if (!file) return null;
+  try {
+    const fileBuffer = fs.readFileSync(file.path);
+    const ext = path.extname(file.originalname || file.filename || '.jpg') || '.jpg';
+    const uniqueFilename = file.filename || `profile-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    const contentType = file.mimetype || 'image/jpeg';
+
+    const { error: uploadError } = await supabase.storage
+      .from('profiles')
+      .upload(uniqueFilename, fileBuffer, {
+        contentType,
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.error('[SUPABASE STORAGE] Error uploading profile:', uploadError.message);
+      return `/uploads/profiles/${uniqueFilename}`;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('profiles')
+      .getPublicUrl(uniqueFilename);
+
+    console.log('[SUPABASE STORAGE] Successfully uploaded profile image:', publicUrl);
+    return publicUrl || `/uploads/profiles/${uniqueFilename}`;
+  } catch (err) {
+    console.error('[SUPABASE STORAGE] Upload exception:', err.message);
+    return file.filename ? `/uploads/profiles/${file.filename}` : null;
+  }
+}
 
 // @route   GET /api/users
 // @desc    Get all users
@@ -43,7 +80,8 @@ router.post('/profile-picture', auth, uploadProfile.single('profile_picture'), a
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
-    const profilePictureUrl = `/uploads/profiles/${req.file.filename}`;
+    const uploadedUrl = await uploadProfileToSupabaseStorage(req.file);
+    const profilePictureUrl = uploadedUrl || `/uploads/profiles/${req.file.filename}`;
     console.log('[PROFILE PICTURE] Profile picture URL:', profilePictureUrl);
 
     const result = await User.update(req.user.user_id, { profile_image: profilePictureUrl });
@@ -115,7 +153,8 @@ router.post('/:id/profile-picture', auth, requireRole(['Librarian Admin', 'Libra
       return res.status(403).json({ success: false, message: 'Access denied: user belongs to a different school' });
     }
 
-    const profilePictureUrl = `/uploads/profiles/${req.file.filename}`;
+    const uploadedUrl = await uploadProfileToSupabaseStorage(req.file);
+    const profilePictureUrl = uploadedUrl || `/uploads/profiles/${req.file.filename}`;
     const result = await User.update(targetUserId, { profile_image: profilePictureUrl });
 
     if (result) {
@@ -414,7 +453,8 @@ router.post('/', auth, uploadProfile.single('profile_image'), async (req, res) =
 
     const userData = { ...req.body };
     if (req.file) {
-      userData.profile_image = `/uploads/profiles/${req.file.filename}`;
+      const uploadedUrl = await uploadProfileToSupabaseStorage(req.file);
+      userData.profile_image = uploadedUrl || `/uploads/profiles/${req.file.filename}`;
     }
 
     const result = await User.create(userData);
@@ -446,7 +486,8 @@ router.put('/:id', auth, uploadProfile.single('profile_image'), async (req, res)
   try {
     const updateData = { ...req.body };
     if (req.file) {
-      updateData.profile_image = `/uploads/profiles/${req.file.filename}`;
+      const uploadedUrl = await uploadProfileToSupabaseStorage(req.file);
+      updateData.profile_image = uploadedUrl || `/uploads/profiles/${req.file.filename}`;
     }
 
     const result = await User.update(req.params.id, updateData);
@@ -507,7 +548,8 @@ router.post('/:id/profile-image', auth, uploadProfile.single('profile'), async (
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
-    const profileImageUrl = `/uploads/profiles/${req.file.filename}`;
+    const uploadedUrl = await uploadProfileToSupabaseStorage(req.file);
+    const profileImageUrl = uploadedUrl || `/uploads/profiles/${req.file.filename}`;
 
     const result = await User.update(req.params.id, { profile_image: profileImageUrl });
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { 
   FiBook, FiUser, FiCalendar, FiMapPin, FiPhone, FiCheckCircle, FiXCircle, 
   FiClock, FiEye, FiChevronDown, FiChevronUp, FiRefreshCw, FiAlertTriangle, 
@@ -147,6 +147,31 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
   const [historyTypeFilter, setHistoryTypeFilter] = useState('all'); // 'all' | 'returned' | 'cancelled'
 
   const [zoomIdModal, setZoomIdModal] = useState({ isOpen: false, imageUrl: '', studentName: '', studentNumber: '', schoolName: '', title: '' });
+
+  // Viewed state for Inter-School requests (persisted in localStorage)
+  const [viewedInterSchoolIds, setViewedInterSchoolIds] = useState(() => {
+    try {
+      const stored = localStorage.getItem('libralink_viewed_interschool_requests');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const markInterSchoolAsViewed = useCallback((id) => {
+    if (!id) return;
+    const strId = String(id);
+    setViewedInterSchoolIds(prev => {
+      if (prev.includes(strId)) return prev;
+      const updated = [...prev, strId];
+      try {
+        localStorage.setItem('libralink_viewed_interschool_requests', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to save viewed inter-school requests:', e);
+      }
+      return updated;
+    });
+  }, []);
 
   // Escape key handler for photo zoom modal
   useEffect(() => {
@@ -913,6 +938,12 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
   };
 
   const handleViewDetails = (request) => {
+    if (request) {
+      const idToMark = String(request.item_id || request.request_id || '');
+      if (idToMark) markInterSchoolAsViewed(idToMark);
+      if (request.request_id) markInterSchoolAsViewed(String(request.request_id));
+      if (request.borrow_request?.request_id) markInterSchoolAsViewed(String(request.borrow_request.request_id));
+    }
     setSelectedRequest(request);
     setShowDetailModal(true);
   };
@@ -1174,7 +1205,7 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
 
   // Inter-School (Interlibrary) Filtered Requests
   const interSchoolFilteredRequests = useMemo(() => {
-    return interSchoolRequests.filter((request) => {
+    const list = interSchoolRequests.filter((request) => {
       const status = String(request.status || request.item_status || request.borrow_request?.status || '').toLowerCase();
       if (status === 'returned' || status === 'cancelled' || status === 'rejected') {
         return false;
@@ -1205,7 +1236,25 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
 
       return true;
     });
+
+    // Sort latest borrow requests at the very top (descending by created_at)
+    return list.sort((a, b) => {
+      const dateA = new Date(a.borrow_request?.created_at || a.created_at || 0).getTime();
+      const dateB = new Date(b.borrow_request?.created_at || b.created_at || 0).getTime();
+      return dateB - dateA;
+    });
   }, [interSchoolRequests, interSchoolDatePreset, interSchoolDateStart, interSchoolDateEnd, interSchoolSearch]);
+
+  // Count of unviewed pending inter-school requests
+  const unviewedInterSchoolCount = useMemo(() => {
+    return interSchoolFilteredRequests.filter((request) => {
+      const parentReq = request.borrow_request || request;
+      const requestId = parentReq.request_id || request.request_id;
+      const itemStatus = String(request.status || request.item_status || parentReq.status || 'pending').toLowerCase();
+      const reqLookupId = String(request.item_id || requestId || '');
+      return itemStatus === 'pending' && !viewedInterSchoolIds.includes(reqLookupId) && !viewedInterSchoolIds.includes(String(requestId || ''));
+    }).length;
+  }, [interSchoolFilteredRequests, viewedInterSchoolIds]);
 
   // Circulation History Records (completed loans: per-item returns + request-level cancelled/rejected)
   const circulationHistoryRecords = useMemo(() => {
@@ -1723,6 +1772,11 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
           }`}>
             {interSchoolFilteredRequests.length}
           </span>
+          {unviewedInterSchoolCount > 0 && (
+            <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-black bg-rose-600 text-white animate-pulse" title={`${unviewedInterSchoolCount} unviewed pending request${unviewedInterSchoolCount > 1 ? 's' : ''}`}>
+              {unviewedInterSchoolCount} NEW
+            </span>
+          )}
         </button>
 
         <button
@@ -2600,12 +2654,18 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
           <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/50 space-y-3.5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2 flex-wrap">
                   <FiGlobe className="w-4 h-4 text-blue-600" />
                   <span>Inter-School Borrow Requests</span>
                   <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
                     {interSchoolFilteredRequests.length} {interSchoolFilteredRequests.length === 1 ? 'record' : 'records'}
                   </span>
+                  {unviewedInterSchoolCount > 0 && (
+                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 animate-pulse flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                      {unviewedInterSchoolCount} unviewed
+                    </span>
+                  )}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Cross-library borrow requests from partner campuses requiring home approval or pickup authorization
@@ -2613,6 +2673,31 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
               </div>
 
               <div className="flex items-center gap-2 self-start sm:self-center">
+                {unviewedInterSchoolCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allPendingIds = interSchoolFilteredRequests
+                        .filter(r => String(r.status || r.item_status || r.borrow_request?.status || 'pending').toLowerCase() === 'pending')
+                        .flatMap(r => [String(r.item_id || ''), String(r.borrow_request?.request_id || r.request_id || '')])
+                        .filter(Boolean);
+                      setViewedInterSchoolIds(prev => {
+                        const next = Array.from(new Set([...prev, ...allPendingIds]));
+                        try {
+                          localStorage.setItem('libralink_viewed_interschool_requests', JSON.stringify(next));
+                        } catch (e) {
+                          console.error(e);
+                        }
+                        return next;
+                      });
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold transition"
+                    title="Mark all pending requests as viewed"
+                  >
+                    <FiCheck className="w-3.5 h-3.5" />
+                    <span>Mark all viewed</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => fetchInterSchoolRequests()}
@@ -2805,16 +2890,38 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
                     const firstBook = request.book || items[0]?.book || booksData[request.book_id] || {};
                     const requestId = parentReq.request_id || request.request_id;
                     const itemStatus = String(request.status || request.item_status || parentReq.status || 'pending').toLowerCase();
+                    const reqLookupId = String(request.item_id || requestId || '');
+                    const isUnviewed = itemStatus === 'pending' && !viewedInterSchoolIds.includes(reqLookupId) && !viewedInterSchoolIds.includes(String(requestId || ''));
                     const studentProfilePic = studentIdentity.profilePicture || student.profile_picture || student.profile_image || student.avatar || parentReq.profile_picture || parentReq.profile_image || '';
                     const studentIdCardPic = parentReq.id_picture_url || parentReq.id_photo_url || request.id_picture_url || student.id_picture_url || student.id_card_picture || '';
                     const purpose = parentReq.purpose || request.purpose || 'Inter-library Study';
                     const requestedAt = parentReq.created_at || request.created_at;
 
+                    const markThisViewed = () => {
+                      if (reqLookupId) markInterSchoolAsViewed(reqLookupId);
+                      if (requestId) markInterSchoolAsViewed(String(requestId));
+                    };
+
                     return (
-                      <tr key={request.item_id || requestId} className="hover:bg-blue-50/20 transition-colors">
+                      <tr 
+                        key={request.item_id || requestId} 
+                        className={`transition-all duration-200 ${
+                          isUnviewed 
+                            ? 'bg-blue-50/70 border-l-4 border-l-blue-600 hover:bg-blue-100/70 shadow-2xs' 
+                            : 'hover:bg-blue-50/20'
+                        }`}
+                      >
                         {/* Request ID */}
-                        <td className="py-1.5 px-2 font-mono font-bold text-blue-600 whitespace-nowrap text-[10px] w-24">
-                          {requestId}
+                        <td className="py-2 px-2 font-mono font-bold text-blue-600 whitespace-nowrap text-[10px] w-28">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{requestId}</span>
+                            {isUnviewed && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-blue-600 text-white shadow-xs animate-pulse">
+                                <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                                NEW
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* Borrower Student with Profile Picture & Clickable School ID */}
@@ -2823,6 +2930,7 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
                             {/* Circular Student Profile Avatar */}
                             <div 
                               onClick={() => {
+                                markThisViewed();
                                 if (studentProfilePic) {
                                   setZoomIdModal({
                                     isOpen: true,
@@ -2863,7 +2971,10 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
                               <div 
                                 className="font-bold text-slate-900 truncate text-[11px] hover:text-indigo-600 transition-colors cursor-pointer" 
                                 title={studentIdentity.name}
-                                onClick={() => handleViewDetails(parentReq)}
+                                onClick={() => {
+                                  markThisViewed();
+                                  handleViewDetails(parentReq);
+                                }}
                               >
                                 {studentIdentity.name}
                               </div>
@@ -2874,6 +2985,7 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
+                                      markThisViewed();
                                       setZoomIdModal({
                                         isOpen: true,
                                         imageUrl: studentIdCardPic,
@@ -2911,7 +3023,10 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
                               <span 
                                 className="font-bold text-slate-900 truncate text-[11px] hover:text-blue-600 transition-colors cursor-pointer" 
                                 title={firstBook.title || 'Book Title'}
-                                onClick={() => handleOpenBookDetails(firstBook.book_id || firstBook.id, firstBook)}
+                                onClick={() => {
+                                  markThisViewed();
+                                  handleOpenBookDetails(firstBook.book_id || firstBook.id, firstBook);
+                                }}
                               >
                                 {firstBook.title || (bookCount > 0 ? `${bookCount} Book(s)` : 'General Request')}
                               </span>
@@ -2919,6 +3034,7 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  markThisViewed();
                                   handleOpenBookDetails(firstBook.book_id || firstBook.id, firstBook);
                                 }}
                                 className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition shrink-0 cursor-pointer"
@@ -2966,7 +3082,10 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
                             {/* View Full Details Button */}
                             <button
                               type="button"
-                              onClick={() => handleViewDetails(parentReq)}
+                              onClick={() => {
+                                markThisViewed();
+                                handleViewDetails(parentReq);
+                              }}
                               className="p-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-blue-600 transition-colors shadow-2xs"
                               title="View Full Request Details"
                             >
@@ -2978,7 +3097,10 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
                               <>
                                 <button
                                   type="button"
-                                  onClick={() => handleApproveClick(requestId)}
+                                  onClick={() => {
+                                    markThisViewed();
+                                    handleApproveClick(requestId);
+                                  }}
                                   className="p-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-all active:scale-95"
                                   title="Approve Inter-School Request"
                                 >
@@ -2986,7 +3108,10 @@ function AdminBorrowRequests({ darkMode = false, selectedLibraryId = null } = {}
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleRejectClick(requestId)}
+                                  onClick={() => {
+                                    markThisViewed();
+                                    handleRejectClick(requestId);
+                                  }}
                                   className="p-1.5 rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors shadow-2xs"
                                   title="Decline Request"
                                 >
