@@ -10,6 +10,7 @@ import {
   History,
   ShieldCheck,
   ShieldAlert,
+  AlertTriangle,
   CheckCircle2,
   AlertCircle,
   Edit3,
@@ -70,6 +71,12 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
     maxLoans: 5,
     pendingRequests: 0,
     fines: '₱0.00',
+    hasFines: false,
+    finesAmount: 0,
+    overdueCount: 0,
+    maxDaysOverdue: 0,
+    overdueBooks: [],
+    unpaidFines: [],
   });
   const [showRequestsModal, setShowRequestsModal] = useState(false);
   const [rawPendingRequests, setRawPendingRequests] = useState([]);
@@ -251,11 +258,16 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
     };
   }, []);
 
-  // Fetch live library stats
+  // Fetch live library stats & overdue fines
   useEffect(() => {
     let isMounted = true;
     const fetchLibraryStats = async () => {
       try {
+        const stored = localStorage.getItem('currentUser');
+        const parsedUser = stored ? JSON.parse(stored) : null;
+        const studentId = parsedUser?.user_id || parsedUser?.id || localStorage.getItem('currentUserId');
+        const schoolId = localStorage.getItem('schoolId') || parsedUser?.school_id || parsedUser?.schoolId;
+
         const res = await api.get('/borrow-requests/my-requests');
         const requests = Array.isArray(res?.data)
           ? res.data
@@ -281,19 +293,99 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
         });
 
         let maxLoans = 5;
+        let fineRate = 5.0;
         try {
-          const rawUser = localStorage.getItem('currentUser');
-          const parsedUser = rawUser ? JSON.parse(rawUser) : null;
-          const schoolId = localStorage.getItem('schoolId') || parsedUser?.school_id || parsedUser?.schoolId;
-
           if (schoolId) {
             const policyRes = await getLibraryPolicy(schoolId);
             if (policyRes.data && policyRes.data.max_borrow_limit !== undefined) {
               maxLoans = parseInt(policyRes.data.max_borrow_limit, 10) || 5;
             }
+            if (policyRes.data && policyRes.data.fine_amount_per_day !== undefined) {
+              fineRate = parseFloat(policyRes.data.fine_amount_per_day) || 5.0;
+            }
           }
         } catch (e) {
           console.error("Failed to fetch library policy limits", e);
+        }
+
+        // Fetch student fines and overdue breakdown from backend API
+        let finesData = {
+          total_fines: 0,
+          total_fines_formatted: '₱0.00',
+          has_fines: false,
+          overdue_books_count: 0,
+          max_days_overdue: 0,
+          overdue_books: [],
+          unpaid_fines: [],
+        };
+
+        try {
+          if (studentId) {
+            const finesRes = await api.get(`/fines/student/${studentId}`);
+            if (finesRes.data?.success && finesRes.data?.data) {
+              finesData = finesRes.data.data;
+            }
+          }
+        } catch (finesErr) {
+          console.warn('[PROFILE] Non-fatal fines API warning:', finesErr);
+        }
+
+        // Real-time client-side fallback check on active borrow requests
+        if (!finesData.has_fines && requests.length > 0) {
+          const fallbackOverdueBooks = [];
+          const today = new Date();
+          const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(today);
+
+          requests.forEach((req) => {
+            if (req.due_date) {
+              let dueStr = '';
+              try {
+                dueStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date(req.due_date));
+              } catch (_) {
+                dueStr = String(req.due_date).split('T')[0];
+              }
+
+              if (todayStr > dueStr) {
+                const reqStatus = String(req.status || '').toLowerCase();
+                const items = Array.isArray(req.items) && req.items.length > 0 ? req.items : [{}];
+                const isLoanActive = ['borrowed', 'active', 'overdue'].includes(reqStatus) ||
+                  items.some(i => ['borrowed', 'active', 'overdue'].includes(String(i.status || i.item_status || '').toLowerCase()));
+
+                if (isLoanActive) {
+                  const todayMs = new Date(todayStr + 'T00:00:00+08:00').getTime();
+                  const dueMs = new Date(dueStr + 'T00:00:00+08:00').getTime();
+                  const daysOverdue = Math.max(1, Math.round((todayMs - dueMs) / (1000 * 60 * 60 * 24)));
+                  const bookFine = daysOverdue * fineRate;
+
+                  items.forEach(it => {
+                    fallbackOverdueBooks.push({
+                      id: it.item_id || req.request_id,
+                      title: it.book?.title || req.title || 'Borrowed Book',
+                      author: it.book?.author || '',
+                      due_date: req.due_date,
+                      days_overdue: daysOverdue,
+                      daily_rate: fineRate,
+                      fine_amount: bookFine,
+                    });
+                  });
+                }
+              }
+            }
+          });
+
+          if (fallbackOverdueBooks.length > 0) {
+            const sumFines = fallbackOverdueBooks.reduce((acc, b) => acc + (b.fine_amount || 0), 0);
+            const maxDays = fallbackOverdueBooks.reduce((max, b) => Math.max(max, b.days_overdue || 0), 0);
+            finesData = {
+              total_fines: sumFines,
+              total_fines_formatted: `₱${sumFines.toFixed(2)}`,
+              has_fines: sumFines > 0,
+              overdue_books_count: fallbackOverdueBooks.length,
+              max_days_overdue: maxDays,
+              overdue_books: fallbackOverdueBooks,
+              unpaid_fines: [],
+            };
+          }
         }
 
         const pendingReqList = requests.filter((req) => {
@@ -309,7 +401,14 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
             activeLoans: active,
             maxLoans,
             pendingRequests: pending,
-            fines: '₱0.00',
+            fines: finesData.total_fines_formatted || `₱${(finesData.total_fines || 0).toFixed(2)}`,
+            hasFines: Boolean(finesData.has_fines && finesData.total_fines > 0),
+            finesAmount: finesData.total_fines || 0,
+            overdueCount: finesData.overdue_books_count || 0,
+            maxDaysOverdue: finesData.max_days_overdue || 0,
+            fineRate: finesData.fine_rate_per_day || fineRate,
+            overdueBooks: finesData.overdue_books || [],
+            unpaidFines: finesData.unpaid_fines || [],
           });
         }
       } catch (err) {
@@ -742,19 +841,35 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
         <button
           type="button"
           onClick={() => setShowFinesInfo(true)}
-          className="p-3 sm:p-4 text-center transition-colors hover:bg-slate-50/80 flex flex-col items-center justify-center group"
-          title="View library fines policy"
+          className={`p-3 sm:p-4 text-center transition-all flex flex-col items-center justify-center group cursor-pointer ${
+            libraryStats.hasFines
+              ? 'bg-rose-50/40 hover:bg-rose-100/50'
+              : 'hover:bg-slate-50/80'
+          }`}
+          title={libraryStats.hasFines ? "Mayroon kang overdue fines. I-click para sa breakdown." : "Walang overdue fines (Cleared)"}
         >
           <p className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
-            <ShieldCheck className="h-3 w-3 text-emerald-600" />
-            Fines Due
+            {libraryStats.hasFines ? (
+              <AlertTriangle className="h-3 w-3 text-rose-600 animate-pulse" />
+            ) : (
+              <ShieldCheck className="h-3 w-3 text-emerald-600" />
+            )}
+            <span className={libraryStats.hasFines ? "text-rose-700 font-semibold" : ""}>Fines Due</span>
             <Info className="h-2.5 w-2.5 text-slate-400" />
           </p>
-          <p className="mt-0.5 text-base sm:text-lg font-bold text-emerald-600">
+          <p className={`mt-0.5 text-base sm:text-lg font-bold ${
+            libraryStats.hasFines ? 'text-rose-600' : 'text-emerald-600'
+          }`}>
             {libraryStats.fines}
           </p>
-          <p className="text-[10px] text-slate-400 mt-0.5 group-hover:text-emerald-600 transition-colors">
-            Cleared
+          <p className={`text-[10px] mt-0.5 transition-colors ${
+            libraryStats.hasFines
+              ? 'text-rose-500 font-semibold group-hover:text-rose-700'
+              : 'text-slate-400 group-hover:text-emerald-600'
+          }`}>
+            {libraryStats.hasFines
+              ? `${libraryStats.maxDaysOverdue} ${libraryStats.maxDaysOverdue === 1 ? 'day' : 'days'} overdue`
+              : 'Cleared'}
           </p>
         </button>
       </div>
@@ -1314,7 +1429,7 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
         )}
       </div>
 
-      {/* ─── MODAL: Fines Policy Info ───────────────────────────────────────── */}
+      {/* ─── MODAL: Fines Policy Info & Overdue Breakdown ─────────────────── */}
       {showFinesInfo && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs animate-fade-in"
@@ -1323,28 +1438,102 @@ function StudentProfile({ isDrawer = false, onClose, onSwitchTab }) {
           <div
             role="dialog"
             aria-modal="true"
-            className="w-full max-w-sm rounded-2xl bg-white p-5 border border-slate-200 shadow-xl animate-in zoom-in-95 duration-150"
+            className="w-full max-w-sm sm:max-w-md rounded-2xl bg-white p-5 sm:p-6 border border-slate-200 shadow-xl animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 mb-3">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
-            <h4 className="text-sm font-bold text-slate-900">Library Fines Policy</h4>
-            <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-              Ang iyong account ay kasalukuyang <strong>Cleared (₱0.00)</strong> at walang anumang pananagutan.
-            </p>
-            <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-600 space-y-1.5 border border-slate-100">
-              <p>• <strong>Overdue Penalty:</strong> ₱5.00 bawat araw kada librong lumagpas sa return deadline.</p>
-              <p>• <strong>Pagsasauli:</strong> Isauli ang libro sa o bago ang Due Date para maiwasan ang multa.</p>
-              <p>• <strong>Settlement:</strong> Maaaring bayaran ang overdue fine sa mismong Library Circulation Counter.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowFinesInfo(false)}
-              className="mt-4 w-full rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white hover:bg-blue-700 transition-colors shadow-xs"
-            >
-              Naintindihan
-            </button>
+            {libraryStats.hasFines ? (
+              <>
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 mb-3.5 shadow-2xs">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="text-sm font-bold text-slate-900">Overdue Library Fines</h4>
+                  <span className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-full shrink-0">
+                    {libraryStats.fines} Due
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                  Mayroon kang naipong multa dahil sa hiniram na librong lumagpas sa itinakdang return deadline:
+                </p>
+
+                {/* Overdue Books Breakdown List */}
+                <div className="mt-3.5 max-h-56 overflow-y-auto space-y-2 pr-0.5 no-scrollbar">
+                  {libraryStats.overdueBooks.map((b, idx) => {
+                    const days = b.days_overdue || 1;
+                    const rate = b.daily_rate || libraryStats.fineRate || 5.0;
+                    const computedFine = b.fine_amount !== undefined ? b.fine_amount : (days * rate);
+                    return (
+                      <div key={b.id || idx} className="rounded-xl bg-rose-50/50 p-3 border border-rose-100 flex items-start justify-between gap-3 text-xs">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-slate-900 truncate" title={b.title}>
+                            {b.title}
+                          </p>
+                          {b.author && (
+                            <p className="text-[10px] text-slate-500 truncate">{b.author}</p>
+                          )}
+                          <p className="text-[10px] text-slate-600 mt-1 flex items-center gap-1.5 flex-wrap">
+                            <span className="text-slate-500">Due:</span>
+                            <span className="font-medium text-slate-700">{b.due_date ? String(b.due_date).split('T')[0] : 'N/A'}</span>
+                            <span className="text-rose-600 font-bold">({days} {days === 1 ? 'day' : 'days'} overdue)</span>
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-xs font-black text-rose-600">
+                            ₱{Number(computedFine).toFixed(2)}
+                          </span>
+                          <p className="text-[9px] text-slate-400 mt-0.5 font-mono">
+                            @{Number(rate).toFixed(2)}/day
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-3.5 rounded-xl bg-slate-50 p-3 text-xs text-slate-600 space-y-1.5 border border-slate-100">
+                  <div className="flex items-center justify-between font-bold text-slate-800 pb-1.5 border-b border-slate-200">
+                    <span>Kabuuang Multa (Total Fines):</span>
+                    <span className="text-sm font-black text-rose-600">{libraryStats.fines}</span>
+                  </div>
+                  <p className="text-[11px] pt-1 leading-relaxed text-slate-500">
+                    • <strong>Pagsasauli:</strong> Pakisauli agad ang libro sa Library Circulation Counter.
+                  </p>
+                  <p className="text-[11px] leading-relaxed text-slate-500">
+                    • <strong>Settlement:</strong> Maaaring bayaran ang multa sa circulation counter upang maibalik ang normal borrowing privileges.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowFinesInfo(false)}
+                  className="mt-4 w-full rounded-xl bg-slate-900 py-2.5 text-xs font-bold text-white hover:bg-slate-800 transition-colors shadow-xs"
+                >
+                  Naintindihan
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 mb-3">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+                <h4 className="text-sm font-bold text-slate-900">Library Fines Policy</h4>
+                <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                  Ang iyong account ay kasalukuyang <strong>Cleared (₱0.00)</strong> at walang anumang pananagutan.
+                </p>
+                <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-600 space-y-1.5 border border-slate-100">
+                  <p>• <strong>Overdue Penalty:</strong> ₱5.00 bawat araw kada librong lumagpas sa return deadline.</p>
+                  <p>• <strong>Pagsasauli:</strong> Isauli ang libro sa o bago ang Due Date para maiwasan ang multa.</p>
+                  <p>• <strong>Settlement:</strong> Maaaring bayaran ang overdue fine sa mismong Library Circulation Counter.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowFinesInfo(false)}
+                  className="mt-4 w-full rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white hover:bg-blue-700 transition-colors shadow-xs"
+                >
+                  Naintindihan
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
