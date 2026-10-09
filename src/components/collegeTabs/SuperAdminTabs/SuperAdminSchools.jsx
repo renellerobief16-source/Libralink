@@ -5,6 +5,7 @@ import {
   FiActivity, FiLayers, FiRefreshCw, FiX, FiExternalLink, FiUploadCloud
 } from 'react-icons/fi';
 import api, { getBackendAssetUrl } from '../../../utils/api';
+import { getBookCoverUrl } from '../../../utils/bookCoverUtils';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
@@ -13,7 +14,7 @@ import EmptyState from '../../../components/ui/EmptyState';
 import useAlert from '../../../hooks/useAlert';
 import CampusLocationPicker from '../../common/CampusLocationPicker';
 
-function SuperAdminSchools() {
+function SuperAdminSchools({ darkMode, onNavigate }) {
   const [schools, setSchools] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -200,6 +201,7 @@ function SuperAdminSchools() {
   };
 
   const handleViewSchoolBooks = async (school) => {
+    if (!school) return;
     setSelectedSchool(school);
     setShowBooksModal(true);
     setLoadingBooks(true);
@@ -207,7 +209,9 @@ function SuperAdminSchools() {
     setBookCategoryFilter('all');
     try {
       const response = await api.get(`/books/school?school_id=${school.school_id}`);
-      setSchoolBooks(response.data || (Array.isArray(response) ? response : []));
+      const raw = response?.data?.books || response?.data || response?.books || response;
+      const list = Array.isArray(raw) ? raw : (Array.isArray(response?.data) ? response.data : []);
+      setSchoolBooks(list);
     } catch (error) {
       console.error('Error fetching school books:', error);
       setSchoolBooks([]);
@@ -236,19 +240,34 @@ function SuperAdminSchools() {
   const activeCount = schools.filter(s => s.status === 'active').length;
   const inactiveCount = schools.filter(s => s.status !== 'active').length;
 
+  const getBookCategoryName = (b) => {
+    if (typeof b?.categories === 'object' && b.categories?.category_name) {
+      return b.categories.category_name;
+    }
+    if (Array.isArray(b?.categories) && b.categories[0]?.category_name) {
+      return b.categories[0].category_name;
+    }
+    return b?.category_name || b?.category || 'General';
+  };
+
   const bookCategories = useMemo(() => {
-    const cats = new Set(schoolBooks.map(b => b.category).filter(Boolean));
+    if (!Array.isArray(schoolBooks)) return ['all'];
+    const cats = new Set(schoolBooks.map(getBookCategoryName).filter(Boolean));
     return ['all', ...Array.from(cats)];
   }, [schoolBooks]);
 
   const filteredSchoolBooks = useMemo(() => {
+    if (!Array.isArray(schoolBooks)) return [];
     return schoolBooks.filter(book => {
       const q = bookSearchQuery.toLowerCase();
+      const cat = getBookCategoryName(book);
       const matchesSearch = !q ||
         book.title?.toLowerCase().includes(q) ||
         book.author?.toLowerCase().includes(q) ||
-        book.isbn?.toLowerCase().includes(q);
-      const matchesCategory = bookCategoryFilter === 'all' || book.category === bookCategoryFilter;
+        book.isbn?.toLowerCase().includes(q) ||
+        book.call_number?.toLowerCase().includes(q) ||
+        book.shelf_location?.toLowerCase().includes(q);
+      const matchesCategory = bookCategoryFilter === 'all' || cat === bookCategoryFilter;
       return matchesSearch && matchesCategory;
     });
   }, [schoolBooks, bookSearchQuery, bookCategoryFilter]);
@@ -532,10 +551,18 @@ function SuperAdminSchools() {
                     {isActive ? 'Active Node' : 'Suspended'}
                   </span>
 
-                  <span className="text-xs font-medium text-blue-600 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleViewSchoolBooks(school);
+                    }}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                    title={`View ${school.school_name} Book Catalog`}
+                  >
                     <FiBook className="w-3.5 h-3.5" />
-                    Catalog
-                  </span>
+                    <span>Catalog</span>
+                  </button>
                 </div>
               </div>
             );
@@ -925,43 +952,79 @@ function SuperAdminSchools() {
                 </p>
               </div>
             ) : (
-              <div className="border border-slate-200 rounded-xl overflow-hidden max-h-[500px] overflow-y-auto">
+              <div className="border border-slate-200 rounded-xl overflow-hidden max-h-[520px] overflow-y-auto shadow-2xs">
                 <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 sticky top-0 border-b border-slate-200 text-xs uppercase font-semibold text-slate-500 tracking-wider">
+                  <thead className="bg-slate-50 sticky top-0 border-b border-slate-200 text-xs uppercase font-semibold text-slate-500 tracking-wider z-10">
                     <tr>
-                      <th className="px-4 py-3">Title</th>
-                      <th className="px-4 py-3">Author</th>
+                      <th className="px-4 py-3">Book & Author</th>
                       <th className="px-4 py-3">Category</th>
+                      <th className="px-4 py-3">Call # / Shelf</th>
                       <th className="px-4 py-3">ISBN</th>
-                      <th className="px-4 py-3 text-center">Available</th>
+                      <th className="px-4 py-3 text-center">Availability</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 bg-white">
                     {filteredSchoolBooks.map((book) => {
-                      const avail = book.available_copies ?? 0;
+                      const avail = book.available_copies ?? book.available_quantity ?? 0;
+                      const total = book.total_copies ?? book.quantity ?? 1;
+                      const category = getBookCategoryName(book);
+                      const cover = getBookCoverUrl(book);
+
                       return (
-                        <tr key={book.book_id || book.id} className="hover:bg-slate-50/70">
-                          <td className="px-4 py-3 font-medium text-slate-900">
-                            {book.title}
-                          </td>
-                          <td className="px-4 py-3 text-slate-600 text-xs">
-                            {book.author || '—'}
+                        <tr key={book.book_id || book.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="flex items-start gap-3">
+                              <div className="w-10 h-14 rounded-lg bg-slate-100 border border-slate-200/90 overflow-hidden shrink-0 shadow-2xs flex items-center justify-center">
+                                {cover ? (
+                                  <img
+                                    src={cover}
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => { e.target.style.display = 'none'; }}
+                                  />
+                                ) : (
+                                  <FiBook className="w-4 h-4 text-slate-400" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="font-bold text-slate-900 leading-snug break-words">
+                                  {book.title}
+                                </div>
+                                <div className="text-xs text-slate-500 mt-0.5">
+                                  {book.author || 'Unknown Author'}
+                                </div>
+                                {book.edition && (
+                                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                                    Edition: {book.edition}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-700">
-                              {book.category || 'General'}
+                            <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/80">
+                              {category}
                             </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-600 font-mono">
+                            <div>{book.call_number || '—'}</div>
+                            {(book.shelf_location || book.libraries?.name) && (
+                              <div className="text-[10px] text-slate-400 font-sans mt-0.5">
+                                📍 {book.libraries?.name ? `${book.libraries.name} • ` : ''}{book.shelf_location || ''}
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3 font-mono text-xs text-slate-500">
                             {book.isbn || '—'}
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
                               avail > 0 
-                                ? 'bg-emerald-50 text-emerald-700' 
-                                : 'bg-rose-50 text-rose-700'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                                : 'bg-rose-50 text-rose-700 border border-rose-200'
                             }`}>
-                              {avail > 0 ? `${avail} copies` : 'Borrowed Out'}
+                              <span className={`w-1.5 h-1.5 rounded-full ${avail > 0 ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                              <span>{avail > 0 ? `${avail} / ${total} Available` : 'All Borrowed Out'}</span>
                             </span>
                           </td>
                         </tr>
