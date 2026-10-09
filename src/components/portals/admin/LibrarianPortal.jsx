@@ -235,7 +235,7 @@ function LibrarianPortal() {
       }
     };
     load();
-    const iv = setInterval(load, 30000);
+    const iv = setInterval(load, 15000);
     return () => clearInterval(iv);
   }, [activeLibrary]);
 
@@ -253,7 +253,19 @@ function LibrarianPortal() {
     navigate("/login");
   };
 
-  const handleNotificationClick = () => {
+  const handleNotificationClick = (notification) => {
+    // Mark read optimistically
+    if (notification) {
+      const BORROW_TYPES = [
+        'request_submitted', 'request_cancelled', 'request_rejected',
+        'cancel_requested', 'cancel_declined', 'renewal_requested',
+        'renewal_approved', 'renewal_declined', 'book_borrowed', 'admin_notification',
+      ];
+      if (BORROW_TYPES.includes(notification.type)) {
+        setActiveTab('borrow-requests');
+        return;
+      }
+    }
     setActiveTab('inbox');
   };
 

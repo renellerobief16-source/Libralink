@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Render Sprint Diagrams</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Inter', sans-serif; background: #f8fafc; padding: 20px; }
+  .canvas-box { background: white; padding: 20px; margin-bottom: 30px; border: 1px solid #cbd5e1; border-radius: 8px; }
+  svg text { font-family: 'Inter', sans-serif; }
+</style>
+</head>
+<body>
+
+<h1>Sprint Flowcharts Renderer</h1>
+<button id="btn-download" style="padding: 10px 20px; font-weight: bold; background: #0284c7; color: white; border: none; border-radius: 6px; cursor: pointer;">
+  Download All 3 Sprint Diagrams as PNG
+</button>
+
+<!-- ==================================================== -->
+<!-- SPRINT 1: CROSS-SCHOOL SEARCH & HOLDING DISCOVERY   -->
+<!-- ==================================================== -->
+<div class="canvas-box">
+  <h2>Figure 4.1: Sprint 1 Unified Catalog Search & Holding Discovery Workflow</h2>
+  <svg id="svg-sprint-1" width="960" height="420" viewBox="0 0 960 420" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100%" height="100%" fill="#ffffff"/>
+    
+    <!-- Title banner -->
+    <rect x="20" y="15" width="920" height="34" rx="6" fill="#1e293b"/>
+    <text x="480" y="38" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="700" letter-spacing="0.5">
+      SPRINT 1: CROSS-SCHOOL SEARCH &amp; REAL-TIME HOLDING DISCOVERY WORKFLOW
+    </text>
+
+    <!-- 1. Start: Student Search Input -->
+    <rect x="30" y="80" width="150" height="70" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+    <text x="105" y="106" text-anchor="middle" font-size="11" font-weight="700">1. Student Query</text>
+    <text x="105" y="124" text-anchor="middle" font-size="9.5" fill="#475569">Title, Author, Subject</text>
+    <text x="105" y="138" text-anchor="middle" font-size="9.5" fill="#475569">or Classification</text>
+
+    <!-- Arrow 1 -> 2 -->
+    <line x1="180" y1="115" x2="220" y2="115" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="215,110 225,115 215,120" fill="#0f172a"/>
+
+    <!-- 2. Search Query Engine API -->
+    <rect x="225" y="80" width="160" height="70" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+    <text x="305" y="106" text-anchor="middle" font-size="11" font-weight="700">2. Query Execution</text>
+    <text x="305" y="124" text-anchor="middle" font-size="9.5" fill="#475569">Express.js API Endpoint</text>
+    <text x="305" y="138" text-anchor="middle" font-size="9.5" font-family="'JetBrains Mono', monospace" fill="#0369a1">/api/books/search</text>
+
+    <!-- Arrow 2 -> 3 (Diamond 1) -->
+    <line x1="385" y1="115" x2="430" y2="115" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="425,110 435,115 425,120" fill="#0f172a"/>
+
+    <!-- 3. Decision Diamond 1: Local Available? -->
+    <polygon points="500,75 570,115 500,155 430,115" fill="#ffffff" stroke="#0f172a" stroke-width="2"/>
+    <text x="500" y="112" text-anchor="middle" font-size="10.5" font-weight="700">Local Copies</text>
+    <text x="500" y="126" text-anchor="middle" font-size="10" font-weight="700" fill="#0284c7">&gt; 0?</text>
+
+    <!-- Branch YES (Right) -> Local Shelf Location -->
+    <line x1="570" y1="115" x2="630" y2="115" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="625,110 635,115 625,120" fill="#0f172a"/>
+    <rect x="580" y="96" width="36" height="18" rx="3" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+    <text x="598" y="109" text-anchor="middle" font-size="9" font-weight="800" fill="#059669">YES</text>
+
+    <!-- Local Success Node -->
+    <rect x="635" y="80" width="180" height="70" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+    <text x="725" y="104" text-anchor="middle" font-size="11" font-weight="700" fill="#065f46">Display Local Shelf Info</text>
+    <text x="725" y="122" text-anchor="middle" font-size="9.5" fill="#047857">Call No., Section, Desk</text>
+    <text x="725" y="136" text-anchor="middle" font-size="9.5" font-weight="600" fill="#059669">Status: Available Locally</text>
+
+    <!-- Arrow Local -> Local End -->
+    <line x1="815" y1="115" x2="855" y2="115" stroke="#059669" stroke-width="2"/>
+    <polygon points="850,110 860,115 850,120" fill="#059669"/>
+    <circle cx="885" cy="115" r="22" fill="#1e293b" stroke="#0f172a" stroke-width="2"/>
+    <text x="885" y="119" text-anchor="middle" font-size="9.5" font-weight="700" fill="#ffffff">Local</text>
+    <text x="885" y="131" text-anchor="middle" font-size="8" fill="#94a3b8">Borrow</text>
+
+    <!-- Branch NO (Downwards) -> Cross-School Scanner -->
+    <line x1="500" y1="155" x2="500" y2="210" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="495,205 500,215 505,205" fill="#0f172a"/>
+    <rect x="506" y="170" width="30" height="18" rx="3" fill="#fef2f2" stroke="#dc2626" stroke-width="1"/>
+    <text x="521" y="183" text-anchor="middle" font-size="9" font-weight="800" fill="#dc2626">NO</text>
+
+    <!-- 4. Cross-School Consortia Scanner -->
+    <rect x="410" y="215" width="180" height="65" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+    <text x="500" y="238" text-anchor="middle" font-size="11" font-weight="700">4. Partner Holding Scan</text>
+    <text x="500" y="254" text-anchor="middle" font-size="9.5" fill="#475569">Scan Partner Campus DB</text>
+    <text x="500" y="268" text-anchor="middle" font-size="9.5" fill="#475569">(GNC &lt;--&gt; SRC Catalogs)</text>
+
+    <!-- Arrow 4 -> Diamond 2 (Downwards) -->
+    <line x1="500" y1="280" x2="500" y2="310" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="495,305 500,315 505,305" fill="#0f172a"/>
+
+    <!-- 5. Decision Diamond 2: Partner Available? -->
+    <polygon points="500,315 570,350 500,385 430,350" fill="#ffffff" stroke="#0f172a" stroke-width="2"/>
+    <text x="500" y="347" text-anchor="middle" font-size="10.5" font-weight="700">Partner Copies</text>
+    <text x="500" y="361" text-anchor="middle" font-size="10" font-weight="700" fill="#0284c7">&gt; 0?</text>
+
+    <!-- Branch YES (Right) -> Recommendation Banner -->
+    <line x1="570" y1="350" x2="635" y2="350" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="630,345 640,350 630,355" fill="#0f172a"/>
+    <rect x="585" y="331" width="36" height="18" rx="3" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+    <text x="603" y="344" text-anchor="middle" font-size="9" font-weight="800" fill="#059669">YES</text>
+
+    <!-- Partner Banner Node -->
+    <rect x="640" y="315" width="180" height="70" rx="8" fill="#eff6ff" stroke="#0284c7" stroke-width="2"/>
+    <text x="730" y="338" text-anchor="middle" font-size="11" font-weight="700" fill="#0369a1">Partner Holding Banner</text>
+    <text x="730" y="354" text-anchor="middle" font-size="9.5" fill="#0284c7">Display Partner Campus</text>
+    <text x="730" y="369" text-anchor="middle" font-size="9.5" font-weight="700" fill="#0284c7">[Request Borrow] Action</text>
+
+    <!-- Arrow Partner -> Inter-School Flow -->
+    <line x1="820" y1="350" x2="860" y2="350" stroke="#0284c7" stroke-width="2"/>
+    <polygon points="855,345 865,350 855,355" fill="#0284c7"/>
+    <circle cx="890" cy="350" r="22" fill="#0284c7" stroke="#0f172a" stroke-width="2"/>
+    <text x="890" y="347" text-anchor="middle" font-size="9" font-weight="700" fill="#ffffff">Sprint 2</text>
+    <text x="890" y="360" text-anchor="middle" font-size="8" fill="#e0f2fe">Request</text>
+
+    <!-- Branch NO (Left) -> Unavailable Notice -->
+    <line x1="430" y1="350" x2="365" y2="350" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="370,345 360,350 370,355" fill="#0f172a"/>
+    <rect x="380" y="331" width="30" height="18" rx="3" fill="#fef2f2" stroke="#dc2626" stroke-width="1"/>
+    <text x="395" y="344" text-anchor="middle" font-size="9" font-weight="800" fill="#dc2626">NO</text>
+
+    <!-- Unavailable Node -->
+    <rect x="180" y="315" width="180" height="70" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="1.5"/>
+    <text x="270" y="338" text-anchor="middle" font-size="11" font-weight="700" fill="#9a3412">Zero Copies Available</text>
+    <text x="270" y="354" text-anchor="middle" font-size="9.5" fill="#c2410c">Unavailable in Consortium</text>
+    <text x="270" y="369" text-anchor="middle" font-size="9.5" fill="#7c2d12">Suggest Related Topics</text>
+
+    <!-- End Icon -->
+    <line x1="180" y1="350" x2="135" y2="350" stroke="#ea580c" stroke-width="2"/>
+    <polygon points="140,345 130,350 140,355" fill="#ea580c"/>
+    <circle cx="105" cy="350" r="20" fill="#64748b" stroke="#0f172a" stroke-width="2"/>
+    <text x="105" y="354" text-anchor="middle" font-size="9.5" font-weight="700" fill="#ffffff">End</text>
+  </svg>
+</div>
+
+<!-- ==================================================== -->
+<!-- SPRINT 2: INTER-LIBRARY REQUEST & TOKEN ENGINE      -->
+<!-- ==================================================== -->
+<div class="canvas-box">
+  <h2>Figure 4.2: Sprint 2 Inter-Library Borrow Request & Token Engine Lifecycle</h2>
+  <svg id="svg-sprint-2" width="960" height="430" viewBox="0 0 960 430" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100%" height="100%" fill="#ffffff"/>
+    
+    <!-- Title banner -->
+    <rect x="20" y="15" width="920" height="34" rx="6" fill="#1e293b"/>
+    <text x="480" y="38" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="700" letter-spacing="0.5">
+      SPRINT 2: INTER-LIBRARY BORROW REQUEST &amp; CRYPTOGRAPHIC TOKEN LIFECYCLE
+    </text>
+
+    <!-- 1. Student Clicks Request -->
+    <rect x="25" y="75" width="130" height="65" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+    <text x="90" y="98" text-anchor="middle" font-size="11" font-weight="700">1. Click Borrow</text>
+    <text x="90" y="114" text-anchor="middle" font-size="9.5" fill="#475569">Target Partner Title</text>
+    <text x="90" y="128" text-anchor="middle" font-size="9.5" fill="#475569">at GNC or SRC</text>
+
+    <!-- Arrow 1 -> 2 -->
+    <line x1="155" y1="107" x2="190" y2="107" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="185,102 195,107 185,112" fill="#0f172a"/>
+
+    <!-- 2. Auto-Populate Checkout Form -->
+    <rect x="195" y="75" width="150" height="65" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+    <text x="270" y="98" text-anchor="middle" font-size="11" font-weight="700">2. Checkout Modal</text>
+    <text x="270" y="114" text-anchor="middle" font-size="9.5" fill="#475569">Loads Patron Profile,</text>
+    <text x="270" y="128" text-anchor="middle" font-size="9.5" fill="#475569">Photo ID &amp; Purpose</text>
+
+    <!-- Arrow 2 -> 3 -->
+    <line x1="345" y1="107" x2="380" y2="107" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="375,102 385,107 375,112" fill="#0f172a"/>
+
+    <!-- 3. Submit to borrow_requests Store -->
+    <rect x="385" y="75" width="160" height="65" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+    <text x="465" y="98" text-anchor="middle" font-size="11" font-weight="700">3. Submit Request</text>
+    <text x="465" y="114" text-anchor="middle" font-size="9" font-family="'JetBrains Mono', monospace" fill="#0284c7">borrow_requests</text>
+    <text x="465" y="128" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d97706">Status: Pending_Approval</text>
+
+    <!-- Arrow 3 -> 4 -->
+    <line x1="545" y1="107" x2="585" y2="107" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="580,102 590,107 580,112" fill="#0f172a"/>
+
+    <!-- 4. Home Librarian Review Queue -->
+    <rect x="590" y="75" width="165" height="65" rx="8" fill="#eff6ff" stroke="#0284c7" stroke-width="2"/>
+    <text x="672" y="98" text-anchor="middle" font-size="11" font-weight="700" fill="#0369a1">4. Home Librarian</text>
+    <text x="672" y="114" text-anchor="middle" font-size="9.5" fill="#0284c7">Circulation Inbox Review</text>
+    <text x="672" y="128" text-anchor="middle" font-size="9.5" fill="#475569">Verify Standing &amp; Clearance</text>
+
+    <!-- Arrow 4 -> Decision Diamond (Downwards) -->
+    <line x1="672" y1="140" x2="672" y2="185" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="667,180 672,190 677,180" fill="#0f172a"/>
+
+    <!-- 5. Decision Diamond: Approved? -->
+    <polygon points="672,190 742,230 672,270 602,230" fill="#ffffff" stroke="#0f172a" stroke-width="2"/>
+    <text x="672" y="226" text-anchor="middle" font-size="10.5" font-weight="700">Librarian</text>
+    <text x="672" y="240" text-anchor="middle" font-size="10.5" font-weight="700" fill="#0284c7">Decision?</text>
+
+    <!-- Branch REJECTED (Right) -->
+    <line x1="742" y1="230" x2="795" y2="230" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="790,225 800,230 790,235" fill="#0f172a"/>
+    <rect x="748" y="211" width="46" height="18" rx="3" fill="#fef2f2" stroke="#dc2626" stroke-width="1"/>
+    <text x="771" y="224" text-anchor="middle" font-size="8.5" font-weight="800" fill="#dc2626">REJECT</text>
+
+    <!-- Rejected Node -->
+    <rect x="800" y="195" width="135" height="70" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
+    <text x="867" y="220" text-anchor="middle" font-size="11" font-weight="700" fill="#991b1b">Request Rejected</text>
+    <text x="867" y="236" text-anchor="middle" font-size="9" fill="#b91c1c">Logs Rejection Note</text>
+    <text x="867" y="250" text-anchor="middle" font-size="9" fill="#7f1d1d">Alerts Student Inbox</text>
+
+    <!-- Branch APPROVED (Downwards) -->
+    <line x1="672" y1="270" x2="672" y2="315" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="667,310 672,320 677,310" fill="#0f172a"/>
+    <rect x="678" y="280" width="42" height="18" rx="3" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+    <text x="699" y="293" text-anchor="middle" font-size="8.5" font-weight="800" fill="#059669">APPROVE</text>
+
+    <!-- 6. Cryptographic Token Generator Engine -->
+    <rect x="585" y="320" width="175" height="75" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+    <text x="672" y="343" text-anchor="middle" font-size="11" font-weight="700" fill="#065f46">6. Crypto Token Engine</text>
+    <text x="672" y="359" text-anchor="middle" font-size="9.5" fill="#047857">Computes 10-char Hash</text>
+    <text x="672" y="373" text-anchor="middle" font-size="9" font-family="'JetBrains Mono', monospace" fill="#059669">expires_at = NOW() + 72h</text>
+    <text x="672" y="386" text-anchor="middle" font-size="9" font-weight="600" fill="#065f46">Sets Status: Approved</text>
+
+    <!-- Arrow 6 -> 7 (Leftwards) -->
+    <line x1="585" y1="357" x2="520" y2="357" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="525,352 515,357 525,362" fill="#0f172a"/>
+
+    <!-- 7. Dynamic QR Generator -->
+    <rect x="345" y="320" width="170" height="75" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+    <text x="430" y="343" text-anchor="middle" font-size="11" font-weight="700">7. Optical QR Engine</text>
+    <text x="430" y="359" text-anchor="middle" font-size="9.5" fill="#475569">Encodes Token Signature</text>
+    <text x="430" y="373" text-anchor="middle" font-size="9.5" fill="#475569">Embeds Student + Book ID</text>
+    <text x="430" y="386" text-anchor="middle" font-size="9" fill="#0284c7">SVG/Canvas Rendering</text>
+
+    <!-- Arrow 7 -> 8 (Leftwards) -->
+    <line x1="345" y1="357" x2="280" y2="357" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="285,352 275,357 285,362" fill="#0f172a"/>
+
+    <!-- 8. Active Digital Pass Issued -->
+    <rect x="95" y="320" width="180" height="75" rx="8" fill="#1e293b" stroke="#0f172a" stroke-width="2"/>
+    <text x="185" y="343" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">8. Digital Pass Active</text>
+    <text x="185" y="359" text-anchor="middle" font-size="9.5" fill="#38bdf8">Issued to Student Portal</text>
+    <text x="185" y="373" text-anchor="middle" font-size="9.5" fill="#e2e8f0">Alphanumeric + QR Display</text>
+    <text x="185" y="386" text-anchor="middle" font-size="9" fill="#94a3b8">Ready for Partner Visit</text>
+
+    <!-- Arrow 8 -> End -->
+    <line x1="95" y1="357" x2="60" y2="357" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="65,352 55,357 65,362" fill="#0f172a"/>
+    <circle cx="35" cy="357" r="18" fill="#059669" stroke="#0f172a" stroke-width="2"/>
+    <text x="35" y="361" text-anchor="middle" font-size="9" font-weight="700" fill="#ffffff">Pass</text>
+  </svg>
+</div>
+
+<!-- ==================================================== -->
+<!-- SPRINT 3: COUNTER VERIFICATION & CIRCULATION        -->
+<!-- ==================================================== -->
+<div class="canvas-box">
+  <h2>Figure 4.3: Sprint 3 Partner Counter Verification & Circulation Lifecycle</h2>
+  <svg id="svg-sprint-3" width="960" height="440" viewBox="0 0 960 440" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100%" height="100%" fill="#ffffff"/>
+    
+    <!-- Title banner -->
+    <rect x="20" y="15" width="920" height="34" rx="6" fill="#1e293b"/>
+    <text x="480" y="38" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="700" letter-spacing="0.5">
+      SPRINT 3: HOST LIBRARIAN COUNTER VERIFICATION &amp; CIRCULATION WORKFLOW
+    </text>
+
+    <!-- 1. Student Visits Partner Counter -->
+    <rect x="25" y="75" width="135" height="70" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+    <text x="92" y="99" text-anchor="middle" font-size="11" font-weight="700">1. Student Arrival</text>
+    <text x="92" y="115" text-anchor="middle" font-size="9.5" fill="#475569">Visits Host Partner Desk</text>
+    <text x="92" y="129" text-anchor="middle" font-size="9.5" fill="#475569">Presents Digital Pass</text>
+
+    <!-- Arrow 1 -> 2 -->
+    <line x1="160" y1="110" x2="195" y2="110" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="190,105 200,110 190,115" fill="#0f172a"/>
+
+    <!-- 2. Host Librarian Scans / Inputs Token -->
+    <rect x="200" y="75" width="155" height="70" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+    <text x="277" y="99" text-anchor="middle" font-size="11" font-weight="700">2. Desk Input / Scan</text>
+    <text x="277" y="115" text-anchor="middle" font-size="9.5" fill="#475569">Enters Token Code or</text>
+    <text x="277" y="129" text-anchor="middle" font-size="9.5" fill="#475569">Scans Dynamic QR Pass</text>
+
+    <!-- Arrow 2 -> 3 -->
+    <line x1="355" y1="110" x2="390" y2="110" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="385,105 395,110 385,115" fill="#0f172a"/>
+
+    <!-- 3. Verification Engine API -->
+    <rect x="395" y="75" width="165" height="70" rx="8" fill="#eff6ff" stroke="#0284c7" stroke-width="2"/>
+    <text x="477" y="99" text-anchor="middle" font-size="11" font-weight="700" fill="#0369a1">3. Verification API</text>
+    <text x="477" y="115" text-anchor="middle" font-size="9" font-family="'JetBrains Mono', monospace" fill="#0284c7">POST /api/tokens/verify</text>
+    <text x="477" y="129" text-anchor="middle" font-size="9.5" fill="#475569">Evaluates DB Signature</text>
+
+    <!-- Arrow 3 -> Diamond 1 -->
+    <line x1="560" y1="110" x2="605" y2="110" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="600,105 610,110 600,115" fill="#0f172a"/>
+
+    <!-- 4. Decision Diamond: Token Valid & Active? -->
+    <polygon points="680,70 755,110 680,150 605,110" fill="#ffffff" stroke="#0f172a" stroke-width="2"/>
+    <text x="680" y="106" text-anchor="middle" font-size="10.5" font-weight="700">Token Valid &amp;</text>
+    <text x="680" y="120" text-anchor="middle" font-size="10" font-weight="700" fill="#0284c7">NOW() &lt; Expiry?</text>
+
+    <!-- Branch NO (Right) -> Error Alert -->
+    <line x1="755" y1="110" x2="810" y2="110" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="805,105 815,110 805,115" fill="#0f172a"/>
+    <rect x="765" y="91" width="30" height="18" rx="3" fill="#fef2f2" stroke="#dc2626" stroke-width="1"/>
+    <text x="780" y="104" text-anchor="middle" font-size="8.5" font-weight="800" fill="#dc2626">NO</text>
+
+    <!-- Error Node -->
+    <rect x="815" y="75" width="125" height="70" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
+    <text x="877" y="99" text-anchor="middle" font-size="11" font-weight="700" fill="#991b1b">Access Denied</text>
+    <text x="877" y="115" text-anchor="middle" font-size="9" fill="#b91c1c">Expired / Used / Invalid</text>
+    <text x="877" y="129" text-anchor="middle" font-size="9" fill="#7f1d1d">Logs Audit Failure</text>
+
+    <!-- Branch YES (Downwards) -> Confirmation Modal -->
+    <line x1="680" y1="150" x2="680" y2="200" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="675,195 680,205 685,195" fill="#0f172a"/>
+    <rect x="686" y="165" width="36" height="18" rx="3" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+    <text x="704" y="178" text-anchor="middle" font-size="8.5" font-weight="800" fill="#059669">YES</text>
+
+    <!-- 5. Verification Modal & ID Inspection -->
+    <rect x="585" y="205" width="190" height="70" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+    <text x="680" y="228" text-anchor="middle" font-size="11" font-weight="700" fill="#065f46">5. Clearance Terminal</text>
+    <text x="680" y="244" text-anchor="middle" font-size="9.5" fill="#047857">Displays Student Photo ID,</text>
+    <text x="680" y="258" text-anchor="middle" font-size="9.5" fill="#047857">Institutional Standing &amp; Book</text>
+
+    <!-- Arrow 5 -> 6 (Leftwards) -->
+    <line x1="585" y1="240" x2="520" y2="240" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="525,235 515,240 525,245" fill="#0f172a"/>
+
+    <!-- 6. Physical Book Handover & Token Redemption -->
+    <rect x="330" y="205" width="185" height="70" rx="8" fill="#1e293b" stroke="#0f172a" stroke-width="2"/>
+    <text x="422" y="228" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">6. Book Handover &amp; Release</text>
+    <text x="422" y="244" text-anchor="middle" font-size="9.5" fill="#38bdf8">Token Marked: Redeemed</text>
+    <text x="422" y="258" text-anchor="middle" font-size="9.5" fill="#e2e8f0">Loan Status: Active_Loan</text>
+
+    <!-- Arrow 6 -> 7 (Leftwards) -->
+    <line x1="330" y1="240" x2="265" y2="240" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="270,235 260,240 270,245" fill="#0f172a"/>
+
+    <!-- 7. Inventory Decrement -->
+    <rect x="75" y="205" width="185" height="70" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+    <text x="167" y="228" text-anchor="middle" font-size="11" font-weight="700">7. Inventory Decrement</text>
+    <text x="167" y="244" text-anchor="middle" font-size="9.5" fill="#475569">Available Copies: -1</text>
+    <text x="167" y="258" text-anchor="middle" font-size="9.5" fill="#475569">Audited in Transaction Store</text>
+
+    <!-- Arrow 7 Downwards to Return Cycle -->
+    <line x1="167" y1="275" x2="167" y2="330" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="162,325 167,335 172,325" fill="#0f172a"/>
+
+    <!-- 8. Return Processing -->
+    <rect x="75" y="335" width="185" height="70" rx="8" fill="#eff6ff" stroke="#0284c7" stroke-width="2"/>
+    <text x="167" y="358" text-anchor="middle" font-size="11" font-weight="700" fill="#0369a1">8. Book Return Cycle</text>
+    <text x="167" y="374" text-anchor="middle" font-size="9.5" fill="#0284c7">Student Returns to Desk,</text>
+    <text x="167" y="388" text-anchor="middle" font-size="9.5" fill="#0284c7">Librarian Clicks "Returned"</text>
+
+    <!-- Arrow 8 -> 9 (Rightwards) -->
+    <line x1="260" y1="370" x2="330" y2="370" stroke="#0f172a" stroke-width="2"/>
+    <polygon points="325,365 335,370 325,375" fill="#0f172a"/>
+
+    <!-- 9. Inventory Restored & Finalized -->
+    <rect x="335" y="335" width="200" height="70" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+    <text x="435" y="358" text-anchor="middle" font-size="11" font-weight="700" fill="#065f46">9. Inventory Restored</text>
+    <text x="435" y="374" text-anchor="middle" font-size="9.5" fill="#047857">Available Copies: +1</text>
+    <text x="435" y="388" text-anchor="middle" font-size="9.5" fill="#047857">Status: Returned / Archived</text>
+
+    <!-- Arrow 9 -> Complete End -->
+    <line x1="535" y1="370" x2="605" y2="370" stroke="#059669" stroke-width="2"/>
+    <polygon points="600,365 610,370 600,375" fill="#059669"/>
+
+    <circle cx="635" cy="370" r="22" fill="#1e293b" stroke="#0f172a" stroke-width="2"/>
+    <text x="635" y="367" text-anchor="middle" font-size="9" font-weight="700" fill="#ffffff">Loan</text>
+    <text x="635" y="380" text-anchor="middle" font-size="8" fill="#38bdf8">Closed</text>
+  </svg>
+</div>
+
+<script>
+  async function exportAndPost(svgId, filename) {
+    const svg = document.getElementById(svgId);
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement("canvas");
+    const scale = 2; // high res
+    canvas.width = svg.getAttribute("width") * scale;
+    canvas.height = svg.getAttribute("height") * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const img = new Image();
+    const blob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    return new Promise((resolve) => {
+      img.onload = async () => {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        const base64 = canvas.toDataURL("image/png");
+        try {
+          const res = await fetch('http://localhost:3333/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename, base64 })
+          });
+          const json = await res.json();
+          console.log('Successfully posted', filename, json);
+        } catch (e) {
+          console.error('Failed to post', filename, e);
+        }
+        resolve();
+      };
+      img.src = url;
+    });
+  }
+
+  async function runAll() {
+    console.log('Starting automated export...');
+    await exportAndPost('svg-sprint-1', 'Figure_4_1_Sprint_1_Search_Workflow.png');
+    await exportAndPost('svg-sprint-2', 'Figure_4_2_Sprint_2_Token_Lifecycle.png');
+    await exportAndPost('svg-sprint-3', 'Figure_4_3_Sprint_3_Counter_Circulation.png');
+    console.log('Finished export of all 3 diagrams!');
+    const status = document.createElement('div');
+    status.id = 'export-complete-flag';
+    status.textContent = 'EXPORT_DONE';
+    document.body.appendChild(status);
+  }
+
+  document.getElementById('btn-download').addEventListener('click', runAll);
+  window.addEventListener('load', () => {
+    setTimeout(runAll, 500);
+  });
+</script>
+</body>
+</html>

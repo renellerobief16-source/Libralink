@@ -1,0 +1,480 @@
+const fs = require('fs');
+
+function getFlowchartSvg() {
+  const width = 1260;
+  const height = 1520;
+
+  return `
+  <svg id="svg-flowchart" viewBox="0 0 ${width} ${height}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="background:#ffffff; font-family:'Segoe UI', Inter, system-ui, -apple-system, sans-serif;">
+    <defs>
+      <!-- Drop Shadows for Nodes -->
+      <filter id="fc-shadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+        <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#0f172a" flood-opacity="0.08" />
+      </filter>
+
+      <!-- Arrow Markers -->
+      <marker id="fc-arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#334155" />
+      </marker>
+      <marker id="fc-arrow-black" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+      </marker>
+    </defs>
+
+    <!-- MAIN TITLE (Matching reference format) -->
+    <text x="50" y="45" font-family="'Times New Roman', serif, Georgia" font-size="28" font-weight="900" letter-spacing="1.5" fill="#000000">FLOW CHART</text>
+    <text x="50" y="68" font-size="12.5" font-weight="600" fill="#64748b">Figure 4.9: LibraLink End-to-End Operational Lifecycle &amp; Role Workflow (Sprint 1 to 3)</text>
+
+    <!-- ======================================================== -->
+    <!-- TOP AUTHENTICATION & ROLE ROUTING PIPELINE               -->
+    <!-- ======================================================== -->
+
+    <!-- Start Node (Cyan Pill) -->
+    <g transform="translate(180, 95)" filter="url(#fc-shadow)">
+      <rect x="0" y="0" width="95" height="38" rx="19" fill="#bae6fd" stroke="#0284c7" stroke-width="1.6" />
+      <polygon points="18,14 26,19 18,24" fill="#0369a1" />
+      <text x="52" y="24" font-size="13" font-weight="700" fill="#0369a1" text-anchor="middle">Start</text>
+    </g>
+
+    <!-- Line Start -> Access Site -->
+    <line x1="275" y1="114" x2="315" y2="114" stroke="#334155" stroke-width="1.5" marker-end="url(#fc-arrow)" />
+
+    <!-- Access Site (Cyan Rounded Rect) -->
+    <g transform="translate(315, 95)" filter="url(#fc-shadow)">
+      <rect x="0" y="0" width="105" height="38" rx="7" fill="#bae6fd" stroke="#0284c7" stroke-width="1.6" />
+      <text x="52" y="24" font-size="12" font-weight="700" fill="#0369a1" text-anchor="middle">Access Site</text>
+    </g>
+
+    <!-- Line Access Site -> Registered? -->
+    <line x1="420" y1="114" x2="465" y2="114" stroke="#334155" stroke-width="1.5" marker-end="url(#fc-arrow)" />
+
+    <!-- Registered? (Diamond Decision) -->
+    <g transform="translate(465, 94)" filter="url(#fc-shadow)">
+      <polygon points="55,0 110,20 55,40 0,20" fill="#fed7aa" stroke="#ea580c" stroke-width="1.6" />
+      <text x="55" y="24" font-size="11.5" font-weight="700" fill="#9a3412" text-anchor="middle">Registered?</text>
+    </g>
+
+    <!-- Decision: No -> Register -->
+    <line x1="575" y1="104" x2="630" y2="104" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+    <text x="595" y="99" font-size="10.5" font-weight="700" fill="#b91c1c">No</text>
+
+    <!-- Register Box (Light Yellow) -->
+    <g transform="translate(630, 85)" filter="url(#fc-shadow)">
+      <rect x="0" y="0" width="115" height="38" rx="7" fill="#fef08a" stroke="#ca8a04" stroke-width="1.6" />
+      <text x="57" y="23" font-size="11.5" font-weight="700" fill="#854d0e" text-anchor="middle">Register &amp; Verify</text>
+    </g>
+
+    <!-- Line: Register -> Login -->
+    <path d="M 745 104 L 775 104 L 775 114 L 795 114" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+
+    <!-- Decision: Yes -> Login -->
+    <path d="M 520 134 L 520 152 L 780 152 L 780 125 L 795 125" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+    <text x="532" y="146" font-size="10.5" font-weight="700" fill="#15803d">Yes</text>
+
+    <!-- Login Box (Cyan Rounded Rect) -->
+    <g transform="translate(795, 100)" filter="url(#fc-shadow)">
+      <rect x="0" y="0" width="95" height="38" rx="7" fill="#bae6fd" stroke="#0284c7" stroke-width="1.6" />
+      <text x="47" y="24" font-size="13" font-weight="700" fill="#0369a1" text-anchor="middle">Login</text>
+    </g>
+
+    <!-- Line from Login back & down to Role router -->
+    <path d="M 842 138 L 842 170 L 220 170 L 220 190" fill="none" stroke="#334155" stroke-width="1.5" marker-end="url(#fc-arrow)" />
+
+    <!-- Role? Decision Diamond -->
+    <g transform="translate(165, 190)" filter="url(#fc-shadow)">
+      <polygon points="55,0 110,24 55,48 0,24" fill="#fed7aa" stroke="#ea580c" stroke-width="1.6" />
+      <text x="55" y="28" font-size="13" font-weight="700" fill="#9a3412" text-anchor="middle">Role?</text>
+    </g>
+
+    <!-- ======================================================== -->
+    <!-- ROLE CONTAINERS & WORKFLOW PIPELINES                     -->
+    <!-- ======================================================== -->
+
+    <!-- ========================================== -->
+    <!-- 1. STUDENT SWIMLANE CONTAINER (GREEN)      -->
+    <!-- ========================================== -->
+    <g transform="translate(50, 275)">
+      <!-- Outer Border Box -->
+      <rect x="0" y="0" width="1160" height="270" rx="10" fill="#f0fdf4" stroke="#86efac" stroke-width="2" />
+      <!-- Role Badge Tag -->
+      <g transform="translate(16, 12)">
+        <rect x="0" y="0" width="90" height="24" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.4" />
+        <circle cx="14" cy="12" r="5" fill="#16a34a" />
+        <text x="26" y="16" font-size="11" font-weight="800" fill="#15803d">STUDENT</text>
+      </g>
+
+      <!-- Student Dashboard -->
+      <g transform="translate(30, 55)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="125" height="42" rx="7" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.6" />
+        <text x="62" y="26" font-size="12" font-weight="700" fill="#14532d" text-anchor="middle">Student Dashboard</text>
+      </g>
+
+      <!-- Line: Dashboard -> Search -->
+      <line x1="155" y1="76" x2="195" y2="76" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+
+      <!-- Cross-School Catalog Search (Sprint 1) -->
+      <g transform="translate(195, 55)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="145" height="42" rx="7" fill="#ffffff" stroke="#16a34a" stroke-width="1.5" />
+        <text x="72" y="20" font-size="11" font-weight="700" fill="#0f172a" text-anchor="middle">Cross-School Search</text>
+        <text x="72" y="34" font-size="9.5" font-weight="600" fill="#15803d" text-anchor="middle">Catalog Indexing (Sprint 1)</text>
+      </g>
+
+      <!-- Line: Search -> Available Locally? -->
+      <line x1="340" y1="76" x2="380" y2="76" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+
+      <!-- Available Locally? Diamond -->
+      <g transform="translate(380, 53)" filter="url(#fc-shadow)">
+        <polygon points="50,0 100,23 50,46 0,23" fill="#fed7aa" stroke="#ea580c" stroke-width="1.5" />
+        <text x="50" y="21" font-size="10" font-weight="700" fill="#9a3412" text-anchor="middle">Available</text>
+        <text x="50" y="33" font-size="10" font-weight="700" fill="#9a3412" text-anchor="middle">Locally?</text>
+      </g>
+
+      <!-- Yes -> Direct Borrow Home Library -->
+      <path d="M 430 53 L 430 30 L 515 30" fill="none" stroke="#334155" stroke-width="1.3" marker-end="url(#fc-arrow)" />
+      <text x="442" y="25" font-size="9.5" font-weight="700" fill="#15803d">Yes</text>
+      
+      <g transform="translate(515, 12)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="135" height="34" rx="6" fill="#f1f5f9" stroke="#64748b" stroke-width="1.3" />
+        <text x="67" y="21" font-size="10.5" font-weight="600" fill="#1e293b" text-anchor="middle">Borrow at Home Library</text>
+      </g>
+
+      <!-- No -> Inter-Library Request (Sprint 2) -->
+      <line x1="480" y1="76" x2="525" y2="76" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+      <text x="495" y="70" font-size="9.5" font-weight="700" fill="#b91c1c">No</text>
+
+      <!-- Submit Inter-Library Borrow Request -->
+      <g transform="translate(525, 55)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="155" height="42" rx="7" fill="#ffffff" stroke="#16a34a" stroke-width="1.5" />
+        <text x="77" y="20" font-size="11" font-weight="700" fill="#0f172a" text-anchor="middle">Submit Borrow Request</text>
+        <text x="77" y="34" font-size="9.5" font-weight="600" fill="#15803d" text-anchor="middle">Partner Campus (Sprint 2)</text>
+      </g>
+
+      <!-- Line: Submit Request -> Home Librarian Inbox (cross-container route down) -->
+      <!-- Routed via external path below -->
+
+      <!-- Second Row in Student: Receiving & Redeeming Token -->
+      <!-- Wait for Dual Approval -->
+      <g transform="translate(240, 160)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="150" height="44" rx="7" fill="#ffffff" stroke="#16a34a" stroke-width="1.5" />
+        <text x="75" y="20" font-size="11" font-weight="700" fill="#0f172a" text-anchor="middle">Wait for Dual Approval</text>
+        <text x="75" y="34" font-size="9" font-weight="500" fill="#64748b" text-anchor="middle">Home Verify &amp; Partner Grant</text>
+      </g>
+
+      <!-- Line: Wait -> Receive Token -->
+      <line x1="390" y1="182" x2="435" y2="182" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+
+      <!-- Digital Library Access Token Pass (QR View) -->
+      <g transform="translate(435, 155)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="175" height="52" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="1.8" />
+        <text x="87" y="22" font-size="11.5" font-weight="800" fill="#14532d" text-anchor="middle">Access Token Pass Issued</text>
+        <text x="87" y="37" font-size="10" font-weight="700" fill="#15803d" text-anchor="middle">72-Hour QR Code Pass (Sprint 2)</text>
+      </g>
+
+      <!-- Line: Token -> Present at Partner Counter -->
+      <line x1="610" y1="181" x2="660" y2="181" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+
+      <!-- Present Token at Counter (Sprint 3) -->
+      <g transform="translate(660, 158)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="165" height="48" rx="7" fill="#ffffff" stroke="#16a34a" stroke-width="1.5" />
+        <text x="82" y="21" font-size="11" font-weight="700" fill="#0f172a" text-anchor="middle">Present Token at Partner</text>
+        <text x="82" y="36" font-size="9.5" font-weight="600" fill="#15803d" text-anchor="middle">Circulation Counter (Sprint 3)</text>
+      </g>
+
+      <!-- Line: Present Token -> Book Handover / Return -->
+      <line x1="825" y1="182" x2="875" y2="182" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+
+      <!-- Return Book on Due Date -->
+      <g transform="translate(875, 158)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="150" height="48" rx="7" fill="#ffffff" stroke="#16a34a" stroke-width="1.5" />
+        <text x="75" y="21" font-size="11" font-weight="700" fill="#0f172a" text-anchor="middle">Borrow &amp; Return Book</text>
+        <text x="75" y="36" font-size="9.5" font-weight="500" fill="#64748b" text-anchor="middle">Clear Institutional Loan</text>
+      </g>
+    </g>
+
+    <!-- ========================================== -->
+    <!-- 2. HOME LIBRARIAN CONTAINER (BLUE)        -->
+    <!-- ========================================== -->
+    <g transform="translate(50, 580)">
+      <!-- Outer Border Box -->
+      <rect x="0" y="0" width="1160" height="235" rx="10" fill="#eff6ff" stroke="#93c5fd" stroke-width="2" />
+      <!-- Role Badge Tag -->
+      <g transform="translate(16, 12)">
+        <rect x="0" y="0" width="130" height="24" rx="4" fill="#dbeafe" stroke="#2563eb" stroke-width="1.4" />
+        <circle cx="14" cy="12" r="5" fill="#2563eb" />
+        <text x="26" y="16" font-size="11" font-weight="800" fill="#1d4ed8">HOME LIBRARIAN</text>
+      </g>
+
+      <!-- Home Librarian Dashboard -->
+      <g transform="translate(30, 60)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="140" height="46" rx="7" fill="#bfdbfe" stroke="#2563eb" stroke-width="1.6" />
+        <text x="70" y="22" font-size="11.5" font-weight="700" fill="#1e3a8a" text-anchor="middle">Librarian Dashboard</text>
+        <text x="70" y="37" font-size="9.5" font-weight="600" fill="#1d4ed8" text-anchor="middle">Home Institutional Desk</text>
+      </g>
+
+      <!-- Line: Dashboard -> Home Inbox -->
+      <line x1="170" y1="83" x2="215" y2="83" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+
+      <!-- Home Inbox (Review Clearance) -->
+      <g transform="translate(215, 58)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="155" height="50" rx="7" fill="#ffffff" stroke="#2563eb" stroke-width="1.5" />
+        <text x="77" y="22" font-size="11" font-weight="700" fill="#0f172a" text-anchor="middle">Home Request Inbox</text>
+        <text x="77" y="37" font-size="9.5" font-weight="500" fill="#64748b" text-anchor="middle">Validate Student Clearance</text>
+      </g>
+
+      <!-- Line: Inbox -> Student Eligible? -->
+      <line x1="370" y1="83" x2="420" y2="83" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+
+      <!-- Student Eligible? Diamond -->
+      <g transform="translate(420, 60)" filter="url(#fc-shadow)">
+        <polygon points="50,0 100,23 50,46 0,23" fill="#fed7aa" stroke="#ea580c" stroke-width="1.5" />
+        <text x="50" y="21" font-size="10" font-weight="700" fill="#9a3412" text-anchor="middle">Student</text>
+        <text x="50" y="33" font-size="10" font-weight="700" fill="#9a3412" text-anchor="middle">Eligible?</text>
+      </g>
+
+      <!-- Eligible: No -> Reject Request -->
+      <path d="M 470 106 L 470 160 L 535 160" fill="none" stroke="#334155" stroke-width="1.3" marker-end="url(#fc-arrow)" />
+      <text x="480" y="125" font-size="9.5" font-weight="700" fill="#b91c1c">No</text>
+
+      <g transform="translate(535, 142)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="145" height="38" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="1.3" />
+        <text x="72" y="23" font-size="10.5" font-weight="700" fill="#991b1b" text-anchor="middle">Reject &amp; Provide Reason</text>
+      </g>
+
+      <!-- Eligible: Yes -> Endorse to Partner School -->
+      <line x1="520" y1="83" x2="575" y2="83" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+      <text x="538" y="76" font-size="9.5" font-weight="700" fill="#15803d">Yes</text>
+
+      <g transform="translate(575, 58)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="180" height="50" rx="7" fill="#dbeafe" stroke="#2563eb" stroke-width="1.6" />
+        <text x="90" y="22" font-size="11.5" font-weight="800" fill="#1e3a8a" text-anchor="middle">Endorse &amp; Forward Request</text>
+        <text x="90" y="37" font-size="9.5" font-weight="600" fill="#2563eb" text-anchor="middle">1st Layer Approval (Sprint 2)</text>
+      </g>
+    </g>
+
+    <!-- ========================================== -->
+    <!-- 3. PARTNER LIBRARIAN CONTAINER (PURPLE)   -->
+    <!-- ========================================== -->
+    <g transform="translate(50, 850)">
+      <!-- Outer Border Box -->
+      <rect x="0" y="0" width="1160" height="295" rx="10" fill="#faf5ff" stroke="#d8b4fe" stroke-width="2" />
+      <!-- Role Badge Tag -->
+      <g transform="translate(16, 12)">
+        <rect x="0" y="0" width="145" height="24" rx="4" fill="#f3e8ff" stroke="#9333ea" stroke-width="1.4" />
+        <circle cx="14" cy="12" r="5" fill="#9333ea" />
+        <text x="26" y="16" font-size="11" font-weight="800" fill="#7e22ce">PARTNER LIBRARIAN</text>
+      </g>
+
+      <!-- Partner Librarian Dashboard -->
+      <g transform="translate(30, 55)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="140" height="46" rx="7" fill="#e9d5ff" stroke="#9333ea" stroke-width="1.6" />
+        <text x="70" y="22" font-size="11.5" font-weight="700" fill="#581c87" text-anchor="middle">Librarian Dashboard</text>
+        <text x="70" y="37" font-size="9.5" font-weight="600" fill="#7e22ce" text-anchor="middle">Partner School Holding Desk</text>
+      </g>
+
+      <!-- Line: Dashboard -> Partner Inbox -->
+      <line x1="170" y1="78" x2="215" y2="78" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+
+      <!-- Partner Inbox (Review Endorsed Request) -->
+      <g transform="translate(215, 54)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="165" height="48" rx="7" fill="#ffffff" stroke="#9333ea" stroke-width="1.5" />
+        <text x="82" y="21" font-size="11" font-weight="700" fill="#0f172a" text-anchor="middle">Partner Incoming Inbox</text>
+        <text x="82" y="36" font-size="9.5" font-weight="500" fill="#64748b" text-anchor="middle">Review Endorsed Request</text>
+      </g>
+
+      <!-- Line: Partner Inbox -> Book on Shelf? -->
+      <line x1="380" y1="78" x2="425" y2="78" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+
+      <!-- Book on Shelf? Diamond -->
+      <g transform="translate(425, 55)" filter="url(#fc-shadow)">
+        <polygon points="50,0 100,23 50,46 0,23" fill="#fed7aa" stroke="#ea580c" stroke-width="1.5" />
+        <text x="50" y="21" font-size="10" font-weight="700" fill="#9a3412" text-anchor="middle">Book on</text>
+        <text x="50" y="33" font-size="10" font-weight="700" fill="#9a3412" text-anchor="middle">Shelf?</text>
+      </g>
+
+      <!-- Shelf: No -> Decline -->
+      <path d="M 475 101 L 475 140 L 530 140" fill="none" stroke="#334155" stroke-width="1.3" marker-end="url(#fc-arrow)" />
+      <text x="485" y="120" font-size="9.5" font-weight="700" fill="#b91c1c">No</text>
+
+      <g transform="translate(530, 122)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="145" height="36" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="1.3" />
+        <text x="72" y="22" font-size="10.5" font-weight="700" fill="#991b1b" text-anchor="middle">Decline &amp; Release Hold</text>
+      </g>
+
+      <!-- Shelf: Yes -> Final 2nd Layer Approval -->
+      <line x1="525" y1="78" x2="575" y2="78" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+      <text x="542" y="71" font-size="9.5" font-weight="700" fill="#15803d">Yes</text>
+
+      <!-- Approve & Issue Token -->
+      <g transform="translate(575, 54)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="180" height="50" rx="7" fill="#f3e8ff" stroke="#9333ea" stroke-width="1.6" />
+        <text x="90" y="22" font-size="11.5" font-weight="800" fill="#581c87" text-anchor="middle">Approve &amp; Generate Token</text>
+        <text x="90" y="37" font-size="9.5" font-weight="600" fill="#7e22ce" text-anchor="middle">2nd Layer Approval (Sprint 2)</text>
+      </g>
+
+      <!-- SPRINT 3 COUNTER CIRCULATION WORKFLOW (Row 2 in Partner) -->
+      <!-- Counter Scanner -->
+      <g transform="translate(180, 200)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="165" height="50" rx="7" fill="#ffffff" stroke="#9333ea" stroke-width="1.5" />
+        <text x="82" y="22" font-size="11" font-weight="700" fill="#0f172a" text-anchor="middle">Circulation Counter Desk</text>
+        <text x="82" y="37" font-size="9.5" font-weight="600" fill="#7e22ce" text-anchor="middle">Scan Student QR Code (Sprint 3)</text>
+      </g>
+
+      <!-- Line: Counter -> Token Valid? -->
+      <line x1="345" y1="225" x2="395" y2="225" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+
+      <!-- Token Valid? Diamond -->
+      <g transform="translate(395, 202)" filter="url(#fc-shadow)">
+        <polygon points="50,0 100,23 50,46 0,23" fill="#fed7aa" stroke="#ea580c" stroke-width="1.5" />
+        <text x="50" y="21" font-size="10" font-weight="700" fill="#9a3412" text-anchor="middle">Token</text>
+        <text x="50" y="33" font-size="10" font-weight="700" fill="#9a3412" text-anchor="middle">Valid?</text>
+      </g>
+
+      <!-- Valid: No -> Deny Handover -->
+      <path d="M 445 248 L 445 275 L 530 275" fill="none" stroke="#334155" stroke-width="1.3" marker-end="url(#fc-arrow)" />
+      <text x="455" y="265" font-size="9.5" font-weight="700" fill="#b91c1c">No</text>
+
+      <g transform="translate(530, 258)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="145" height="32" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="1.3" />
+        <text x="72" y="20" font-size="10" font-weight="700" fill="#991b1b" text-anchor="middle">Deny / Token Expired</text>
+      </g>
+
+      <!-- Valid: Yes -> Dispense Book -->
+      <line x1="495" y1="225" x2="550" y2="225" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+      <text x="515" y="218" font-size="9.5" font-weight="700" fill="#15803d">Yes</text>
+
+      <g transform="translate(550, 202)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="170" height="46" rx="7" fill="#dcfce7" stroke="#15803d" stroke-width="1.6" />
+        <text x="85" y="21" font-size="11" font-weight="800" fill="#14532d" text-anchor="middle">Dispense Physical Book</text>
+        <text x="85" y="35" font-size="9.5" font-weight="600" fill="#15803d" text-anchor="middle">Update Copy to Checked Out</text>
+      </g>
+
+      <!-- Line: Dispense -> Process Return -->
+      <line x1="720" y1="225" x2="770" y2="225" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+
+      <!-- Process Return -->
+      <g transform="translate(770, 202)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="165" height="46" rx="7" fill="#ffffff" stroke="#9333ea" stroke-width="1.5" />
+        <text x="82" y="21" font-size="11" font-weight="700" fill="#0f172a" text-anchor="middle">Process Book Return</text>
+        <text x="82" y="35" font-size="9.5" font-weight="500" fill="#64748b" text-anchor="middle">Inspect &amp; Clear Inventory</text>
+      </g>
+    </g>
+
+    <!-- ========================================== -->
+    <!-- 4. ADMINISTRATOR CONTAINER (STEEL BLUE)   -->
+    <!-- ========================================== -->
+    <g transform="translate(50, 1180)">
+      <!-- Outer Border Box -->
+      <rect x="0" y="0" width="1160" height="200" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2" />
+      <!-- Role Badge Tag -->
+      <g transform="translate(16, 12)">
+        <rect x="0" y="0" width="120" height="24" rx="4" fill="#e2e8f0" stroke="#475569" stroke-width="1.4" />
+        <circle cx="14" cy="12" r="5" fill="#475569" />
+        <text x="26" y="16" font-size="11" font-weight="800" fill="#334155">ADMINISTRATOR</text>
+      </g>
+
+      <!-- Admin Dashboard -->
+      <g transform="translate(30, 60)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="135" height="46" rx="7" fill="#cbd5e1" stroke="#475569" stroke-width="1.6" />
+        <text x="67" y="22" font-size="11.5" font-weight="700" fill="#1e293b" text-anchor="middle">Admin Dashboard</text>
+        <text x="67" y="37" font-size="9.5" font-weight="600" fill="#334155" text-anchor="middle">System Oversight</text>
+      </g>
+
+      <!-- 3 Administrative Tasks Branching -->
+      <!-- Task 1: School Governance (Sprint 1) -->
+      <path d="M 165 75 L 210 75 L 210 50 L 235 50" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+      <g transform="translate(235, 30)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="200" height="40" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="1.4" />
+        <text x="100" y="24" font-size="11" font-weight="700" fill="#1e293b" text-anchor="middle">Manage Participating Schools &amp; API</text>
+      </g>
+
+      <!-- Task 2: User RBAC Management -->
+      <line x1="165" y1="83" x2="235" y2="83" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+      <g transform="translate(235, 75)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="200" height="40" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="1.4" />
+        <text x="100" y="24" font-size="11" font-weight="700" fill="#1e293b" text-anchor="middle">Configure User Accounts &amp; RBAC</text>
+      </g>
+
+      <!-- Task 3: Audit Trails & Analytics -->
+      <path d="M 165 91 L 210 91 L 210 135 L 235 135" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#fc-arrow)" />
+      <g transform="translate(235, 120)" filter="url(#fc-shadow)">
+        <rect x="0" y="0" width="200" height="40" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="1.4" />
+        <text x="100" y="24" font-size="11" font-weight="700" fill="#1e293b" text-anchor="middle">View Audit Trails &amp; System Logs</text>
+      </g>
+    </g>
+
+    <!-- ======================================================== -->
+    <!-- INTER-ROLE CONNECTOR LINES (Sprint Workflows Across Roles) -->
+    <!-- ======================================================== -->
+
+    <!-- Route 1: From Role router to Student Dashboard -->
+    <path d="M 165 214 L 110 214 L 110 330 L 80 330" fill="none" stroke="#334155" stroke-width="1.5" marker-end="url(#fc-arrow)" />
+    <text x="120" y="208" font-size="10" font-weight="700" fill="#15803d">Student</text>
+
+    <!-- Route 2: From Role router to Home Librarian Dashboard -->
+    <path d="M 180 238 L 180 640 L 80 640" fill="none" stroke="#334155" stroke-width="1.5" marker-end="url(#fc-arrow)" />
+    <text x="185" y="570" font-size="10" font-weight="700" fill="#1d4ed8">Home Librarian</text>
+
+    <!-- Route 3: From Role router to Partner Librarian Dashboard -->
+    <path d="M 220 238 L 220 905 L 80 905" fill="none" stroke="#334155" stroke-width="1.5" marker-end="url(#fc-arrow)" />
+    <text x="225" y="840" font-size="10" font-weight="700" fill="#7e22ce">Partner Librarian</text>
+
+    <!-- Route 4: From Role router to Administrator Dashboard -->
+    <path d="M 240 238 L 240 1240 L 80 1240" fill="none" stroke="#334155" stroke-width="1.5" marker-end="url(#fc-arrow)" />
+    <text x="245" y="1170" font-size="10" font-weight="700" fill="#334155">Admin</text>
+
+    <!-- Route 5: Student Submit Request (Sprint 2) -> Home Librarian Inbox -->
+    <path d="M 680 352 L 680 570 L 292 570 L 292 638" fill="none" stroke="#2563eb" stroke-width="1.6" stroke-dasharray="5,4" marker-end="url(#fc-arrow)" />
+    <rect x="420" y="558" width="160" height="20" rx="3" fill="#eff6ff" stroke="#93c5fd" stroke-width="1" />
+    <text x="500" y="572" font-size="9" font-weight="700" fill="#1e3a8a" text-anchor="middle">Sprint 2: Routing to Home Inbox</text>
+
+    <!-- Route 6: Home Endorse Request -> Partner Incoming Inbox -->
+    <path d="M 665 688 L 665 838 L 297 838 L 297 904" fill="none" stroke="#9333ea" stroke-width="1.6" stroke-dasharray="5,4" marker-end="url(#fc-arrow)" />
+    <rect x="430" y="828" width="170" height="20" rx="3" fill="#faf5ff" stroke="#d8b4fe" stroke-width="1" />
+    <text x="515" y="842" font-size="9" font-weight="700" fill="#6b21a8" text-anchor="middle">Sprint 2: Forward to Partner Campus</text>
+
+    <!-- Route 7: Partner Approve & Generate Token -> Student Receive Token -->
+    <path d="M 755 930 L 1050 930 L 1050 490 L 522 490 L 522 477" fill="none" stroke="#16a34a" stroke-width="1.8" marker-end="url(#fc-arrow)" />
+    <rect x="910" y="700" width="165" height="22" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.2" />
+    <text x="992" y="715" font-size="9.5" font-weight="800" fill="#14532d" text-anchor="middle">Sprint 2: Push Token Pass to Student</text>
+
+    <!-- Route 8: Student Present Token -> Partner Counter Scanner (Sprint 3) -->
+    <path d="M 742 476 L 742 510 L 160 510 L 160 1075 L 180 1075" fill="none" stroke="#9333ea" stroke-width="1.6" stroke-dasharray="5,4" marker-end="url(#fc-arrow)" />
+    <rect x="135" y="780" width="155" height="20" rx="3" fill="#fdf4ff" stroke="#d8b4fe" stroke-width="1" />
+    <text x="212" y="794" font-size="9" font-weight="700" fill="#86198f" text-anchor="middle">Sprint 3: Optical QR Verification</text>
+
+    <!-- ======================================================== -->
+    <!-- EXIT PIPELINE: LOGOUT & TERMINAL END (BOTTOM RIGHT)      -->
+    <!-- ======================================================== -->
+
+    <!-- Common Bus to Logout -->
+    <!-- Lines from various exit points collecting into Logout Bus on right edge (x=1110) -->
+    <path d="M 1025 456 L 1110 456 L 1110 1370 L 1050 1370" fill="none" stroke="#334155" stroke-width="1.4" />
+    <path d="M 755 664 L 1110 664" fill="none" stroke="#334155" stroke-width="1.4" />
+    <path d="M 935 1075 L 1110 1075" fill="none" stroke="#334155" stroke-width="1.4" />
+    <path d="M 435 1285 L 1110 1285" fill="none" stroke="#334155" stroke-width="1.4" />
+
+    <!-- Logout Node (Pink Rounded Rect matching reference) -->
+    <g transform="translate(950, 1350)" filter="url(#fc-shadow)">
+      <rect x="0" y="0" width="100" height="42" rx="7" fill="#fecdd3" stroke="#e11d48" stroke-width="1.6" />
+      <!-- Logout Icon -->
+      <rect x="16" y="14" width="12" height="14" rx="2" fill="none" stroke="#9f1239" stroke-width="1.5" />
+      <line x1="22" y1="21" x2="30" y2="21" stroke="#9f1239" stroke-width="1.5" />
+      <polyline points="27,18 30,21 27,24" fill="none" stroke="#9f1239" stroke-width="1.5" />
+      <text x="63" y="26" font-size="12.5" font-weight="700" fill="#9f1239" text-anchor="middle">Logout</text>
+    </g>
+
+    <!-- Line: Logout -> End -->
+    <path d="M 1000 1392 L 1000 1440 L 1050 1440" fill="none" stroke="#334155" stroke-width="1.5" marker-end="url(#fc-arrow)" />
+
+    <!-- End Node (Dark Gray Pill matching reference) -->
+    <g transform="translate(1050, 1422)" filter="url(#fc-shadow)">
+      <rect x="0" y="0" width="95" height="38" rx="19" fill="#475569" stroke="#1e293b" stroke-width="1.6" />
+      <circle cx="24" cy="19" r="6" fill="#f8fafc" />
+      <text x="60" y="24" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">End</text>
+    </g>
+
+  </svg>
+  `;
+}
+
+module.exports = { getFlowchartSvg };

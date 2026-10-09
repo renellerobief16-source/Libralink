@@ -43,14 +43,14 @@ async function enrichNotifications(notifications) {
   const announcementCreatorIds = Array.from(announcementsMap.values()).map(a => a.created_by).filter(Boolean);
   const allUserIds = [...new Set([...studentIdsFromRequests, ...directUserIds, ...announcementCreatorIds])];
 
-  // 3. Fetch all potential student/user accounts
+  // 3. Fetch all potential student/user accounts (join roles to get role_name — 'role' column does not exist on users)
   let usersList = [];
   if (allUserIds.length > 0) {
-    const { data: usersData, error: usersError } = await supabase
+    const { data: usersData } = await supabase
       .from('users')
-      .select('user_id, firstname, lastname, profile_image, school_id, role_id, role')
+      .select('user_id, firstname, lastname, profile_image, school_id, role_id, roles:role_id(role_name)')
       .in('user_id', allUserIds);
-    if (!usersError && usersData) usersList = usersData;
+    if (usersData) usersList = usersData.map(u => ({ ...u, role_name: u.roles?.role_name || null }));
   }
 
   // 4. Also fetch active staff and students to help match by name if lookup misses
@@ -62,13 +62,13 @@ async function enrichNotifications(notifications) {
   if (namesInMessages.length > 0) {
     const { data: nameUsers } = await supabase
       .from('users')
-      .select('user_id, firstname, lastname, profile_image, school_id, role_id, role')
+      .select('user_id, firstname, lastname, profile_image, school_id, role_id, roles:role_id(role_name)')
       .limit(150);
     if (nameUsers) {
       const existingIds = new Set(usersList.map(u => u.user_id));
       nameUsers.forEach(nu => {
         if (!existingIds.has(nu.user_id)) {
-          usersList.push(nu);
+          usersList.push({ ...nu, role_name: nu.roles?.role_name || null });
           existingIds.add(nu.user_id);
         }
       });
@@ -135,7 +135,7 @@ async function enrichNotifications(notifications) {
       ...notification,
       related_request_id: relatedRequestId,
       sender_name: finalName,
-      sender_role: matchedUser?.role || (isAnn ? 'Librarian Admin' : (notification.sender_role || 'User')),
+      sender_role: matchedUser?.role_name || (isAnn ? 'Librarian Admin' : (notification.sender_role || null)),
       profile_picture: profilePic,
       sender_profile_picture: profilePic,
       student_name: finalName,

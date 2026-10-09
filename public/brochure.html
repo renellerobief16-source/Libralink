@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LibraLink Tri-Fold Capstone Brochure</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy-950: #070e1b;
+      --navy-900: #0b192c;
+      --navy-800: #102a45;
+      --blue-700: #0369a1;
+      --blue-600: #0284c7;
+      --blue-500: #0077b6;
+      --cyan-400: #38bdf8;
+      --cyan-300: #7dd3fc;
+      --cyan-50: #f0f9ff;
+      --slate-50: #f8fafc;
+      --slate-100: #f1f5f9;
+      --slate-200: #e2e8f0;
+      --slate-500: #64748b;
+      --slate-700: #334155;
+      --slate-800: #1e293b;
+      --gold-500: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #0f172a;
+      color: var(--slate-800);
+      min-height: 100vh;
+      padding: 1.5rem 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Screen UI Header & Controls */
+    .screen-controls {
+      background: #1e293b;
+      border: 1px solid #334155;
+      padding: 0.85rem 1.5rem;
+      border-radius: 9999px;
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      margin-bottom: 2rem;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+      z-index: 100;
+    }
+
+    .btn {
+      background: var(--blue-600);
+      color: white;
+      border: none;
+      padding: 0.6rem 1.25rem;
+      border-radius: 9999px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: #0369a1;
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: #334155;
+      color: #e2e8f0;
+    }
+    .btn-secondary:hover {
+      background: #475569;
+    }
+    .btn-active {
+      background: var(--cyan-400);
+      color: var(--navy-900);
+    }
+
+    /* Brochure Container (US Letter / A4 Landscape Proportion) */
+    .brochure-sheet {
+      width: 1100px;
+      height: 710px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      overflow: hidden;
+      position: relative;
+      margin-bottom: 3rem;
+      page-break-after: always;
+    }
+
+    /* Fold Guide Lines (screen preview only) */
+    .fold-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: rgba(0, 0, 0, 0.08);
+      z-index: 50;
+      pointer-events: none;
+    }
+    .fold-line.one { left: 33.333%; border-right: 1px dashed rgba(2, 132, 199, 0.3); }
+    .fold-line.two { left: 66.666%; border-right: 1px dashed rgba(2, 132, 199, 0.3); }
+
+    .panel {
+      position: relative;
+      height: 100%;
+      padding: 1.75rem 1.6rem;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Typography & Hierarchy */
+    h1, h2, h3, h4 {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* =========================================================
+       PAGE 1: OUTSIDE SPREAD
+       Panel 1: Inside Flap (About Consortium)
+       Panel 2: Back Cover (Team & QR)
+       Panel 3: Front Cover (Hero Showcase)
+       ========================================================= */
+
+    /* Panel 1: Inside Flap */
+    .outside-flap {
+      background: linear-gradient(180deg, #f8fafc 0%, #f0f9ff 100%);
+      border-right: 1px solid var(--slate-200);
+    }
+    .school-card-mini {
+      background: white;
+      border: 1px solid var(--slate-200);
+      border-radius: 12px;
+      padding: 0.85rem;
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      margin-bottom: 0.75rem;
+    }
+    .school-card-mini img {
+      width: 44px;
+      height: 44px;
+      object-fit: contain;
+      border-radius: 50%;
+    }
+
+    /* Panel 2: Back Cover */
+    .outside-back {
+      background: var(--navy-900);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      border-right: 1px solid #1e3a8a;
+    }
+    .team-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.6rem;
+      margin-top: 0.75rem;
+    }
+    .team-member-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 0.5rem;
+      text-align: center;
+    }
+    .team-member-card .name {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: white;
+    }
+    .team-member-card .role {
+      font-size: 0.68rem;
+      color: var(--cyan-400);
+    }
+
+    /* Panel 3: Front Cover */
+    .outside-front {
+      background: linear-gradient(145deg, #070e1b 0%, #0b192c 50%, #0369a1 100%);
+      color: white;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 2rem 1.6rem;
+      position: relative;
+    }
+    .front-hero-img-wrap {
+      width: 100%;
+      height: 270px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      background: #0b192c;
+    }
+    .front-hero-img-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: 28% center;
+      display: block;
+      transition: transform 0.3s ease;
+    }
+
+    /* =========================================================
+       PAGE 2: INSIDE SPREAD (Panoramic 3 Panels)
+       ========================================================= */
+    .inside-sheet {
+      background: white;
+    }
+
+    .inside-panel-1 {
+      background: #ffffff;
+      border-right: 1px solid var(--slate-200);
+    }
+
+    .inside-panel-2 {
+      background: linear-gradient(180deg, #f0f9ff 0%, #ffffff 100%);
+      border-right: 1px solid var(--slate-200);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .inside-panel-3 {
+      background: #ffffff;
+    }
+
+    /* Feature Cards */
+    .feature-box {
+      background: var(--slate-50);
+      border: 1px solid var(--slate-200);
+      border-radius: 10px;
+      padding: 0.75rem 0.85rem;
+      margin-bottom: 0.65rem;
+      transition: border-color 0.2s;
+    }
+    .feature-box:hover {
+      border-color: var(--blue-600);
+    }
+    .feature-box-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--navy-900);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 0.2rem;
+    }
+    .feature-box-desc {
+      font-size: 0.72rem;
+      color: var(--slate-500);
+      line-height: 1.35;
+    }
+
+    /* Student In-Action Showcase Frame */
+    .student-showcase-frame {
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-top: 0.75rem;
+      box-shadow: 0 10px 20px rgba(2, 132, 199, 0.15);
+      border: 2px solid white;
+      background: var(--navy-900);
+    }
+    .student-showcase-frame img {
+      width: 100%;
+      height: 175px;
+      object-fit: cover;
+      object-position: center 32%;
+      display: block;
+    }
+    .student-overlay-badge {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      right: 8px;
+      background: rgba(11, 25, 44, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 8px;
+      padding: 0.45rem 0.65rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: white;
+    }
+
+    /* Step Timeline Pills */
+    .step-item {
+      display: flex;
+      gap: 0.65rem;
+      align-items: flex-start;
+      margin-bottom: 0.6rem;
+    }
+    .step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--blue-600);
+      color: white;
+      font-size: 0.75rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(2, 132, 199, 0.4);
+    }
+    .step-content .title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--navy-900);
+    }
+    .step-content .desc {
+      font-size: 0.68rem;
+      color: var(--slate-500);
+      line-height: 1.3;
+    }
+
+    /* Metric Highlight Boxes */
+    .metric-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      margin: 0.75rem 0;
+    }
+    .metric-box {
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      border: 1px solid #bae6fd;
+      border-radius: 8px;
+      padding: 0.6rem;
+      text-align: center;
+    }
+    .metric-box .number {
+      font-size: 1.25rem;
+      font-weight: 900;
+      color: var(--blue-600);
+      font-family: 'Outfit', sans-serif;
+    }
+    .metric-box .label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: var(--navy-900);
+      text-transform: uppercase;
+    }
+
+    /* Print Styles */
+    @media print {
+      body {
+        background: transparent !important;
+        padding: 0 !important;
+      }
+      .screen-controls, .fold-line {
+        display: none !important;
+      }
+      .brochure-sheet {
+        width: 100% !important;
+        height: 100vh !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        page-break-after: always;
+      }
+      @page {
+        size: letter landscape;
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Screen Navigation & Print Controls -->
+  <div class="screen-controls">
+    <div style="font-weight: 800; color: white; display: flex; align-items: center; gap: 0.5rem;">
+      <span style="background: #0284c7; color: white; width: 24px; height: 24px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem;">L</span>
+      LibraLink Tri-Fold Brochure
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      <button class="btn btn-secondary btn-active" id="tabOutside" onclick="showSide('outside')">📄 Outside Spread</button>
+      <button class="btn btn-secondary" id="tabInside" onclick="showSide('inside')">📖 Inside Spread</button>
+      <button class="btn btn-secondary" onclick="showSide('both')">📑 View Both Sides</button>
+    </div>
+    <button class="btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+  </div>
+
+  <!-- =========================================================
+       PAGE 1: OUTSIDE SPREAD (Folded View)
+       Panel 1: Inside Flap (About)
+       Panel 2: Back Cover (Team & QR)
+       Panel 3: Front Cover (Hero Showcase)
+       ========================================================= -->
+  <div class="brochure-sheet" id="sheetOutside">
+    <div class="fold-line one"></div>
+    <div class="fold-line two"></div>
+
+    <!-- PANEL 1 (OUTSIDE LEFT): Inside Flap / Institutional Consortium -->
+    <div class="panel outside-flap">
+      <div>
+        <span class="badge-pill" style="background: #e0f2fe; color: #0369a1; margin-bottom: 0.5rem;">
+          Consortium Network
+        </span>
+        <h2 style="font-size: 1.35rem; color: var(--navy-900); line-height: 1.2; margin-bottom: 0.6rem;">
+          Connecting Libraries Across Pampanga
+        </h2>
+        <p style="font-size: 0.74rem; color: var(--slate-700); line-height: 1.45; margin-bottom: 1rem;">
+          LibraLink bridges the resource gap between academic institutions by uniting catalog inventories into a shared digital ecosystem, enabling seamless resource discovery and cross-campus book borrowing.
+        </p>
+
+        <!-- Partner School 1: GNC -->
+        <div class="school-card-mini">
+          <img src="/gnc_logo.jpg" alt="GNC Logo">
+          <div>
+            <div style="font-size: 0.82rem; font-weight: 800; color: #166534;">Guagua National Colleges</div>
+            <div style="font-size: 0.68rem; color: var(--slate-500);">Lead Host Institution & Central Repository</div>
+            <div style="font-size: 0.64rem; color: #0284c7; font-weight: 600; margin-top: 0.15rem;">San Jose, Guagua, Pampanga</div>
+          </div>
+        </div>
+
+        <!-- Partner School 2: SRC -->
+        <div class="school-card-mini">
+          <img src="/src_logo.jpg" alt="SRC Logo">
+          <div>
+            <div style="font-size: 0.82rem; font-weight: 800; color: #1e3a8a;">Santa Rita College</div>
+            <div style="font-size: 0.68rem; color: var(--slate-500);">Consortium Partner Campus</div>
+            <div style="font-size: 0.64rem; color: #0284c7; font-weight: 600; margin-top: 0.15rem;">Gosioco St., Santa Rita, Pampanga</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Consortium Pillars Bullet Box -->
+      <div style="background: white; border: 1px solid var(--slate-200); border-radius: 10px; padding: 0.85rem; margin-top: auto;">
+        <div style="font-size: 0.78rem; font-weight: 800; color: var(--navy-900); margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.35rem;">
+          <span style="color: var(--blue-600);">★</span> Key Consortium Goals:
+        </div>
+        <ul style="font-size: 0.7rem; color: var(--slate-700); padding-left: 1.1rem; line-height: 1.4;">
+          <li>Eliminate cross-campus traveling for book verification</li>
+          <li>Equalize access to specialized academic textbooks</li>
+          <li>Synchronize borrowing limits & clearance records</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- PANEL 2 (OUTSIDE CENTER): Back Cover / Capstone Research Team -->
+    <div class="panel outside-back">
+      <div>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem;">
+          <span class="badge-pill" style="background: rgba(56, 189, 248, 0.15); color: var(--cyan-400);">
+            Project Team & Governance
+          </span>
+          <span style="font-size: 0.68rem; color: #94a3b8;">Academic Year 2025–2026</span>
+        </div>
+
+        <h3 style="font-size: 1.15rem; color: white; margin-bottom: 0.3rem;">
+          The Capstone Developers
+        </h3>
+        <p style="font-size: 0.72rem; color: #94a3b8; line-height: 1.4;">
+          Developed as an undergraduate research initiative engineered to modernize academic library infrastructure.
+        </p>
+
+        <!-- Team Members Grid -->
+        <div class="team-grid">
+          <div class="team-member-card">
+            <div class="name">Ryan M. Guinto</div>
+            <div class="role">Project Manager</div>
+          </div>
+          <div class="team-member-card">
+            <div class="name">Renelle D. Lopez</div>
+            <div class="role">System Developer</div>
+          </div>
+          <div class="team-member-card">
+            <div class="name">Timothy Earl C. Buan</div>
+            <div class="role">System Analyst</div>
+          </div>
+          <div class="team-member-card">
+            <div class="name">Joshua R. Tiongco</div>
+            <div class="role">Capstone Adviser</div>
+          </div>
+        </div>
+
+        <!-- Tech Stack Pill Ribbon -->
+        <div style="margin-top: 0.85rem; padding: 0.6rem; background: rgba(0,0,0,0.25); border-radius: 8px;">
+          <div style="font-size: 0.65rem; text-transform: uppercase; color: var(--cyan-400); font-weight: 700; margin-bottom: 0.35rem;">
+            Engineered With Enterprise Tech:
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 0.3rem; font-size: 0.66rem; color: #cbd5e1;">
+            <span style="background: rgba(255,255,255,0.1); padding: 0.15rem 0.45rem; border-radius: 4px;">React 19</span>
+            <span style="background: rgba(255,255,255,0.1); padding: 0.15rem 0.45rem; border-radius: 4px;">Node.js / Express</span>
+            <span style="background: rgba(255,255,255,0.1); padding: 0.15rem 0.45rem; border-radius: 4px;">PostgreSQL / Supabase</span>
+            <span style="background: rgba(255,255,255,0.1); padding: 0.15rem 0.45rem; border-radius: 4px;">Dynamic QR Engine</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- QR Code Call To Action -->
+      <div style="background: rgba(255,255,255,0.06); border: 1px solid rgba(56,189,248,0.25); border-radius: 10px; padding: 0.75rem; display: flex; align-items: center; gap: 0.85rem;">
+        <div style="background: white; padding: 0.35rem; border-radius: 8px; flex-shrink: 0;">
+          <!-- SVG QR Code Icon representation -->
+          <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#0b192c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+            <path d="M7 7h.01"></path>
+            <path d="M17 7h.01"></path>
+            <path d="M7 17h.01"></path>
+            <path d="M17 17h.01"></path>
+          </svg>
+        </div>
+        <div>
+          <div style="font-size: 0.82rem; font-weight: 800; color: white;">Scan to Experience</div>
+          <div style="font-size: 0.68rem; color: #94a3b8; line-height: 1.35; margin-top: 0.2rem;">
+            Access the live OPAC system, search across campuses, and test the digital pass generator.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANEL 3 (OUTSIDE RIGHT): Front Cover / Hero Title & 3D Showcase -->
+    <div class="panel outside-front">
+      <!-- Top Brand Header -->
+      <div style="width: 100%;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 0.6rem; margin-bottom: 0.35rem;">
+          <span style="background: var(--blue-600); color: white; width: 34px; height: 34px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.25rem; font-family: 'Outfit', sans-serif; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);">L</span>
+          <span style="font-size: 1.6rem; font-weight: 900; color: white; letter-spacing: -0.02em; font-family: 'Outfit', sans-serif;">
+            Libra<span style="color: var(--cyan-400);">Link</span>
+          </span>
+        </div>
+        <div style="font-size: 0.8rem; font-weight: 700; color: var(--cyan-300); letter-spacing: 0.05em; text-transform: uppercase;">
+          Your Library, Within Reach.
+        </div>
+      </div>
+
+      <!-- Center 3D Showcase Image (Cleaned Laptop Mockup) -->
+      <div class="front-hero-img-wrap">
+        <img src="/libralink_laptop_clean.jpg" alt="LibraLink Laptop Showcase" onerror="this.src='/libralink_laptop_centered.jpg'">
+      </div>
+
+      <!-- Bottom Official Capstone Title -->
+      <div style="width: 100%; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 0.75rem;">
+        <div style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase; font-weight: 700; letter-spacing: 0.06em; margin-bottom: 0.25rem;">
+          University Capstone Project
+        </div>
+        <h1 style="font-size: 0.88rem; color: white; font-weight: 800; line-height: 1.35;">
+          A Web-Based Library Management System for Book Resource Sharing Among Selected Schools in Pampanga
+        </h1>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       PAGE 2: INSIDE SPREAD (Panoramic 3 Panels)
+       Panel 4: Core Features & Architecture
+       Panel 5: How It Works & Student Photoshoot In-Action
+       Panel 6: Consortium Impact & Live Metrics
+       ========================================================= -->
+  <div class="brochure-sheet inside-sheet" id="sheetInside">
+    <div class="fold-line one"></div>
+    <div class="fold-line two"></div>
+
+    <!-- PANEL 4 (INSIDE LEFT): Core System Capabilities -->
+    <div class="panel inside-panel-1">
+      <span class="badge-pill" style="background: #e0f2fe; color: #0369a1; margin-bottom: 0.5rem; align-self: flex-start;">
+        System Capabilities
+      </span>
+      <h2 style="font-size: 1.3rem; color: var(--navy-900); margin-bottom: 0.4rem;">
+        Engineered for Resource Sharing
+      </h2>
+      <p style="font-size: 0.72rem; color: var(--slate-500); line-height: 1.4; margin-bottom: 0.85rem;">
+        Built specifically to eliminate catalog silos between member institutions and automate the borrowing lifecycle.
+      </p>
+
+      <!-- Feature Box 1: Unified OPAC -->
+      <div class="feature-box">
+        <div class="feature-box-title">
+          <span style="color: var(--blue-600);">🔍</span> Centralized Inter-Campus OPAC
+        </div>
+        <div class="feature-box-desc">
+          Unified search query engine aggregates titles, authors, and Dewey call numbers across GNC and Santa Rita College simultaneously.
+        </div>
+      </div>
+
+      <!-- Feature Box 2: Real-time Availability -->
+      <div class="feature-box">
+        <div class="feature-box-title">
+          <span style="color: #10b981;">⚡</span> Live Holding & Copy Verification
+        </div>
+        <div class="feature-box-desc">
+          Instant inventory computation displays exactly how many physical copies are on shelf, on loan, or reserved in real-time.
+        </div>
+      </div>
+
+      <!-- Feature Box 3: Inter-Library Loan -->
+      <div class="feature-box">
+        <div class="feature-box-title">
+          <span style="color: #6366f1;">🔄</span> Inter-Library Loan (ILL) Brokering
+        </div>
+        <div class="feature-box-desc">
+          Students can request books housed at the partner campus; cross-school circulation queues alert counter staff for fulfillment.
+        </div>
+      </div>
+
+      <!-- Feature Box 4: Multi-Tenant RBAC -->
+      <div class="feature-box">
+        <div class="feature-box-title">
+          <span style="color: #f59e0b;">🛡️</span> Multi-Tenant RBAC Security
+        </div>
+        <div class="feature-box-desc">
+          Strict PostgreSQL Row-Level Security ensures GNC and SRC maintain private institutional autonomy while sharing catalog discovery.
+        </div>
+      </div>
+    </div>
+
+    <!-- PANEL 5 (INSIDE CENTER): Student Experience & Photoshoot -->
+    <div class="panel inside-panel-2">
+      <span class="badge-pill" style="background: #e0f2fe; color: #0369a1; margin-bottom: 0.5rem; align-self: flex-start;">
+        Patron Experience
+      </span>
+      <h2 style="font-size: 1.3rem; color: var(--navy-900); margin-bottom: 0.4rem;">
+        How It Works for Students
+      </h2>
+      <p style="font-size: 0.72rem; color: var(--slate-500); line-height: 1.4;">
+        Four simple steps to borrow books anywhere within the consortium network using any smartphone or web browser:
+      </p>
+
+      <!-- Step-by-Step Flow -->
+      <div style="margin-top: 0.75rem;">
+        <div class="step-item">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <div class="title">Discover Across Campuses</div>
+            <div class="desc">Enter keywords or course subjects to locate print books available at GNC or SRC.</div>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <div class="title">Submit Instant Borrow Request</div>
+            <div class="desc">One click dispatches request to the circulation queue for librarian approval.</div>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <div class="title">Receive Encrypted QR Pass</div>
+            <div class="desc">Upon approval, a dynamic QR code token is generated on the student's mobile dashboard.</div>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <div class="title">Counter Scan & Release</div>
+            <div class="desc">Librarian scans pass with barcode/camera scanner for paperless check-out release.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real Student Photoshoot In-Action Frame -->
+      <div class="student-showcase-frame">
+        <img src="/libralink_female_model.jpg" alt="Female student model using LibraLink in Library">
+        <div class="student-overlay-badge">
+          <div>
+            <div style="font-size: 0.76rem; font-weight: 800; color: white;">GNC Library Patron</div>
+            <div style="font-size: 0.65rem; color: var(--cyan-300);">Verified Borrowing Active</div>
+          </div>
+          <div style="background: var(--blue-600); font-size: 0.65rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 4px;">
+            QR Verified ✓
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANEL 6 (INSIDE RIGHT): Consortium Impact & Evaluation -->
+    <div class="panel inside-panel-3">
+      <span class="badge-pill" style="background: #e0f2fe; color: #0369a1; margin-bottom: 0.5rem; align-self: flex-start;">
+        Impact & Results
+      </span>
+      <h2 style="font-size: 1.3rem; color: var(--navy-900); margin-bottom: 0.4rem;">
+        Evaluated & Defense Proven
+      </h2>
+      <p style="font-size: 0.72rem; color: var(--slate-500); line-height: 1.4;">
+        Field tested across student borrowers and professional library administrators in Guagua and Santa Rita:
+      </p>
+
+      <!-- Key Evaluated Metrics -->
+      <div class="metric-row">
+        <div class="metric-box">
+          <div class="number">3.74</div>
+          <div class="label">Overall Acceptability</div>
+          <div style="font-size: 0.58rem; color: var(--slate-500); margin-top: 0.15rem;">ISO/IEC 25010 (Verbal: Very High)</div>
+        </div>
+        <div class="metric-box">
+          <div class="number">100%</div>
+          <div class="label">Cross-Campus Visibility</div>
+          <div style="font-size: 0.58rem; color: var(--slate-500); margin-top: 0.15rem;">Zero Blind Travel between Schools</div>
+        </div>
+      </div>
+
+      <!-- Governance Bullet Points -->
+      <div style="background: var(--slate-50); border: 1px solid var(--slate-200); border-radius: 10px; padding: 0.85rem; margin-bottom: 0.85rem;">
+        <div style="font-size: 0.78rem; font-weight: 800; color: var(--navy-900); margin-bottom: 0.35rem;">
+          Consortium Governance Rules:
+        </div>
+        <div style="font-size: 0.7rem; color: var(--slate-700); line-height: 1.45;">
+          • <strong>Borrowing Ceiling:</strong> Synchronized 5-book simultaneous loan limit across all member libraries.<br>
+          • <strong>Overdue Policy:</strong> Automated penalty calculation at ₱10.00/day.<br>
+          • <strong>Unified Clearance:</strong> Single digital certification covers all participating school libraries.
+        </div>
+      </div>
+
+      <!-- Call to Action Footer -->
+      <div style="margin-top: auto; padding: 0.85rem; background: linear-gradient(135deg, var(--navy-900) 0%, var(--blue-700) 100%); color: white; border-radius: 10px; text-align: center;">
+        <div style="font-size: 0.8rem; font-weight: 800; margin-bottom: 0.2rem;">
+          Ready to Connect Your Library?
+        </div>
+        <div style="font-size: 0.68rem; color: var(--cyan-300);">
+          Visit your campus library circulation counter or log in to the portal today.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showSide(side) {
+      const sheetOutside = document.getElementById('sheetOutside');
+      const sheetInside = document.getElementById('sheetInside');
+      const tabOutside = document.getElementById('tabOutside');
+      const tabInside = document.getElementById('tabInside');
+
+      if (side === 'outside') {
+        sheetOutside.style.display = 'grid';
+        sheetInside.style.display = 'none';
+        tabOutside.className = 'btn btn-secondary btn-active';
+        tabInside.className = 'btn btn-secondary';
+      } else if (side === 'inside') {
+        sheetOutside.style.display = 'none';
+        sheetInside.style.display = 'grid';
+        tabOutside.className = 'btn btn-secondary';
+        tabInside.className = 'btn btn-secondary btn-active';
+      } else {
+        sheetOutside.style.display = 'grid';
+        sheetInside.style.display = 'grid';
+        tabOutside.className = 'btn btn-secondary btn-active';
+        tabInside.className = 'btn btn-secondary btn-active';
+      }
+    }
+  </script>
+
+</body>
+</html>

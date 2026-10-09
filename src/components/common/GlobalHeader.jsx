@@ -104,6 +104,7 @@ function GlobalHeader({
     const currentSchoolId = schoolId != null
       ? String(schoolId)
       : (localStorage.getItem('schoolId') != null ? String(localStorage.getItem('schoolId')) : null);
+    const currentUserId = localStorage.getItem('currentUserId') || localStorage.getItem('userId');
 
     const isSuperAdmin =
       roleLower === 'super_admin' ||
@@ -128,21 +129,40 @@ function GlobalHeader({
         return true;
       }
 
+      // If the notification is directly addressed to the current user, always show it.
+      if (currentUserId && String(notification.user_id) === String(currentUserId)) {
+        return true;
+      }
+
+      // Borrow-request and admin-related notification types are always shown to staff.
+      const STAFF_NOTIFICATION_TYPES = [
+        'request_submitted', 'request_cancelled', 'request_rejected',
+        'cancel_requested', 'cancel_declined', 'renewal_requested',
+        'renewal_approved', 'renewal_declined', 'book_borrowed',
+        'return_qr_ready', 'overdue_reminder', 'due_reminder', 'admin_notification',
+      ];
+      if (STAFF_NOTIFICATION_TYPES.includes(notification.type)) {
+        const notifSchool = notification.school_id != null ? String(notification.school_id) : null;
+        if (currentSchoolId && notifSchool && notifSchool !== currentSchoolId) {
+          return false;
+        }
+        return true;
+      }
+
       // School isolation: hide notifications that belong to another school.
       const notificationSchoolId = notification.school_id != null
         ? String(notification.school_id)
-        : (notification.school_code ? null : null);
+        : null;
       if (currentSchoolId && notificationSchoolId && notificationSchoolId !== currentSchoolId) {
         return false;
       }
 
-      // If notification has no explicit sender role (system alert, borrow request, release notice, due reminder, etc.), display it
+      // If notification has no explicit sender role, display it.
       if (!senderRoleLower) {
         return true;
       }
 
-      // Libraries shouldn't see each-other's cross-school sender rows at all.
-      // Librarian: can see from Super Admin, Admin Librarian, and Student
+      // Librarian: can see from Super Admin, Admin Librarian, Librarian, and Student
       if (roleLower === 'librarian') {
         return (
           senderRoleLower === 'super_admin' ||
@@ -150,6 +170,7 @@ function GlobalHeader({
           senderRoleLower === 'admin_librarian' ||
           senderRoleLower === 'admin-librarian' ||
           senderRoleLower === 'librarian admin' ||
+          senderRoleLower === 'librarian' ||
           senderRoleLower === 'student'
         );
       }
@@ -162,11 +183,12 @@ function GlobalHeader({
           senderRoleLower === 'student' ||
           senderRoleLower === 'admin_librarian' ||
           senderRoleLower === 'admin-librarian' ||
-          senderRoleLower === 'librarian admin'
+          senderRoleLower === 'librarian admin' ||
+          senderRoleLower === 'librarian'
         );
       }
 
-      // Default: show all (super admin handled above)
+      // Default: show all
       return true;
     });
   };
@@ -343,7 +365,7 @@ function GlobalHeader({
           }`}>
             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
             <span className="font-mono text-[11px]">{schoolInfo.school_code || 'LIB'}</span>
-            <span className="text-slate-300 dark:text-gray-600">•</span>
+            <span className="text-slate-300 dark:text-gray-600">â€¢</span>
             <span className="truncate max-w-[120px]">{schoolInfo.school_name}</span>
           </div>
         )}
@@ -416,7 +438,7 @@ function GlobalHeader({
                 <div className="p-2 border-b border-gray-100 dark:border-gray-700/60">
                   <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-gray-400 flex items-center justify-between">
                     <span>Circulation Shortcuts</span>
-                    <span className="font-normal text-[9px]">Press ↵ to jump</span>
+                    <span className="font-normal text-[9px]">Press â†µ to jump</span>
                   </div>
                   <div className="space-y-0.5 mt-1">
                     {filteredShortcuts.map((shortcut, idx) => {
@@ -494,7 +516,7 @@ function GlobalHeader({
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="text-xs font-bold truncate">{book.title}</p>
-                              <p className="text-[10px] text-slate-400 truncate">{book.author || 'Unknown Author'} {book.isbn ? `• ISBN: ${book.isbn}` : ''}</p>
+                              <p className="text-[10px] text-slate-400 truncate">{book.author || 'Unknown Author'} {book.isbn ? `â€¢ ISBN: ${book.isbn}` : ''}</p>
                             </div>
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
                               isAvail 

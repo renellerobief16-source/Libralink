@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LibraLink - Complete Actor-to-Use-Case Diagram (Figure 4.10)</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      background: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      color: #0f172a;
+    }
+    .header {
+      max-width: 1450px;
+      margin: 0 auto 20px auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #ffffff;
+      padding: 16px 24px;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+    }
+    .header h1 {
+      font-size: 20px;
+      margin: 0 0 4px 0;
+    }
+    .header p {
+      margin: 0;
+      font-size: 13px;
+      color: #64748b;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+    }
+    .btn {
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      cursor: pointer;
+      text-decoration: none;
+      color: #1e293b;
+    }
+    .btn:hover {
+      background: #f1f5f9;
+    }
+    .btn-primary {
+      background: #0f172a;
+      color: #ffffff;
+      border-color: #0f172a;
+    }
+    .btn-primary:hover {
+      background: #1e293b;
+    }
+    .chart-container {
+      max-width: 1450px;
+      margin: 0 auto;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 24px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      overflow-x: auto;
+    }
+    svg {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>LibraLink — Complete Actor-to-Use-Case Interaction Diagram</h1>
+      <p>Figure 4.10: UML 2.5 Specification Encompassing All 4 Institutional User Types (Students, Librarian, Admin-Librarian, Super Admin)</p>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="downloadSvg()">⬇ Download SVG</button>
+      <button class="btn btn-primary" onclick="downloadPng()">🖼 Download 300 DPI PNG</button>
+    </div>
+  </div>
+
+  <div class="chart-container">
+    
+  
+  <svg id="svg-complete-usecase" viewBox="0 0 1420 1180" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="background:#ffffff; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif;">
+    <defs>
+      <!-- Include / Dependency Open Arrowhead Marker -->
+      <marker id="uc-include-arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 1.5 L 8 5 L 0 8.5" fill="none" stroke="#000000" stroke-width="1.6" />
+      </marker>
+    </defs>
+
+    <!-- Header Block (Academic B&W Format) -->
+    <g transform="translate(60, 25)">
+      <rect x="0" y="0" width="115" height="26" rx="4" fill="#000000" />
+      <text x="57" y="18" fill="#ffffff" font-size="13" font-weight="700" text-anchor="middle" letter-spacing="0.5">Figure 4.10</text>
+      
+      <text x="130" y="19" fill="#000000" font-size="18" font-weight="800">Complete LibraLink Actor-to-Use-Case Interaction Diagram</text>
+      <text x="130" y="38" fill="#555555" font-size="12" font-weight="500">Comprehensive UML 2.5 Specification Encompassing All Four (4) Institutional User Roles</text>
+    </g>
+
+    <!-- ======================================================== -->
+    <!-- SYSTEM BOUNDARY BOX                                      -->
+    <!-- ======================================================== -->
+    <rect x="230" y="80" width="960" height="1060" rx="8" fill="#ffffff" stroke="#000000" stroke-width="2.2" />
+    
+    <!-- System Boundary Label -->
+    <text x="250" y="112" font-size="16" font-weight="800" fill="#000000" letter-spacing="0.5">LibraLink System</text>
+    <line x1="250" y1="120" x2="390" y2="120" stroke="#000000" stroke-width="1.5" />
+
+    <!-- ======================================================== -->
+    <!-- THE FOUR (4) ACTORS (2 LEFT, 2 RIGHT)                    -->
+    <!-- ======================================================== -->
+    <!-- 1. Student (Top-Left) -->
+    
+      <g transform="translate(115, 250)">
+        <!-- Head -->
+        <circle cx="0" cy="-28" r="14" fill="#ffffff" stroke="#000000" stroke-width="2" />
+        <!-- Body -->
+        <line x1="0" y1="-14" x2="0" y2="18" stroke="#000000" stroke-width="2" />
+        <!-- Arms -->
+        <line x1="-22" y1="-4" x2="22" y2="-4" stroke="#000000" stroke-width="2" />
+        <!-- Left Leg -->
+        <line x1="0" y1="18" x2="-18" y2="46" stroke="#000000" stroke-width="2" />
+        <!-- Right Leg -->
+        <line x1="0" y1="18" x2="18" y2="46" stroke="#000000" stroke-width="2" />
+        <!-- Actor Name -->
+        <text x="0" y="66" font-size="14" font-weight="800" fill="#000000" text-anchor="middle">Students</text>
+        <rect x="-45" y="73" width="90" height="18" rx="3" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1" />
+        <text x="0" y="86" font-size="10" font-weight="700" fill="#475569" text-anchor="middle">Role 4 (Borrower)</text>
+      </g>
+    
+
+    <!-- 2. Librarian (Bottom-Left) -->
+    
+      <g transform="translate(115, 780)">
+        <!-- Head -->
+        <circle cx="0" cy="-28" r="14" fill="#ffffff" stroke="#000000" stroke-width="2" />
+        <!-- Body -->
+        <line x1="0" y1="-14" x2="0" y2="18" stroke="#000000" stroke-width="2" />
+        <!-- Arms -->
+        <line x1="-22" y1="-4" x2="22" y2="-4" stroke="#000000" stroke-width="2" />
+        <!-- Left Leg -->
+        <line x1="0" y1="18" x2="-18" y2="46" stroke="#000000" stroke-width="2" />
+        <!-- Right Leg -->
+        <line x1="0" y1="18" x2="18" y2="46" stroke="#000000" stroke-width="2" />
+        <!-- Actor Name -->
+        <text x="0" y="66" font-size="14" font-weight="800" fill="#000000" text-anchor="middle">Librarian</text>
+        <rect x="-45" y="73" width="90" height="18" rx="3" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1" />
+        <text x="0" y="86" font-size="10" font-weight="700" fill="#475569" text-anchor="middle">Role 3 (Staff Desk)</text>
+      </g>
+    
+
+    <!-- 3. Admin-Librarian (Top-Right) -->
+    
+      <g transform="translate(1305, 250)">
+        <!-- Head -->
+        <circle cx="0" cy="-28" r="14" fill="#ffffff" stroke="#000000" stroke-width="2" />
+        <!-- Body -->
+        <line x1="0" y1="-14" x2="0" y2="18" stroke="#000000" stroke-width="2" />
+        <!-- Arms -->
+        <line x1="-22" y1="-4" x2="22" y2="-4" stroke="#000000" stroke-width="2" />
+        <!-- Left Leg -->
+        <line x1="0" y1="18" x2="-18" y2="46" stroke="#000000" stroke-width="2" />
+        <!-- Right Leg -->
+        <line x1="0" y1="18" x2="18" y2="46" stroke="#000000" stroke-width="2" />
+        <!-- Actor Name -->
+        <text x="0" y="66" font-size="14" font-weight="800" fill="#000000" text-anchor="middle">Admin-Librarian</text>
+        <rect x="-45" y="73" width="90" height="18" rx="3" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1" />
+        <text x="0" y="86" font-size="10" font-weight="700" fill="#475569" text-anchor="middle">Role 2 (Head Admin)</text>
+      </g>
+    
+
+    <!-- 4. Super Admin (Bottom-Right) -->
+    
+      <g transform="translate(1305, 780)">
+        <!-- Head -->
+        <circle cx="0" cy="-28" r="14" fill="#ffffff" stroke="#000000" stroke-width="2" />
+        <!-- Body -->
+        <line x1="0" y1="-14" x2="0" y2="18" stroke="#000000" stroke-width="2" />
+        <!-- Arms -->
+        <line x1="-22" y1="-4" x2="22" y2="-4" stroke="#000000" stroke-width="2" />
+        <!-- Left Leg -->
+        <line x1="0" y1="18" x2="-18" y2="46" stroke="#000000" stroke-width="2" />
+        <!-- Right Leg -->
+        <line x1="0" y1="18" x2="18" y2="46" stroke="#000000" stroke-width="2" />
+        <!-- Actor Name -->
+        <text x="0" y="66" font-size="14" font-weight="800" fill="#000000" text-anchor="middle">Super Admin</text>
+        <rect x="-45" y="73" width="90" height="18" rx="3" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1" />
+        <text x="0" y="86" font-size="10" font-weight="700" fill="#475569" text-anchor="middle">Role 1 (System Admin)</text>
+      </g>
+    
+
+    <!-- ======================================================== -->
+    <!-- USE CASES (OVALS INSIDE BOUNDARY)                        -->
+    <!-- ======================================================== -->
+
+    <!-- --- COLUMN 1 (LEFT): STUDENT & LIBRARIAN USE CASES --- -->
+    <!-- UC1: Register & Verify Account -->
+    
+      <g transform="translate(400, 165)">
+        <ellipse cx="0" cy="0" rx="115" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Register & Verify</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Institutional Account</text>
+        
+      </g>
+    
+
+    <!-- UC2: Search Cross-School Catalog -->
+    
+      <g transform="translate(400, 245)">
+        <ellipse cx="0" cy="0" rx="115" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Search Cross-School</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Library Catalog (Sprint 1)</text>
+        
+      </g>
+    
+
+    <!-- UC3: View Holdings & Availability -->
+    
+      <g transform="translate(400, 325)">
+        <ellipse cx="0" cy="0" rx="115" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">View Book Holdings</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">& Campus Availability</text>
+        
+      </g>
+    
+
+    <!-- UC4: Submit Inter-Library Request -->
+    
+      <g transform="translate(400, 410)">
+        <ellipse cx="0" cy="0" rx="120" ry="30" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Submit Inter-Library</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Borrow Request (Sprint 2)</text>
+        
+      </g>
+    
+
+    <!-- UC5: Access Digital Token Pass -->
+    
+      <g transform="translate(400, 495)">
+        <ellipse cx="0" cy="0" rx="120" ry="30" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Access & Present Digital</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Token Pass (QR View)</text>
+        
+      </g>
+    
+
+    <!-- UC6: Review Student Clearance -->
+    
+      <g transform="translate(400, 680)">
+        <ellipse cx="0" cy="0" rx="120" ry="30" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Review Student Standing</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">& Home Clearance</text>
+        
+      </g>
+    
+
+    <!-- UC7: Endorse Request to Partner -->
+    
+      <g transform="translate(400, 765)">
+        <ellipse cx="0" cy="0" rx="120" ry="30" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Endorse Request to</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Partner Campus (1st Layer)</text>
+        
+      </g>
+    
+
+    <!-- UC8: Scan & Validate Token QR -->
+    
+      <g transform="translate(400, 850)">
+        <ellipse cx="0" cy="0" rx="120" ry="30" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Scan & Validate Access</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Token Pass (Sprint 3)</text>
+        
+      </g>
+    
+
+    <!-- UC9: Dispense Physical Book -->
+    
+      <g transform="translate(400, 935)">
+        <ellipse cx="0" cy="0" rx="120" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Dispense Physical Book</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">& Mark Checked Out</text>
+        
+      </g>
+    
+
+    <!-- UC10: Process Book Return -->
+    
+      <g transform="translate(400, 1015)">
+        <ellipse cx="0" cy="0" rx="120" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Process Return & Inspect</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Book Inventory Status</text>
+        
+      </g>
+    
+
+    <!-- --- COLUMN 2 (CENTER): SHARED <<INCLUDE>> USE CASES --- -->
+    <!-- INC-1: Login & Verify RBAC -->
+    
+      <g transform="translate(710, 200)">
+        <ellipse cx="0" cy="0" rx="120" ry="28" fill="#fcfcfc" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Login & Verify</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Credentials (RBAC Guard)</text>
+        
+      </g>
+    
+
+    <!-- INC-2: Dual Institutional Approval -->
+    
+      <g transform="translate(710, 410)">
+        <ellipse cx="0" cy="0" rx="125" ry="30" fill="#fcfcfc" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Dual Institutional</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Approval Protocol</text>
+        
+      </g>
+    
+
+    <!-- INC-3: Generate Digital Token Pass -->
+    
+      <g transform="translate(710, 570)">
+        <ellipse cx="0" cy="0" rx="125" ry="30" fill="#fcfcfc" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Generate Cryptographic</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Token Pass (72-Hr Pass)</text>
+        
+      </g>
+    
+
+    <!-- INC-4: Verify Optical QR Code Pass -->
+    
+      <g transform="translate(710, 850)">
+        <ellipse cx="0" cy="0" rx="120" ry="28" fill="#fcfcfc" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Verify Optical Token</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">& Borrower Eligibility</text>
+        
+      </g>
+    
+
+    <!-- INC-5: Log Audit & Transaction Record -->
+    
+      <g transform="translate(710, 1000)">
+        <ellipse cx="0" cy="0" rx="125" ry="30" fill="#fcfcfc" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Log System Audit Trail</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">& Circulation Event</text>
+        
+      </g>
+    
+
+    <!-- --- COLUMN 3 (RIGHT): ADMIN-LIBRARIAN & SUPER ADMIN USE CASES --- -->
+    <!-- UC11: Manage Campus Book Holdings -->
+    
+      <g transform="translate(1020, 165)">
+        <ellipse cx="0" cy="0" rx="120" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Manage Campus Book</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Holdings & Categories</text>
+        
+      </g>
+    
+
+    <!-- UC12: Approve Partner Borrow Requests -->
+    
+      <g transform="translate(1020, 250)">
+        <ellipse cx="0" cy="0" rx="125" ry="30" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Approve Partner Borrow</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Requests (2nd Layer)</text>
+        
+      </g>
+    
+
+    <!-- UC13: Authorize Digital Token Pass -->
+    
+      <g transform="translate(1020, 335)">
+        <ellipse cx="0" cy="0" rx="120" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Authorize Access Token</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Pass Issuance</text>
+        
+      </g>
+    
+
+    <!-- UC14: Manage Department Staff Accounts -->
+    
+      <g transform="translate(1020, 420)">
+        <ellipse cx="0" cy="0" rx="120" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Manage Department Staff</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">& Librarian Permissions</text>
+        
+      </g>
+    
+
+    <!-- UC15: Configure Campus Lending Policies -->
+    
+      <g transform="translate(1020, 505)">
+        <ellipse cx="0" cy="0" rx="120" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Set Campus Borrowing</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Rules & Holding Limits</text>
+        
+      </g>
+    
+
+    <!-- UC16: Generate Campus Circulation Reports -->
+    
+      <g transform="translate(1020, 590)">
+        <ellipse cx="0" cy="0" rx="120" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Generate Campus Circulation</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">& Overdue Fine Reports</text>
+        
+      </g>
+    
+
+    <!-- UC17: Manage Participating Schools (GNC/SRC) -->
+    
+      <g transform="translate(1020, 720)">
+        <ellipse cx="0" cy="0" rx="125" ry="30" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Manage Participating</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Schools & API Endpoints</text>
+        
+      </g>
+    
+
+    <!-- UC18: Configure System Roles & RBAC -->
+    
+      <g transform="translate(1020, 805)">
+        <ellipse cx="0" cy="0" rx="120" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Configure System Roles</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">& User Access Matrix</text>
+        
+      </g>
+    
+
+    <!-- UC19: Monitor Cross-Campus Analytics -->
+    
+      <g transform="translate(1020, 890)">
+        <ellipse cx="0" cy="0" rx="120" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Monitor Cross-Campus</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Circulation Analytics</text>
+        
+      </g>
+    
+
+    <!-- UC20: Inspect System Audit Logs -->
+    
+      <g transform="translate(1020, 975)">
+        <ellipse cx="0" cy="0" rx="120" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Inspect Security Trails</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">& Immutable Audit Logs</text>
+        
+      </g>
+    
+
+    <!-- UC21: Manage Database Backups & Health -->
+    
+      <g transform="translate(1020, 1055)">
+        <ellipse cx="0" cy="0" rx="120" ry="26" fill="#ffffff" stroke="#000000" stroke-width="1.6"  />
+        
+          <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Manage Database Backups</text>
+          <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">& Supabase Cloud Health</text>
+        
+      </g>
+    
+
+    <!-- ======================================================== -->
+    <!-- ASSOCIATION LINES (ACTORS TO USE CASES)                  -->
+    <!-- ======================================================== -->
+
+    <!-- --- ACTOR 1: STUDENTS (x=115, y=250) --- -->
+    <line x1="150" y1="230" x2="285" y2="165" stroke="#000000" stroke-width="1.4" />
+    <line x1="155" y1="235" x2="590" y2="195" stroke="#000000" stroke-width="1.6" /> <!-- Direct Login Connection -->
+    <line x1="155" y1="245" x2="285" y2="245" stroke="#000000" stroke-width="1.4" />
+    <line x1="150" y1="255" x2="285" y2="325" stroke="#000000" stroke-width="1.4" />
+    <line x1="145" y1="270" x2="280" y2="410" stroke="#000000" stroke-width="1.4" />
+    <line x1="135" y1="285" x2="280" y2="495" stroke="#000000" stroke-width="1.4" />
+
+    <!-- --- ACTOR 2: LIBRARIAN (x=115, y=780) --- -->
+    <line x1="140" y1="755" x2="280" y2="680" stroke="#000000" stroke-width="1.4" />
+    <line x1="150" y1="765" x2="600" y2="225" stroke="#000000" stroke-width="1.6" /> <!-- Direct Login Connection -->
+    <line x1="155" y1="775" x2="280" y2="765" stroke="#000000" stroke-width="1.4" />
+    <line x1="155" y1="790" x2="280" y2="850" stroke="#000000" stroke-width="1.4" />
+    <line x1="145" y1="805" x2="280" y2="935" stroke="#000000" stroke-width="1.4" />
+    <line x1="135" y1="825" x2="280" y2="1015" stroke="#000000" stroke-width="1.4" />
+
+    <!-- --- ACTOR 3: ADMIN-LIBRARIAN (x=1305, y=250) --- -->
+    <line x1="1270" y1="230" x2="1140" y2="165" stroke="#000000" stroke-width="1.4" />
+    <line x1="1265" y1="235" x2="830" y2="195" stroke="#000000" stroke-width="1.6" /> <!-- Direct Login Connection -->
+    <line x1="1265" y1="245" x2="1145" y2="250" stroke="#000000" stroke-width="1.4" />
+    <line x1="1270" y1="260" x2="1140" y2="335" stroke="#000000" stroke-width="1.4" />
+    <line x1="1275" y1="275" x2="1140" y2="420" stroke="#000000" stroke-width="1.4" />
+    <line x1="1280" y1="290" x2="1140" y2="505" stroke="#000000" stroke-width="1.4" />
+    <line x1="1285" y1="305" x2="1140" y2="590" stroke="#000000" stroke-width="1.4" />
+
+    <!-- --- ACTOR 4: SUPER ADMIN (x=1305, y=780) --- -->
+    <line x1="1280" y1="755" x2="1145" y2="720" stroke="#000000" stroke-width="1.4" />
+    <line x1="1270" y1="765" x2="820" y2="225" stroke="#000000" stroke-width="1.6" /> <!-- Direct Login Connection -->
+    <line x1="1265" y1="775" x2="1140" y2="805" stroke="#000000" stroke-width="1.4" />
+    <line x1="1265" y1="790" x2="1140" y2="890" stroke="#000000" stroke-width="1.4" />
+    <line x1="1275" y1="805" x2="1140" y2="975" stroke="#000000" stroke-width="1.4" />
+    <line x1="1285" y1="825" x2="1140" y2="1055" stroke="#000000" stroke-width="1.4" />
+
+    <!-- ======================================================== -->
+    <!-- <<INCLUDE>> DEPENDENCY ARROWS (DASHED WITH LABELS)       -->
+    <!-- ======================================================== -->
+
+    <!-- UC1 -> INC1 (Register/Login requires RBAC/Auth) -->
+    <line x1="515" y1="175" x2="590" y2="190" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#uc-include-arrow)" />
+    <rect x="525" y="170" width="62" height="14" rx="2" fill="#ffffff" />
+    <text x="556" y="181" font-size="9" font-weight="700" fill="#000000" text-anchor="middle">&lt;&lt;include&gt;&gt;</text>
+
+    <!-- UC11 -> INC1 (Admin-Librarian Catalog mgt includes Auth) -->
+    <line x1="900" y1="175" x2="830" y2="190" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#uc-include-arrow)" />
+    <rect x="838" y="170" width="62" height="14" rx="2" fill="#ffffff" />
+    <text x="869" y="181" font-size="9" font-weight="700" fill="#000000" text-anchor="middle">&lt;&lt;include&gt;&gt;</text>
+
+    <!-- UC4 -> INC2 (Submit Borrow Request includes Dual Institutional Approval) -->
+    <line x1="520" y1="410" x2="585" y2="410" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#uc-include-arrow)" />
+    <rect x="528" y="398" width="62" height="14" rx="2" fill="#ffffff" />
+    <text x="559" y="409" font-size="9" font-weight="700" fill="#000000" text-anchor="middle">&lt;&lt;include&gt;&gt;</text>
+
+    <!-- UC12 -> INC2 (Approve Partner Request includes Dual Approval) -->
+    <line x1="895" y1="265" x2="810" y2="380" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#uc-include-arrow)" />
+    <rect x="835" y="315" width="62" height="14" rx="2" fill="#ffffff" />
+    <text x="866" y="326" font-size="9" font-weight="700" fill="#000000" text-anchor="middle">&lt;&lt;include&gt;&gt;</text>
+
+    <!-- INC2 -> INC3 (Dual Approval includes Token Generation) -->
+    <line x1="710" y1="440" x2="710" y2="540" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#uc-include-arrow)" />
+    <rect x="679" y="485" width="62" height="14" rx="2" fill="#ffffff" />
+    <text x="710" y="496" font-size="9" font-weight="700" fill="#000000" text-anchor="middle">&lt;&lt;include&gt;&gt;</text>
+
+    <!-- UC5 -> INC3 (Access Token Pass includes Token Generation) -->
+    <line x1="520" y1="510" x2="600" y2="550" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#uc-include-arrow)" />
+    <rect x="535" y="520" width="62" height="14" rx="2" fill="#ffffff" />
+    <text x="566" y="531" font-size="9" font-weight="700" fill="#000000" text-anchor="middle">&lt;&lt;include&gt;&gt;</text>
+
+    <!-- UC8 -> INC4 (Scan Token includes Optical Verification) -->
+    <line x1="520" y1="850" x2="590" y2="850" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#uc-include-arrow)" />
+    <rect x="530" y="838" width="62" height="14" rx="2" fill="#ffffff" />
+    <text x="561" y="849" font-size="9" font-weight="700" fill="#000000" text-anchor="middle">&lt;&lt;include&gt;&gt;</text>
+
+    <!-- UC9 -> INC5 (Dispense Physical Book includes Audit Trail Logging) -->
+    <line x1="520" y1="945" x2="610" y2="980" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#uc-include-arrow)" />
+    <rect x="540" y="955" width="62" height="14" rx="2" fill="#ffffff" />
+    <text x="571" y="966" font-size="9" font-weight="700" fill="#000000" text-anchor="middle">&lt;&lt;include&gt;&gt;</text>
+
+    <!-- UC10 -> INC5 (Process Book Return includes Audit Trail Logging) -->
+    <line x1="520" y1="1010" x2="585" y2="1005" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#uc-include-arrow)" />
+    <rect x="530" y="1000" width="62" height="14" rx="2" fill="#ffffff" />
+    <text x="561" y="1011" font-size="9" font-weight="700" fill="#000000" text-anchor="middle">&lt;&lt;include&gt;&gt;</text>
+
+    <!-- UC20 -> INC5 (Super Admin Inspect Logs includes Audit Trail Data) -->
+    <line x1="900" y1="980" x2="835" y2="995" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#uc-include-arrow)" />
+    <rect x="842" y="980" width="62" height="14" rx="2" fill="#ffffff" />
+    <text x="873" y="991" font-size="9" font-weight="700" fill="#000000" text-anchor="middle">&lt;&lt;include&gt;&gt;</text>
+
+  </svg>
+  
+  
+  </div>
+
+  <script>
+    function downloadSvg() {
+      const svg = document.getElementById('svg-complete-usecase');
+      const str = new XMLSerializer().serializeToString(svg);
+      const blob = new Blob([str], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Figure_4_10_Complete_Actor_to_Use_Case_Diagram.svg';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadPng() {
+      const svg = document.getElementById('svg-complete-usecase');
+      const svgStr = new XMLSerializer().serializeToString(svg);
+      const canvas = document.createElement('canvas');
+      const scale = 2.5;
+      canvas.width = 1420 * scale;
+      canvas.height = 1180 * scale;
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+
+      img.onload = function() {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+
+        canvas.toBlob(function(blob) {
+          const pngUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = pngUrl;
+          a.download = 'Figure_4_10_Complete_Actor_to_Use_Case_Diagram.png';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(pngUrl);
+        }, 'image/png');
+      };
+      img.src = url;
+    }
+  </script>
+</body>
+</html>

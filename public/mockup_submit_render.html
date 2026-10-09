@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LibraLink Submit Monitor Mockup</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: radial-gradient(circle at 75% 50%, #102a45 0%, #0b192c 55%, #070e1b 100%);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 90px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    .scene {
+      perspective: 1700px;
+      perspective-origin: 35% 50%;
+    }
+
+    .monitor-wrap {
+      transform: rotateY(-19deg) rotateX(3deg);
+      transform-style: preserve-3d;
+      position: relative;
+    }
+
+    /* Screen Chassis / Lid */
+    .monitor-lid {
+      width: 1180px;
+      height: 770px;
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e293b 100%);
+      border-radius: 24px;
+      padding: 16px 16px 22px 16px;
+      border: 2px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 
+        -35px 45px 90px rgba(0, 0, 0, 0.85),
+        -10px 15px 35px rgba(0, 0, 0, 0.6),
+        0 0 80px rgba(2, 132, 199, 0.12);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Web camera notch */
+    .notch {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 130px;
+      height: 18px;
+      background: #0f172a;
+      border-bottom-left-radius: 9px;
+      border-bottom-right-radius: 9px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .camera-lens {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #1e3a5f;
+      border: 1px solid #334155;
+      box-shadow: inset 0 0 2px #0284c7;
+    }
+    .sensor-indicator {
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: #10b981;
+      opacity: 0.6;
+    }
+
+    /* Inner Display Screen */
+    .screen-display {
+      flex: 1;
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #ffffff;
+      position: relative;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+    }
+    .screen-display img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center bottom;
+      display: block;
+    }
+
+    /* Subtle Glass Glare Reflection */
+    .glass-glare {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(115deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 28%, transparent 45%);
+      border-radius: 12px;
+      z-index: 10;
+    }
+
+    /* Bottom Laptop Hinge & Base Sliver */
+    .laptop-base-sliver {
+      position: absolute;
+      bottom: -22px;
+      left: 40px;
+      right: -30px;
+      height: 24px;
+      background: linear-gradient(180deg, #94a3b8 0%, #64748b 40%, #334155 100%);
+      border-radius: 0 0 18px 18px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: -20px 25px 45px rgba(0, 0, 0, 0.7);
+      transform: rotateX(75deg);
+      transform-origin: top center;
+    }
+
+    /* Ground Ambient Shadow */
+    .ground-shadow {
+      position: absolute;
+      bottom: -60px;
+      left: 10%;
+      width: 90%;
+      height: 50px;
+      background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0) 70%);
+      filter: blur(14px);
+      z-index: -1;
+    }
+  </style>
+</head>
+<body>
+  <div class="scene">
+    <div class="monitor-wrap">
+      <div class="monitor-lid">
+        <div class="notch">
+          <div class="camera-lens"></div>
+          <div class="sensor-indicator"></div>
+        </div>
+        <div class="screen-display">
+          <img src="/temp_submit_screen.png" alt="Checkout Submit Screen">
+          <div class="glass-glare"></div>
+        </div>
+      </div>
+      <div class="laptop-base-sliver"></div>
+      <div class="ground-shadow"></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LibraLink - User Authentication &amp; RBAC Use Case Diagram (Figure 4.0)</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      background: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      color: #0f172a;
+    }
+    .header {
+      max-width: 1400px;
+      margin: 0 auto 20px auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #ffffff;
+      padding: 16px 24px;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+    }
+    .header h1 {
+      font-size: 20px;
+      margin: 0 0 4px 0;
+    }
+    .header p {
+      margin: 0;
+      font-size: 13px;
+      color: #64748b;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+    }
+    .btn {
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      cursor: pointer;
+      text-decoration: none;
+      color: #1e293b;
+    }
+    .btn:hover {
+      background: #f1f5f9;
+    }
+    .btn-primary {
+      background: #0f172a;
+      color: #ffffff;
+      border-color: #0f172a;
+    }
+    .btn-primary:hover {
+      background: #1e293b;
+    }
+    .chart-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 24px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      overflow-x: auto;
+    }
+    svg {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>LibraLink — User Authentication &amp; RBAC Use Case Diagram</h1>
+      <p>Figure 4.0: UML 2.5 Specification for Login, Registration, OTP Verification, Password Recovery &amp; Role-Based Redirection Across All 4 User Types</p>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="downloadSvg()">⬇ Download SVG</button>
+      <button class="btn btn-primary" onclick="downloadPng()">🖼 Download 300 DPI PNG</button>
+    </div>
+  </div>
+
+  <div class="chart-container">
+    
+  <svg id="svg-auth" viewBox="0 0 1380 980" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="background:#ffffff; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif;">
+    <defs>
+      <marker id="auth-arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 1.5 L 8 5 L 0 8.5" fill="none" stroke="#000000" stroke-width="1.6" />
+      </marker>
+    </defs>
+
+    <!-- Header Block -->
+    <g transform="translate(60, 24)">
+      <rect x="0" y="0" width="105" height="24" rx="4" fill="#000000" />
+      <text x="52" y="17" fill="#ffffff" font-size="12.5" font-weight="700" text-anchor="middle">Figure 4.0</text>
+      <text x="120" y="18" fill="#000000" font-size="17" font-weight="800">User Authentication &amp; Role-Based Access Control (RBAC) Use Case Diagram</text>
+      <text x="120" y="36" fill="#555555" font-size="11.5" font-weight="500">Comprehensive UML Use Case Specification for System Access Across All Four (4) User Roles</text>
+    </g>
+
+    <!-- System Boundary Box -->
+    <rect x="220" y="75" width="940" height="870" rx="8" fill="#ffffff" stroke="#000000" stroke-width="2.2" />
+    <text x="240" y="105" font-size="15" font-weight="800" fill="#000000">LibraLink Authentication &amp; Access Control Subsystem</text>
+    <line x1="240" y1="112" x2="680" y2="112" stroke="#000000" stroke-width="1.3" />
+
+    <!-- 4 ACTORS -->
+    
+    <g transform="translate(110, 260)">
+      <circle cx="0" cy="-26" r="13" fill="#ffffff" stroke="#000000" stroke-width="1.8" />
+      <line x1="0" y1="-13" x2="0" y2="16" stroke="#000000" stroke-width="1.8" />
+      <line x1="-20" y1="-3" x2="20" y2="-3" stroke="#000000" stroke-width="1.8" />
+      <line x1="0" y1="16" x2="-16" y2="42" stroke="#000000" stroke-width="1.8" />
+      <line x1="0" y1="16" x2="16" y2="42" stroke="#000000" stroke-width="1.8" />
+      <text x="0" y="60" font-size="13" font-weight="800" fill="#000000" text-anchor="middle">Students</text>
+      <rect x="-42" y="67" width="84" height="17" rx="3" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1" />
+      <text x="0" y="79" font-size="9.5" font-weight="700" fill="#475569" text-anchor="middle">Role 4 (Borrower)</text>
+    </g>
+  
+    
+    <g transform="translate(110, 680)">
+      <circle cx="0" cy="-26" r="13" fill="#ffffff" stroke="#000000" stroke-width="1.8" />
+      <line x1="0" y1="-13" x2="0" y2="16" stroke="#000000" stroke-width="1.8" />
+      <line x1="-20" y1="-3" x2="20" y2="-3" stroke="#000000" stroke-width="1.8" />
+      <line x1="0" y1="16" x2="-16" y2="42" stroke="#000000" stroke-width="1.8" />
+      <line x1="0" y1="16" x2="16" y2="42" stroke="#000000" stroke-width="1.8" />
+      <text x="0" y="60" font-size="13" font-weight="800" fill="#000000" text-anchor="middle">Librarian</text>
+      <rect x="-42" y="67" width="84" height="17" rx="3" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1" />
+      <text x="0" y="79" font-size="9.5" font-weight="700" fill="#475569" text-anchor="middle">Role 3 (Desk Staff)</text>
+    </g>
+  
+    
+    <g transform="translate(1270, 260)">
+      <circle cx="0" cy="-26" r="13" fill="#ffffff" stroke="#000000" stroke-width="1.8" />
+      <line x1="0" y1="-13" x2="0" y2="16" stroke="#000000" stroke-width="1.8" />
+      <line x1="-20" y1="-3" x2="20" y2="-3" stroke="#000000" stroke-width="1.8" />
+      <line x1="0" y1="16" x2="-16" y2="42" stroke="#000000" stroke-width="1.8" />
+      <line x1="0" y1="16" x2="16" y2="42" stroke="#000000" stroke-width="1.8" />
+      <text x="0" y="60" font-size="13" font-weight="800" fill="#000000" text-anchor="middle">Admin-Librarian</text>
+      <rect x="-42" y="67" width="84" height="17" rx="3" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1" />
+      <text x="0" y="79" font-size="9.5" font-weight="700" fill="#475569" text-anchor="middle">Role 2 (Head Admin)</text>
+    </g>
+  
+    
+    <g transform="translate(1270, 680)">
+      <circle cx="0" cy="-26" r="13" fill="#ffffff" stroke="#000000" stroke-width="1.8" />
+      <line x1="0" y1="-13" x2="0" y2="16" stroke="#000000" stroke-width="1.8" />
+      <line x1="-20" y1="-3" x2="20" y2="-3" stroke="#000000" stroke-width="1.8" />
+      <line x1="0" y1="16" x2="-16" y2="42" stroke="#000000" stroke-width="1.8" />
+      <line x1="0" y1="16" x2="16" y2="42" stroke="#000000" stroke-width="1.8" />
+      <text x="0" y="60" font-size="13" font-weight="800" fill="#000000" text-anchor="middle">Super Admin</text>
+      <rect x="-42" y="67" width="84" height="17" rx="3" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1" />
+      <text x="0" y="79" font-size="9.5" font-weight="700" fill="#475569" text-anchor="middle">Role 1 (System Admin)</text>
+    </g>
+  
+
+    <!-- ======================================================== -->
+    <!-- USE CASES (OVALS)                                        -->
+    <!-- ======================================================== -->
+
+    <!-- Top Common: Select Campus Affiliation -->
+    
+    <g transform="translate(690, 140)">
+      <ellipse cx="0" cy="0" rx="130" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.5" />
+      
+        <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Select Campus Affiliation</text>
+        <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">(GNC / Santa Rita College)</text>
+      
+    </g>
+  
+
+    <!-- Student Registration & OTP Verification -->
+    
+    <g transform="translate(390, 210)">
+      <ellipse cx="0" cy="0" rx="120" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.5" />
+      
+        <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Register Account</text>
+        <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">(Student Self-Registration)</text>
+      
+    </g>
+  
+    
+    <g transform="translate(390, 290)">
+      <ellipse cx="0" cy="0" rx="120" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.5" />
+      
+        <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Verify Email Address</text>
+        <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">via OTP Code (6 Digits)</text>
+      
+    </g>
+  
+
+    <!-- Central Login Use Case (Connected to All 4 Actors) -->
+    
+    <g transform="translate(690, 310)">
+      <ellipse cx="0" cy="0" rx="135" ry="32" fill="#ffffff" stroke="#000000" stroke-width="1.5" />
+      
+        <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Login with Institutional</text>
+        <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Email & Password</text>
+      
+    </g>
+  
+
+    <!-- Password Recovery & Reset Flow -->
+    
+    <g transform="translate(390, 420)">
+      <ellipse cx="0" cy="0" rx="120" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.5" />
+      
+        <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Request Password Reset</text>
+        <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">(Forgot Password)</text>
+      
+    </g>
+  
+    
+    <g transform="translate(390, 500)">
+      <ellipse cx="0" cy="0" rx="120" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.5" />
+      
+        <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Verify Reset OTP Code</text>
+        <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">& Set New Password</text>
+      
+    </g>
+  
+
+    <!-- Central Security Sub-processes (<<include>>) -->
+    
+    <g transform="translate(690, 450)">
+      <ellipse cx="0" cy="0" rx="130" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.5" />
+      
+        <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Verify Password Hash</text>
+        <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">(Bcrypt Salt Validation)</text>
+      
+    </g>
+  
+    
+    <g transform="translate(690, 530)">
+      <ellipse cx="0" cy="0" rx="130" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.5" />
+      
+        <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Check Account Status</text>
+        <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">(Active / Cleared / Inactive)</text>
+      
+    </g>
+  
+    
+    <g transform="translate(690, 610)">
+      <ellipse cx="0" cy="0" rx="130" ry="28" fill="#ffffff" stroke="#000000" stroke-width="1.5" />
+      
+        <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Generate JWT Session Token</text>
+        <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">& Institutional Claims</text>
+      
+    </g>
+  
+
+    <!-- Role-Based Redirection Core -->
+    
+    <g transform="translate(690, 710)">
+      <ellipse cx="0" cy="0" rx="135" ry="30" fill="#ffffff" stroke="#000000" stroke-width="1.5" />
+      
+        <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Enforce Role-Based Access</text>
+        <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Routing & Redirection (RBAC)</text>
+      
+    </g>
+  
+
+    <!-- 4 Role Destination Dashboards -->
+    
+    <g transform="translate(390, 660)">
+      <ellipse cx="0" cy="0" rx="115" ry="26" fill="#ffffff" stroke="#000000" stroke-width="1.5" />
+      
+        <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Redirect to Student</text>
+        <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Web Portal (Role 4)</text>
+      
+    </g>
+  
+    
+    <g transform="translate(390, 760)">
+      <ellipse cx="0" cy="0" rx="115" ry="26" fill="#ffffff" stroke="#000000" stroke-width="1.5" />
+      
+        <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Redirect to Librarian</text>
+        <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Desk Inbox (Role 3)</text>
+      
+    </g>
+  
+    
+    <g transform="translate(990, 660)">
+      <ellipse cx="0" cy="0" rx="120" ry="26" fill="#ffffff" stroke="#000000" stroke-width="1.5" />
+      
+        <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Redirect to Admin-Librarian</text>
+        <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Dashboard (Role 2)</text>
+      
+    </g>
+  
+    
+    <g transform="translate(990, 760)">
+      <ellipse cx="0" cy="0" rx="120" ry="26" fill="#ffffff" stroke="#000000" stroke-width="1.5" />
+      
+        <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Redirect to Super Admin</text>
+        <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Console (Role 1)</text>
+      
+    </g>
+  
+
+    <!-- Common Logout at Bottom -->
+    
+    <g transform="translate(690, 870)">
+      <ellipse cx="0" cy="0" rx="135" ry="30" fill="#ffffff" stroke="#000000" stroke-width="1.5" />
+      
+        <text x="0" y="-3" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Logout & Invalidate</text>
+        <text x="0" y="13" font-size="11.5" font-weight="600" fill="#000000" text-anchor="middle">Active Session Token</text>
+      
+    </g>
+  
+
+    <!-- ======================================================== -->
+    <!-- ASSOCIATION LINES (ACTORS TO USE CASES)                  -->
+    <!-- ======================================================== -->
+
+    <!-- STUDENTS (x=110, y=260) -->
+    <line x1="145" y1="230" x2="560" y2="140" stroke="#000000" stroke-width="1.3" />
+    <line x1="150" y1="245" x2="270" y2="210" stroke="#000000" stroke-width="1.3" />
+    <line x1="150" y1="260" x2="270" y2="290" stroke="#000000" stroke-width="1.3" />
+    <line x1="155" y1="275" x2="555" y2="310" stroke="#000000" stroke-width="1.6" />
+    <line x1="145" y1="290" x2="270" y2="420" stroke="#000000" stroke-width="1.3" />
+    <line x1="135" y1="310" x2="555" y2="870" stroke="#000000" stroke-width="1.3" />
+
+    <!-- LIBRARIAN (x=110, y=680) -->
+    <line x1="140" y1="650" x2="560" y2="150" stroke="#000000" stroke-width="1.3" />
+    <line x1="150" y1="665" x2="555" y2="320" stroke="#000000" stroke-width="1.6" />
+    <line x1="145" y1="680" x2="270" y2="430" stroke="#000000" stroke-width="1.3" />
+    <line x1="140" y1="700" x2="555" y2="875" stroke="#000000" stroke-width="1.3" />
+
+    <!-- ADMIN-LIBRARIAN (x=1270, y=260) -->
+    <line x1="1235" y1="230" x2="820" y2="140" stroke="#000000" stroke-width="1.3" />
+    <line x1="1230" y1="250" x2="825" y2="310" stroke="#000000" stroke-width="1.6" />
+    <line x1="1235" y1="270" x2="825" y2="420" stroke="#000000" stroke-width="1.3" />
+    <line x1="1245" y1="290" x2="825" y2="870" stroke="#000000" stroke-width="1.3" />
+
+    <!-- SUPER ADMIN (x=1270, y=680) -->
+    <line x1="1240" y1="650" x2="820" y2="150" stroke="#000000" stroke-width="1.3" />
+    <line x1="1230" y1="665" x2="825" y2="320" stroke="#000000" stroke-width="1.6" />
+    <line x1="1235" y1="680" x2="825" y2="430" stroke="#000000" stroke-width="1.3" />
+    <line x1="1240" y1="700" x2="825" y2="875" stroke="#000000" stroke-width="1.3" />
+
+    <!-- ======================================================== -->
+    <!-- <<INCLUDE>> AND <<EXTEND>> ARROWS                        -->
+    <!-- ======================================================== -->
+    <!-- Register -> Verify OTP -->
+    
+    <line x1="390" y1="238" x2="390" y2="262" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#auth-arrow)" />
+    <rect x="358" y="242" width="64" height="15" rx="2" fill="#ffffff" />
+    <text x="390" y="253" font-size="9" font-weight="700" fill="#000000" text-anchor="middle"><<include>></text>
+  
+
+    <!-- Forgot Password -> Verify OTP -->
+    
+    <line x1="390" y1="448" x2="390" y2="472" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#auth-arrow)" />
+    <rect x="358" y="452" width="64" height="15" rx="2" fill="#ffffff" />
+    <text x="390" y="463" font-size="9" font-weight="700" fill="#000000" text-anchor="middle"><<include>></text>
+  
+
+    <!-- Forgot Password extends Login -->
+    
+    <line x1="510" y1="420" x2="600" y2="340" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#auth-arrow)" />
+    <rect x="528" y="367" width="64" height="15" rx="2" fill="#ffffff" />
+    <text x="560" y="378" font-size="9" font-weight="700" fill="#000000" text-anchor="middle"><<extend>></text>
+  
+
+    <!-- Login includes Password Hash -->
+    
+    <line x1="690" y1="342" x2="690" y2="422" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#auth-arrow)" />
+    <rect x="658" y="377" width="64" height="15" rx="2" fill="#ffffff" />
+    <text x="690" y="388" font-size="9" font-weight="700" fill="#000000" text-anchor="middle"><<include>></text>
+  
+
+    <!-- Login includes Check Status -->
+    
+    <line x1="690" y1="478" x2="690" y2="502" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#auth-arrow)" />
+    <rect x="658" y="482" width="64" height="15" rx="2" fill="#ffffff" />
+    <text x="690" y="493" font-size="9" font-weight="700" fill="#000000" text-anchor="middle"><<include>></text>
+  
+
+    <!-- Login includes JWT Token -->
+    
+    <line x1="690" y1="558" x2="690" y2="582" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#auth-arrow)" />
+    <rect x="658" y="562" width="64" height="15" rx="2" fill="#ffffff" />
+    <text x="690" y="573" font-size="9" font-weight="700" fill="#000000" text-anchor="middle"><<include>></text>
+  
+
+    <!-- JWT Token includes RBAC Routing -->
+    
+    <line x1="690" y1="638" x2="690" y2="680" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#auth-arrow)" />
+    <rect x="658" y="652" width="64" height="15" rx="2" fill="#ffffff" />
+    <text x="690" y="663" font-size="9" font-weight="700" fill="#000000" text-anchor="middle"><<include>></text>
+  
+
+    <!-- RBAC Routing to 4 Dashboards -->
+    <!-- To Student Portal -->
+    
+    <line x1="560" y1="700" x2="505" y2="670" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#auth-arrow)" />
+    <rect x="498" y="672" width="64" height="15" rx="2" fill="#ffffff" />
+    <text x="530" y="683" font-size="9" font-weight="700" fill="#000000" text-anchor="middle"><<include>></text>
+  
+    <!-- To Librarian Desk -->
+    
+    <line x1="560" y1="720" x2="505" y2="750" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#auth-arrow)" />
+    <rect x="498" y="732" width="64" height="15" rx="2" fill="#ffffff" />
+    <text x="530" y="743" font-size="9" font-weight="700" fill="#000000" text-anchor="middle"><<include>></text>
+  
+    <!-- To Admin-Librarian Dashboard -->
+    
+    <line x1="820" y1="700" x2="870" y2="670" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#auth-arrow)" />
+    <rect x="818" y="672" width="64" height="15" rx="2" fill="#ffffff" />
+    <text x="850" y="683" font-size="9" font-weight="700" fill="#000000" text-anchor="middle"><<include>></text>
+  
+    <!-- To Super Admin Panel -->
+    
+    <line x1="820" y1="720" x2="870" y2="750" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#auth-arrow)" />
+    <rect x="818" y="732" width="64" height="15" rx="2" fill="#ffffff" />
+    <text x="850" y="743" font-size="9" font-weight="700" fill="#000000" text-anchor="middle"><<include>></text>
+  
+
+    <!-- Logout invalidates JWT Session -->
+    
+    <line x1="690" y1="840" x2="690" y2="740" stroke="#000000" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#auth-arrow)" />
+    <rect x="658" y="782" width="64" height="15" rx="2" fill="#ffffff" />
+    <text x="690" y="793" font-size="9" font-weight="700" fill="#000000" text-anchor="middle"><<include>></text>
+  
+  </svg>
+  
+  </div>
+
+  <script>
+    function downloadSvg() {
+      const svg = document.getElementById('svg-auth');
+      const str = new XMLSerializer().serializeToString(svg);
+      const blob = new Blob([str], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Figure_4_0_User_Authentication_Use_Case_Diagram.svg';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadPng() {
+      const svg = document.getElementById('svg-auth');
+      const svgStr = new XMLSerializer().serializeToString(svg);
+      const canvas = document.createElement('canvas');
+      const scale = 2.5;
+      canvas.width = 1380 * scale;
+      canvas.height = 980 * scale;
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+
+      img.onload = function() {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+
+        canvas.toBlob(function(blob) {
+          const pngUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = pngUrl;
+          a.download = 'Figure_4_0_User_Authentication_Use_Case_Diagram.png';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(pngUrl);
+        }, 'image/png');
+      };
+      img.src = url;
+    }
+  </script>
+</body>
+</html>
